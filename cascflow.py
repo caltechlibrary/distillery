@@ -295,7 +295,7 @@ if __name__ == "__main__":
     s3_put_collection_data_response = boto3.client('s3').put_object(
         Bucket=AIP_BUCKET,
         Key=collection_id + os.path.sep + collection_id + '_collection_data.json',
-        Body=collection_json
+        Body=json.dumps(collection_json, sort_keys=True, indent=4)
     )
     print(s3_put_collection_data_response)
     # send collection_tree to S3
@@ -304,7 +304,7 @@ if __name__ == "__main__":
     s3_put_collection_tree_response = boto3.client('s3').put_object(
         Bucket=AIP_BUCKET,
         Key=collection_id + os.path.sep + collection_id + '_collection_tree.json',
-        Body=collection_tree
+        Body=json.dumps(collection_tree, sort_keys=True, indent=4)
     )
     print(s3_put_collection_tree_response)
 
