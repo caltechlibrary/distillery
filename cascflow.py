@@ -122,7 +122,7 @@ def get_arrangement_parts(folder_data):
 def get_crockford_characters(n=4):
     return ''.join(random.choices('abcdefghjkmnpqrstvwxyz' + string.digits, k=n))
 
-def get_digital_object_id():
+def get_digital_object_component_id():
     return get_crockford_characters() + '-' + get_crockford_characters()
 
 def get_file_parts(filepath):
@@ -133,7 +133,7 @@ def get_file_parts(filepath):
     file_parts['extension'] = file_parts['filename'].split('.')[-1]
     file_parts['folder_id'] = file_parts['image_id'].rsplit('_', 1)[0]
     file_parts['sequence'] = file_parts['image_id'].split('_')[-1]
-    file_parts['digital_object'] = get_digital_object_id()
+    file_parts['component_id'] = get_digital_object_component_id()
     return file_parts
 
 def calculate_pixel_signature(filepath):
@@ -151,7 +151,7 @@ def get_xmp_dc_metadata(arrangement_parts, file_parts, folder_data, collection_j
     # TODO(tk) check extent type for pages/images/computer files/etc
     if len(folder_data['extents']) == 1:
         xmp_dc['title'] = xmp_dc['title'].rstrip(']') + '/' + folder_data['extents'][0]['number'].zfill(4) + ']'
-    xmp_dc['identifier'] = file_parts['digital_object']
+    xmp_dc['identifier'] = file_parts['component_id']
     xmp_dc['publisher'] = arrangement_parts['repository_name']
     xmp_dc['source'] = arrangement_parts['repository_code'] + ': ' + arrangement_parts['collection_display']
     for instance in folder_data['instances']:
@@ -198,7 +198,7 @@ def get_s3_aip_image_key(arrangement_parts, file_parts):
     # NOTE: '.jp2' is hardcoded as the extension
     # HaleGE/HaleGE_s02_Correspondence_and_Documents_Relating_to_Organizations/HaleGE_s02_ss0B_National_Academy_of_Sciences/HaleGE_056_07_Section_on_Astronomy/HaleGE_056_07_0001/8c38-d9cy.jp2
     # {
-    #     "digital_object": "me5v-z1yp",
+    #     "component_id": "me5v-z1yp",
     #     "extension": "tiff",
     #     "filename": "HaleGE_02_0B_056_07_0001.tiff",
     #     "filepath": "/path/to/archives/data/WORKDIR/HaleGE/HaleGE_02_0B_056_07_0001.tiff",
@@ -253,7 +253,7 @@ def get_s3_aip_image_key(arrangement_parts, file_parts):
             + '_'
             + file_parts['sequence']
             + '/'
-            + file_parts['digital_object']
+            + file_parts['component_id']
             + '.jp2'
     )
     return key
@@ -345,5 +345,62 @@ if __name__ == "__main__":
             put_s3_object_response = put_s3_object(AIP_BUCKET, aip_image_key, aip_image_data)
             print(put_s3_object_response)
             # TODO(tk) set up digital object components for ArchivesSpace
+            # digital_object_component = create_digital_object_component(file_parts, aip_image_data)
+            # % python3 archivesspace/get-digital-object-component.py 2
+            # {
+            #     "component_id": "sameAsFilenameInAWS",
+            #     "create_time": "2020-09-25T16:00:39Z",
+            #     "created_by": "admin",
+            #     "dates": [],
+            #     "digital_object": {
+            #         "ref": "/repositories/2/digital_objects/2004"
+            #     },
+            #     "display_string": "Image 0001",
+            #     "extents": [],
+            #     "external_documents": [],
+            #     "external_ids": [],
+            #     "file_versions": [
+            #         {
+            #             "caption": "width: 2626; height: 3387; compression: lossless",
+            #             "checksum": "fromAWS",
+            #             "checksum_method": "md5",
+            #             "create_time": "2020-09-30T23:28:43Z",
+            #             "created_by": "admin",
+            #             "file_format_name": "JPEG 2000",
+            #             "file_size_bytes": 1234567890,
+            #             "file_uri": "http://example.com",
+            #             "identifier": "15343",
+            #             "is_representative": false,
+            #             "jsonmodel_type": "file_version",
+            #             "last_modified_by": "admin",
+            #             "lock_version": 0,
+            #             "publish": false,
+            #             "system_mtime": "2020-09-30T23:28:43Z",
+            #             "use_statement": "image-master",
+            #             "user_mtime": "2020-09-30T23:28:43Z"
+            #         }
+            #     ],
+            #     "has_unpublished_ancestor": false,
+            #     "is_slug_auto": false,
+            #     "jsonmodel_type": "digital_object_component",
+            #     "label": "Image 0001",
+            #     "lang_materials": [],
+            #     "last_modified_by": "admin",
+            #     "linked_agents": [],
+            #     "linked_events": [],
+            #     "lock_version": 5,
+            #     "notes": [],
+            #     "position": 0,
+            #     "publish": false,
+            #     "repository": {
+            #         "ref": "/repositories/2"
+            #     },
+            #     "rights_statements": [],
+            #     "subjects": [],
+            #     "suppressed": false,
+            #     "system_mtime": "2020-09-30T23:28:43Z",
+            #     "uri": "/repositories/2/digital_object_components/2",
+            #     "user_mtime": "2020-09-30T23:28:43Z"
+            # }
             # TODO(tk) post digital object components
             # https://archivesspace.github.io/archivesspace/api/?shell#create-an-digital-object-component
