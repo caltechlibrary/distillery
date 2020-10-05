@@ -123,7 +123,7 @@ def get_crockford_characters(n=4):
     return ''.join(random.choices('abcdefghjkmnpqrstvwxyz' + string.digits, k=n))
 
 def get_digital_object_component_id():
-    return get_crockford_characters() + '-' + get_crockford_characters()
+    return get_crockford_characters() + '_' + get_crockford_characters()
 
 def get_file_parts(filepath):
     file_parts = {}
@@ -221,32 +221,32 @@ def get_s3_aip_image_key(arrangement_parts, file_parts):
     key = arrangement_parts['collection_id'] + '/'
     if 'series_id' in arrangement_parts.keys():
         key += (arrangement_parts['collection_id']
-                + '_s'
+                + '-s'
                 + arrangement_parts['series_id'].zfill(2)
-                + '_'
+                + '-'
         )
         if 'series_display' in arrangement_parts.keys():
-            series_display = ''.join([c if c.isalnum() else '_' for c in arrangement_parts['series_display']])
+            series_display = ''.join([c if c.isalnum() else '-' for c in arrangement_parts['series_display']])
             key += series_display + '/'
             if 'subseries_id' in arrangement_parts.keys():
                 key += (arrangement_parts['collection_id']
-                        + '_s'
+                        + '-s'
                         + arrangement_parts['series_id'].zfill(2)
-                        + '_ss'
+                        + '-ss'
                         + arrangement_parts['subseries_id'].zfill(2)
-                        + '_'
+                        + '-'
                 )
                 if 'subseries_display' in arrangement_parts.keys():
-                    subseries_display = ''.join([c if c.isalnum() else '_' for c in arrangement_parts['subseries_display']])
+                    subseries_display = ''.join([c if c.isalnum() else '-' for c in arrangement_parts['subseries_display']])
                     key += subseries_display + '/'
     # exception for extended identifiers like HaleGE_02_0B_056_07
     # TODO(tk) remove once no more exception files exist
     # TODO(tk) use file_parts['folder_id'] directly
     folder_id_parts = file_parts['folder_id'].split('_')
     folder_id = '_'.join([folder_id_parts[0], folder_id_parts[-2], folder_id_parts[-1]])
-    folder_display = ''.join([c if c.isalnum() else '_' for c in arrangement_parts['folder_display']])
+    folder_display = ''.join([c if c.isalnum() else '-' for c in arrangement_parts['folder_display']])
     key += (folder_id
-            + '_'
+            + '-'
             + folder_display
             + '/'
             + folder_id
@@ -367,7 +367,7 @@ if __name__ == "__main__":
             # NOTE: unsure how to run with _bg=True from a function
             sip_image_signature = sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', filepath, '-', _piped=True, _bg=True), _bg=True), '-d', ' ', '-f', '1', _bg=True)
             # split off the extension from the source filepath
-            aip_image_path = os.path.splitext(filepath)[0] + '_LOSSLESS.jp2'
+            aip_image_path = os.path.splitext(filepath)[0] + '-LOSSLESS.jp2'
             # NOTE: unsure how to run with _bg=True from a function
             aip_image_conversion = sh.magick.convert('-quiet', filepath, '-quality', '0', aip_image_path, _bg=True)
             folder_data = get_folder_data(file_parts['folder_id'])
