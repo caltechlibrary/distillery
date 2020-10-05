@@ -269,6 +269,56 @@ def put_s3_object(bucket, key, data):
     )
     return response
 
+def create_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_image_key, aip_image_data):
+    # MINIMAL REQUIREMENTS: digital_object and one of label, title, or date
+    # FILE VERSIONS MINIMAL REQUIREMENTS: file_uri
+    # 'publish': false is the default value
+    digital_object_component = {
+        'file_versions': [
+            {
+                # "caption": "width: 2626; height: 3387; compression: lossless",
+                # "checksum": "fromAWS",
+                'checksum_method': 'md5',
+                'file_format_name': 'JPEG 2000',
+                # "file_format_version": "ISO/IEC 15444-1; lossless (wavelet transformation: 5/3 reversible with no quantization)",
+                # "file_size_bytes": 1234567890,
+                # "file_uri": "http://example.com",
+                'use_statement': 'image-master',
+            # },
+            # {
+            #     # "caption": "width: 2626; height: 3387; compression: lossy",
+            #     # "checksum": "fromAWS",
+            #     'checksum_method': 'md5',
+            #     'file_format_name': 'JPEG 2000',
+            #     # "file_format_version": "ISO/IEC 15444-1; lossy (wavelet transformation: 9/7 irreversible with quantization)",
+            #     # "file_size_bytes": 123456789,
+            #     # "file_uri": "http://example.com/access-copy",
+            #     'use_statement': 'image-service',
+            }
+        ]
+    }
+    for instance in folder_data['instances']:
+        # not checking if there is more than one digital object
+        digital_object_component['digital_object']['ref'] = instance['digital_object']['_resolved'].get('ref')
+    if digital_object_component['digital_object']['ref']:
+        pass
+    else:
+        # TODO(tk) figure out what to do if the folder has no digital objects
+        print('😶 no digital object')
+    # TODO(tk) think through component_id/filename matching scheme for both
+        # access and preservation copies; scenario: Alice downloads a file with an
+        # opaque identifier and doesn't know what it is, then she looks it up in
+        # ArchivesSpace and finds the record, info about the image content is
+        # acquired but info about *which file version* she has a downloaded copy
+        # of still eludes her; searching in ArchivesSpace for the filename part of a
+        # File URI (fwgf-nv7c.jp2, for example) will return the digital object
+        # component, but searching without the extension (fwgf-nv7c) will not
+    digital_object_component['component_id'] = file_parts['component_id']
+    digital_object_component['file_versions'][0]['file_uri'] = 'https://' + AIP_BUCKET + '.s3-us-west-2.amazonaws.com/' + aip_image_key
+    digital_object_component['label'] = 'Image ' + file_parts['sequence']
+
+
+
 ###
 
 if __name__ == "__main__":
@@ -346,61 +396,5 @@ if __name__ == "__main__":
             print(put_s3_object_response)
             # TODO(tk) set up digital object components for ArchivesSpace
             # digital_object_component = create_digital_object_component(file_parts, aip_image_data)
-            # % python3 archivesspace/get-digital-object-component.py 2
-            # {
-            #     "component_id": "sameAsFilenameInAWS",
-            #     "create_time": "2020-09-25T16:00:39Z",
-            #     "created_by": "admin",
-            #     "dates": [],
-            #     "digital_object": {
-            #         "ref": "/repositories/2/digital_objects/2004"
-            #     },
-            #     "display_string": "Image 0001",
-            #     "extents": [],
-            #     "external_documents": [],
-            #     "external_ids": [],
-            #     "file_versions": [
-            #         {
-            #             "caption": "width: 2626; height: 3387; compression: lossless",
-            #             "checksum": "fromAWS",
-            #             "checksum_method": "md5",
-            #             "create_time": "2020-09-30T23:28:43Z",
-            #             "created_by": "admin",
-            #             "file_format_name": "JPEG 2000",
-            #             "file_size_bytes": 1234567890,
-            #             "file_uri": "http://example.com",
-            #             "identifier": "15343",
-            #             "is_representative": false,
-            #             "jsonmodel_type": "file_version",
-            #             "last_modified_by": "admin",
-            #             "lock_version": 0,
-            #             "publish": false,
-            #             "system_mtime": "2020-09-30T23:28:43Z",
-            #             "use_statement": "image-master",
-            #             "user_mtime": "2020-09-30T23:28:43Z"
-            #         }
-            #     ],
-            #     "has_unpublished_ancestor": false,
-            #     "is_slug_auto": false,
-            #     "jsonmodel_type": "digital_object_component",
-            #     "label": "Image 0001",
-            #     "lang_materials": [],
-            #     "last_modified_by": "admin",
-            #     "linked_agents": [],
-            #     "linked_events": [],
-            #     "lock_version": 5,
-            #     "notes": [],
-            #     "position": 0,
-            #     "publish": false,
-            #     "repository": {
-            #         "ref": "/repositories/2"
-            #     },
-            #     "rights_statements": [],
-            #     "subjects": [],
-            #     "suppressed": false,
-            #     "system_mtime": "2020-09-30T23:28:43Z",
-            #     "uri": "/repositories/2/digital_object_components/2",
-            #     "user_mtime": "2020-09-30T23:28:43Z"
-            # }
             # TODO(tk) post digital object components
             # https://archivesspace.github.io/archivesspace/api/?shell#create-an-digital-object-component
