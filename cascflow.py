@@ -276,30 +276,17 @@ def create_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_ima
     digital_object_component = {
         'file_versions': [
             {
-                # "caption": "width: 2626; height: 3387; compression: lossless",
-                # "checksum": "fromAWS",
                 'checksum_method': 'md5',
                 'file_format_name': 'JPEG 2000',
-                # "file_format_version": "ISO/IEC 15444-1; lossless (wavelet transformation: 5/3 reversible with no quantization)",
-                # "file_size_bytes": 1234567890,
-                # "file_uri": "http://example.com",
-                'use_statement': 'image-master',
-            # },
-            # {
-            #     # "caption": "width: 2626; height: 3387; compression: lossy",
-            #     # "checksum": "fromAWS",
-            #     'checksum_method': 'md5',
-            #     'file_format_name': 'JPEG 2000',
-            #     # "file_format_version": "ISO/IEC 15444-1; lossy (wavelet transformation: 9/7 irreversible with quantization)",
-            #     # "file_size_bytes": 123456789,
-            #     # "file_uri": "http://example.com/access-copy",
-            #     'use_statement': 'image-service',
+                'use_statement': 'image-master'
             }
         ]
     }
     for instance in folder_data['instances']:
         # not checking if there is more than one digital object
-        digital_object_component['digital_object']['ref'] = instance['digital_object']['_resolved'].get('ref')
+        if 'digital_object' in instance.keys():
+            digital_object_component['digital_object'] = {}
+            digital_object_component['digital_object']['ref'] = instance['digital_object']['_resolved']['uri']
     if digital_object_component['digital_object']['ref']:
         pass
     else:
@@ -314,9 +301,38 @@ def create_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_ima
         # File URI (fwgf-nv7c.jp2, for example) will return the digital object
         # component, but searching without the extension (fwgf-nv7c) will not
     digital_object_component['component_id'] = file_parts['component_id']
+    if aip_image_data['transformation'] == '5-3 reversible' and aip_image_data['quantization'] == 'no quantization':
+        digital_object_component['file_versions'][0]['caption'] = ('width: '
+                                                                   + aip_image_data['width']
+                                                                   + '; height: '
+                                                                   + aip_image_data['height']
+                                                                   + '; compression: lossless'
+                                                                  )
+        digital_object_component['file_versions'][0]['file_format_version'] = (aip_image_data['standard']
+                                                                               + '; lossless (wavelet transformation: 5/3 reversible with no quantization)'
+                                                                              )
+    elif aip_image_data['transformation'] == '9-7 irreversible' and aip_image_data['quantization'] == 'scalar expounded':
+        digital_object_component['file_versions'][0]['caption'] = ('width: '
+                                                                   + aip_image_data['width']
+                                                                   + '; height: '
+                                                                   + aip_image_data['height']
+                                                                   + '; compression: lossy'
+                                                                  )
+        digital_object_component['file_versions'][0]['file_format_version'] = (aip_image_data['standard']
+                                                                               + '; lossy (wavelet transformation: 9/7 irreversible with scalar expounded quantization)'
+                                                                              )
+    else:
+        digital_object_component['file_versions'][0]['caption'] = ('width: '
+                                                                   + aip_image_data['width']
+                                                                   + '; height: '
+                                                                   + aip_image_data['height']
+                                                                  )
+        digital_object_component['file_versions'][0]['file_format_version'] = aip_image_data['standard']
+    digital_object_component['file_versions'][0]['checksum'] = aip_image_data['md5']
+    digital_object_component['file_versions'][0]['file_size_bytes'] = aip_image_data['filesize']
     digital_object_component['file_versions'][0]['file_uri'] = 'https://' + AIP_BUCKET + '.s3-us-west-2.amazonaws.com/' + aip_image_key
     digital_object_component['label'] = 'Image ' + file_parts['sequence']
-
+    return digital_object_component
 
 
 ###
@@ -395,6 +411,7 @@ if __name__ == "__main__":
             put_s3_object_response = put_s3_object(AIP_BUCKET, aip_image_key, aip_image_data)
             print(put_s3_object_response)
             # TODO(tk) set up digital object components for ArchivesSpace
-            # digital_object_component = create_digital_object_component(file_parts, aip_image_data)
+            digital_object_component = create_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_image_key, aip_image_data)
+            print(digital_object_component)
             # TODO(tk) post digital object components
             # https://archivesspace.github.io/archivesspace/api/?shell#create-an-digital-object-component
