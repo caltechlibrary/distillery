@@ -329,11 +329,16 @@ def create_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_ima
                                                                   )
         digital_object_component['file_versions'][0]['file_format_version'] = aip_image_data['standard']
     digital_object_component['file_versions'][0]['checksum'] = aip_image_data['md5']
-    digital_object_component['file_versions'][0]['file_size_bytes'] = aip_image_data['filesize']
+    digital_object_component['file_versions'][0]['file_size_bytes'] = int(aip_image_data['filesize'])
     digital_object_component['file_versions'][0]['file_uri'] = 'https://' + AIP_BUCKET + '.s3-us-west-2.amazonaws.com/' + aip_image_key
     digital_object_component['label'] = 'Image ' + file_parts['sequence']
     return digital_object_component
 
+def post_digital_object_component(json):
+    client = ASnakeClient()
+    client.authorize()
+    response = client.post('/repositories/2/digital_object_components', json=json)
+    return response
 
 ###
 
@@ -360,19 +365,19 @@ if __name__ == "__main__":
     # save_collection_data(collection_directory, collection_json)
     s3_put_collection_data_response = boto3.client('s3').put_object(
         Bucket=AIP_BUCKET,
-        Key=collection_id + os.path.sep + collection_id + '_collection_data.json',
+        Key=collection_id + os.path.sep + collection_id + '-collection-data.json',
         Body=json.dumps(collection_json, sort_keys=True, indent=4)
     )
-    print(s3_put_collection_data_response)
+    print(json.dumps(s3_put_collection_data_response, sort_keys=True, indent=4))
     # send collection_tree to S3
     collection_tree = get_collection_tree(collection_id)
     # save_collection_tree(collection_directory, collection_tree)
     s3_put_collection_tree_response = boto3.client('s3').put_object(
         Bucket=AIP_BUCKET,
-        Key=collection_id + os.path.sep + collection_id + '_collection_tree.json',
+        Key=collection_id + os.path.sep + collection_id + '-collection-tree.json',
         Body=json.dumps(collection_tree, sort_keys=True, indent=4)
     )
-    print(s3_put_collection_tree_response)
+    print(json.dumps(s3_put_collection_tree_response, sort_keys=True, indent=4))
 
     # loop over all files
     for filepath in glob.iglob(collection_directory + '/**', recursive=True):
@@ -409,9 +414,8 @@ if __name__ == "__main__":
             aip_image_key = get_s3_aip_image_key(arrangement_parts, file_parts)
             print(aip_image_key)
             put_s3_object_response = put_s3_object(AIP_BUCKET, aip_image_key, aip_image_data)
-            print(put_s3_object_response)
-            # TODO(tk) set up digital object components for ArchivesSpace
+            print(json.dumps(put_s3_object_response, sort_keys=True, indent=4))
             digital_object_component = create_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_image_key, aip_image_data)
-            print(digital_object_component)
-            # TODO(tk) post digital object components
-            # https://archivesspace.github.io/archivesspace/api/?shell#create-an-digital-object-component
+            print(json.dumps(digital_object_component, sort_keys=True, indent=4))
+            digital_object_component_post_response = post_digital_object_component(digital_object_component)
+            print(json.dumps(json.loads(digital_object_component_post_response.text), sort_keys=True, indent=4))
