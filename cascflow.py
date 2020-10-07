@@ -11,6 +11,7 @@ import string
 
 from asnake.client import ASnakeClient
 from jpylyzer import jpylyzer
+from requests import HTTPError
 
 def check_environment_variables():
     WORKDIR = os.environ.get('WORKDIR')
@@ -87,14 +88,17 @@ def get_folder_data(component_id):
     # searches for the component_id using keyword search; excludes pui results
     client = ASnakeClient()
     client.authorize()
-    response = client.get('/repositories/2/search?page=1&page_size=10&type[]=archival_object&aq={\"query\":{\"op\":\"AND\",\"subqueries\":[{\"field\":\"keyword\",\"value\":\"' + component_id + '\",\"jsonmodel_type\":\"field_query\",\"negated\":false,\"literal\":false},{\"field\":\"types\",\"value\":\"pui\",\"jsonmodel_type\":\"field_query\",\"negated\":true}],\"jsonmodel_type\":\"boolean_query\"},\"jsonmodel_type\":\"advanced_query\"}').json()
-    if len(response['results']) < 1:
-        print('❌  no records with component_id: ' + component_id)
-        exit()
-    if len(response['results']) > 1:
-        print('❌  multiple records with component_id: ' + component_id)
-        exit()
-    return json.loads(response['results'][0]['json'])
+    response = client.get('/repositories/2/search?page=1&page_size=10&type[]=archival_object&aq={\"query\":{\"op\":\"AND\",\"subqueries\":[{\"field\":\"keyword\",\"value\":\"' + component_id + '\",\"jsonmodel_type\":\"field_query\",\"negated\":false,\"literal\":false},{\"field\":\"types\",\"value\":\"pui\",\"jsonmodel_type\":\"field_query\",\"negated\":true}],\"jsonmodel_type\":\"boolean_query\"},\"jsonmodel_type\":\"advanced_query\"}')
+    response.raise_for_status()
+    if len(response.json()['results']) < 1:
+        # print('❌  no records with component_id: ' + component_id)
+        # exit()
+        raise ValueError(f'❌ no records with component_id: {component_id}; skipping...')
+    if len(response.json()['results']) > 1:
+        # print('❌  multiple records with component_id: ' + component_id)
+        # exit()
+        raise ValueError(f'❌ multiple records with component_id: {component_id}; skipping...')
+    return json.loads(response.json()['results'][0]['json'])
 
 def get_arrangement_parts(folder_data):
     # returns names and identifers of the arragement levels for a folder
@@ -118,6 +122,52 @@ def get_arrangement_parts(folder_data):
                         arrangement_parts['subseries_display'] = subseries['display_string']
                         arrangement_parts['subseries_id'] = subseries['component_id']
     return arrangement_parts
+
+# TODO(tk)
+def create_digital_object(folder_data):
+    client = ASnakeClient()
+    client.authorize()
+    # post digital object
+    # TODO(tk) be sure new digital object is indexed and returnable immediately
+    folder_data = get_folder_data(folder_data['component_id'])
+    return folder_data
+
+def confirm_digital_object(folder_data):
+    digital_object_count = 0
+    for instance in folder_data['instances']:
+        if 'digital_object' in instance.keys():
+            digital_object_count += 1
+    if digital_object_count > 1:
+        raise ValueError(f"❌ {folder_data['component_id']} folder contains multiple Digital Objects, skipping...")
+    if digital_object_count < 1:
+        print('🈳 folder_data = create_digital_object(folder_data)')
+    return folder_data
+
+def set_digital_object_id(uri, id):
+    # raises an HTTPError exception if unsuccessful
+    client = ASnakeClient()
+    client.authorize()
+    get_response_json = client.get(uri).json()
+    get_response_json['digital_object_id'] = id
+    post_response = client.post(uri, json=get_response_json)
+    post_response.raise_for_status()
+    return
+
+def confirm_digital_object_id(folder_data):
+    # assuming digital object exists because we run confirm_digital_object()
+    # returns folder_data always in case digital_object_id was updated
+    for instance in folder_data['instances']:
+        # TODO(tk) confirm Archives policy disallows multiple digital objects
+        # TODO(tk) create script/report to periodically check for violations
+        if 'digital_object' in instance.keys():
+            if instance['digital_object']['_resolved']['digital_object_id'] != folder_data['component_id']:
+                # TODO(tk) confirm with Archives that replacing a digital_object_id
+                # is acceptable in all foreseen circumstances
+                set_digital_object_id(instance['digital_object']['ref'], folder_data['component_id'])
+                # TODO(tk) confirm returned folder_data includes updated id
+                # if setting fails we won’t get to this step anyway
+                folder_data = get_folder_data(folder_data['component_id'])
+            return folder_data
 
 def get_crockford_characters(n=4):
     return ''.join(random.choices('abcdefghjkmnpqrstvwxyz' + string.digits, k=n))
@@ -346,6 +396,7 @@ if __name__ == "__main__":
 
     import glob
     import os
+    import pprint
     import sh
     import sys
 
@@ -359,63 +410,143 @@ if __name__ == "__main__":
     AIP_BUCKET = os.getenv('AIP_BUCKET')
 
     collection_directory = get_collection_directory(collection_id)
+    print(collection_directory)
+    folders = []
+    with os.scandir(collection_directory) as it:
+        for entry in it:
+            if not entry.name.startswith('.') and entry.is_dir():
+                # print(entry.path)
+                folders.append(entry.path)
+    # print(folders)
     collection_uri = get_collection_uri(collection_id)
+    print(collection_uri)
     collection_json = get_collection_json(collection_uri)
+    # print(collection_json)
     # send collection_json to S3
     # save_collection_data(collection_directory, collection_json)
-    s3_put_collection_data_response = boto3.client('s3').put_object(
-        Bucket=AIP_BUCKET,
-        Key=collection_id + os.path.sep + collection_id + '-collection-data.json',
-        Body=json.dumps(collection_json, sort_keys=True, indent=4)
-    )
-    print(json.dumps(s3_put_collection_data_response, sort_keys=True, indent=4))
+    # s3_put_collection_data_response = boto3.client('s3').put_object(
+    #     Bucket=AIP_BUCKET,
+    #     Key=collection_id + os.path.sep + collection_id + '-collection-data.json',
+    #     Body=json.dumps(collection_json, sort_keys=True, indent=4)
+    # )
+    # print(json.dumps(s3_put_collection_data_response, sort_keys=True, indent=4))
     # send collection_tree to S3
-    collection_tree = get_collection_tree(collection_id)
+    # collection_tree = get_collection_tree(collection_id)
     # save_collection_tree(collection_directory, collection_tree)
-    s3_put_collection_tree_response = boto3.client('s3').put_object(
-        Bucket=AIP_BUCKET,
-        Key=collection_id + os.path.sep + collection_id + '-collection-tree.json',
-        Body=json.dumps(collection_tree, sort_keys=True, indent=4)
-    )
-    print(json.dumps(s3_put_collection_tree_response, sort_keys=True, indent=4))
+    # s3_put_collection_tree_response = boto3.client('s3').put_object(
+    #     Bucket=AIP_BUCKET,
+    #     Key=collection_id + os.path.sep + collection_id + '-collection-tree.json',
+    #     Body=json.dumps(collection_tree, sort_keys=True, indent=4)
+    # )
+    # print(json.dumps(s3_put_collection_tree_response, sort_keys=True, indent=4))
 
-    # loop over all files
-    for filepath in glob.iglob(collection_directory + '/**', recursive=True):
-        print('🔎  ' + filepath)
-        if os.path.isfile(filepath) and os.path.splitext(filepath)[1] in ['.tif', '.tiff']:
-            file_parts = get_file_parts(filepath)
-            print(json.dumps(file_parts, sort_keys=True, indent=4))
-            # NOTE: unsure how to run with _bg=True from a function
-            sip_image_signature = sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', filepath, '-', _piped=True, _bg=True), _bg=True), '-d', ' ', '-f', '1', _bg=True)
-            # split off the extension from the source filepath
-            aip_image_path = os.path.splitext(filepath)[0] + '-LOSSLESS.jp2'
-            # NOTE: unsure how to run with _bg=True from a function
-            aip_image_conversion = sh.magick.convert('-quiet', filepath, '-quality', '0', aip_image_path, _bg=True)
-            folder_data = get_folder_data(file_parts['folder_id'])
-            arrangement_parts = get_arrangement_parts(folder_data)
-            print(json.dumps(arrangement_parts, sort_keys=True, indent=4))
-            xmp_dc = get_xmp_dc_metadata(arrangement_parts, file_parts, folder_data, collection_json)
-            print(json.dumps(xmp_dc, sort_keys=True, indent=4))
-            aip_image_conversion.wait()
-            write_xmp_metadata(aip_image_path, xmp_dc)
-            # NOTE: unsure how to run with _bg=True from a function
-            aip_image_signature = sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', aip_image_path, '-', _piped=True, _bg=True), _bg=True), '-d', ' ', '-f', '1', _bg=True)
-            aip_image_data = get_aip_image_data(aip_image_path)
-            print(json.dumps(aip_image_data, sort_keys=True, indent=4))
-            sip_image_signature.wait()
-            aip_image_signature.wait()
-            # verify image signatures match
-            if aip_image_signature == sip_image_signature:
-                pass
-            else:
-                print('❌  image signatures did not match: ' + file_parts['image_id'])
-                continue
-            # begin s3 processing
-            aip_image_key = get_s3_aip_image_key(arrangement_parts, file_parts)
-            print(aip_image_key)
-            put_s3_object_response = put_s3_object(AIP_BUCKET, aip_image_key, aip_image_data)
-            print(json.dumps(put_s3_object_response, sort_keys=True, indent=4))
-            digital_object_component = create_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_image_key, aip_image_data)
-            print(json.dumps(digital_object_component, sort_keys=True, indent=4))
-            digital_object_component_post_response = post_digital_object_component(digital_object_component)
-            print(json.dumps(json.loads(digital_object_component_post_response.text), sort_keys=True, indent=4))
+    # loop over folders list
+    # pprint.pprint(folders.sort())
+    print('🟢')
+    folders.sort()
+    pprint.pprint(folders)
+    for _ in range(len(folders)):
+        print('folders remaining: ' + str(len(folders)))
+        # pprint.pprint(folders)
+        folderpath = folders.pop()
+        # pprint.pprint(folders)
+        # TODO(tk) folder-level processing (confirm digital objects, etc)
+        print('get_folder_data()')
+        print(os.path.basename(folderpath))
+
+        try:
+            # TODO(tk) consider renaming folder_data to folder_result
+            folder_data = get_folder_data(os.path.basename(folderpath)) # NOTE: different for Hale
+        except ValueError as e:
+            print(str(e))
+            continue
+
+        try:
+            folder_data = confirm_digital_object(folder_data)
+        except ValueError as e:
+            print(str(e))
+            continue
+
+        try:
+            folder_data = confirm_digital_object_id(folder_data)
+        except HTTPError as e:
+            print(str(e))
+            print(f"❌ unable to set Component Unique Identifier to {folder_data['component_id']}; skipping...")
+            continue
+
+    # loop over collection directory
+    # for path in glob.iglob(collection_directory + '/**', recursive=True):
+    #     print('🔎  ' + path)
+    #     if os.path.isdir(path) and path != collection_directory + '/':
+    #         print('📂  ' + path)
+
+    #         # TODO(tk) folder-level processing (confirm digital objects, etc)
+    #         print('get_folder_data()')
+    #         try:
+    #             folder_data = get_folder_data(os.path.basename(path)) # NOTE: different for Hale
+    #         except ValueError as e:
+    #             print(str(e))
+
+    #         # TODO(tk) confirm the digital object exists
+    #         # confirm_digital_object(folder_data)
+    #         # TODO(tk) if no digital object exists, after creating we must
+    #         # run get_folder_data() again to include the new digital object
+
+    #         # loop over folder directory
+    #         for filepath in glob.iglob(path + '/**', recursive=True):
+    #             # TODO(tk) set up list of usable file extentions earlier
+    #             if os.path.isfile(filepath) and os.path.splitext(filepath)[1] in ['.tif', '.tiff']:
+    #                 print('📄  ' + filepath)
+    #                 # TODO(tk) file-level processing
+
+        # if os.path.isfile(filepath) and os.path.splitext(filepath)[1] in ['.tif', '.tiff']:
+        #     file_parts = get_file_parts(filepath)
+        #     print(json.dumps(file_parts, sort_keys=True, indent=4))
+        #     # NOTE: unsure how to run with _bg=True from a function
+        #     sip_image_signature = sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', filepath, '-', _piped=True, _bg=True), _bg=True), '-d', ' ', '-f', '1', _bg=True)
+        #     # split off the extension from the source filepath
+        #     aip_image_path = os.path.splitext(filepath)[0] + '-LOSSLESS.jp2'
+        #     # NOTE: unsure how to run with _bg=True from a function
+        #     aip_image_conversion = sh.magick.convert('-quiet', filepath, '-quality', '0', aip_image_path, _bg=True)
+        #     folder_data = get_folder_data(file_parts['folder_id'])
+
+        #     # TODO(tk) confirm the digital object exists
+        #     # confirm_digital_object(folder_data)
+        #     # TODO(tk) if no digital object exists, after creating we must
+        #     # run get_folder_data() again to include the new digital object
+
+        #     # TODO(tk) confirm the digital_object_id matches the folder_id
+        #     # folder_data = confirm_digital_object_id(folder_data)
+        #     # TODO(tk) if identfiers do not match, after updating we must run
+        #     # get_folder_data() again to include the new digital object id
+
+        #     # TODO(tk) figure out when to save/upload folder data without
+        #     # repeatedly uploading the same file multiple times
+
+        #     arrangement_parts = get_arrangement_parts(folder_data)
+        #     print(json.dumps(arrangement_parts, sort_keys=True, indent=4))
+        #     xmp_dc = get_xmp_dc_metadata(arrangement_parts, file_parts, folder_data, collection_json)
+        #     print(json.dumps(xmp_dc, sort_keys=True, indent=4))
+        #     aip_image_conversion.wait()
+        #     write_xmp_metadata(aip_image_path, xmp_dc)
+        #     # NOTE: unsure how to run with _bg=True from a function
+        #     aip_image_signature = sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', aip_image_path, '-', _piped=True, _bg=True), _bg=True), '-d', ' ', '-f', '1', _bg=True)
+        #     aip_image_data = get_aip_image_data(aip_image_path)
+        #     print(json.dumps(aip_image_data, sort_keys=True, indent=4))
+        #     sip_image_signature.wait()
+        #     aip_image_signature.wait()
+        #     # verify image signatures match
+        #     if aip_image_signature == sip_image_signature:
+        #         pass
+        #     else:
+        #         print('❌  image signatures did not match: ' + file_parts['image_id'])
+        #         continue
+        #     # begin s3 processing
+        #     aip_image_key = get_s3_aip_image_key(arrangement_parts, file_parts)
+        #     print(aip_image_key)
+        #     put_s3_object_response = put_s3_object(AIP_BUCKET, aip_image_key, aip_image_data)
+        #     print(json.dumps(put_s3_object_response, sort_keys=True, indent=4))
+        #     digital_object_component = create_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_image_key, aip_image_data)
+        #     print(json.dumps(digital_object_component, sort_keys=True, indent=4))
+        #     digital_object_component_post_response = post_digital_object_component(digital_object_component)
+        #     print(json.dumps(json.loads(digital_object_component_post_response.text), sort_keys=True, indent=4))
