@@ -416,16 +416,29 @@ if __name__ == "__main__":
                 folders.append(entry.path)
     # print(folders)
     collection_uri = get_collection_uri(collection_id)
-    print(collection_uri)
+    # print(collection_uri)
     collection_json = get_collection_json(collection_uri)
+    collection_json['tree']['_resolved'] = get_collection_tree(collection_id)
     # print(collection_json)
     # send collection_json to S3
     # save_collection_data(collection_directory, collection_json)
-    # s3_put_collection_data_response = boto3.client('s3').put_object(
-    #     Bucket=AIP_BUCKET,
-    #     Key=collection_id + os.path.sep + collection_id + '-collection-data.json',
-    #     Body=json.dumps(collection_json, sort_keys=True, indent=4)
-    # )
+    try:
+        boto3.client('s3').put_object(
+            Bucket=AIP_BUCKET,
+            Key=collection_id + '/' + collection_id + '.json',
+            Body=json.dumps(collection_json, sort_keys=True, indent=4)
+        )
+        print(f"✅ metadata sent to S3 for {collection_id}")
+    except botocore.exceptions.ClientError as e:
+        # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
+        if e.response['Error']['Code'] == 'InternalError': # Generic error
+            # We grab the message, request ID, and HTTP code to give to customer support
+            print(f"Error Message: {e.response['Error']['Message']}")
+            print(f"Request ID: {e.response['ResponseMetadata']['RequestId']}")
+            print(f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}")
+        else:
+            raise e
+
     # print(json.dumps(s3_put_collection_data_response, sort_keys=True, indent=4))
     # send collection_tree to S3
     # collection_tree = get_collection_tree(collection_id)
@@ -439,7 +452,6 @@ if __name__ == "__main__":
 
     # loop over folders list
     # pprint.pprint(folders.sort())
-    print('🚥')
     folders.sort()
     pprint.pprint(folders)
     for _ in range(len(folders)):
@@ -482,7 +494,6 @@ if __name__ == "__main__":
             continue
 
         # send ArchivesSpace folder metadata to S3 as a JSON file
-        # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
         try:
             boto3.client('s3').put_object(
                 Bucket=AIP_BUCKET,
@@ -491,6 +502,7 @@ if __name__ == "__main__":
             )
             print(f"✅ metadata sent to S3 for {folder_data['component_id']}")
         except botocore.exceptions.ClientError as e:
+            # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
             if e.response['Error']['Code'] == 'InternalError': # Generic error
                 # We grab the message, request ID, and HTTP code to give to customer support
                 print(f"Error Message: {e.response['Error']['Message']}")
