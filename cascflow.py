@@ -2,6 +2,7 @@
 
 import base64
 import boto3
+import botocore
 import hashlib
 import json
 import os
@@ -100,28 +101,28 @@ def get_folder_data(component_id):
         raise ValueError(f'❌ multiple records with component_id: {component_id}; skipping...')
     return json.loads(response.json()['results'][0]['json'])
 
-def get_arrangement_parts(folder_data):
+def get_folder_arrangement(folder_data):
     # returns names and identifers of the arragement levels for a folder
-    arrangement_parts = {}
-    arrangement_parts['repository_name'] = folder_data['repository']['_resolved']['name']
-    arrangement_parts['repository_code'] = folder_data['repository']['_resolved']['repo_code']
-    arrangement_parts['folder_display'] = folder_data['display_string']
-    arrangement_parts['folder_title'] = folder_data['title']
+    folder_arrangement = {}
+    folder_arrangement['repository_name'] = folder_data['repository']['_resolved']['name']
+    folder_arrangement['repository_code'] = folder_data['repository']['_resolved']['repo_code']
+    folder_arrangement['folder_display'] = folder_data['display_string']
+    folder_arrangement['folder_title'] = folder_data['title']
     for instance in folder_data['instances']:
         if 'sub_container' in instance.keys():
             # TODO(tk) if there is no collection, we have a problem
             if 'collection' in instance['sub_container']['top_container']['_resolved'].keys():
-                arrangement_parts['collection_display'] = instance['sub_container']['top_container']['_resolved']['collection'][0]['display_string']
-                arrangement_parts['collection_id'] = instance['sub_container']['top_container']['_resolved']['collection'][0]['identifier']
+                folder_arrangement['collection_display'] = instance['sub_container']['top_container']['_resolved']['collection'][0]['display_string']
+                folder_arrangement['collection_id'] = instance['sub_container']['top_container']['_resolved']['collection'][0]['identifier']
             if 'series' in instance['sub_container']['top_container']['_resolved'].keys():
-                arrangement_parts['series_display'] = instance['sub_container']['top_container']['_resolved']['series'][0]['display_string']
-                arrangement_parts['series_id'] = instance['sub_container']['top_container']['_resolved']['series'][0]['identifier']
+                folder_arrangement['series_display'] = instance['sub_container']['top_container']['_resolved']['series'][0]['display_string']
+                folder_arrangement['series_id'] = instance['sub_container']['top_container']['_resolved']['series'][0]['identifier']
                 for ancestor in folder_data['ancestors']:
                     if ancestor['level'] == 'subseries':
                         subseries = get_archival_object(ancestor['ref'].split('/')[-1])
-                        arrangement_parts['subseries_display'] = subseries['display_string']
-                        arrangement_parts['subseries_id'] = subseries['component_id']
-    return arrangement_parts
+                        folder_arrangement['subseries_display'] = subseries['display_string']
+                        folder_arrangement['subseries_id'] = subseries['component_id']
+    return folder_arrangement
 
 # TODO(tk)
 def create_digital_object(folder_data):
@@ -140,7 +141,8 @@ def confirm_digital_object(folder_data):
     if digital_object_count > 1:
         raise ValueError(f"❌ {folder_data['component_id']} folder contains multiple Digital Objects, skipping...")
     if digital_object_count < 1:
-        print('🈳 folder_data = create_digital_object(folder_data)')
+        # folder_data = create_digital_object(folder_data)
+        raise NotImplementedError('🈳 create_digital_object() not implemented yet')
     return folder_data
 
 def set_digital_object_id(uri, id):
@@ -154,7 +156,6 @@ def set_digital_object_id(uri, id):
     return
 
 def confirm_digital_object_id(folder_data):
-    # assuming digital object exists because we run confirm_digital_object()
     # returns folder_data always in case digital_object_id was updated
     for instance in folder_data['instances']:
         # TODO(tk) confirm Archives policy disallows multiple digital objects
@@ -167,7 +168,7 @@ def confirm_digital_object_id(folder_data):
                 # TODO(tk) confirm returned folder_data includes updated id
                 # if setting fails we won’t get to this step anyway
                 folder_data = get_folder_data(folder_data['component_id'])
-            return folder_data
+    return folder_data
 
 def get_crockford_characters(n=4):
     return ''.join(random.choices('abcdefghjkmnpqrstvwxyz' + string.digits, k=n))
@@ -192,25 +193,26 @@ def calculate_pixel_signature(filepath):
 def get_archival_object(id):
     client = ASnakeClient()
     client.authorize()
-    response = client.get('/repositories/2/archival_objects/' + id).json()
-    return response
+    response = client.get('/repositories/2/archival_objects/' + id)
+    response.raise_for_status()
+    return response.json()
 
-def get_xmp_dc_metadata(arrangement_parts, file_parts, folder_data, collection_json):
+def get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_json):
     xmp_dc = {}
-    xmp_dc['title'] = arrangement_parts['folder_display'] + ' [image ' + file_parts['sequence'] + ']'
+    xmp_dc['title'] = folder_arrangement['folder_display'] + ' [image ' + file_parts['sequence'] + ']'
     # TODO(tk) check extent type for pages/images/computer files/etc
     if len(folder_data['extents']) == 1:
         xmp_dc['title'] = xmp_dc['title'].rstrip(']') + '/' + folder_data['extents'][0]['number'].zfill(4) + ']'
     xmp_dc['identifier'] = file_parts['component_id']
-    xmp_dc['publisher'] = arrangement_parts['repository_name']
-    xmp_dc['source'] = arrangement_parts['repository_code'] + ': ' + arrangement_parts['collection_display']
+    xmp_dc['publisher'] = folder_arrangement['repository_name']
+    xmp_dc['source'] = folder_arrangement['repository_code'] + ': ' + folder_arrangement['collection_display']
     for instance in folder_data['instances']:
         if 'sub_container' in instance.keys():
             if 'series' in instance['sub_container']['top_container']['_resolved'].keys():
                 xmp_dc['source'] += ' / ' + instance['sub_container']['top_container']['_resolved']['series'][0]['display_string']
                 for ancestor in folder_data['ancestors']:
                     if ancestor['level'] == 'subseries':
-                        xmp_dc['source'] += ' / ' + arrangement_parts['subseries_display']
+                        xmp_dc['source'] += ' / ' + folder_arrangement['subseries_display']
     xmp_dc['rights'] = 'Caltech Archives has not determined the copyright in this image.'
     for note in collection_json['notes']:
         if note['type'] == 'userestrict':
@@ -244,7 +246,46 @@ def get_aip_image_data(filepath):
     aip_image_data['md5'] = base64.b64encode(hashlib.md5(open(aip_image_data['filepath'], 'rb').read()).digest()).decode()
     return aip_image_data
 
-def get_s3_aip_image_key(arrangement_parts, file_parts):
+def get_s3_aip_folder_prefix(folder_arrangement, folder_data):
+    prefix = folder_arrangement['collection_id'] + '/'
+    if 'series_id' in folder_arrangement.keys():
+        prefix += (folder_arrangement['collection_id']
+                + '-s'
+                + folder_arrangement['series_id'].zfill(2)
+                + '-'
+        )
+        if 'series_display' in folder_arrangement.keys():
+            series_display = ''.join([c if c.isalnum() else '-' for c in folder_arrangement['series_display']])
+            prefix += series_display + '/'
+            if 'subseries_id' in folder_arrangement.keys():
+                prefix += (folder_arrangement['collection_id']
+                        + '-s'
+                        + folder_arrangement['series_id'].zfill(2)
+                        + '-ss'
+                        + folder_arrangement['subseries_id'].zfill(2)
+                        + '-'
+                )
+                if 'subseries_display' in folder_arrangement.keys():
+                    subseries_display = ''.join([c if c.isalnum() else '-' for c in folder_arrangement['subseries_display']])
+                    prefix += subseries_display + '/'
+    # exception for extended identifiers like HaleGE_02_0B_056_07
+    # TODO(tk) remove once no more exception files exist
+    # TODO(tk) use older_data['component_id'] directly
+    folder_id_parts = folder_data['component_id'].split('_')
+    folder_id = '_'.join([folder_id_parts[0], folder_id_parts[-2], folder_id_parts[-1]])
+    folder_display = ''.join([c if c.isalnum() else '-' for c in folder_arrangement['folder_display']])
+    prefix += (folder_id + '-' + folder_display + '/')
+    return prefix
+
+def get_s3_aip_folder_key(prefix, folder_data):
+    # exception for extended identifiers like HaleGE_02_0B_056_07
+    # TODO(tk) remove once no more exception files exist
+    # TODO(tk) use older_data['component_id'] directly
+    folder_id_parts = folder_data['component_id'].split('_')
+    folder_id = '_'.join([folder_id_parts[0], folder_id_parts[-2], folder_id_parts[-1]])
+    return prefix + folder_id + '.json'
+
+def get_s3_aip_image_key(prefix, file_parts):
     # NOTE: '.jp2' is hardcoded as the extension
     # HaleGE/HaleGE_s02_Correspondence_and_Documents_Relating_to_Organizations/HaleGE_s02_ss0B_National_Academy_of_Sciences/HaleGE_056_07_Section_on_Astronomy/HaleGE_056_07_0001/8c38-d9cy.jp2
     # {
@@ -256,57 +297,13 @@ def get_s3_aip_image_key(arrangement_parts, file_parts):
     #     "image_id": "HaleGE_02_0B_056_07_0001",
     #     "sequence": "0001"
     # }
-    # {
-    #     "collection_display": "George Ellery Hale Papers",
-    #     "collection_id": "HaleGE",
-    #     "folder_display": "Section on Astronomy, 1916\u20131937",
-    #     "folder_title": "Section on Astronomy",
-    #     "repository_code": "Caltech Archives",
-    #     "repository_name": "California Institute of Technology Archives and Special Collections",
-    #     "series_display": "Correspondence and Records Relating to Organizations, 1863\u20131937",
-    #     "series_id": "2",
-    #     "subseries_display": "National Academy of Sciences, 1902\u20131937",
-    #     "subseries_id": "B"
-    # }
-    key = arrangement_parts['collection_id'] + '/'
-    if 'series_id' in arrangement_parts.keys():
-        key += (arrangement_parts['collection_id']
-                + '-s'
-                + arrangement_parts['series_id'].zfill(2)
-                + '-'
-        )
-        if 'series_display' in arrangement_parts.keys():
-            series_display = ''.join([c if c.isalnum() else '-' for c in arrangement_parts['series_display']])
-            key += series_display + '/'
-            if 'subseries_id' in arrangement_parts.keys():
-                key += (arrangement_parts['collection_id']
-                        + '-s'
-                        + arrangement_parts['series_id'].zfill(2)
-                        + '-ss'
-                        + arrangement_parts['subseries_id'].zfill(2)
-                        + '-'
-                )
-                if 'subseries_display' in arrangement_parts.keys():
-                    subseries_display = ''.join([c if c.isalnum() else '-' for c in arrangement_parts['subseries_display']])
-                    key += subseries_display + '/'
     # exception for extended identifiers like HaleGE_02_0B_056_07
     # TODO(tk) remove once no more exception files exist
     # TODO(tk) use file_parts['folder_id'] directly
     folder_id_parts = file_parts['folder_id'].split('_')
     folder_id = '_'.join([folder_id_parts[0], folder_id_parts[-2], folder_id_parts[-1]])
-    folder_display = ''.join([c if c.isalnum() else '-' for c in arrangement_parts['folder_display']])
-    key += (folder_id
-            + '-'
-            + folder_display
-            + '/'
-            + folder_id
-            + '_'
-            + file_parts['sequence']
-            + '/'
-            + file_parts['component_id']
-            + '.jp2'
-    )
-    return key
+    return prefix + folder_id + '_' + file_parts['sequence'] + '/' + file_parts['component_id'] + '.jp2'
+
 
 def put_s3_object(bucket, key, data):
     # abstract enough for preservation and access files
@@ -442,7 +439,7 @@ if __name__ == "__main__":
 
     # loop over folders list
     # pprint.pprint(folders.sort())
-    print('🟢')
+    print('🚥')
     folders.sort()
     pprint.pprint(folders)
     for _ in range(len(folders)):
@@ -466,6 +463,9 @@ if __name__ == "__main__":
         except ValueError as e:
             print(str(e))
             continue
+        except NotImplementedError as e:
+            print(str(e))
+            continue
 
         try:
             folder_data = confirm_digital_object_id(folder_data)
@@ -473,6 +473,31 @@ if __name__ == "__main__":
             print(str(e))
             print(f"❌ unable to set Component Unique Identifier to {folder_data['component_id']}; skipping...")
             continue
+
+        try:
+            folder_arrangement = get_folder_arrangement(folder_data)
+        except HTTPError as e:
+            print(str(e))
+            print(f"❌ unable to get folder arrangement for {folder_data['component_id']}; skipping...")
+            continue
+
+        # send ArchivesSpace folder metadata to S3 as a JSON file
+        # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
+        try:
+            boto3.client('s3').put_object(
+                Bucket=AIP_BUCKET,
+                Key=get_s3_aip_folder_key(get_s3_aip_folder_prefix(folder_arrangement, folder_data), folder_data),
+                Body=json.dumps(folder_data, sort_keys=True, indent=4)
+            )
+            print(f"✅ metadata sent to S3 for {folder_data['component_id']}")
+        except botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == 'InternalError': # Generic error
+                # We grab the message, request ID, and HTTP code to give to customer support
+                print(f"Error Message: {e.response['Error']['Message']}")
+                print(f"Request ID: {e.response['ResponseMetadata']['RequestId']}")
+                print(f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}")
+            else:
+                raise e
 
     # loop over collection directory
     # for path in glob.iglob(collection_directory + '/**', recursive=True):
@@ -523,9 +548,9 @@ if __name__ == "__main__":
         #     # TODO(tk) figure out when to save/upload folder data without
         #     # repeatedly uploading the same file multiple times
 
-        #     arrangement_parts = get_arrangement_parts(folder_data)
-        #     print(json.dumps(arrangement_parts, sort_keys=True, indent=4))
-        #     xmp_dc = get_xmp_dc_metadata(arrangement_parts, file_parts, folder_data, collection_json)
+        #     folder_arrangement = get_folder_arrangement(folder_data)
+        #     print(json.dumps(folder_arrangement, sort_keys=True, indent=4))
+        #     xmp_dc = get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_json)
         #     print(json.dumps(xmp_dc, sort_keys=True, indent=4))
         #     aip_image_conversion.wait()
         #     write_xmp_metadata(aip_image_path, xmp_dc)
@@ -542,7 +567,7 @@ if __name__ == "__main__":
         #         print('❌  image signatures did not match: ' + file_parts['image_id'])
         #         continue
         #     # begin s3 processing
-        #     aip_image_key = get_s3_aip_image_key(arrangement_parts, file_parts)
+        #     aip_image_key = get_s3_aip_image_key(folder_arrangement, file_parts)
         #     print(aip_image_key)
         #     put_s3_object_response = put_s3_object(AIP_BUCKET, aip_image_key, aip_image_data)
         #     print(json.dumps(put_s3_object_response, sort_keys=True, indent=4))
