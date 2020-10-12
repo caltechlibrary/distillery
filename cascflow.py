@@ -220,7 +220,7 @@ def get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_
                 xmp_dc['rights'] = note['subnotes'][0]['content']
     return xmp_dc
 
-def write_xmp_metadata(imagepath, metadata):
+def write_xmp_metadata(filepath, metadata):
     # NOTE: except `source` all the dc elements here are keywords in exiftool
     return sh.exiftool(
         '-title=' + metadata['title'],
@@ -229,7 +229,7 @@ def write_xmp_metadata(imagepath, metadata):
         '-publisher=' + metadata['publisher'],
         '-rights=' + metadata['rights'],
         '-overwrite_original',
-        imagepath
+        filepath
     )
 
 def get_aip_image_data(filepath):
@@ -302,8 +302,7 @@ def get_s3_aip_image_key(prefix, file_parts):
     # TODO(tk) use file_parts['folder_id'] directly
     folder_id_parts = file_parts['folder_id'].split('_')
     folder_id = '_'.join([folder_id_parts[0], folder_id_parts[-2], folder_id_parts[-1]])
-    return prefix + folder_id + '_' + file_parts['sequence'] + '/' + file_parts['component_id'] + '.jp2'
-
+    return prefix + folder_id + '_' + file_parts['sequence'] + '/' + file_parts['component_id'] + '-lossless.jp2'
 
 def put_s3_object(bucket, key, data):
     # abstract enough for preservation and access files
@@ -381,11 +380,12 @@ def create_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_ima
     digital_object_component['label'] = 'Image ' + file_parts['sequence']
     return digital_object_component
 
-def post_digital_object_component(json):
+def post_digital_object_component(json_data):
     client = ASnakeClient()
     client.authorize()
-    response = client.post('/repositories/2/digital_object_components', json=json)
-    return response
+    post_response = client.post('/repositories/2/digital_object_components', json=json_data)
+    post_response.raise_for_status()
+    return post_response
 
 ###
 
