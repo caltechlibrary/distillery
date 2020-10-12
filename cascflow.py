@@ -408,13 +408,6 @@ if __name__ == "__main__":
 
     collection_directory = get_collection_directory(collection_id)
     print(collection_directory)
-    folders = []
-    with os.scandir(collection_directory) as it:
-        for entry in it:
-            if not entry.name.startswith('.') and entry.is_dir():
-                # print(entry.path)
-                folders.append(entry.path)
-    # print(folders)
     collection_uri = get_collection_uri(collection_id)
     # print(collection_uri)
     collection_json = get_collection_json(collection_uri)
@@ -449,6 +442,14 @@ if __name__ == "__main__":
     #     Body=json.dumps(collection_tree, sort_keys=True, indent=4)
     # )
     # print(json.dumps(s3_put_collection_tree_response, sort_keys=True, indent=4))
+
+    folders = []
+    with os.scandir(collection_directory) as it:
+        for entry in it:
+            if not entry.name.startswith('.') and entry.is_dir():
+                # print(entry.path)
+                folders.append(entry.path)
+    # print(folders)
 
     # loop over folders list
     # pprint.pprint(folders.sort())
@@ -511,79 +512,83 @@ if __name__ == "__main__":
             else:
                 raise e
 
-    # loop over collection directory
-    # for path in glob.iglob(collection_directory + '/**', recursive=True):
-    #     print('🔎  ' + path)
-    #     if os.path.isdir(path) and path != collection_directory + '/':
-    #         print('📂  ' + path)
+        # loop over contents of folder directory
+        filepaths = []
+        with os.scandir(folderpath) as contents:
+            for entry in contents:
+                # TODO(tk) set up list of usable imagetypes earlier
+                if entry.is_file() and os.path.splitext(entry.path)[1] in ['.tif', '.tiff']:
+                    # print(entry.path)
+                    filepaths.append(entry.path)
+        # print(files)
+        filepaths.sort()
+        pprint.pprint(filepaths)
+        for f in range(len(filepaths)):
+            print(f'{str(len(filepaths))} remaining images in folder')
+            # pprint.pprint(filepaths)
+            # TODO remember why this pattern was chosen instead of simply running everything under one for loop
+            filepath = filepaths.pop()
+            # pprint.pprint(filepaths)
+            # TODO(tk) image processing
+            print(f'▶️  {os.path.basename(filepath)}')
+            # NOTE: unsure how to run with _bg=True from a function
+            sip_image_signature = sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', filepath, '-', _piped=True, _bg=True), _bg=True), '-d', ' ', '-f', '1', _bg=True)
+            # split off the extension from the source filepath
+            aip_image_path = os.path.splitext(filepath)[0] + '-LOSSLESS.jp2'
+            # NOTE: unsure how to run with _bg=True from a function
+            aip_image_conversion = sh.magick.convert('-quiet', filepath, '-quality', '0', aip_image_path, _bg=True)
+            file_parts = get_file_parts(filepath)
+            print(json.dumps(file_parts, sort_keys=True, indent=4))
+            xmp_dc = get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_json)
+            print(json.dumps(xmp_dc, sort_keys=True, indent=4))
+            aip_image_conversion.wait()
+            write_xmp_metadata(aip_image_path, xmp_dc)
+            # NOTE: unsure how to run with _bg=True from a function
+            aip_image_signature = sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', aip_image_path, '-', _piped=True, _bg=True), _bg=True), '-d', ' ', '-f', '1', _bg=True)
+            aip_image_data = get_aip_image_data(aip_image_path)
+            print(json.dumps(aip_image_data, sort_keys=True, indent=4))
+            sip_image_signature.wait()
+            aip_image_signature.wait()
+            # verify image signatures match
+            if aip_image_signature == sip_image_signature:
+                pass
+            else:
+                print('❌  image signatures did not match: ' + file_parts['image_id'])
+                continue
+            # begin s3 processing
+            aip_image_key = get_s3_aip_image_key(get_s3_aip_folder_prefix(folder_arrangement, folder_data), file_parts)
+            print(aip_image_key)
+            # send image to S3
+            try:
+                boto3.client('s3').put_object(
+                    Bucket=AIP_BUCKET,
+                    Key=aip_image_key,
+                    Body=open(aip_image_data['filepath'], 'rb'),
+                    ContentMD5=aip_image_data['md5'],
+                    Metadata={'md5': aip_image_data['md5']}
+                )
+            except botocore.exceptions.ClientError as e:
+                # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
+                if e.response['Error']['Code'] == 'InternalError': # Generic error
+                    # We grab the message, request ID, and HTTP code to give to customer support
+                    print(f"Error Message: {e.response['Error']['Message']}")
+                    print(f"Request ID: {e.response['ResponseMetadata']['RequestId']}")
+                    print(f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}")
+                else:
+                    raise e
+            # set up ArchivesSpace record
+            digital_object_component = create_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_image_key, aip_image_data)
+            # post to ArchivesSpace
+            # post_digital_object_component_repsonse = post_digital_object_component(digital_object_component)
+            # print(json.dumps(post_digital_object_component_repsonse.json(), sort_keys=True, indent=4))
+            try:
+                post_digital_object_component(digital_object_component)
+            except HTTPError as e:
+                print(str(e))
+                print(f"❌ unable to create Digital Object Component for {folder_data['component_id']}; skipping...")
+                print(f'⚠️ clean up {aip_image_key} file in {AIP_BUCKET} bucket')
+                # TODO programmatically remove file from bucket?
+                continue
 
-    #         # TODO(tk) folder-level processing (confirm digital objects, etc)
-    #         print('get_folder_data()')
-    #         try:
-    #             folder_data = get_folder_data(os.path.basename(path)) # NOTE: different for Hale
-    #         except ValueError as e:
-    #             print(str(e))
-
-    #         # TODO(tk) confirm the digital object exists
-    #         # confirm_digital_object(folder_data)
-    #         # TODO(tk) if no digital object exists, after creating we must
-    #         # run get_folder_data() again to include the new digital object
-
-    #         # loop over folder directory
-    #         for filepath in glob.iglob(path + '/**', recursive=True):
-    #             # TODO(tk) set up list of usable file extentions earlier
-    #             if os.path.isfile(filepath) and os.path.splitext(filepath)[1] in ['.tif', '.tiff']:
-    #                 print('📄  ' + filepath)
-    #                 # TODO(tk) file-level processing
-
-        # if os.path.isfile(filepath) and os.path.splitext(filepath)[1] in ['.tif', '.tiff']:
-        #     file_parts = get_file_parts(filepath)
-        #     print(json.dumps(file_parts, sort_keys=True, indent=4))
-        #     # NOTE: unsure how to run with _bg=True from a function
-        #     sip_image_signature = sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', filepath, '-', _piped=True, _bg=True), _bg=True), '-d', ' ', '-f', '1', _bg=True)
-        #     # split off the extension from the source filepath
-        #     aip_image_path = os.path.splitext(filepath)[0] + '-LOSSLESS.jp2'
-        #     # NOTE: unsure how to run with _bg=True from a function
-        #     aip_image_conversion = sh.magick.convert('-quiet', filepath, '-quality', '0', aip_image_path, _bg=True)
-        #     folder_data = get_folder_data(file_parts['folder_id'])
-
-        #     # TODO(tk) confirm the digital object exists
-        #     # confirm_digital_object(folder_data)
-        #     # TODO(tk) if no digital object exists, after creating we must
-        #     # run get_folder_data() again to include the new digital object
-
-        #     # TODO(tk) confirm the digital_object_id matches the folder_id
-        #     # folder_data = confirm_digital_object_id(folder_data)
-        #     # TODO(tk) if identfiers do not match, after updating we must run
-        #     # get_folder_data() again to include the new digital object id
-
-        #     # TODO(tk) figure out when to save/upload folder data without
-        #     # repeatedly uploading the same file multiple times
-
-        #     folder_arrangement = get_folder_arrangement(folder_data)
-        #     print(json.dumps(folder_arrangement, sort_keys=True, indent=4))
-        #     xmp_dc = get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_json)
-        #     print(json.dumps(xmp_dc, sort_keys=True, indent=4))
-        #     aip_image_conversion.wait()
-        #     write_xmp_metadata(aip_image_path, xmp_dc)
-        #     # NOTE: unsure how to run with _bg=True from a function
-        #     aip_image_signature = sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', aip_image_path, '-', _piped=True, _bg=True), _bg=True), '-d', ' ', '-f', '1', _bg=True)
-        #     aip_image_data = get_aip_image_data(aip_image_path)
-        #     print(json.dumps(aip_image_data, sort_keys=True, indent=4))
-        #     sip_image_signature.wait()
-        #     aip_image_signature.wait()
-        #     # verify image signatures match
-        #     if aip_image_signature == sip_image_signature:
-        #         pass
-        #     else:
-        #         print('❌  image signatures did not match: ' + file_parts['image_id'])
-        #         continue
-        #     # begin s3 processing
-        #     aip_image_key = get_s3_aip_image_key(folder_arrangement, file_parts)
-        #     print(aip_image_key)
-        #     put_s3_object_response = put_s3_object(AIP_BUCKET, aip_image_key, aip_image_data)
-        #     print(json.dumps(put_s3_object_response, sort_keys=True, indent=4))
-        #     digital_object_component = create_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_image_key, aip_image_data)
-        #     print(json.dumps(digital_object_component, sort_keys=True, indent=4))
-        #     digital_object_component_post_response = post_digital_object_component(digital_object_component)
-        #     print(json.dumps(json.loads(digital_object_component_post_response.text), sort_keys=True, indent=4))
+            # TODO log file success
+            print(f'✅ {os.path.basename(filepath)} processed successfully')
