@@ -50,28 +50,15 @@ def get_collection_json(collection_uri):
     client.authorize()
     return client.get(collection_uri).json()
 
-def get_collection_tree(collection_id):
+def get_collection_tree(collection_uri):
     client = ASnakeClient()
     client.authorize()
     return client.get(collection_uri + '/ordered_records').json()
 
-# def save_collection_data(directory, json):
-#     with open(directory.split(os.path.sep)[-1] + '_collection_data.json', 'w') as f:
-#         json.dump(json, f)
-
-# def save_collection_tree(directory, json):
-#     with open(directory.split(os.path.sep)[-1] + '_collection_tree.json', 'w') as f:
-#         json.dump(json, f)
-
-### LOOP FUNCTIONS
-# process a single image
-# requires: a file path, an archival object in ArchivesSpace
-# results: preservation image, access image, digital object component
-
-### confirm file exists and has the proper extention
-# valid extensions are: .tif, .tiff
-# NOTE: no mime type checking at this point, some TIFFs were troublesome
 def confirm_file(filepath):
+    # confirm file exists and has the proper extention
+    # valid extensions are: .tif, .tiff
+    # NOTE: no mime type checking at this point, some TIFFs were troublesome
     if os.path.isfile(filepath):
         # print(os.path.splitext(filepath)[1])
         if os.path.splitext(filepath)[1] not in ['.tif', '.tiff']:
@@ -315,7 +302,7 @@ def put_s3_object(bucket, key, data):
     )
     return response
 
-def create_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_image_key, aip_image_data):
+def prepare_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_image_key, aip_image_data):
     # MINIMAL REQUIREMENTS: digital_object and one of label, title, or date
     # FILE VERSIONS MINIMAL REQUIREMENTS: file_uri
     # 'publish': false is the default value
@@ -338,14 +325,6 @@ def create_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_ima
     else:
         # TODO(tk) figure out what to do if the folder has no digital objects
         print('😶 no digital object')
-    # TODO(tk) think through component_id/filename matching scheme for both
-        # access and preservation copies; scenario: Alice downloads a file with an
-        # opaque identifier and doesn't know what it is, then she looks it up in
-        # ArchivesSpace and finds the record, info about the image content is
-        # acquired but info about *which file version* she has a downloaded copy
-        # of still eludes her; searching in ArchivesSpace for the filename part of a
-        # File URI (fwgf-nv7c.jp2, for example) will return the digital object
-        # component, but searching without the extension (fwgf-nv7c) will not
     digital_object_component['component_id'] = file_parts['component_id']
     if aip_image_data['transformation'] == '5-3 reversible' and aip_image_data['quantization'] == 'no quantization':
         digital_object_component['file_versions'][0]['caption'] = ('width: '
@@ -411,10 +390,9 @@ if __name__ == "__main__":
     collection_uri = get_collection_uri(collection_id)
     # print(collection_uri)
     collection_json = get_collection_json(collection_uri)
-    collection_json['tree']['_resolved'] = get_collection_tree(collection_id)
+    collection_json['tree']['_resolved'] = get_collection_tree(collection_uri)
     # print(collection_json)
     # send collection_json to S3
-    # save_collection_data(collection_directory, collection_json)
     try:
         boto3.client('s3').put_object(
             Bucket=AIP_BUCKET,
@@ -431,17 +409,6 @@ if __name__ == "__main__":
             print(f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}")
         else:
             raise e
-
-    # print(json.dumps(s3_put_collection_data_response, sort_keys=True, indent=4))
-    # send collection_tree to S3
-    # collection_tree = get_collection_tree(collection_id)
-    # save_collection_tree(collection_directory, collection_tree)
-    # s3_put_collection_tree_response = boto3.client('s3').put_object(
-    #     Bucket=AIP_BUCKET,
-    #     Key=collection_id + os.path.sep + collection_id + '-collection-tree.json',
-    #     Body=json.dumps(collection_tree, sort_keys=True, indent=4)
-    # )
-    # print(json.dumps(s3_put_collection_tree_response, sort_keys=True, indent=4))
 
     folders = []
     with os.scandir(collection_directory) as it:
@@ -460,9 +427,9 @@ if __name__ == "__main__":
         # pprint.pprint(folders)
         folderpath = folders.pop()
         # pprint.pprint(folders)
-        # TODO(tk) folder-level processing (confirm digital objects, etc)
-        print('get_folder_data()')
-        print(os.path.basename(folderpath))
+        # folder-level processing (confirm digital objects, etc)
+        # print('get_folder_data()')
+        print(f'📂 {os.path.basename(folderpath)}')
 
         try:
             # TODO(tk) consider renaming folder_data to folder_result
@@ -520,9 +487,10 @@ if __name__ == "__main__":
                 if entry.is_file() and os.path.splitext(entry.path)[1] in ['.tif', '.tiff']:
                     # print(entry.path)
                     filepaths.append(entry.path)
-        # print(files)
-        filepaths.sort()
-        pprint.pprint(filepaths)
+        # we reverse the sort because we use pop() and we want the components
+        # to be ingested in order as children of digital objects
+        filepaths.sort(reverse=True)
+        # pprint.pprint(filepaths)
         for f in range(len(filepaths)):
             print(f'{str(len(filepaths))} remaining images in folder')
             # pprint.pprint(filepaths)
@@ -577,7 +545,7 @@ if __name__ == "__main__":
                 else:
                     raise e
             # set up ArchivesSpace record
-            digital_object_component = create_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_image_key, aip_image_data)
+            digital_object_component = prepare_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_image_key, aip_image_data)
             # post to ArchivesSpace
             # post_digital_object_component_repsonse = post_digital_object_component(digital_object_component)
             # print(json.dumps(post_digital_object_component_repsonse.json(), sort_keys=True, indent=4))
@@ -586,7 +554,7 @@ if __name__ == "__main__":
             except HTTPError as e:
                 print(str(e))
                 print(f"❌ unable to create Digital Object Component for {folder_data['component_id']}; skipping...")
-                print(f'⚠️ clean up {aip_image_key} file in {AIP_BUCKET} bucket')
+                print(f'⚠️  clean up {aip_image_key} file in {AIP_BUCKET} bucket')
                 # TODO programmatically remove file from bucket?
                 continue
 
