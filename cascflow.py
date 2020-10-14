@@ -6,6 +6,8 @@ import botocore
 import hashlib
 import json
 import os
+import plac
+import pprint
 import random
 import sh
 import string
@@ -13,12 +15,204 @@ import string
 from asnake.client import ASnakeClient
 from jpylyzer import jpylyzer
 from requests import HTTPError
+if __debug__:
+    from sidetrack import set_debug, log, logr
+
+@plac.annotations(
+    collection_id = ('the collection identifier from ArchivesSpace'),
+    debug = ('print extra debugging info', 'flag', '@'),
+)
+
+def main(collection_id, debug):
+
+    if debug:
+        if __debug__: set_debug(True)
+
+    check_environment_variables()
+    AIP_BUCKET = os.getenv('AIP_BUCKET')
+
+    collection_directory = get_collection_directory(collection_id)
+    # print(collection_directory)
+    collection_uri = get_collection_uri(collection_id)
+    # print(collection_uri)
+    collection_json = get_collection_json(collection_uri)
+    collection_json['tree']['_resolved'] = get_collection_tree(collection_uri)
+    # print(collection_json)
+    # send collection_json to S3
+    try:
+        boto3.client('s3').put_object(
+            Bucket=AIP_BUCKET,
+            Key=collection_id + '/' + collection_id + '.json',
+            Body=json.dumps(collection_json, sort_keys=True, indent=4)
+        )
+        print(f"✅ metadata sent to S3 for {collection_id}")
+    except botocore.exceptions.ClientError as e:
+        # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
+        if e.response['Error']['Code'] == 'InternalError': # Generic error
+            # We grab the message, request ID, and HTTP code to give to customer support
+            print(f"Error Message: {e.response['Error']['Message']}")
+            print(f"Request ID: {e.response['ResponseMetadata']['RequestId']}")
+            print(f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}")
+        else:
+            raise e
+
+    folders = []
+    with os.scandir(collection_directory) as it:
+        for entry in it:
+            if not entry.name.startswith('.') and entry.is_dir():
+                # print(entry.path)
+                folders.append(entry.path)
+    # print(folders)
+
+    # loop over folders list
+    # pprint.pprint(folders.sort())
+    folders.sort()
+    pprint.pprint(folders)
+    for _ in range(len(folders)):
+        print('folders remaining: ' + str(len(folders))) # TODO more helpful to count remaining files
+        # pprint.pprint(folders)
+        folderpath = folders.pop()
+        # pprint.pprint(folders)
+        # folder-level processing (confirm digital objects, etc)
+        # print('get_folder_data()')
+        print(f'📂 {os.path.basename(folderpath)}')
+
+        try:
+            # TODO(tk) consider renaming folder_data to folder_result
+            folder_data = get_folder_data(os.path.basename(folderpath)) # NOTE: different for Hale
+        except ValueError as e:
+            print(str(e))
+            continue
+
+        try:
+            folder_data = confirm_digital_object(folder_data)
+        except ValueError as e:
+            print(str(e))
+            continue
+        except NotImplementedError as e:
+            print(str(e))
+            continue
+
+        try:
+            folder_data = confirm_digital_object_id(folder_data)
+        except HTTPError as e:
+            print(str(e))
+            print(f"❌ unable to set Component Unique Identifier to {folder_data['component_id']}; skipping...")
+            continue
+
+        try:
+            folder_arrangement = get_folder_arrangement(folder_data)
+        except HTTPError as e:
+            print(str(e))
+            print(f"❌ unable to get folder arrangement for {folder_data['component_id']}; skipping...")
+            continue
+
+        # send ArchivesSpace folder metadata to S3 as a JSON file
+        try:
+            boto3.client('s3').put_object(
+                Bucket=AIP_BUCKET,
+                Key=get_s3_aip_folder_key(get_s3_aip_folder_prefix(folder_arrangement, folder_data), folder_data),
+                Body=json.dumps(folder_data, sort_keys=True, indent=4)
+            )
+            print(f"✅ metadata sent to S3 for {folder_data['component_id']}")
+        except botocore.exceptions.ClientError as e:
+            # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
+            if e.response['Error']['Code'] == 'InternalError': # Generic error
+                # We grab the message, request ID, and HTTP code to give to customer support
+                print(f"Error Message: {e.response['Error']['Message']}")
+                print(f"Request ID: {e.response['ResponseMetadata']['RequestId']}")
+                print(f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}")
+            else:
+                raise e
+
+        # loop over contents of folder directory
+        filepaths = []
+        with os.scandir(folderpath) as contents:
+            for entry in contents:
+                # TODO(tk) set up list of usable imagetypes earlier
+                if entry.is_file() and os.path.splitext(entry.path)[1] in ['.tif', '.tiff']:
+                    # print(entry.path)
+                    filepaths.append(entry.path)
+        # we reverse the sort because we use pop() and we want the components
+        # to be ingested in order as children of digital objects
+        filepaths.sort(reverse=True)
+        # pprint.pprint(filepaths)
+        for f in range(len(filepaths)):
+            print(f'{str(len(filepaths))} remaining images in folder')
+            # pprint.pprint(filepaths)
+            # TODO remember why this pattern was chosen instead of simply running everything under one for loop
+            filepath = filepaths.pop()
+            # pprint.pprint(filepaths)
+            # TODO(tk) image processing
+            print(f'▶️  {os.path.basename(filepath)}')
+            # NOTE: unsure how to run with _bg=True from a function
+            sip_image_signature = sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', filepath, '-', _piped=True, _bg=True), _bg=True), '-d', ' ', '-f', '1', _bg=True)
+            # split off the extension from the source filepath
+            aip_image_path = os.path.splitext(filepath)[0] + '-LOSSLESS.jp2'
+            # NOTE: unsure how to run with _bg=True from a function
+            aip_image_conversion = sh.magick.convert('-quiet', filepath, '-quality', '0', aip_image_path, _bg=True)
+            file_parts = get_file_parts(filepath)
+            # print(json.dumps(file_parts, sort_keys=True, indent=4))
+            xmp_dc = get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_json)
+            # print(json.dumps(xmp_dc, sort_keys=True, indent=4))
+            aip_image_conversion.wait()
+            write_xmp_metadata(aip_image_path, xmp_dc)
+            # NOTE: unsure how to run with _bg=True from a function
+            aip_image_signature = sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', aip_image_path, '-', _piped=True, _bg=True), _bg=True), '-d', ' ', '-f', '1', _bg=True)
+            aip_image_data = get_aip_image_data(aip_image_path)
+            # print(json.dumps(aip_image_data, sort_keys=True, indent=4))
+            sip_image_signature.wait()
+            aip_image_signature.wait()
+            # verify image signatures match
+            if aip_image_signature == sip_image_signature:
+                pass
+            else:
+                print('❌  image signatures did not match: ' + file_parts['image_id'])
+                continue
+            # begin s3 processing
+            aip_image_key = get_s3_aip_image_key(get_s3_aip_folder_prefix(folder_arrangement, folder_data), file_parts)
+            # print(aip_image_key)
+            # send image to S3
+            try:
+                boto3.client('s3').put_object(
+                    Bucket=AIP_BUCKET,
+                    Key=aip_image_key,
+                    Body=open(aip_image_data['filepath'], 'rb'),
+                    ContentMD5=aip_image_data['md5'],
+                    Metadata={'md5': aip_image_data['md5']}
+                )
+            except botocore.exceptions.ClientError as e:
+                # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
+                if e.response['Error']['Code'] == 'InternalError': # Generic error
+                    # We grab the message, request ID, and HTTP code to give to customer support
+                    print(f"Error Message: {e.response['Error']['Message']}")
+                    print(f"Request ID: {e.response['ResponseMetadata']['RequestId']}")
+                    print(f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}")
+                else:
+                    raise e
+            # set up ArchivesSpace record
+            digital_object_component = prepare_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_image_key, aip_image_data)
+            # post to ArchivesSpace
+            # post_digital_object_component_repsonse = post_digital_object_component(digital_object_component)
+            # print(json.dumps(post_digital_object_component_repsonse.json(), sort_keys=True, indent=4))
+            try:
+                post_digital_object_component(digital_object_component)
+            except HTTPError as e:
+                print(str(e))
+                print(f"❌ unable to create Digital Object Component for {folder_data['component_id']}; skipping...")
+                print(f'⚠️  clean up {aip_image_key} file in {AIP_BUCKET} bucket')
+                # TODO programmatically remove file from bucket?
+                continue
+
+            # TODO log file success
+            print(f'✅ {os.path.basename(filepath)} processed successfully')
 
 def check_environment_variables():
     WORKDIR = os.environ.get('WORKDIR')
     AIP_BUCKET = os.environ.get('AIP_BUCKET')
     if all([WORKDIR, AIP_BUCKET]):
-        pass
+        if __debug__: log(f'WORKDIR: {WORKDIR}')
+        if __debug__: log(f'AIP_BUCKET: {AIP_BUCKET}')
     else:
         print('❌  all environment variables must be set:')
         print('  WORKDIR: /path/to/directory above collection files')
@@ -73,6 +267,7 @@ def get_folder_id(filepath):
     return filepath.split('/')[-1].rsplit('_', 1)[0]
 
 def get_folder_data(component_id):
+    # TODO find a way to populate component_id field from metadata (see HBF)
     # searches for the component_id using keyword search; excludes pui results
     client = ASnakeClient()
     client.authorize()
@@ -369,194 +564,4 @@ def post_digital_object_component(json_data):
 ###
 
 if __name__ == "__main__":
-
-    import glob
-    import os
-    import pprint
-    import sh
-    import sys
-
-    if len(sys.argv) > 1:
-        collection_id = sys.argv[1]
-    else:
-        print('❌  missing parameter: Collection Identifier')
-        exit()
-
-    check_environment_variables()
-    AIP_BUCKET = os.getenv('AIP_BUCKET')
-
-    collection_directory = get_collection_directory(collection_id)
-    print(collection_directory)
-    collection_uri = get_collection_uri(collection_id)
-    # print(collection_uri)
-    collection_json = get_collection_json(collection_uri)
-    collection_json['tree']['_resolved'] = get_collection_tree(collection_uri)
-    # print(collection_json)
-    # send collection_json to S3
-    try:
-        boto3.client('s3').put_object(
-            Bucket=AIP_BUCKET,
-            Key=collection_id + '/' + collection_id + '.json',
-            Body=json.dumps(collection_json, sort_keys=True, indent=4)
-        )
-        print(f"✅ metadata sent to S3 for {collection_id}")
-    except botocore.exceptions.ClientError as e:
-        # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
-        if e.response['Error']['Code'] == 'InternalError': # Generic error
-            # We grab the message, request ID, and HTTP code to give to customer support
-            print(f"Error Message: {e.response['Error']['Message']}")
-            print(f"Request ID: {e.response['ResponseMetadata']['RequestId']}")
-            print(f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}")
-        else:
-            raise e
-
-    folders = []
-    with os.scandir(collection_directory) as it:
-        for entry in it:
-            if not entry.name.startswith('.') and entry.is_dir():
-                # print(entry.path)
-                folders.append(entry.path)
-    # print(folders)
-
-    # loop over folders list
-    # pprint.pprint(folders.sort())
-    folders.sort()
-    pprint.pprint(folders)
-    for _ in range(len(folders)):
-        print('folders remaining: ' + str(len(folders)))
-        # pprint.pprint(folders)
-        folderpath = folders.pop()
-        # pprint.pprint(folders)
-        # folder-level processing (confirm digital objects, etc)
-        # print('get_folder_data()')
-        print(f'📂 {os.path.basename(folderpath)}')
-
-        try:
-            # TODO(tk) consider renaming folder_data to folder_result
-            folder_data = get_folder_data(os.path.basename(folderpath)) # NOTE: different for Hale
-        except ValueError as e:
-            print(str(e))
-            continue
-
-        try:
-            folder_data = confirm_digital_object(folder_data)
-        except ValueError as e:
-            print(str(e))
-            continue
-        except NotImplementedError as e:
-            print(str(e))
-            continue
-
-        try:
-            folder_data = confirm_digital_object_id(folder_data)
-        except HTTPError as e:
-            print(str(e))
-            print(f"❌ unable to set Component Unique Identifier to {folder_data['component_id']}; skipping...")
-            continue
-
-        try:
-            folder_arrangement = get_folder_arrangement(folder_data)
-        except HTTPError as e:
-            print(str(e))
-            print(f"❌ unable to get folder arrangement for {folder_data['component_id']}; skipping...")
-            continue
-
-        # send ArchivesSpace folder metadata to S3 as a JSON file
-        try:
-            boto3.client('s3').put_object(
-                Bucket=AIP_BUCKET,
-                Key=get_s3_aip_folder_key(get_s3_aip_folder_prefix(folder_arrangement, folder_data), folder_data),
-                Body=json.dumps(folder_data, sort_keys=True, indent=4)
-            )
-            print(f"✅ metadata sent to S3 for {folder_data['component_id']}")
-        except botocore.exceptions.ClientError as e:
-            # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
-            if e.response['Error']['Code'] == 'InternalError': # Generic error
-                # We grab the message, request ID, and HTTP code to give to customer support
-                print(f"Error Message: {e.response['Error']['Message']}")
-                print(f"Request ID: {e.response['ResponseMetadata']['RequestId']}")
-                print(f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}")
-            else:
-                raise e
-
-        # loop over contents of folder directory
-        filepaths = []
-        with os.scandir(folderpath) as contents:
-            for entry in contents:
-                # TODO(tk) set up list of usable imagetypes earlier
-                if entry.is_file() and os.path.splitext(entry.path)[1] in ['.tif', '.tiff']:
-                    # print(entry.path)
-                    filepaths.append(entry.path)
-        # we reverse the sort because we use pop() and we want the components
-        # to be ingested in order as children of digital objects
-        filepaths.sort(reverse=True)
-        # pprint.pprint(filepaths)
-        for f in range(len(filepaths)):
-            print(f'{str(len(filepaths))} remaining images in folder')
-            # pprint.pprint(filepaths)
-            # TODO remember why this pattern was chosen instead of simply running everything under one for loop
-            filepath = filepaths.pop()
-            # pprint.pprint(filepaths)
-            # TODO(tk) image processing
-            print(f'▶️  {os.path.basename(filepath)}')
-            # NOTE: unsure how to run with _bg=True from a function
-            sip_image_signature = sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', filepath, '-', _piped=True, _bg=True), _bg=True), '-d', ' ', '-f', '1', _bg=True)
-            # split off the extension from the source filepath
-            aip_image_path = os.path.splitext(filepath)[0] + '-LOSSLESS.jp2'
-            # NOTE: unsure how to run with _bg=True from a function
-            aip_image_conversion = sh.magick.convert('-quiet', filepath, '-quality', '0', aip_image_path, _bg=True)
-            file_parts = get_file_parts(filepath)
-            print(json.dumps(file_parts, sort_keys=True, indent=4))
-            xmp_dc = get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_json)
-            print(json.dumps(xmp_dc, sort_keys=True, indent=4))
-            aip_image_conversion.wait()
-            write_xmp_metadata(aip_image_path, xmp_dc)
-            # NOTE: unsure how to run with _bg=True from a function
-            aip_image_signature = sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', aip_image_path, '-', _piped=True, _bg=True), _bg=True), '-d', ' ', '-f', '1', _bg=True)
-            aip_image_data = get_aip_image_data(aip_image_path)
-            print(json.dumps(aip_image_data, sort_keys=True, indent=4))
-            sip_image_signature.wait()
-            aip_image_signature.wait()
-            # verify image signatures match
-            if aip_image_signature == sip_image_signature:
-                pass
-            else:
-                print('❌  image signatures did not match: ' + file_parts['image_id'])
-                continue
-            # begin s3 processing
-            aip_image_key = get_s3_aip_image_key(get_s3_aip_folder_prefix(folder_arrangement, folder_data), file_parts)
-            print(aip_image_key)
-            # send image to S3
-            try:
-                boto3.client('s3').put_object(
-                    Bucket=AIP_BUCKET,
-                    Key=aip_image_key,
-                    Body=open(aip_image_data['filepath'], 'rb'),
-                    ContentMD5=aip_image_data['md5'],
-                    Metadata={'md5': aip_image_data['md5']}
-                )
-            except botocore.exceptions.ClientError as e:
-                # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
-                if e.response['Error']['Code'] == 'InternalError': # Generic error
-                    # We grab the message, request ID, and HTTP code to give to customer support
-                    print(f"Error Message: {e.response['Error']['Message']}")
-                    print(f"Request ID: {e.response['ResponseMetadata']['RequestId']}")
-                    print(f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}")
-                else:
-                    raise e
-            # set up ArchivesSpace record
-            digital_object_component = prepare_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_image_key, aip_image_data)
-            # post to ArchivesSpace
-            # post_digital_object_component_repsonse = post_digital_object_component(digital_object_component)
-            # print(json.dumps(post_digital_object_component_repsonse.json(), sort_keys=True, indent=4))
-            try:
-                post_digital_object_component(digital_object_component)
-            except HTTPError as e:
-                print(str(e))
-                print(f"❌ unable to create Digital Object Component for {folder_data['component_id']}; skipping...")
-                print(f'⚠️  clean up {aip_image_key} file in {AIP_BUCKET} bucket')
-                # TODO programmatically remove file from bucket?
-                continue
-
-            # TODO log file success
-            print(f'✅ {os.path.basename(filepath)} processed successfully')
+    plac.call(main)
