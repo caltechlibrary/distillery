@@ -159,6 +159,11 @@ def main(collection_id, debug):
             # TODO log file success
             print(f'✅ {os.path.basename(filepath)} processed successfully\n')
 
+###
+
+def calculate_pixel_signature(filepath):
+    return sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', filepath, '-', _piped=True)), '-d', ' ', '-f', '1')
+
 def check_environment_variables():
     WORKDIR = os.environ.get('WORKDIR')
     AIP_BUCKET = os.environ.get('AIP_BUCKET')
@@ -173,33 +178,32 @@ def check_environment_variables():
         print('🖥   to see value: echo $VAR')
         exit()
 
-def get_collection_directory(collection_id):
-    WORKDIR = os.getenv('WORKDIR').rstrip(os.path.sep)
-    if os.path.isdir(WORKDIR + os.path.sep + collection_id):
-        return WORKDIR + os.path.sep + collection_id
-    else:
-        print('❌  invalid or missing directory: ' + WORKDIR + os.path.sep + collection_id)
-        exit()
+def confirm_digital_object(folder_data):
+    digital_object_count = 0
+    for instance in folder_data['instances']:
+        if 'digital_object' in instance.keys():
+            digital_object_count += 1
+    if digital_object_count > 1:
+        raise ValueError(f"❌ {folder_data['component_id']} folder contains multiple Digital Objects, skipping...")
+    if digital_object_count < 1:
+        # folder_data = create_digital_object(folder_data)
+        raise NotImplementedError('🈳 create_digital_object() not implemented yet')
+    return folder_data
 
-def get_collection_uri(collection_id):
-    client = ASnakeClient()
-    client.authorize()
-    search_results_json = client.get('/repositories/2/search?page=1&page_size=1&type[]=resource&fields[]=uri&aq={\"query\":{\"field\":\"identifier\",\"value\":\"' + collection_id + '\",\"jsonmodel_type\":\"field_query\",\"negated\":false,\"literal\":false}}').json()
-    if bool(search_results_json['results']):
-        return search_results_json['results'][0]['uri']
-    else:
-        print('❌  Collection Identifier not found in ArchivesSpace: ' + collection_id)
-        exit()
-
-def get_collection_json(collection_uri):
-    client = ASnakeClient()
-    client.authorize()
-    return client.get(collection_uri).json()
-
-def get_collection_tree(collection_uri):
-    client = ASnakeClient()
-    client.authorize()
-    return client.get(collection_uri + '/ordered_records').json()
+def confirm_digital_object_id(folder_data):
+    # returns folder_data always in case digital_object_id was updated
+    for instance in folder_data['instances']:
+        # TODO(tk) confirm Archives policy disallows multiple digital objects
+        # TODO(tk) create script/report to periodically check for violations
+        if 'digital_object' in instance.keys():
+            if instance['digital_object']['_resolved']['digital_object_id'] != folder_data['component_id']:
+                # TODO(tk) confirm with Archives that replacing a digital_object_id
+                # is acceptable in all foreseen circumstances
+                set_digital_object_id(instance['digital_object']['ref'], folder_data['component_id'])
+                # TODO(tk) confirm returned folder_data includes updated id
+                # if setting fails we won’t get to this step anyway
+                folder_data = get_folder_data(folder_data['component_id'])
+    return folder_data
 
 def confirm_file(filepath):
     # confirm file exists and has the proper extention
@@ -214,26 +218,80 @@ def confirm_file(filepath):
         print('❌  invalid file path: ' + filepath)
         exit()
 
-def get_folder_id(filepath):
-    # isolate the filename and then get the folder id
-    return filepath.split('/')[-1].rsplit('_', 1)[0]
-
-def get_folder_data(component_id):
-    # TODO find a way to populate component_id field from metadata (see HBF)
-    # searches for the component_id using keyword search; excludes pui results
+# TODO(tk)
+def create_digital_object(folder_data):
     client = ASnakeClient()
     client.authorize()
-    response = client.get('/repositories/2/search?page=1&page_size=10&type[]=archival_object&aq={\"query\":{\"op\":\"AND\",\"subqueries\":[{\"field\":\"keyword\",\"value\":\"' + component_id + '\",\"jsonmodel_type\":\"field_query\",\"negated\":false,\"literal\":false},{\"field\":\"types\",\"value\":\"pui\",\"jsonmodel_type\":\"field_query\",\"negated\":true}],\"jsonmodel_type\":\"boolean_query\"},\"jsonmodel_type\":\"advanced_query\"}')
+    # post digital object
+    # TODO(tk) be sure new digital object is indexed and returnable immediately
+    folder_data = get_folder_data(folder_data['component_id'])
+    return folder_data
+
+def get_aip_image_data(filepath):
+    aip_image_data = {}
+    aip_image_data['filepath'] = filepath
+    jpylyzer_xml = jpylyzer.checkOneFile(aip_image_data['filepath'])
+    aip_image_data['filesize'] = jpylyzer_xml.findtext('./fileInfo/fileSizeInBytes')
+    aip_image_data['width'] = jpylyzer_xml.findtext('./properties/jp2HeaderBox/imageHeaderBox/width')
+    aip_image_data['height'] = jpylyzer_xml.findtext('./properties/jp2HeaderBox/imageHeaderBox/height')
+    aip_image_data['standard'] = jpylyzer_xml.findtext('./properties/contiguousCodestreamBox/siz/rsiz')
+    aip_image_data['transformation'] = jpylyzer_xml.findtext('./properties/contiguousCodestreamBox/cod/transformation')
+    aip_image_data['quantization'] = jpylyzer_xml.findtext('./properties/contiguousCodestreamBox/qcd/qStyle')
+    # aip_image_data['md5'] = str(sh.base64(sh.openssl.md5('-binary', aip_image_data['filepath']))).strip()
+    aip_image_data['md5'] = base64.b64encode(hashlib.md5(open(aip_image_data['filepath'], 'rb').read()).digest()).decode()
+    return aip_image_data
+
+def get_archival_object(id):
+    client = ASnakeClient()
+    client.authorize()
+    response = client.get('/repositories/2/archival_objects/' + id)
     response.raise_for_status()
-    if len(response.json()['results']) < 1:
-        # print('❌  no records with component_id: ' + component_id)
-        # exit()
-        raise ValueError(f'❌ no records with component_id: {component_id}; skipping...')
-    if len(response.json()['results']) > 1:
-        # print('❌  multiple records with component_id: ' + component_id)
-        # exit()
-        raise ValueError(f'❌ multiple records with component_id: {component_id}; skipping...')
-    return json.loads(response.json()['results'][0]['json'])
+    return response.json()
+
+def get_collection_directory(collection_id):
+    WORKDIR = os.getenv('WORKDIR').rstrip(os.path.sep)
+    if os.path.isdir(WORKDIR + os.path.sep + collection_id):
+        return WORKDIR + os.path.sep + collection_id
+    else:
+        print('❌  invalid or missing directory: ' + WORKDIR + os.path.sep + collection_id)
+        exit()
+
+def get_collection_json(collection_uri):
+    client = ASnakeClient()
+    client.authorize()
+    return client.get(collection_uri).json()
+
+def get_collection_tree(collection_uri):
+    client = ASnakeClient()
+    client.authorize()
+    return client.get(collection_uri + '/ordered_records').json()
+
+def get_collection_uri(collection_id):
+    client = ASnakeClient()
+    client.authorize()
+    search_results_json = client.get('/repositories/2/search?page=1&page_size=1&type[]=resource&fields[]=uri&aq={\"query\":{\"field\":\"identifier\",\"value\":\"' + collection_id + '\",\"jsonmodel_type\":\"field_query\",\"negated\":false,\"literal\":false}}').json()
+    if bool(search_results_json['results']):
+        return search_results_json['results'][0]['uri']
+    else:
+        print('❌  Collection Identifier not found in ArchivesSpace: ' + collection_id)
+        exit()
+
+def get_crockford_characters(n=4):
+    return ''.join(random.choices('abcdefghjkmnpqrstvwxyz' + string.digits, k=n))
+
+def get_digital_object_component_id():
+    return get_crockford_characters() + '_' + get_crockford_characters()
+
+def get_file_parts(filepath):
+    file_parts = {}
+    file_parts['filepath'] = filepath
+    file_parts['filename'] = file_parts['filepath'].split('/')[-1]
+    file_parts['image_id'] = file_parts['filename'].split('.')[0]
+    file_parts['extension'] = file_parts['filename'].split('.')[-1]
+    file_parts['folder_id'] = file_parts['image_id'].rsplit('_', 1)[0]
+    file_parts['sequence'] = file_parts['image_id'].split('_')[-1]
+    file_parts['component_id'] = get_digital_object_component_id()
+    return file_parts
 
 def get_folder_arrangement(folder_data):
     # returns names and identifers of the arragement levels for a folder
@@ -258,127 +316,34 @@ def get_folder_arrangement(folder_data):
                         folder_arrangement['subseries_id'] = subseries['component_id']
     return folder_arrangement
 
-# TODO(tk)
-def create_digital_object(folder_data):
+def get_folder_data(component_id):
+    # TODO find a way to populate component_id field from metadata (see HBF)
+    # searches for the component_id using keyword search; excludes pui results
     client = ASnakeClient()
     client.authorize()
-    # post digital object
-    # TODO(tk) be sure new digital object is indexed and returnable immediately
-    folder_data = get_folder_data(folder_data['component_id'])
-    return folder_data
-
-def confirm_digital_object(folder_data):
-    digital_object_count = 0
-    for instance in folder_data['instances']:
-        if 'digital_object' in instance.keys():
-            digital_object_count += 1
-    if digital_object_count > 1:
-        raise ValueError(f"❌ {folder_data['component_id']} folder contains multiple Digital Objects, skipping...")
-    if digital_object_count < 1:
-        # folder_data = create_digital_object(folder_data)
-        raise NotImplementedError('🈳 create_digital_object() not implemented yet')
-    return folder_data
-
-def set_digital_object_id(uri, id):
-    # raises an HTTPError exception if unsuccessful
-    client = ASnakeClient()
-    client.authorize()
-    get_response_json = client.get(uri).json()
-    get_response_json['digital_object_id'] = id
-    post_response = client.post(uri, json=get_response_json)
-    post_response.raise_for_status()
-    return
-
-def confirm_digital_object_id(folder_data):
-    # returns folder_data always in case digital_object_id was updated
-    for instance in folder_data['instances']:
-        # TODO(tk) confirm Archives policy disallows multiple digital objects
-        # TODO(tk) create script/report to periodically check for violations
-        if 'digital_object' in instance.keys():
-            if instance['digital_object']['_resolved']['digital_object_id'] != folder_data['component_id']:
-                # TODO(tk) confirm with Archives that replacing a digital_object_id
-                # is acceptable in all foreseen circumstances
-                set_digital_object_id(instance['digital_object']['ref'], folder_data['component_id'])
-                # TODO(tk) confirm returned folder_data includes updated id
-                # if setting fails we won’t get to this step anyway
-                folder_data = get_folder_data(folder_data['component_id'])
-    return folder_data
-
-def get_crockford_characters(n=4):
-    return ''.join(random.choices('abcdefghjkmnpqrstvwxyz' + string.digits, k=n))
-
-def get_digital_object_component_id():
-    return get_crockford_characters() + '_' + get_crockford_characters()
-
-def get_file_parts(filepath):
-    file_parts = {}
-    file_parts['filepath'] = filepath
-    file_parts['filename'] = file_parts['filepath'].split('/')[-1]
-    file_parts['image_id'] = file_parts['filename'].split('.')[0]
-    file_parts['extension'] = file_parts['filename'].split('.')[-1]
-    file_parts['folder_id'] = file_parts['image_id'].rsplit('_', 1)[0]
-    file_parts['sequence'] = file_parts['image_id'].split('_')[-1]
-    file_parts['component_id'] = get_digital_object_component_id()
-    return file_parts
-
-def calculate_pixel_signature(filepath):
-    return sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', filepath, '-', _piped=True)), '-d', ' ', '-f', '1')
-
-def get_archival_object(id):
-    client = ASnakeClient()
-    client.authorize()
-    response = client.get('/repositories/2/archival_objects/' + id)
+    response = client.get('/repositories/2/search?page=1&page_size=10&type[]=archival_object&aq={\"query\":{\"op\":\"AND\",\"subqueries\":[{\"field\":\"keyword\",\"value\":\"' + component_id + '\",\"jsonmodel_type\":\"field_query\",\"negated\":false,\"literal\":false},{\"field\":\"types\",\"value\":\"pui\",\"jsonmodel_type\":\"field_query\",\"negated\":true}],\"jsonmodel_type\":\"boolean_query\"},\"jsonmodel_type\":\"advanced_query\"}')
     response.raise_for_status()
-    return response.json()
+    if len(response.json()['results']) < 1:
+        # print('❌  no records with component_id: ' + component_id)
+        # exit()
+        raise ValueError(f'❌ no records with component_id: {component_id}; skipping...')
+    if len(response.json()['results']) > 1:
+        # print('❌  multiple records with component_id: ' + component_id)
+        # exit()
+        raise ValueError(f'❌ multiple records with component_id: {component_id}; skipping...')
+    return json.loads(response.json()['results'][0]['json'])
 
-def get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_json):
-    xmp_dc = {}
-    xmp_dc['title'] = folder_arrangement['folder_display'] + ' [image ' + file_parts['sequence'] + ']'
-    # TODO(tk) check extent type for pages/images/computer files/etc
-    if len(folder_data['extents']) == 1:
-        xmp_dc['title'] = xmp_dc['title'].rstrip(']') + '/' + folder_data['extents'][0]['number'].zfill(4) + ']'
-    xmp_dc['identifier'] = file_parts['component_id']
-    xmp_dc['publisher'] = folder_arrangement['repository_name']
-    xmp_dc['source'] = folder_arrangement['repository_code'] + ': ' + folder_arrangement['collection_display']
-    for instance in folder_data['instances']:
-        if 'sub_container' in instance.keys():
-            if 'series' in instance['sub_container']['top_container']['_resolved'].keys():
-                xmp_dc['source'] += ' / ' + instance['sub_container']['top_container']['_resolved']['series'][0]['display_string']
-                for ancestor in folder_data['ancestors']:
-                    if ancestor['level'] == 'subseries':
-                        xmp_dc['source'] += ' / ' + folder_arrangement['subseries_display']
-    xmp_dc['rights'] = 'Caltech Archives has not determined the copyright in this image.'
-    for note in collection_json['notes']:
-        if note['type'] == 'userestrict':
-            if bool(note['subnotes'][0]['content']) and note['subnotes'][0]['publish']:
-                xmp_dc['rights'] = note['subnotes'][0]['content']
-    return xmp_dc
+def get_folder_id(filepath):
+    # isolate the filename and then get the folder id
+    return filepath.split('/')[-1].rsplit('_', 1)[0]
 
-def write_xmp_metadata(filepath, metadata):
-    # NOTE: except `source` all the dc elements here are keywords in exiftool
-    return sh.exiftool(
-        '-title=' + metadata['title'],
-        '-identifier=' + metadata['identifier'],
-        '-XMP-dc:source=' + metadata['source'],
-        '-publisher=' + metadata['publisher'],
-        '-rights=' + metadata['rights'],
-        '-overwrite_original',
-        filepath
-    )
-
-def get_aip_image_data(filepath):
-    aip_image_data = {}
-    aip_image_data['filepath'] = filepath
-    jpylyzer_xml = jpylyzer.checkOneFile(aip_image_data['filepath'])
-    aip_image_data['filesize'] = jpylyzer_xml.findtext('./fileInfo/fileSizeInBytes')
-    aip_image_data['width'] = jpylyzer_xml.findtext('./properties/jp2HeaderBox/imageHeaderBox/width')
-    aip_image_data['height'] = jpylyzer_xml.findtext('./properties/jp2HeaderBox/imageHeaderBox/height')
-    aip_image_data['standard'] = jpylyzer_xml.findtext('./properties/contiguousCodestreamBox/siz/rsiz')
-    aip_image_data['transformation'] = jpylyzer_xml.findtext('./properties/contiguousCodestreamBox/cod/transformation')
-    aip_image_data['quantization'] = jpylyzer_xml.findtext('./properties/contiguousCodestreamBox/qcd/qStyle')
-    # aip_image_data['md5'] = str(sh.base64(sh.openssl.md5('-binary', aip_image_data['filepath']))).strip()
-    aip_image_data['md5'] = base64.b64encode(hashlib.md5(open(aip_image_data['filepath'], 'rb').read()).digest()).decode()
-    return aip_image_data
+def get_s3_aip_folder_key(prefix, folder_data):
+    # exception for extended identifiers like HaleGE_02_0B_056_07
+    # TODO(tk) remove once no more exception files exist
+    # TODO(tk) use older_data['component_id'] directly
+    folder_id_parts = folder_data['component_id'].split('_')
+    folder_id = '_'.join([folder_id_parts[0], folder_id_parts[-2], folder_id_parts[-1]])
+    return prefix + folder_id + '.json'
 
 def get_s3_aip_folder_prefix(folder_arrangement, folder_data):
     prefix = folder_arrangement['collection_id'] + '/'
@@ -411,14 +376,6 @@ def get_s3_aip_folder_prefix(folder_arrangement, folder_data):
     prefix += (folder_id + '-' + folder_display + '/')
     return prefix
 
-def get_s3_aip_folder_key(prefix, folder_data):
-    # exception for extended identifiers like HaleGE_02_0B_056_07
-    # TODO(tk) remove once no more exception files exist
-    # TODO(tk) use older_data['component_id'] directly
-    folder_id_parts = folder_data['component_id'].split('_')
-    folder_id = '_'.join([folder_id_parts[0], folder_id_parts[-2], folder_id_parts[-1]])
-    return prefix + folder_id + '.json'
-
 def get_s3_aip_image_key(prefix, file_parts):
     # NOTE: '.jp2' is hardcoded as the extension
     # HaleGE/HaleGE_s02_Correspondence_and_Documents_Relating_to_Organizations/HaleGE_s02_ss0B_National_Academy_of_Sciences/HaleGE_056_07_Section_on_Astronomy/HaleGE_056_07_0001/8c38-d9cy.jp2
@@ -438,16 +395,35 @@ def get_s3_aip_image_key(prefix, file_parts):
     folder_id = '_'.join([folder_id_parts[0], folder_id_parts[-2], folder_id_parts[-1]])
     return prefix + folder_id + '_' + file_parts['sequence'] + '/' + file_parts['component_id'] + '-lossless.jp2'
 
-def put_s3_object(bucket, key, data):
-    # abstract enough for preservation and access files
-    response = boto3.client('s3').put_object(
-        Bucket=bucket,
-        Key=key,
-        Body=open(data['filepath'], 'rb'),
-        ContentMD5=data['md5'],
-        Metadata={'md5': data['md5']}
-    )
-    return response
+def get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_json):
+    xmp_dc = {}
+    xmp_dc['title'] = folder_arrangement['folder_display'] + ' [image ' + file_parts['sequence'] + ']'
+    # TODO(tk) check extent type for pages/images/computer files/etc
+    if len(folder_data['extents']) == 1:
+        xmp_dc['title'] = xmp_dc['title'].rstrip(']') + '/' + folder_data['extents'][0]['number'].zfill(4) + ']'
+    xmp_dc['identifier'] = file_parts['component_id']
+    xmp_dc['publisher'] = folder_arrangement['repository_name']
+    xmp_dc['source'] = folder_arrangement['repository_code'] + ': ' + folder_arrangement['collection_display']
+    for instance in folder_data['instances']:
+        if 'sub_container' in instance.keys():
+            if 'series' in instance['sub_container']['top_container']['_resolved'].keys():
+                xmp_dc['source'] += ' / ' + instance['sub_container']['top_container']['_resolved']['series'][0]['display_string']
+                for ancestor in folder_data['ancestors']:
+                    if ancestor['level'] == 'subseries':
+                        xmp_dc['source'] += ' / ' + folder_arrangement['subseries_display']
+    xmp_dc['rights'] = 'Caltech Archives has not determined the copyright in this image.'
+    for note in collection_json['notes']:
+        if note['type'] == 'userestrict':
+            if bool(note['subnotes'][0]['content']) and note['subnotes'][0]['publish']:
+                xmp_dc['rights'] = note['subnotes'][0]['content']
+    return xmp_dc
+
+def post_digital_object_component(json_data):
+    client = ASnakeClient()
+    client.authorize()
+    post_response = client.post('/repositories/2/digital_object_components', json=json_data)
+    post_response.raise_for_status()
+    return post_response
 
 def prepare_digital_object_component(folder_data, AIP_BUCKET, aip_image_data):
     # MINIMAL REQUIREMENTS: digital_object and one of label, title, or date
@@ -564,12 +540,38 @@ def process_folder_metadata(folderpath):
 
     return folder_arrangement, folder_data
 
-def post_digital_object_component(json_data):
+def put_s3_object(bucket, key, data):
+    # abstract enough for preservation and access files
+    response = boto3.client('s3').put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=open(data['filepath'], 'rb'),
+        ContentMD5=data['md5'],
+        Metadata={'md5': data['md5']}
+    )
+    return response
+
+def set_digital_object_id(uri, id):
+    # raises an HTTPError exception if unsuccessful
     client = ASnakeClient()
     client.authorize()
-    post_response = client.post('/repositories/2/digital_object_components', json=json_data)
+    get_response_json = client.get(uri).json()
+    get_response_json['digital_object_id'] = id
+    post_response = client.post(uri, json=get_response_json)
     post_response.raise_for_status()
-    return post_response
+    return
+
+def write_xmp_metadata(filepath, metadata):
+    # NOTE: except `source` all the dc elements here are keywords in exiftool
+    return sh.exiftool(
+        '-title=' + metadata['title'],
+        '-identifier=' + metadata['identifier'],
+        '-XMP-dc:source=' + metadata['source'],
+        '-publisher=' + metadata['publisher'],
+        '-rights=' + metadata['rights'],
+        '-overwrite_original',
+        filepath
+    )
 
 ###
 
