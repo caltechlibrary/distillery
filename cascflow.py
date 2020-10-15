@@ -45,7 +45,7 @@ def main(collection_id, debug):
             Key=collection_id + '/' + collection_id + '.json',
             Body=json.dumps(collection_json, sort_keys=True, indent=4)
         )
-        print(f"✅ metadata sent to S3 for {collection_id}")
+        print(f"✅ metadata sent to S3 for {collection_id}\n")
     except botocore.exceptions.ClientError as e:
         # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
         if e.response['Error']['Code'] == 'InternalError': # Generic error
@@ -57,64 +57,41 @@ def main(collection_id, debug):
             raise e
 
     folders = []
+    filecounter = 0
     with os.scandir(collection_directory) as it:
         for entry in it:
             if not entry.name.startswith('.') and entry.is_dir():
                 # print(entry.path)
                 folders.append(entry.path)
+            elif os.path.splitext(entry.path)[1] in ['.tif', '.tiff']:
+                filecounter += 1
+    filecount = filecounter
     # print(folders)
 
-    # loop over folders list
-    # pprint.pprint(folders.sort())
+    # Loop over folders list.
     folders.sort()
-    pprint.pprint(folders)
     for _ in range(len(folders)):
-        print('folders remaining: ' + str(len(folders))) # TODO more helpful to count remaining files
-        # pprint.pprint(folders)
+        # Using pop() (and/or range(len()) above) maybe helps to be sure that
+        # if folder metadata fails to process properly, it and its images are
+        # skipped completely and the script moves on to the next folder.
         folderpath = folders.pop()
-        # pprint.pprint(folders)
-        # folder-level processing (confirm digital objects, etc)
-        # print('get_folder_data()')
-        print(f'📂 {os.path.basename(folderpath)}')
-
+        # TODO find out how to properly catch exceptions here
         try:
-            # TODO(tk) consider renaming folder_data to folder_result
-            folder_data = get_folder_data(os.path.basename(folderpath)) # NOTE: different for Hale
-        except ValueError as e:
+            folder_arrangement, folder_data = process_folder_metadata(folderpath)
+        except RuntimeError as e:
+            print('❌ unable to process folder metadata')
             print(str(e))
+            print(f'... skipping {folderpath}')
             continue
 
-        try:
-            folder_data = confirm_digital_object(folder_data)
-        except ValueError as e:
-            print(str(e))
-            continue
-        except NotImplementedError as e:
-            print(str(e))
-            continue
-
-        try:
-            folder_data = confirm_digital_object_id(folder_data)
-        except HTTPError as e:
-            print(str(e))
-            print(f"❌ unable to set Component Unique Identifier to {folder_data['component_id']}; skipping...")
-            continue
-
-        try:
-            folder_arrangement = get_folder_arrangement(folder_data)
-        except HTTPError as e:
-            print(str(e))
-            print(f"❌ unable to get folder arrangement for {folder_data['component_id']}; skipping...")
-            continue
-
-        # send ArchivesSpace folder metadata to S3 as a JSON file
+        # Send ArchivesSpace folder metadata to S3 as a JSON file.
         try:
             boto3.client('s3').put_object(
                 Bucket=AIP_BUCKET,
                 Key=get_s3_aip_folder_key(get_s3_aip_folder_prefix(folder_arrangement, folder_data), folder_data),
                 Body=json.dumps(folder_data, sort_keys=True, indent=4)
             )
-            print(f"✅ metadata sent to S3 for {folder_data['component_id']}")
+            print(f"✅ metadata sent to S3 for {folder_data['component_id']}\n")
         except botocore.exceptions.ClientError as e:
             # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
             if e.response['Error']['Code'] == 'InternalError': # Generic error
@@ -133,50 +110,25 @@ def main(collection_id, debug):
                 if entry.is_file() and os.path.splitext(entry.path)[1] in ['.tif', '.tiff']:
                     # print(entry.path)
                     filepaths.append(entry.path)
-        # we reverse the sort because we use pop() and we want the components
-        # to be ingested in order as children of digital objects
+
+        # We reverse the sort for use with pop() and so the components will be
+        # ingested in the correct order for the digital object tree
         filepaths.sort(reverse=True)
-        # pprint.pprint(filepaths)
         for f in range(len(filepaths)):
-            print(f'{str(len(filepaths))} remaining images in folder')
-            # pprint.pprint(filepaths)
-            # TODO remember why this pattern was chosen instead of simply running everything under one for loop
             filepath = filepaths.pop()
-            # pprint.pprint(filepaths)
-            # TODO(tk) image processing
-            print(f'▶️  {os.path.basename(filepath)}')
-            # NOTE: unsure how to run with _bg=True from a function
-            sip_image_signature = sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', filepath, '-', _piped=True, _bg=True), _bg=True), '-d', ' ', '-f', '1', _bg=True)
-            # split off the extension from the source filepath
-            aip_image_path = os.path.splitext(filepath)[0] + '-LOSSLESS.jp2'
-            # NOTE: unsure how to run with _bg=True from a function
-            aip_image_conversion = sh.magick.convert('-quiet', filepath, '-quality', '0', aip_image_path, _bg=True)
-            file_parts = get_file_parts(filepath)
-            # print(json.dumps(file_parts, sort_keys=True, indent=4))
-            xmp_dc = get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_json)
-            # print(json.dumps(xmp_dc, sort_keys=True, indent=4))
-            aip_image_conversion.wait()
-            write_xmp_metadata(aip_image_path, xmp_dc)
-            # NOTE: unsure how to run with _bg=True from a function
-            aip_image_signature = sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', aip_image_path, '-', _piped=True, _bg=True), _bg=True), '-d', ' ', '-f', '1', _bg=True)
-            aip_image_data = get_aip_image_data(aip_image_path)
-            # print(json.dumps(aip_image_data, sort_keys=True, indent=4))
-            sip_image_signature.wait()
-            aip_image_signature.wait()
-            # verify image signatures match
-            if aip_image_signature == sip_image_signature:
-                pass
-            else:
-                print('❌  image signatures did not match: ' + file_parts['image_id'])
+            print(f'▶️  {os.path.basename(filepath)} [images remaining: {filecounter}/{filecount}]')
+            filecounter -= 1
+            try:
+                aip_image_data = process_aip_image(filepath, collection_json, folder_arrangement, folder_data)
+            except RuntimeError as e:
+                print(str(e))
                 continue
-            # begin s3 processing
-            aip_image_key = get_s3_aip_image_key(get_s3_aip_folder_prefix(folder_arrangement, folder_data), file_parts)
-            # print(aip_image_key)
-            # send image to S3
+
+            # Send AIP image to S3.
             try:
                 boto3.client('s3').put_object(
                     Bucket=AIP_BUCKET,
-                    Key=aip_image_key,
+                    Key=aip_image_data['key'],
                     Body=open(aip_image_data['filepath'], 'rb'),
                     ContentMD5=aip_image_data['md5'],
                     Metadata={'md5': aip_image_data['md5']}
@@ -190,22 +142,22 @@ def main(collection_id, debug):
                     print(f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}")
                 else:
                     raise e
-            # set up ArchivesSpace record
-            digital_object_component = prepare_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_image_key, aip_image_data)
-            # post to ArchivesSpace
-            # post_digital_object_component_repsonse = post_digital_object_component(digital_object_component)
-            # print(json.dumps(post_digital_object_component_repsonse.json(), sort_keys=True, indent=4))
+
+            # Set up ArchivesSpace record.
+            digital_object_component = prepare_digital_object_component(folder_data, AIP_BUCKET, aip_image_data)
+
+            # Post Digital Object Component to ArchivesSpace.
             try:
                 post_digital_object_component(digital_object_component)
             except HTTPError as e:
                 print(str(e))
                 print(f"❌ unable to create Digital Object Component for {folder_data['component_id']}; skipping...")
-                print(f'⚠️  clean up {aip_image_key} file in {AIP_BUCKET} bucket')
+                print(f"⚠️  clean up {aip_image_data['s3key']} file in {AIP_BUCKET} bucket")
                 # TODO programmatically remove file from bucket?
                 continue
 
             # TODO log file success
-            print(f'✅ {os.path.basename(filepath)} processed successfully')
+            print(f'✅ {os.path.basename(filepath)} processed successfully\n')
 
 def check_environment_variables():
     WORKDIR = os.environ.get('WORKDIR')
@@ -497,7 +449,7 @@ def put_s3_object(bucket, key, data):
     )
     return response
 
-def prepare_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_image_key, aip_image_data):
+def prepare_digital_object_component(folder_data, AIP_BUCKET, aip_image_data):
     # MINIMAL REQUIREMENTS: digital_object and one of label, title, or date
     # FILE VERSIONS MINIMAL REQUIREMENTS: file_uri
     # 'publish': false is the default value
@@ -520,7 +472,7 @@ def prepare_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_im
     else:
         # TODO(tk) figure out what to do if the folder has no digital objects
         print('😶 no digital object')
-    digital_object_component['component_id'] = file_parts['component_id']
+    digital_object_component['component_id'] = aip_image_data['component_id']
     if aip_image_data['transformation'] == '5-3 reversible' and aip_image_data['quantization'] == 'no quantization':
         digital_object_component['file_versions'][0]['caption'] = ('width: '
                                                                    + aip_image_data['width']
@@ -550,9 +502,67 @@ def prepare_digital_object_component(folder_data, file_parts, AIP_BUCKET, aip_im
         digital_object_component['file_versions'][0]['file_format_version'] = aip_image_data['standard']
     digital_object_component['file_versions'][0]['checksum'] = aip_image_data['md5']
     digital_object_component['file_versions'][0]['file_size_bytes'] = int(aip_image_data['filesize'])
-    digital_object_component['file_versions'][0]['file_uri'] = 'https://' + AIP_BUCKET + '.s3-us-west-2.amazonaws.com/' + aip_image_key
-    digital_object_component['label'] = 'Image ' + file_parts['sequence']
+    digital_object_component['file_versions'][0]['file_uri'] = 'https://' + AIP_BUCKET + '.s3-us-west-2.amazonaws.com/' + aip_image_data['s3key']
+    digital_object_component['label'] = 'Image ' + aip_image_data['sequence']
     return digital_object_component
+
+def process_aip_image(filepath, collection_json, folder_arrangement, folder_data):
+    # cut out only the checksum string for the pixel stream
+    sip_image_signature = sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', filepath, '-', _piped=True, _bg=True), _bg=True), '-d', ' ', '-f', '1', _bg=True)
+    aip_image_path = os.path.splitext(filepath)[0] + '-LOSSLESS.jp2'
+    aip_image_conversion = sh.magick.convert('-quiet', filepath, '-quality', '0', aip_image_path, _bg=True)
+    file_parts = get_file_parts(filepath)
+    # if __debug__: log('file_parts ⬇️'); print(json.dumps(file_parts, sort_keys=True, indent=4))
+    xmp_dc = get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_json)
+    # print(json.dumps(xmp_dc, sort_keys=True, indent=4))
+    aip_image_conversion.wait()
+    write_xmp_metadata(aip_image_path, xmp_dc)
+    # cut out only the checksum string for the pixel stream
+    aip_image_signature = sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', aip_image_path, '-', _piped=True, _bg=True), _bg=True), '-d', ' ', '-f', '1', _bg=True)
+    # TODO change `get_aip_image_data()` to `get_initial_aip_image_data()`
+    aip_image_data = get_aip_image_data(aip_image_path)
+    sip_image_signature.wait()
+    aip_image_signature.wait()
+    # verify image signatures match
+    if aip_image_signature != sip_image_signature:
+        raise RuntimeError(f"❌  image signatures did not match: {file_parts['image_id']}")
+    aip_image_s3key = get_s3_aip_image_key(get_s3_aip_folder_prefix(folder_arrangement, folder_data), file_parts)
+    # if __debug__: log(f'🔑 aip_image_s3key: {aip_image_s3key}')
+    # Add more values to `aip_image_data` dictionary.
+    aip_image_data['component_id'] = file_parts['component_id']
+    aip_image_data['sequence'] = file_parts['sequence']
+    aip_image_data['s3key'] = aip_image_s3key
+    if __debug__: log('aip_image_data ⬇️'); print(json.dumps(aip_image_data, sort_keys=True, indent=4))
+    return aip_image_data
+
+def process_folder_metadata(folderpath):
+    print(f'📂 {os.path.basename(folderpath)}\n')
+
+    # TODO find out how to properly catch exceptions here
+    try:
+        # TODO(tk) consider renaming folder_data to folder_result
+        folder_data = get_folder_data(os.path.basename(folderpath)) # NOTE: different for Hale
+    except ValueError as e:
+        raise RuntimeError(str(e))
+
+    try:
+        folder_data = confirm_digital_object(folder_data)
+    except ValueError as e:
+        raise RuntimeError(str(e))
+    except NotImplementedError as e:
+        raise RuntimeError(str(e))
+
+    try:
+        folder_data = confirm_digital_object_id(folder_data)
+    except HTTPError as e:
+        raise RuntimeError(str(e))
+
+    try:
+        folder_arrangement = get_folder_arrangement(folder_data)
+    except HTTPError as e:
+        raise RuntimeError(str(e))
+
+    return folder_arrangement, folder_data
 
 def post_digital_object_component(json_data):
     client = ASnakeClient()
