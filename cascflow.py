@@ -171,9 +171,10 @@ def main(collection_id, debug):
                 # TODO programmatically remove file from bucket?
                 continue
 
-            # Move processed source file.
+            # Move processed source file into `COMPLETEDIR` with the structure
+            # under `WORKDIR` (the `+ 1` strips a path seperator).
             try:
-                os.renames(filepath, os.path.join(COMPELTEDIR, filepath[len(WORKDIR):]))
+                os.renames(filepath, os.path.join(COMPELTEDIR, filepath[len(WORKDIR) + 1:]))
             except OSError as e:
                 print(str(e))
                 print(f"⚠️  unable to move {filepath} to {COMPELTEDIR}/\n")
