@@ -58,17 +58,29 @@ def main(collection_id, debug):
         else:
             raise e
 
-    folders = []
+    # `depth = 2` means do not recurse past one set of subdirectories.
+        # [collection]/
+        # ├── [collection]_[box]_[folder]/
+        # │   ├── [directory_not_traversed]/
+        # │   │   └── [file_not_included].tiff
+        # │   ├── [collection]_[box]_[folder]_[leaf].tiff
+        # │   └── [collection]_[box]_[folder]_[leaf].tiff
+        # └── [collection]_[box]_[folder]/
+        #     ├── [collection]_[box]_[folder]_[leaf].tiff
+        #     └── [collection]_[box]_[folder]_[leaf].tiff
+    depth = 2
     filecounter = 0
-    with os.scandir(collection_directory) as it:
-        for entry in it:
-            if not entry.name.startswith('.') and entry.is_dir():
-                # print(entry.path)
-                folders.append(entry.path)
-            elif os.path.splitext(entry.path)[1] in ['.tif', '.tiff']:
-                filecounter += 1
+    folders = []
+    for root, dirs, files in os.walk(collection_directory):
+        if root[len(collection_directory):].count(os.sep) == 0:
+            for d in dirs:
+                folders.append(os.path.join(root, d))
+        if root[len(collection_directory):].count(os.sep) < depth:
+            for f in files:
+                # TODO(tk) set up list of usable imagetypes earlier
+                if os.path.splitext(f)[1] in ['.tif', '.tiff']:
+                    filecounter += 1
     filecount = filecounter
-    # print(folders)
 
     # Loop over folders list.
     folders.sort()
