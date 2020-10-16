@@ -128,7 +128,7 @@ def main(collection_id, debug):
             try:
                 boto3.client('s3').put_object(
                     Bucket=AIP_BUCKET,
-                    Key=aip_image_data['key'],
+                    Key=aip_image_data['s3key'],
                     Body=open(aip_image_data['filepath'], 'rb'),
                     ContentMD5=aip_image_data['md5'],
                     Metadata={'md5': aip_image_data['md5']}
