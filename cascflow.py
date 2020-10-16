@@ -28,10 +28,10 @@ def main(collection_id, debug):
     if debug:
         if __debug__: set_debug(True)
 
-    check_environment_variables()
-    AIP_BUCKET = os.getenv('AIP_BUCKET')
 
-    collection_directory = get_collection_directory(collection_id)
+    WORKDIR, COMPELTEDIR, AIP_BUCKET = get_environment_variables()
+
+    collection_directory = get_collection_directory(WORKDIR, collection_id)
     # print(collection_directory)
     collection_uri = get_collection_uri(collection_id)
     # print(collection_uri)
@@ -164,20 +164,6 @@ def main(collection_id, debug):
 def calculate_pixel_signature(filepath):
     return sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', filepath, '-', _piped=True)), '-d', ' ', '-f', '1')
 
-def check_environment_variables():
-    WORKDIR = os.environ.get('WORKDIR')
-    AIP_BUCKET = os.environ.get('AIP_BUCKET')
-    if all([WORKDIR, AIP_BUCKET]):
-        if __debug__: log(f'WORKDIR: {WORKDIR}')
-        if __debug__: log(f'AIP_BUCKET: {AIP_BUCKET}')
-    else:
-        print('❌  all environment variables must be set:')
-        print('  WORKDIR: /path/to/directory above collection files')
-        print('  AIP_BUCKET: name of Amazon S3 bucket for preservation files')
-        print('🖥   to set variable: export VAR=value')
-        print('🖥   to see value: echo $VAR')
-        exit()
-
 def confirm_digital_object(folder_data):
     digital_object_count = 0
     for instance in folder_data['instances']:
@@ -248,12 +234,11 @@ def get_archival_object(id):
     response.raise_for_status()
     return response.json()
 
-def get_collection_directory(collection_id):
-    WORKDIR = os.getenv('WORKDIR').rstrip(os.path.sep)
-    if os.path.isdir(WORKDIR + os.path.sep + collection_id):
-        return WORKDIR + os.path.sep + collection_id
+def get_collection_directory(WORKDIR, collection_id):
+    if os.path.isdir(os.path.join(WORKDIR, collection_id)):
+        return os.path.join(WORKDIR, collection_id)
     else:
-        print('❌  invalid or missing directory: ' + WORKDIR + os.path.sep + collection_id)
+        print(f'❌  invalid or missing directory: {os.path.join(WORKDIR, collection_id)}')
         exit()
 
 def get_collection_json(collection_uri):
@@ -281,6 +266,24 @@ def get_crockford_characters(n=4):
 
 def get_digital_object_component_id():
     return get_crockford_characters() + '_' + get_crockford_characters()
+
+def get_environment_variables():
+    WORKDIR = os.path.abspath(os.environ.get('WORKDIR'))
+    COMPLETEDIR = os.path.abspath(os.getenv('COMPLETEDIR', f'{WORKDIR}/S3'))
+    AIP_BUCKET = os.environ.get('AIP_BUCKET')
+    if all([WORKDIR, COMPLETEDIR, AIP_BUCKET]):
+        if __debug__: log(f'WORKDIR: {WORKDIR}')
+        if __debug__: log(f'COMPLETEDIR: {COMPLETEDIR}')
+        if __debug__: log(f'AIP_BUCKET: {AIP_BUCKET}')
+    else:
+        print('❌  all environment variables must be set:')
+        print('➡️   WORKDIR: /path/to/directory above collection files')
+        print('➡️   COMPLETEDIR: /path/to/directory for processed source files')
+        print('➡️   AIP_BUCKET: name of Amazon S3 bucket for preservation files')
+        print('🖥   to set variable: export VAR=value')
+        print('🖥   to see value: echo $VAR')
+        exit()
+    return WORKDIR, COMPLETEDIR, AIP_BUCKET
 
 def get_file_parts(filepath):
     file_parts = {}
