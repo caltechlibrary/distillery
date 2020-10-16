@@ -13,6 +13,7 @@ import sh
 import string
 
 from asnake.client import ASnakeClient
+from datetime import datetime
 from jpylyzer import jpylyzer
 from requests import HTTPError
 if __debug__:
@@ -28,6 +29,7 @@ def main(collection_id, debug):
     if debug:
         if __debug__: set_debug(True)
 
+    time_start= datetime.now()
 
     WORKDIR, COMPELTEDIR, AIP_BUCKET = get_environment_variables()
 
@@ -158,6 +160,8 @@ def main(collection_id, debug):
 
             # TODO log file success
             print(f'✅ {os.path.basename(filepath)} processed successfully\n')
+
+            print(f'⏳ time elpased: {datetime.now() - time_start}\n')
 
 ###
 
