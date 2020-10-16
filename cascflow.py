@@ -38,7 +38,7 @@ def main(collection_id, debug):
     collection_json = get_collection_json(collection_uri)
     collection_json['tree']['_resolved'] = get_collection_tree(collection_uri)
     # print(collection_json)
-    # send collection_json to S3
+    # Send collection metadata to S3.
     try:
         boto3.client('s3').put_object(
             Bucket=AIP_BUCKET,
@@ -79,9 +79,9 @@ def main(collection_id, debug):
         try:
             folder_arrangement, folder_data = process_folder_metadata(folderpath)
         except RuntimeError as e:
-            print('❌ unable to process folder metadata')
+            print('❌ unable to process folder metadata...')
             print(str(e))
-            print(f'... skipping {folderpath}')
+            print(f'...skipping {folderpath}\n')
             continue
 
         # Send ArchivesSpace folder metadata to S3 as a JSON file.
@@ -151,8 +151,8 @@ def main(collection_id, debug):
                 post_digital_object_component(digital_object_component)
             except HTTPError as e:
                 print(str(e))
-                print(f"❌ unable to create Digital Object Component for {folder_data['component_id']}; skipping...")
-                print(f"⚠️  clean up {aip_image_data['s3key']} file in {AIP_BUCKET} bucket")
+                print(f"❌ unable to create Digital Object Component for {folder_data['component_id']}; skipping...\n")
+                print(f"⚠️  clean up {aip_image_data['s3key']} file in {AIP_BUCKET} bucket\n")
                 # TODO programmatically remove file from bucket?
                 continue
 
@@ -184,7 +184,7 @@ def confirm_digital_object(folder_data):
         if 'digital_object' in instance.keys():
             digital_object_count += 1
     if digital_object_count > 1:
-        raise ValueError(f"❌ {folder_data['component_id']} folder contains multiple Digital Objects, skipping...")
+        raise ValueError(f"❌ the ArchivesSpace record for {folder_data['component_id']} contains multiple digital objects")
     if digital_object_count < 1:
         # folder_data = create_digital_object(folder_data)
         raise NotImplementedError('🈳 create_digital_object() not implemented yet')
@@ -326,11 +326,11 @@ def get_folder_data(component_id):
     if len(response.json()['results']) < 1:
         # print('❌  no records with component_id: ' + component_id)
         # exit()
-        raise ValueError(f'❌ no records with component_id: {component_id}; skipping...')
+        raise ValueError(f'❌ no records with component_id: {component_id}')
     if len(response.json()['results']) > 1:
         # print('❌  multiple records with component_id: ' + component_id)
         # exit()
-        raise ValueError(f'❌ multiple records with component_id: {component_id}; skipping...')
+        raise ValueError(f'❌ multiple records with component_id: {component_id}')
     return json.loads(response.json()['results'][0]['json'])
 
 def get_folder_id(filepath):
