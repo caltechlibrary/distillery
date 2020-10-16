@@ -170,7 +170,16 @@ def main(collection_id, debug):
                 # TODO programmatically remove file from bucket?
                 continue
 
-            # TODO log file success
+            # Move processed source file.
+            try:
+                os.renames(filepath, os.path.join(COMPELTEDIR, filepath[len(WORKDIR):]))
+            except OSError as e:
+                print(str(e))
+                print(f"⚠️  unable to move {filepath} to {COMPELTEDIR}/\n")
+                continue
+
+            # TODO remove uploaded *-LOSSLESS.jp2 file
+
             print(f'✅ {os.path.basename(filepath)} processed successfully\n')
 
             print(f'⏳ time elpased: {datetime.now() - time_start}\n')
