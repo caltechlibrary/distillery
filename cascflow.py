@@ -96,6 +96,7 @@ def main(collection_id, debug):
             print('❌ unable to process folder metadata...')
             print(str(e))
             print(f'...skipping {folderpath}\n')
+            # TODO increment file counter by the count of files in this folder
             continue
 
         # Send ArchivesSpace folder metadata to S3 as a JSON file.
