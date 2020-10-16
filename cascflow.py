@@ -180,7 +180,13 @@ def main(collection_id, debug):
                 print(f"⚠️  unable to move {filepath} to {COMPELTEDIR}/\n")
                 continue
 
-            # TODO remove uploaded *-LOSSLESS.jp2 file
+            # Remove generated `*-LOSSLESS.jp2` file.
+            try:
+                os.remove(aip_image_data['filepath'])
+            except OSError as e:
+                print(str(e))
+                print(f"⚠️  unable to remove {aip_image_data['filepath']}\n")
+                continue
 
             print(f'✅ {os.path.basename(filepath)} processed successfully\n')
 
