@@ -40,6 +40,15 @@ def main(collection_id, debug):
     collection_json = get_collection_json(collection_uri)
     collection_json['tree']['_resolved'] = get_collection_tree(collection_uri)
     # print(collection_json)
+
+    # Verify write permission on `COMPLETEDIR` by saving collection metadata.
+    try:
+        save_collection_metadata(collection_json, COMPELTEDIR)
+    except OSError as e:
+        print(str(e))
+        print(f"❌  unable to save file to {COMPELTEDIR}\n")
+        exit()
+
     # Send collection metadata to S3.
     try:
         boto3.client('s3').put_object(
@@ -586,6 +595,12 @@ def put_s3_object(bucket, key, data):
         Metadata={'md5': data['md5']}
     )
     return response
+
+def save_collection_metadata(collection_json, COMPELTEDIR):
+    filename = os.path.join(COMPELTEDIR, collection_json['id_0'], f"{collection_json['id_0']}.json")
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    with open(filename, 'w') as f:
+        f.write(json.dumps(collection_json, indent=4))
 
 def set_digital_object_id(uri, id):
     # raises an HTTPError exception if unsuccessful
