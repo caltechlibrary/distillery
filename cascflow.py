@@ -92,7 +92,7 @@ def main(collection_id, debug):
     filecount = filecounter
 
     # Loop over folders list.
-    folders.sort()
+    folders.sort(reverse=True)
     for _ in range(len(folders)):
         # Using pop() (and/or range(len()) above) maybe helps to be sure that
         # if folder metadata fails to process properly, it and its images are
