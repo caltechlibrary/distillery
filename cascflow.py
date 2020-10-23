@@ -372,6 +372,7 @@ def get_folder_data(component_id):
         # print('❌  no records with component_id: ' + component_id)
         # exit()
         raise ValueError(f'❌ no records with component_id: {component_id}')
+        # TODO look up box and folder
     if len(response.json()['results']) > 1:
         # print('❌  multiple records with component_id: ' + component_id)
         # exit()
