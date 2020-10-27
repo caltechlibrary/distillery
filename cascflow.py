@@ -554,12 +554,10 @@ def process_aip_image(filepath, collection_json, folder_arrangement, folder_data
     aip_image_data['component_id'] = file_parts['component_id']
     aip_image_data['sequence'] = file_parts['sequence']
     aip_image_data['s3key'] = aip_image_s3key
-    if __debug__: log('aip_image_data ⬇️'); print(json.dumps(aip_image_data, sort_keys=True, indent=4))
+    # if __debug__: log('aip_image_data ⬇️'); print(json.dumps(aip_image_data, sort_keys=True, indent=4))
     return aip_image_data
 
 def process_folder_metadata(folderpath):
-    print(f'📂 {os.path.basename(folderpath)}\n')
-
     # TODO find out how to properly catch exceptions here
     try:
         # TODO(tk) consider renaming folder_data to folder_result
