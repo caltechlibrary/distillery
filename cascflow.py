@@ -151,12 +151,11 @@ def main(collection_id, debug):
 
             # Send AIP image to S3.
             try:
-                boto3.client('s3').put_object(
+                aip_image_put_response = boto3.client('s3').put_object(
                     Bucket=AIP_BUCKET,
                     Key=aip_image_data['s3key'],
                     Body=open(aip_image_data['filepath'], 'rb'),
-                    ContentMD5=aip_image_data['md5'],
-                    Metadata={'md5': aip_image_data['md5']}
+                    ContentMD5=base64.b64encode(aip_image_data['md5'].digest()).decode()
                 )
             except botocore.exceptions.ClientError as e:
                 # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
@@ -168,6 +167,12 @@ def main(collection_id, debug):
                     continue
                 else:
                     raise e
+
+            # Verify S3 ETag.
+            if aip_image_put_response['ETag'] == aip_image_data['md5'].hexdigest():
+                pass
+            else:
+                raise ValueError(f"❌ the ETag after uploading to S3 did not match for {aip_image_data['filepath']}")
 
             # Set up ArchivesSpace record.
             digital_object_component = prepare_digital_object_component(folder_data, AIP_BUCKET, aip_image_data)
@@ -267,8 +272,7 @@ def get_aip_image_data(filepath):
     aip_image_data['standard'] = jpylyzer_xml.findtext('./properties/contiguousCodestreamBox/siz/rsiz')
     aip_image_data['transformation'] = jpylyzer_xml.findtext('./properties/contiguousCodestreamBox/cod/transformation')
     aip_image_data['quantization'] = jpylyzer_xml.findtext('./properties/contiguousCodestreamBox/qcd/qStyle')
-    # aip_image_data['md5'] = str(sh.base64(sh.openssl.md5('-binary', aip_image_data['filepath']))).strip()
-    aip_image_data['md5'] = base64.b64encode(hashlib.md5(open(aip_image_data['filepath'], 'rb').read()).digest()).decode()
+    aip_image_data['md5'] = hashlib.md5(open(aip_image_data['filepath'], 'rb').read())
     return aip_image_data
 
 def get_archival_object(id):
@@ -524,7 +528,7 @@ def prepare_digital_object_component(folder_data, AIP_BUCKET, aip_image_data):
                                                                    + aip_image_data['height']
                                                                   )
         digital_object_component['file_versions'][0]['file_format_version'] = aip_image_data['standard']
-    digital_object_component['file_versions'][0]['checksum'] = aip_image_data['md5']
+    digital_object_component['file_versions'][0]['checksum'] = aip_image_data['md5'].hexdigest()
     digital_object_component['file_versions'][0]['file_size_bytes'] = int(aip_image_data['filesize'])
     digital_object_component['file_versions'][0]['file_uri'] = 'https://' + AIP_BUCKET + '.s3-us-west-2.amazonaws.com/' + aip_image_data['s3key']
     digital_object_component['label'] = 'Image ' + aip_image_data['sequence']
@@ -585,17 +589,6 @@ def process_folder_metadata(folderpath):
         raise RuntimeError(str(e))
 
     return folder_arrangement, folder_data
-
-def put_s3_object(bucket, key, data):
-    # abstract enough for preservation and access files
-    response = boto3.client('s3').put_object(
-        Bucket=bucket,
-        Key=key,
-        Body=open(data['filepath'], 'rb'),
-        ContentMD5=data['md5'],
-        Metadata={'md5': data['md5']}
-    )
-    return response
 
 def save_collection_metadata(collection_json, COMPELTEDIR):
     filename = os.path.join(COMPELTEDIR, collection_json['id_0'], f"{collection_json['id_0']}.json")
