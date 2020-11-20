@@ -123,6 +123,7 @@ def main(collection_id, debug):
                 print(f"Error Message: {e.response['Error']['Message']}")
                 print(f"Request ID: {e.response['ResponseMetadata']['RequestId']}")
                 print(f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}")
+                continue
             else:
                 raise e
 
@@ -164,6 +165,7 @@ def main(collection_id, debug):
                     print(f"Error Message: {e.response['Error']['Message']}")
                     print(f"Request ID: {e.response['ResponseMetadata']['RequestId']}")
                     print(f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}")
+                    continue
                 else:
                     raise e
 
