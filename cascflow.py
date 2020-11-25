@@ -31,9 +31,9 @@ def main(collection_id, debug):
 
     time_start= datetime.now()
 
-    WORKDIR, COMPELTEDIR, AIP_BUCKET = get_environment_variables()
+    SOURCE_DIRECTORY, COMPLETED_DIRECTORY, PRESERVATION_BUCKET = get_environment_variables()
 
-    collection_directory = get_collection_directory(WORKDIR, collection_id)
+    collection_directory = get_collection_directory(SOURCE_DIRECTORY, collection_id)
     # print(collection_directory)
     collection_uri = get_collection_uri(collection_id)
     # print(collection_uri)
@@ -41,18 +41,18 @@ def main(collection_id, debug):
     collection_json['tree']['_resolved'] = get_collection_tree(collection_uri)
     # print(collection_json)
 
-    # Verify write permission on `COMPLETEDIR` by saving collection metadata.
+    # Verify write permission on `COMPLETED_DIRECTORY` by saving collection metadata.
     try:
-        save_collection_metadata(collection_json, COMPELTEDIR)
+        save_collection_metadata(collection_json, COMPLETED_DIRECTORY)
     except OSError as e:
         print(str(e))
-        print(f"❌  unable to save file to {COMPELTEDIR}\n")
+        print(f"❌  unable to save file to {COMPLETED_DIRECTORY}\n")
         exit()
 
     # Send collection metadata to S3.
     try:
         boto3.client('s3').put_object(
-            Bucket=AIP_BUCKET,
+            Bucket=PRESERVATION_BUCKET,
             Key=collection_id + '/' + collection_id + '.json',
             Body=json.dumps(collection_json, sort_keys=True, indent=4)
         )
@@ -111,7 +111,7 @@ def main(collection_id, debug):
         # Send ArchivesSpace folder metadata to S3 as a JSON file.
         try:
             boto3.client('s3').put_object(
-                Bucket=AIP_BUCKET,
+                Bucket=PRESERVATION_BUCKET,
                 Key=get_s3_aip_folder_key(get_s3_aip_folder_prefix(folder_arrangement, folder_data), folder_data),
                 Body=json.dumps(folder_data, sort_keys=True, indent=4)
             )
@@ -152,7 +152,7 @@ def main(collection_id, debug):
             # Send AIP image to S3.
             try:
                 aip_image_put_response = boto3.client('s3').put_object(
-                    Bucket=AIP_BUCKET,
+                    Bucket=PRESERVATION_BUCKET,
                     Key=aip_image_data['s3key'],
                     Body=open(aip_image_data['filepath'], 'rb'),
                     ContentMD5=base64.b64encode(aip_image_data['md5'].digest()).decode()
@@ -175,7 +175,7 @@ def main(collection_id, debug):
                 raise ValueError(f"❌ the ETag after uploading to S3 did not match for {aip_image_data['filepath']}")
 
             # Set up ArchivesSpace record.
-            digital_object_component = prepare_digital_object_component(folder_data, AIP_BUCKET, aip_image_data)
+            digital_object_component = prepare_digital_object_component(folder_data, PRESERVATION_BUCKET, aip_image_data)
 
             # Post Digital Object Component to ArchivesSpace.
             try:
@@ -183,17 +183,17 @@ def main(collection_id, debug):
             except HTTPError as e:
                 print(str(e))
                 print(f"❌ unable to create Digital Object Component for {folder_data['component_id']}; skipping...\n")
-                print(f"⚠️  clean up {aip_image_data['s3key']} file in {AIP_BUCKET} bucket\n")
+                print(f"⚠️  clean up {aip_image_data['s3key']} file in {PRESERVATION_BUCKET} bucket\n")
                 # TODO programmatically remove file from bucket?
                 continue
 
-            # Move processed source file into `COMPLETEDIR` with the structure
-            # under `WORKDIR` (the `+ 1` strips a path seperator).
+            # Move processed source file into `COMPLETED_DIRECTORY` with the structure
+            # under `SOURCE_DIRECTORY` (the `+ 1` strips a path seperator).
             try:
-                os.renames(filepath, os.path.join(COMPELTEDIR, filepath[len(WORKDIR) + 1:]))
+                os.renames(filepath, os.path.join(COMPLETED_DIRECTORY, filepath[len(SOURCE_DIRECTORY) + 1:]))
             except OSError as e:
                 print(str(e))
-                print(f"⚠️  unable to move {filepath} to {COMPELTEDIR}/\n")
+                print(f"⚠️  unable to move {filepath} to {COMPLETED_DIRECTORY}/\n")
                 continue
 
             # Remove generated `*-LOSSLESS.jp2` file.
@@ -282,11 +282,11 @@ def get_archival_object(id):
     response.raise_for_status()
     return response.json()
 
-def get_collection_directory(WORKDIR, collection_id):
-    if os.path.isdir(os.path.join(WORKDIR, collection_id)):
-        return os.path.join(WORKDIR, collection_id)
+def get_collection_directory(SOURCE_DIRECTORY, collection_id):
+    if os.path.isdir(os.path.join(SOURCE_DIRECTORY, collection_id)):
+        return os.path.join(SOURCE_DIRECTORY, collection_id)
     else:
-        print(f'❌  invalid or missing directory: {os.path.join(WORKDIR, collection_id)}')
+        print(f'❌  invalid or missing directory: {os.path.join(SOURCE_DIRECTORY, collection_id)}')
         exit()
 
 def get_collection_json(collection_uri):
@@ -316,22 +316,22 @@ def get_digital_object_component_id():
     return get_crockford_characters() + '_' + get_crockford_characters()
 
 def get_environment_variables():
-    WORKDIR = os.path.abspath(os.environ.get('WORKDIR'))
-    COMPLETEDIR = os.path.abspath(os.getenv('COMPLETEDIR', f'{WORKDIR}/S3'))
-    AIP_BUCKET = os.environ.get('AIP_BUCKET')
-    if all([WORKDIR, COMPLETEDIR, AIP_BUCKET]):
-        if __debug__: log(f'WORKDIR: {WORKDIR}')
-        if __debug__: log(f'COMPLETEDIR: {COMPLETEDIR}')
-        if __debug__: log(f'AIP_BUCKET: {AIP_BUCKET}')
+    SOURCE_DIRECTORY = os.path.abspath(os.environ.get('SOURCE_DIRECTORY'))
+    COMPLETED_DIRECTORY = os.path.abspath(os.getenv('COMPLETED_DIRECTORY', f'{SOURCE_DIRECTORY}/S3'))
+    PRESERVATION_BUCKET = os.environ.get('PRESERVATION_BUCKET')
+    if all([SOURCE_DIRECTORY, COMPLETED_DIRECTORY, PRESERVATION_BUCKET]):
+        if __debug__: log(f'SOURCE_DIRECTORY: {SOURCE_DIRECTORY}')
+        if __debug__: log(f'COMPLETED_DIRECTORY: {COMPLETED_DIRECTORY}')
+        if __debug__: log(f'PRESERVATION_BUCKET: {PRESERVATION_BUCKET}')
     else:
         print('❌  all environment variables must be set:')
-        print('➡️   WORKDIR: /path/to/directory above collection files')
-        print('➡️   COMPLETEDIR: /path/to/directory for processed source files')
-        print('➡️   AIP_BUCKET: name of Amazon S3 bucket for preservation files')
+        print('➡️   SOURCE_DIRECTORY: /path/to/directory above collection files')
+        print('➡️   COMPLETED_DIRECTORY: /path/to/directory for processed source files')
+        print('➡️   PRESERVATION_BUCKET: name of Amazon S3 bucket for preservation files')
         print('🖥   to set variable: export VAR=value')
         print('🖥   to see value: echo $VAR')
         exit()
-    return WORKDIR, COMPLETEDIR, AIP_BUCKET
+    return SOURCE_DIRECTORY, COMPLETED_DIRECTORY, PRESERVATION_BUCKET
 
 def get_file_parts(filepath):
     file_parts = {}
@@ -435,7 +435,7 @@ def get_s3_aip_image_key(prefix, file_parts):
     #     "component_id": "me5v-z1yp",
     #     "extension": "tiff",
     #     "filename": "HaleGE_02_0B_056_07_0001.tiff",
-    #     "filepath": "/path/to/archives/data/WORKDIR/HaleGE/HaleGE_02_0B_056_07_0001.tiff",
+    #     "filepath": "/path/to/archives/data/SOURCE_DIRECTORY/HaleGE/HaleGE_02_0B_056_07_0001.tiff",
     #     "folder_id": "HaleGE_02_0B_056_07",
     #     "image_id": "HaleGE_02_0B_056_07_0001",
     #     "sequence": "0001"
@@ -477,7 +477,7 @@ def post_digital_object_component(json_data):
     post_response.raise_for_status()
     return post_response
 
-def prepare_digital_object_component(folder_data, AIP_BUCKET, aip_image_data):
+def prepare_digital_object_component(folder_data, PRESERVATION_BUCKET, aip_image_data):
     # MINIMAL REQUIREMENTS: digital_object and one of label, title, or date
     # FILE VERSIONS MINIMAL REQUIREMENTS: file_uri
     # 'publish': false is the default value
@@ -530,7 +530,7 @@ def prepare_digital_object_component(folder_data, AIP_BUCKET, aip_image_data):
         digital_object_component['file_versions'][0]['file_format_version'] = aip_image_data['standard']
     digital_object_component['file_versions'][0]['checksum'] = aip_image_data['md5'].hexdigest()
     digital_object_component['file_versions'][0]['file_size_bytes'] = int(aip_image_data['filesize'])
-    digital_object_component['file_versions'][0]['file_uri'] = 'https://' + AIP_BUCKET + '.s3-us-west-2.amazonaws.com/' + aip_image_data['s3key']
+    digital_object_component['file_versions'][0]['file_uri'] = 'https://' + PRESERVATION_BUCKET + '.s3-us-west-2.amazonaws.com/' + aip_image_data['s3key']
     digital_object_component['label'] = 'Image ' + aip_image_data['sequence']
     return digital_object_component
 
@@ -590,8 +590,8 @@ def process_folder_metadata(folderpath):
 
     return folder_arrangement, folder_data
 
-def save_collection_metadata(collection_json, COMPELTEDIR):
-    filename = os.path.join(COMPELTEDIR, collection_json['id_0'], f"{collection_json['id_0']}.json")
+def save_collection_metadata(collection_json, COMPLETED_DIRECTORY):
+    filename = os.path.join(COMPLETED_DIRECTORY, collection_json['id_0'], f"{collection_json['id_0']}.json")
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, 'w') as f:
         f.write(json.dumps(collection_json, indent=4))
