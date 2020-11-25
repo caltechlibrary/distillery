@@ -102,8 +102,8 @@ def main(collection_id, debug):
         try:
             folder_arrangement, folder_data = process_folder_metadata(folderpath)
         except RuntimeError as e:
-            print('❌ unable to process folder metadata...')
             print(str(e))
+            print('❌ unable to process folder metadata...')
             print(f'...skipping {folderpath}\n')
             # TODO increment file counter by the count of files in this folder
             continue
@@ -368,21 +368,15 @@ def get_folder_arrangement(folder_data):
     return folder_arrangement
 
 def get_folder_data(component_id):
-    # TODO find a way to populate component_id field from metadata (see HBF)
     # searches for the component_id using keyword search; excludes pui results
     client = ASnakeClient()
     client.authorize()
     response = client.get('/repositories/2/search?page=1&page_size=10&type[]=archival_object&aq={\"query\":{\"op\":\"AND\",\"subqueries\":[{\"field\":\"keyword\",\"value\":\"' + component_id + '\",\"jsonmodel_type\":\"field_query\",\"negated\":false,\"literal\":false},{\"field\":\"types\",\"value\":\"pui\",\"jsonmodel_type\":\"field_query\",\"negated\":true}],\"jsonmodel_type\":\"boolean_query\"},\"jsonmodel_type\":\"advanced_query\"}')
     response.raise_for_status()
     if len(response.json()['results']) < 1:
-        # print('❌  no records with component_id: ' + component_id)
-        # exit()
-        raise ValueError(f'❌ no records with component_id: {component_id}')
-        # TODO look up box and folder
+        raise ValueError(f'⚠️  no records with component_id: {component_id}')
     if len(response.json()['results']) > 1:
-        # print('❌  multiple records with component_id: ' + component_id)
-        # exit()
-        raise ValueError(f'❌ multiple records with component_id: {component_id}')
+        raise ValueError(f'⚠️  multiple records with component_id: {component_id}')
     return json.loads(response.json()['results'][0]['json'])
 
 def get_folder_id(filepath):
