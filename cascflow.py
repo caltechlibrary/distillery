@@ -221,8 +221,8 @@ def confirm_digital_object(folder_data):
     if digital_object_count > 1:
         raise ValueError(f"❌ the ArchivesSpace record for {folder_data['component_id']} contains multiple digital objects")
     if digital_object_count < 1:
-        # folder_data = create_digital_object(folder_data)
-        raise NotImplementedError('🈳 create_digital_object() not implemented yet')
+        # returns new folder_data with digital object info included
+        folder_data = create_digital_object(folder_data)
     return folder_data
 
 def confirm_digital_object_id(folder_data):
@@ -253,13 +253,55 @@ def confirm_file(filepath):
         print('❌  invalid file path: ' + filepath)
         exit()
 
-# TODO(tk)
 def create_digital_object(folder_data):
+    digital_object = {}
+    digital_object['digital_object_id'] = folder_data['component_id'] # required
+    digital_object['title'] = folder_data['title'] # required
+    digital_object['linked_instances'] = [{'ref': folder_data['uri']}]
+    # NOTE leaving created digital objects unpublished
+    # digital_object['publish'] = True
+    # example digital_object:
+        # {
+        #     "digital_object_id": "HBF_007_08",
+        #     "linked_instances": [
+        #         {
+        #             "ref": "/repositories/2/archival_objects/52028"
+        #         }
+        #     ],
+        #     "title": "Germany"
+        # }
+
     client = ASnakeClient()
     client.authorize()
-    # post digital object
-    # TODO(tk) be sure new digital object is indexed and returnable immediately
-    folder_data = get_folder_data(folder_data['component_id'])
+    response = client.post('/repositories/2/digital_objects', json=digital_object)
+    # example success response:
+        # {
+        #     "id": 9189,
+        #     "lock_version": 0,
+        #     "stale": true,
+        #     "status": "Created",
+        #     "uri": "/repositories/2/digital_objects/9189",
+        #     "warnings": []
+        # }
+    # example error response:
+        # {
+        #     "error": {
+        #         "digital_object_id": [
+        #             "Must be unique"
+        #         ]
+        #     }
+        # }
+    # skip folder processing if digital_object_id already exists
+    if 'error' in response.json():
+        if 'digital_object_id' in response.json()['error']:
+            if 'Must be unique' in response.json()['error']['digital_object_id']:
+                raise ValueError(f"⚠️  non-unique digital_object_id: {folder_data['component_id']}")
+    response.raise_for_status()
+
+    # add `uri` to digital_object and add digital_object to folder_data
+    digital_object['uri'] = response.json()['uri']
+    folder_data['instances'].append({"digital_object": {"_resolved": digital_object}})
+    if __debug__: log(f"✳️  created digital object {digital_object['digital_object_id']} {digital_object['uri']}")
     return folder_data
 
 def get_aip_image_data(filepath):
