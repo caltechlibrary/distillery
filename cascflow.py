@@ -150,6 +150,24 @@ def main(collection_id, debug):
                 continue
 
             # Send AIP image to S3.
+            # example success response:
+                # {
+                #     "ResponseMetadata": {
+                #         "RequestId": "6BBE41DE8A1CABCE",
+                #         "HostId": "c473fwfRMo+soCkOUwMsNZwR5fw0RIw2qcDVIXQOXVm1aGLV5clcL8JgBXojEJL99Umo4HYEzng=",
+                #         "HTTPStatusCode": 200,
+                #         "HTTPHeaders": {
+                #             "x-amz-id-2": "c473fwfRMo+soCkOUwMsNZwR5fw0RIw2qcDVIXQOXVm1aGLV5clcL8JgBXojEJL99Umo4HYEzng=",
+                #             "x-amz-request-id": "6BBE41DE8A1CABCE",
+                #             "date": "Mon, 30 Nov 2020 22:58:33 GMT",
+                #             "etag": "\"614bccea2760f37f41be65c62c41d66e\"",
+                #             "content-length": "0",
+                #             "server": "AmazonS3"
+                #         },
+                #         "RetryAttempts": 0
+                #     },
+                #     "ETag": "\"614bccea2760f37f41be65c62c41d66e\""
+                # }
             try:
                 aip_image_put_response = boto3.client('s3').put_object(
                     Bucket=PRESERVATION_BUCKET,
@@ -230,10 +248,9 @@ def confirm_digital_object_id(folder_data):
     for instance in folder_data['instances']:
         # TODO(tk) confirm Archives policy disallows multiple digital objects
         # TODO(tk) create script/report to periodically check for violations
-        if 'digital_object' in instance.keys():
+        if 'digital_object' in instance:
             if instance['digital_object']['_resolved']['digital_object_id'] != folder_data['component_id']:
-                # TODO(tk) confirm with Archives that replacing a digital_object_id
-                # is acceptable in all foreseen circumstances
+                # TODO confirm with Archives that replacing a digital_object_id is acceptable in all foreseen circumstances
                 set_digital_object_id(instance['digital_object']['ref'], folder_data['component_id'])
                 # NOTE: API queries seem to rely upon items being indexed which isn’t immediate so we update the working copy of folder_data
                 instance['digital_object']['_resolved']['digital_object_id'] = folder_data['component_id']
@@ -422,6 +439,17 @@ def get_folder_data(component_id):
     if len(response.json()['results']) > 1:
         raise ValueError(f'⚠️  multiple records with component_id: {component_id}')
     return json.loads(response.json()['results'][0]['json'])
+    # TODO rewrite to use /repositories/:repo_id/find_by_id/archival_objects with the `resolve` parameter? takes two queries because we only get an archival_object ref in the results of find_by_id and we cannot resolve multiple levels; how to measure optimization?
+        # client = ASnakeClient()
+        # client.authorize()
+        # find_by_id_response = client.get(f'/repositories/2/find_by_id/archival_objects?component_id[]={component_id}')
+        # find_by_id_response.raise_for_status()
+        # if len(find_by_id_response.json()['archival_objects']) < 1:
+        #     raise ValueError(f'⚠️  no records with component_id: {component_id}')
+        # if len(find_by_id_response.json()['archival_objects']) > 1:
+        #     raise ValueError(f'⚠️  multiple records with component_id: {component_id}')
+        # response = client.get(f"{find_by_id_response.json()['archival_objects'][0]['ref']}?resolve[]=digital_object&resolve[]=repository&resolve[]=top_container")
+        # return response.json()
 
 def get_folder_id(filepath):
     # isolate the filename and then get the folder id
@@ -605,7 +633,7 @@ def process_folder_metadata(folderpath):
     # TODO find out how to properly catch exceptions here
     try:
         # TODO(tk) consider renaming folder_data to folder_result
-        folder_data = get_folder_data(os.path.basename(folderpath)) # NOTE: different for Hale
+        folder_data = get_folder_data(os.path.basename(folderpath))
     except ValueError as e:
         raise RuntimeError(str(e))
 
@@ -634,12 +662,12 @@ def save_collection_metadata(collection_json, COMPLETED_DIRECTORY):
     with open(filename, 'w') as f:
         f.write(json.dumps(collection_json, indent=4))
 
-def set_digital_object_id(uri, id):
+def set_digital_object_id(uri, digital_object_id):
     # raises an HTTPError exception if unsuccessful
     client = ASnakeClient()
     client.authorize()
     get_response_json = client.get(uri).json()
-    get_response_json['digital_object_id'] = id
+    get_response_json['digital_object_id'] = digital_object_id
     post_response = client.post(uri, json=get_response_json)
     post_response.raise_for_status()
     return
