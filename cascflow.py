@@ -393,12 +393,13 @@ def get_folder_arrangement(folder_data):
     folder_arrangement['folder_display'] = folder_data['display_string']
     folder_arrangement['folder_title'] = folder_data['title']
     for instance in folder_data['instances']:
-        if 'sub_container' in instance.keys():
-            # TODO(tk) if there is no collection, we have a problem
-            if 'collection' in instance['sub_container']['top_container']['_resolved'].keys():
+        if 'sub_container' in instance:
+            if instance['sub_container']['top_container']['_resolved'].get('collection'):
                 folder_arrangement['collection_display'] = instance['sub_container']['top_container']['_resolved']['collection'][0]['display_string']
                 folder_arrangement['collection_id'] = instance['sub_container']['top_container']['_resolved']['collection'][0]['identifier']
-            if 'series' in instance['sub_container']['top_container']['_resolved'].keys():
+            else:
+                raise ValueError(f"⚠️  missing collection data for {folder_data['component_id']}")
+            if instance['sub_container']['top_container']['_resolved'].get('series'):
                 folder_arrangement['series_display'] = instance['sub_container']['top_container']['_resolved']['series'][0]['display_string']
                 folder_arrangement['series_id'] = instance['sub_container']['top_container']['_resolved']['series'][0]['identifier']
                 for ancestor in folder_data['ancestors']:
@@ -406,6 +407,8 @@ def get_folder_arrangement(folder_data):
                         subseries = get_archival_object(ancestor['ref'].split('/')[-1])
                         folder_arrangement['subseries_display'] = subseries['display_string']
                         folder_arrangement['subseries_id'] = subseries['component_id']
+            else:
+                raise ValueError(f"⚠️  missing series data for {folder_data['component_id']}")
     return folder_arrangement
 
 def get_folder_data(component_id):
