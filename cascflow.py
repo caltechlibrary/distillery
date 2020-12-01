@@ -169,10 +169,10 @@ def main(collection_id, debug):
                     raise e
 
             # Verify S3 ETag.
-            if aip_image_put_response['ETag'] == aip_image_data['md5'].hexdigest():
+            if aip_image_put_response['ETag'].strip('"') == aip_image_data['md5'].hexdigest():
                 pass
             else:
-                raise ValueError(f"❌ the ETag after uploading to S3 did not match for {aip_image_data['filepath']}")
+                raise ValueError(f"❌ the S3 ETag did not match for {aip_image_data['filepath']}")
 
             # Set up ArchivesSpace record.
             digital_object_component = prepare_digital_object_component(folder_data, PRESERVATION_BUCKET, aip_image_data)
