@@ -252,8 +252,9 @@ def confirm_digital_object_id(folder_data):
             if instance['digital_object']['_resolved']['digital_object_id'] != folder_data['component_id']:
                 # TODO confirm with Archives that replacing a digital_object_id is acceptable in all foreseen circumstances
                 set_digital_object_id(instance['digital_object']['ref'], folder_data['component_id'])
-                # NOTE: API queries seem to rely upon items being indexed which isn’t immediate so we update the working copy of folder_data
-                instance['digital_object']['_resolved']['digital_object_id'] = folder_data['component_id']
+                # call get_folder_data() again to include updated digital_object_id
+                folder_data = get_folder_data(folder_data['component_id'])
+                if __debug__: log(f"❇️  updated digital_object_id: {instance['digital_object']['_resolved']['digital_object_id']} ➡️  {folder_data['component_id']} {instance['digital_object']['ref']}")
     return folder_data
 
 def confirm_file(filepath):
@@ -314,9 +315,9 @@ def create_digital_object(folder_data):
                 raise ValueError(f"⚠️  non-unique digital_object_id: {folder_data['component_id']}")
     response.raise_for_status()
 
-    # add `uri` to digital_object and add digital_object to folder_data
-    digital_object['uri'] = response.json()['uri']
-    folder_data['instances'].append({"digital_object": {"_resolved": digital_object}})
+    # call get_folder_data() again to include digital object instance
+    folder_data = get_folder_data(folder_data['component_id'])
+
     if __debug__: log(f"✳️  created digital object {digital_object['digital_object_id']} {digital_object['uri']}")
     return folder_data
 
