@@ -429,27 +429,18 @@ def get_folder_arrangement(folder_data):
     return folder_arrangement
 
 def get_folder_data(component_id):
-    # searches for the component_id using keyword search; excludes pui results
+    # returns archival object metadata using the component_id; two API calls
     client = ASnakeClient()
     client.authorize()
-    response = client.get('/repositories/2/search?page=1&page_size=10&type[]=archival_object&aq={\"query\":{\"op\":\"AND\",\"subqueries\":[{\"field\":\"keyword\",\"value\":\"' + component_id + '\",\"jsonmodel_type\":\"field_query\",\"negated\":false,\"literal\":false},{\"field\":\"types\",\"value\":\"pui\",\"jsonmodel_type\":\"field_query\",\"negated\":true}],\"jsonmodel_type\":\"boolean_query\"},\"jsonmodel_type\":\"advanced_query\"}')
-    response.raise_for_status()
-    if len(response.json()['results']) < 1:
-        raise ValueError(f'⚠️  no records with component_id: {component_id}')
-    if len(response.json()['results']) > 1:
-        raise ValueError(f'⚠️  multiple records with component_id: {component_id}')
-    return json.loads(response.json()['results'][0]['json'])
-    # TODO rewrite to use /repositories/:repo_id/find_by_id/archival_objects with the `resolve` parameter? takes two queries because we only get an archival_object ref in the results of find_by_id and we cannot resolve multiple levels; how to measure optimization?
-        # client = ASnakeClient()
-        # client.authorize()
-        # find_by_id_response = client.get(f'/repositories/2/find_by_id/archival_objects?component_id[]={component_id}')
-        # find_by_id_response.raise_for_status()
-        # if len(find_by_id_response.json()['archival_objects']) < 1:
-        #     raise ValueError(f'⚠️  no records with component_id: {component_id}')
-        # if len(find_by_id_response.json()['archival_objects']) > 1:
-        #     raise ValueError(f'⚠️  multiple records with component_id: {component_id}')
-        # response = client.get(f"{find_by_id_response.json()['archival_objects'][0]['ref']}?resolve[]=digital_object&resolve[]=repository&resolve[]=top_container")
-        # return response.json()
+    find_by_id_response = client.get(f'/repositories/2/find_by_id/archival_objects?component_id[]={component_id}')
+    find_by_id_response.raise_for_status()
+    if len(find_by_id_response.json()['archival_objects']) < 1:
+        raise ValueError(f'⚠️  no records found with component_id: {component_id}')
+    if len(find_by_id_response.json()['archival_objects']) > 1:
+        raise ValueError(f'⚠️  multiple records found with component_id: {component_id}')
+    archival_object_get_response = client.get(f"{find_by_id_response.json()['archival_objects'][0]['ref']}?resolve[]=digital_object&resolve[]=repository&resolve[]=top_container")
+    archival_object_get_response.raise_for_status()
+    return archival_object_get_response.json()
 
 def get_folder_id(filepath):
     # isolate the filename and then get the folder id
