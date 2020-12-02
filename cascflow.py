@@ -290,7 +290,7 @@ def create_digital_object(folder_data):
 
     client = ASnakeClient()
     client.authorize()
-    response = client.post('/repositories/2/digital_objects', json=digital_object)
+    digital_object_post_response = client.post('/repositories/2/digital_objects', json=digital_object)
     # example success response:
         # {
         #     "id": 9189,
@@ -309,16 +309,16 @@ def create_digital_object(folder_data):
         #     }
         # }
     # skip folder processing if digital_object_id already exists
-    if 'error' in response.json():
-        if 'digital_object_id' in response.json()['error']:
-            if 'Must be unique' in response.json()['error']['digital_object_id']:
+    if 'error' in digital_object_post_response.json():
+        if 'digital_object_id' in digital_object_post_response.json()['error']:
+            if 'Must be unique' in digital_object_post_response.json()['error']['digital_object_id']:
                 raise ValueError(f"⚠️  non-unique digital_object_id: {folder_data['component_id']}")
-    response.raise_for_status()
+    digital_object_post_response.raise_for_status()
 
     # call get_folder_data() again to include digital object instance
     folder_data = get_folder_data(folder_data['component_id'])
 
-    if __debug__: log(f"✳️  created digital object {digital_object['digital_object_id']} {digital_object['uri']}")
+    if __debug__: log(f"✳️  created digital object {digital_object['digital_object_id']} {digital_object_post_response.json()['uri']}")
     return folder_data
 
 def get_aip_image_data(filepath):
