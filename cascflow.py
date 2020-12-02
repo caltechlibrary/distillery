@@ -274,19 +274,8 @@ def create_digital_object(folder_data):
     digital_object = {}
     digital_object['digital_object_id'] = folder_data['component_id'] # required
     digital_object['title'] = folder_data['title'] # required
-    digital_object['linked_instances'] = [{'ref': folder_data['uri']}]
     # NOTE leaving created digital objects unpublished
     # digital_object['publish'] = True
-    # example digital_object:
-        # {
-        #     "digital_object_id": "HBF_007_08",
-        #     "linked_instances": [
-        #         {
-        #             "ref": "/repositories/2/archival_objects/52028"
-        #         }
-        #     ],
-        #     "title": "Germany"
-        # }
 
     client = ASnakeClient()
     client.authorize()
@@ -314,6 +303,18 @@ def create_digital_object(folder_data):
             if 'Must be unique' in digital_object_post_response.json()['error']['digital_object_id']:
                 raise ValueError(f"⚠️  non-unique digital_object_id: {folder_data['component_id']}")
     digital_object_post_response.raise_for_status()
+
+    # set up a digital object instance to add to the archival object
+    digital_object_instance = {'instance_type': 'digital_object', 'digital_object': {'ref': digital_object_post_response.json()['uri']}}
+    # get archival object
+    archival_object_get_response = client.get(folder_data['uri'])
+    archival_object_get_response.raise_for_status()
+    archival_object = archival_object_get_response.json()
+    # add digital object instance to archival object
+    archival_object['instances'].append(digital_object_instance)
+    # post updated archival object
+    archival_object_post_response = client.post(folder_data['uri'], json=archival_object)
+    archival_object_post_response.raise_for_status()
 
     # call get_folder_data() again to include digital object instance
     folder_data = get_folder_data(folder_data['component_id'])
