@@ -427,6 +427,7 @@ def get_folder_arrangement(folder_data):
                         folder_arrangement['subseries_display'] = subseries['display_string']
                         folder_arrangement['subseries_id'] = subseries['component_id']
             else:
+                if __debug__: print(f"👀 series: {instance['sub_container']['top_container']['_resolved']['series']}")
                 raise ValueError(f"⚠️  missing series data for {folder_data['component_id']}")
     return folder_arrangement
 
