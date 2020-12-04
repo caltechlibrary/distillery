@@ -530,6 +530,17 @@ def get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_
                 xmp_dc['rights'] = note['subnotes'][0]['content']
     return xmp_dc
 
+def normalize_directory_component_id(folderpath):
+    component_id_parts = os.path.basename(folderpath).split('_')
+    if len(component_id_parts) > 3:
+        raise ValueError(f"⚠️\tThe component_id cannot be determined from the directory name: {os.path.basename(folderpath)}")
+    collection_id = component_id_parts[0]
+    if collection_id != os.path.basename(os.path.dirname(folderpath)):
+        raise ValueError(f"⚠️\tThe directory name does not correspond to the collection_id: {os.path.basename(folderpath)}")
+    box_number = component_id_parts[1].lstrip('0')
+    # TODO parse non-numeric folder identifiers, like: 03b
+    return "_".join([collection_id, box_number.zfill(3), component_id_parts[2]])
+
 def post_digital_object_component(json_data):
     client = ASnakeClient()
     client.authorize()
@@ -627,7 +638,7 @@ def process_folder_metadata(folderpath):
     # TODO find out how to properly catch exceptions here
     try:
         # TODO(tk) consider renaming folder_data to folder_result
-        folder_data = get_folder_data(os.path.basename(folderpath))
+        folder_data = get_folder_data(normalize_directory_component_id(folderpath))
     except ValueError as e:
         raise RuntimeError(str(e))
 
