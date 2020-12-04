@@ -42,6 +42,7 @@ def main(collection_id, debug):
     # print(collection_json)
 
     # Verify write permission on `COMPLETED_DIRECTORY` by saving collection metadata.
+    # TODO how to check bucket write permission without writing?
     try:
         save_collection_metadata(collection_json, COMPLETED_DIRECTORY)
     except OSError as e:
@@ -127,7 +128,7 @@ def main(collection_id, debug):
             else:
                 raise e
 
-        # loop over contents of folder directory
+        # Set up list of TIFF paths for the current folder.
         filepaths = []
         with os.scandir(folderpath) as contents:
             for entry in contents:
@@ -638,9 +639,7 @@ def process_aip_image(filepath, collection_json, folder_arrangement, folder_data
     return aip_image_data
 
 def process_folder_metadata(folderpath):
-    # TODO find out how to properly catch exceptions here
     try:
-        # TODO(tk) consider renaming folder_data to folder_result
         folder_data = get_folder_data(normalize_directory_component_id(folderpath))
     except ValueError as e:
         raise RuntimeError(str(e))
@@ -648,8 +647,6 @@ def process_folder_metadata(folderpath):
     try:
         folder_data = confirm_digital_object(folder_data)
     except ValueError as e:
-        raise RuntimeError(str(e))
-    except NotImplementedError as e:
         raise RuntimeError(str(e))
 
     try:
