@@ -425,7 +425,10 @@ def get_folder_arrangement(folder_data):
                     if ancestor['level'] == 'subseries':
                         subseries = get_archival_object(ancestor['ref'].split('/')[-1])
                         folder_arrangement['subseries_display'] = subseries['display_string']
-                        folder_arrangement['subseries_id'] = subseries['component_id']
+                        if 'component_id' in subseries:
+                            folder_arrangement['subseries_id'] = subseries['component_id']
+                        else:
+                            raise ValueError(f"    ⚠️\tSub-Series record is missing component_id: {subseries['display_string']} {ancestor['ref']}")
             else:
                 if __debug__: print(f"👀 series: {instance['sub_container']['top_container']['_resolved']['series']}")
                 raise ValueError(f"⚠️  missing series data for {folder_data['component_id']}")
