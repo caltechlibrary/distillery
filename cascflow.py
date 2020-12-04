@@ -442,9 +442,9 @@ def get_folder_data(component_id):
     find_by_id_response = client.get(f'/repositories/2/find_by_id/archival_objects?component_id[]={component_id}')
     find_by_id_response.raise_for_status()
     if len(find_by_id_response.json()['archival_objects']) < 1:
-        raise ValueError(f'    ⚠️ No records found with component_id: {component_id}')
+        raise ValueError(f'    ⚠️\tNo records found with component_id: {component_id}')
     if len(find_by_id_response.json()['archival_objects']) > 1:
-        raise ValueError(f'    ⚠️ Multiple records found with component_id: {component_id}')
+        raise ValueError(f'    ⚠️\tMultiple records found with component_id: {component_id}')
     archival_object_get_response = client.get(f"{find_by_id_response.json()['archival_objects'][0]['ref']}?resolve[]=digital_object&resolve[]=repository&resolve[]=top_container")
     archival_object_get_response.raise_for_status()
     return archival_object_get_response.json()
