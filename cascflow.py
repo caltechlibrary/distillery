@@ -37,14 +37,14 @@ def main(collection_id, debug):
     # print(collection_directory)
     collection_uri = get_collection_uri(collection_id)
     # print(collection_uri)
-    collection_json = get_collection_json(collection_uri)
-    collection_json['tree']['_resolved'] = get_collection_tree(collection_uri)
-    # print(collection_json)
+    collection_data = get_collection_data(collection_uri)
+    collection_data['tree']['_resolved'] = get_collection_tree(collection_uri)
+    # print(collection_data)
 
     # Verify write permission on `COMPLETED_DIRECTORY` by saving collection metadata.
     # TODO how to check bucket write permission without writing?
     try:
-        save_collection_metadata(collection_json, COMPLETED_DIRECTORY)
+        save_collection_metadata(collection_data, COMPLETED_DIRECTORY)
     except OSError as e:
         print(str(e))
         print(f"❌  unable to save file to {COMPLETED_DIRECTORY}\n")
@@ -55,7 +55,7 @@ def main(collection_id, debug):
         boto3.client('s3').put_object(
             Bucket=PRESERVATION_BUCKET,
             Key=collection_id + '/' + collection_id + '.json',
-            Body=json.dumps(collection_json, sort_keys=True, indent=4)
+            Body=json.dumps(collection_data, sort_keys=True, indent=4)
         )
         print(f"✅ metadata sent to S3 for {collection_id}\n")
     except botocore.exceptions.ClientError as e:
@@ -145,7 +145,7 @@ def main(collection_id, debug):
             print(f'▶️  {os.path.basename(filepath)} [images remaining: {filecounter}/{filecount}]')
             filecounter -= 1
             try:
-                aip_image_data = process_aip_image(filepath, collection_json, folder_arrangement, folder_data)
+                aip_image_data = process_aip_image(filepath, collection_data, folder_arrangement, folder_data)
             except RuntimeError as e:
                 print(str(e))
                 continue
@@ -350,7 +350,7 @@ def get_collection_directory(SOURCE_DIRECTORY, collection_id):
         print(f'❌  invalid or missing directory: {os.path.join(SOURCE_DIRECTORY, collection_id)}')
         exit()
 
-def get_collection_json(collection_uri):
+def get_collection_data(collection_uri):
     client = ASnakeClient()
     client.authorize()
     return client.get(collection_uri).json()
@@ -511,7 +511,7 @@ def get_s3_aip_image_key(prefix, file_parts):
     folder_id = '_'.join([folder_id_parts[0], folder_id_parts[-2], folder_id_parts[-1]])
     return prefix + folder_id + '_' + file_parts['sequence'] + '/' + file_parts['component_id'] + '-lossless.jp2'
 
-def get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_json):
+def get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_data):
     xmp_dc = {}
     xmp_dc['title'] = folder_arrangement['folder_display'] + ' [image ' + file_parts['sequence'] + ']'
     # TODO(tk) check extent type for pages/images/computer files/etc
@@ -528,7 +528,7 @@ def get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_
                     if ancestor['level'] == 'subseries':
                         xmp_dc['source'] += ' / ' + folder_arrangement['subseries_display']
     xmp_dc['rights'] = 'Caltech Archives has not determined the copyright in this image.'
-    for note in collection_json['notes']:
+    for note in collection_data['notes']:
         if note['type'] == 'userestrict':
             if bool(note['subnotes'][0]['content']) and note['subnotes'][0]['publish']:
                 xmp_dc['rights'] = note['subnotes'][0]['content']
@@ -609,14 +609,14 @@ def prepare_digital_object_component(folder_data, PRESERVATION_BUCKET, aip_image
     digital_object_component['label'] = 'Image ' + aip_image_data['sequence']
     return digital_object_component
 
-def process_aip_image(filepath, collection_json, folder_arrangement, folder_data):
+def process_aip_image(filepath, collection_data, folder_arrangement, folder_data):
     # cut out only the checksum string for the pixel stream
     sip_image_signature = sh.cut(sh.sha512sum(sh.magick.stream('-quiet', '-map', 'rgb', '-storage-type', 'short', filepath, '-', _piped=True, _bg=True), _bg=True), '-d', ' ', '-f', '1', _bg=True)
     aip_image_path = os.path.splitext(filepath)[0] + '-LOSSLESS.jp2'
     aip_image_conversion = sh.magick.convert('-quiet', filepath, '-quality', '0', aip_image_path, _bg=True)
     file_parts = get_file_parts(filepath)
     # if __debug__: log('file_parts ⬇️'); print(json.dumps(file_parts, sort_keys=True, indent=4))
-    xmp_dc = get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_json)
+    xmp_dc = get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_data)
     # print(json.dumps(xmp_dc, sort_keys=True, indent=4))
     aip_image_conversion.wait()
     write_xmp_metadata(aip_image_path, xmp_dc)
@@ -661,11 +661,11 @@ def process_folder_metadata(folderpath):
 
     return folder_arrangement, folder_data
 
-def save_collection_metadata(collection_json, COMPLETED_DIRECTORY):
-    filename = os.path.join(COMPLETED_DIRECTORY, collection_json['id_0'], f"{collection_json['id_0']}.json")
+def save_collection_metadata(collection_data, COMPLETED_DIRECTORY):
+    filename = os.path.join(COMPLETED_DIRECTORY, collection_data['id_0'], f"{collection_data['id_0']}.json")
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, 'w') as f:
-        f.write(json.dumps(collection_json, indent=4))
+        f.write(json.dumps(collection_data, indent=4))
 
 def set_digital_object_id(uri, digital_object_id):
     # raises an HTTPError exception if unsuccessful
