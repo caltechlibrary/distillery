@@ -68,29 +68,8 @@ def main(collection_id, debug):
         else:
             raise e
 
-    # `depth = 2` means do not recurse past one set of subdirectories.
-        # [collection]/
-        # ├── [collection]_[box]_[folder]/
-        # │   ├── [directory_not_traversed]/
-        # │   │   └── [file_not_included].tiff
-        # │   ├── [collection]_[box]_[folder]_[leaf].tiff
-        # │   └── [collection]_[box]_[folder]_[leaf].tiff
-        # └── [collection]_[box]_[folder]/
-        #     ├── [collection]_[box]_[folder]_[leaf].tiff
-        #     └── [collection]_[box]_[folder]_[leaf].tiff
-    depth = 2
-    filecounter = 0
-    folders = []
-    for root, dirs, files in os.walk(collection_directory):
-        if root[len(collection_directory):].count(os.sep) == 0:
-            for d in dirs:
-                folders.append(os.path.join(root, d))
-        if root[len(collection_directory):].count(os.sep) < depth:
-            for f in files:
-                # TODO(tk) set up list of usable imagetypes earlier
-                if os.path.splitext(f)[1] in ['.tif', '.tiff']:
-                    filecounter += 1
-    filecount = filecounter
+    folders, filecount = prepare_folder_list(collection_directory)
+    filecounter = filecount
 
     # Loop over folders list.
     folders.sort(reverse=True)
@@ -129,13 +108,7 @@ def main(collection_id, debug):
                 raise e
 
         # Set up list of TIFF paths for the current folder.
-        filepaths = []
-        with os.scandir(folderpath) as contents:
-            for entry in contents:
-                # TODO(tk) set up list of usable imagetypes earlier
-                if entry.is_file() and os.path.splitext(entry.path)[1] in ['.tif', '.tiff']:
-                    # print(entry.path)
-                    filepaths.append(entry.path)
+        filepaths = prepare_filepaths_list(folderpath)
 
         # We reverse the sort for use with pop() and so the components will be
         # ingested in the correct order for the digital object tree
@@ -608,6 +581,39 @@ def prepare_digital_object_component(folder_data, PRESERVATION_BUCKET, aip_image
     digital_object_component['file_versions'][0]['file_uri'] = 'https://' + PRESERVATION_BUCKET + '.s3-us-west-2.amazonaws.com/' + aip_image_data['s3key']
     digital_object_component['label'] = 'Image ' + aip_image_data['sequence']
     return digital_object_component
+
+def prepare_filepaths_list(folderpath):
+    filepaths = []
+    with os.scandir(folderpath) as contents:
+        for entry in contents:
+            if entry.is_file() and os.path.splitext(entry.path)[1] in ['.tif', '.tiff']:
+                filepaths.append(entry.path)
+    return filepaths
+
+def prepare_folder_list(collection_directory):
+    # `depth = 2` means do not recurse past one set of subdirectories.
+        # [collection]/
+        # ├── [collection]_[box]_[folder]/
+        # │   ├── [directory_not_traversed]/
+        # │   │   └── [file_not_included].tiff
+        # │   ├── [collection]_[box]_[folder]_[leaf].tiff
+        # │   └── [collection]_[box]_[folder]_[leaf].tiff
+        # └── [collection]_[box]_[folder]/
+        #     ├── [collection]_[box]_[folder]_[leaf].tiff
+        #     └── [collection]_[box]_[folder]_[leaf].tiff
+    depth = 2
+    filecounter = 0
+    folders = []
+    for root, dirs, files in os.walk(collection_directory):
+        if root[len(collection_directory):].count(os.sep) == 0:
+            for d in dirs:
+                folders.append(os.path.join(root, d))
+        if root[len(collection_directory):].count(os.sep) < depth:
+            for f in files:
+                if os.path.splitext(f)[1] in ['.tif', '.tiff']:
+                    filecounter += 1
+    filecount = filecounter
+    return folders, filecount
 
 def process_aip_image(filepath, collection_data, folder_arrangement, folder_data):
     # cut out only the checksum string for the pixel stream
