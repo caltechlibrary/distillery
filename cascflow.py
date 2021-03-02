@@ -1,5 +1,9 @@
 # CALTECH ARCHIVES AND SPECIAL COLLECTIONS DIGITAL OBJECT WORKFLOW
 
+# PREREQUISITES
+# - An ~/.archivessnake.yml credentials file for the ArchivesSpace connection.
+# - An ~/.aws/credentials file for the S3 connection.
+
 import base64
 import boto3
 import botocore
@@ -29,7 +33,7 @@ def main(collection_id, debug):
     if debug:
         if __debug__: set_debug(True)
 
-    time_start= datetime.now()
+    time_start = datetime.now()
 
     SOURCE_DIRECTORY, COMPLETED_DIRECTORY, PRESERVATION_BUCKET = get_environment_variables()
 
@@ -374,6 +378,7 @@ def get_file_parts(filepath):
     file_parts['image_id'] = file_parts['filename'].split('.')[0]
     file_parts['extension'] = file_parts['filename'].split('.')[-1]
     file_parts['folder_id'] = file_parts['image_id'].rsplit('_', 1)[0]
+    # TODO rename 'sequence' because it is not always numeric
     file_parts['sequence'] = file_parts['image_id'].split('_')[-1]
     file_parts['component_id'] = get_digital_object_component_id()
     return file_parts
