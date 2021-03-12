@@ -38,12 +38,9 @@ def main(collection_id, debug):
     SOURCE_DIRECTORY, COMPLETED_DIRECTORY, PRESERVATION_BUCKET = get_environment_variables()
 
     collection_directory = get_collection_directory(SOURCE_DIRECTORY, collection_id)
-    # print(collection_directory)
     collection_uri = get_collection_uri(collection_id)
-    # print(collection_uri)
     collection_data = get_collection_data(collection_uri)
     collection_data['tree']['_resolved'] = get_collection_tree(collection_uri)
-    # print(collection_data)
 
     # Verify write permission on `COMPLETED_DIRECTORY` by saving collection metadata.
     # TODO how to check bucket write permission without writing?
@@ -279,7 +276,7 @@ def create_digital_object(folder_data):
     if 'error' in digital_object_post_response.json():
         if 'digital_object_id' in digital_object_post_response.json()['error']:
             if 'Must be unique' in digital_object_post_response.json()['error']['digital_object_id']:
-                raise ValueError(f"⚠️  non-unique digital_object_id: {folder_data['component_id']}")
+                raise ValueError(f" ⚠️\t non-unique digital_object_id: {folder_data['component_id']}")
     digital_object_post_response.raise_for_status()
 
     # set up a digital object instance to add to the archival object
@@ -341,6 +338,7 @@ def get_collection_uri(collection_id):
     client = ASnakeClient()
     client.authorize()
     search_results_json = client.get('/repositories/2/search?page=1&page_size=1&type[]=resource&fields[]=uri&aq={\"query\":{\"field\":\"identifier\",\"value\":\"' + collection_id + '\",\"jsonmodel_type\":\"field_query\",\"negated\":false,\"literal\":false}}').json()
+    # TODO raise exception for multiple results
     if bool(search_results_json['results']):
         return search_results_json['results'][0]['uri']
     else:
@@ -354,6 +352,8 @@ def get_digital_object_component_id():
     return get_crockford_characters() + '_' + get_crockford_characters()
 
 def get_environment_variables():
+    # TODO implement decouple
+    # TODO: os.path.abspath() throws exception on empty os.environ.get() result
     SOURCE_DIRECTORY = os.path.abspath(os.environ.get('SOURCE_DIRECTORY'))
     COMPLETED_DIRECTORY = os.path.abspath(os.getenv('COMPLETED_DIRECTORY', f'{SOURCE_DIRECTORY}/S3'))
     PRESERVATION_BUCKET = os.environ.get('PRESERVATION_BUCKET')
@@ -396,7 +396,7 @@ def get_folder_arrangement(folder_data):
                 folder_arrangement['collection_display'] = instance['sub_container']['top_container']['_resolved']['collection'][0]['display_string']
                 folder_arrangement['collection_id'] = instance['sub_container']['top_container']['_resolved']['collection'][0]['identifier']
             else:
-                raise ValueError(f"⚠️  missing collection data for {folder_data['component_id']}")
+                raise ValueError(f" ⚠️\t missing collection data for {folder_data['component_id']}")
             if instance['sub_container']['top_container']['_resolved'].get('series'):
                 folder_arrangement['series_display'] = instance['sub_container']['top_container']['_resolved']['series'][0]['display_string']
                 folder_arrangement['series_id'] = instance['sub_container']['top_container']['_resolved']['series'][0]['identifier']
@@ -407,10 +407,10 @@ def get_folder_arrangement(folder_data):
                         if 'component_id' in subseries:
                             folder_arrangement['subseries_id'] = subseries['component_id']
                         else:
-                            raise ValueError(f"    ⚠️\tSub-Series record is missing component_id: {subseries['display_string']} {ancestor['ref']}")
+                            raise ValueError(f" ⚠️\t Sub-Series record is missing component_id: {subseries['display_string']} {ancestor['ref']}")
             else:
                 if __debug__: print(f"👀 series: {instance['sub_container']['top_container']['_resolved']['series']}")
-                raise ValueError(f"⚠️  missing series data for {folder_data['component_id']}")
+                raise ValueError(f" ⚠️\t missing series data for {folder_data['component_id']}")
     return folder_arrangement
 
 def get_folder_data(component_id):
@@ -420,9 +420,10 @@ def get_folder_data(component_id):
     find_by_id_response = client.get(f'/repositories/2/find_by_id/archival_objects?component_id[]={component_id}')
     find_by_id_response.raise_for_status()
     if len(find_by_id_response.json()['archival_objects']) < 1:
-        raise ValueError(f'    ⚠️\tNo records found with component_id: {component_id}')
+        # figure out the box folder
+        raise ValueError(f' ⚠️\t No records found with component_id: {component_id}')
     if len(find_by_id_response.json()['archival_objects']) > 1:
-        raise ValueError(f'    ⚠️\tMultiple records found with component_id: {component_id}')
+        raise ValueError(f' ⚠️\t Multiple records found with component_id: {component_id}')
     archival_object_get_response = client.get(f"{find_by_id_response.json()['archival_objects'][0]['ref']}?resolve[]=digital_object&resolve[]=repository&resolve[]=top_container")
     archival_object_get_response.raise_for_status()
     return archival_object_get_response.json()
@@ -463,7 +464,7 @@ def get_s3_aip_folder_prefix(folder_arrangement, folder_data):
                     prefix += subseries_display + '/'
     # exception for extended identifiers like HaleGE_02_0B_056_07
     # TODO(tk) remove once no more exception files exist
-    # TODO(tk) use older_data['component_id'] directly
+    # TODO(tk) use folder_data['component_id'] directly
     folder_id_parts = folder_data['component_id'].split('_')
     folder_id = '_'.join([folder_id_parts[0], folder_id_parts[-2], folder_id_parts[-1]])
     folder_display = ''.join([c if c.isalnum() else '-' for c in folder_arrangement['folder_display']])
@@ -604,8 +605,8 @@ def prepare_folder_list(collection_directory):
         # │   ├── [collection]_[box]_[folder]_[leaf].tiff
         # │   └── [collection]_[box]_[folder]_[leaf].tiff
         # └── [collection]_[box]_[folder]/
-        #     ├── [collection]_[box]_[folder]_[leaf].tiff
-        #     └── [collection]_[box]_[folder]_[leaf].tiff
+        #     ├── [collection]_[box]_[folder]_[leaf].tif
+        #     └── [collection]_[box]_[folder]_[leaf].tif
     depth = 2
     filecounter = 0
     folders = []
