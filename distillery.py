@@ -18,6 +18,7 @@ import string
 
 from asnake.client import ASnakeClient
 from datetime import datetime
+from decouple import config
 from jpylyzer import jpylyzer
 from requests import HTTPError
 
@@ -37,11 +38,12 @@ def main(collection_id, debug):
 
     time_start = datetime.now()
 
+    # TODO refactor into a validate_settings() function
     (
         SOURCE_DIRECTORY,
         COMPLETED_DIRECTORY,
         PRESERVATION_BUCKET,
-    ) = get_environment_variables()
+    ) = get_file_location_variables()
 
     collection_directory = get_collection_directory(SOURCE_DIRECTORY, collection_id)
     collection_uri = get_collection_uri(collection_id)
@@ -457,14 +459,13 @@ def get_digital_object_component_id():
     return get_crockford_characters() + "_" + get_crockford_characters()
 
 
-def get_environment_variables():
-    # TODO implement decouple
-    # TODO: os.path.abspath() throws exception on empty os.environ.get() result
-    SOURCE_DIRECTORY = os.path.abspath(os.environ.get("SOURCE_DIRECTORY"))
+def get_file_location_variables():
+    # TODO catch UndefinedValueError exceptions with a friendly message
+    SOURCE_DIRECTORY = os.path.abspath(config("SOURCE_DIRECTORY"))
     COMPLETED_DIRECTORY = os.path.abspath(
-        os.getenv("COMPLETED_DIRECTORY", f"{SOURCE_DIRECTORY}/S3")
+        config("COMPLETED_DIRECTORY", f"{SOURCE_DIRECTORY}/S3")
     )
-    PRESERVATION_BUCKET = os.environ.get("PRESERVATION_BUCKET")
+    PRESERVATION_BUCKET = config("PRESERVATION_BUCKET")
     if all([SOURCE_DIRECTORY, COMPLETED_DIRECTORY, PRESERVATION_BUCKET]):
         if __debug__:
             log(f"SOURCE_DIRECTORY: {SOURCE_DIRECTORY}")
