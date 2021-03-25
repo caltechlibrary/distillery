@@ -29,10 +29,12 @@ if __debug__:
 # TODO remove 8 instances of:
 # client = ASnakeClient()
 # client.authorize()
-client = ASnakeClient(
-    baseurl=config("ASPACE_BASEURL"), username=config("ASPACE_USERNAME"), password=config("ASPACE_PASSWORD")
+asnake_client = ASnakeClient(
+    baseurl=config("ASPACE_BASEURL"),
+    username=config("ASPACE_USERNAME"),
+    password=config("ASPACE_PASSWORD"),
 )
-client.authorize()
+asnake_client.authorize()
 
 @plac.annotations(
     collection_id=("the collection identifier from ArchivesSpace"),
@@ -330,7 +332,7 @@ def create_digital_object(folder_data):
 
     # client = ASnakeClient()
     # client.authorize()
-    digital_object_post_response = client.post(
+    digital_object_post_response = asnake_client.post(
         "/repositories/2/digital_objects", json=digital_object
     )
     # example success response:
@@ -368,13 +370,13 @@ def create_digital_object(folder_data):
         "digital_object": {"ref": digital_object_post_response.json()["uri"]},
     }
     # get archival object
-    archival_object_get_response = client.get(folder_data["uri"])
+    archival_object_get_response = asnake_client.get(folder_data["uri"])
     archival_object_get_response.raise_for_status()
     archival_object = archival_object_get_response.json()
     # add digital object instance to archival object
     archival_object["instances"].append(digital_object_instance)
     # post updated archival object
-    archival_object_post_response = client.post(
+    archival_object_post_response = asnake_client.post(
         folder_data["uri"], json=archival_object
     )
     archival_object_post_response.raise_for_status()
@@ -416,7 +418,7 @@ def get_aip_image_data(filepath):
 def get_archival_object(id):
     # client = ASnakeClient()
     # client.authorize()
-    response = client.get("/repositories/2/archival_objects/" + id)
+    response = asnake_client.get("/repositories/2/archival_objects/" + id)
     response.raise_for_status()
     return response.json()
 
@@ -434,19 +436,19 @@ def get_collection_directory(SOURCE_DIRECTORY, collection_id):
 def get_collection_data(collection_uri):
     # client = ASnakeClient()
     # client.authorize()
-    return client.get(collection_uri).json()
+    return asnake_client.get(collection_uri).json()
 
 
 def get_collection_tree(collection_uri):
     # client = ASnakeClient()
     # client.authorize()
-    return client.get(collection_uri + "/ordered_records").json()
+    return asnake_client.get(collection_uri + "/ordered_records").json()
 
 
 def get_collection_uri(collection_id):
     # client = ASnakeClient()
     # client.authorize()
-    search_results_json = client.get(
+    search_results_json = asnake_client.get(
         '/repositories/2/search?page=1&page_size=1&type[]=resource&fields[]=uri&aq={"query":{"field":"identifier","value":"'
         + collection_id
         + '","jsonmodel_type":"field_query","negated":false,"literal":false}}'
@@ -569,7 +571,7 @@ def get_folder_data(component_id):
     # returns archival object metadata using the component_id; two API calls
     # client = ASnakeClient()
     # client.authorize()
-    find_by_id_response = client.get(
+    find_by_id_response = asnake_client.get(
         f"/repositories/2/find_by_id/archival_objects?component_id[]={component_id}"
     )
     find_by_id_response.raise_for_status()
@@ -580,7 +582,7 @@ def get_folder_data(component_id):
         raise ValueError(
             f" ⚠️\t Multiple records found with component_id: {component_id}"
         )
-    archival_object_get_response = client.get(
+    archival_object_get_response = asnake_client.get(
         f"{find_by_id_response.json()['archival_objects'][0]['ref']}?resolve[]=digital_object&resolve[]=repository&resolve[]=top_container"
     )
     archival_object_get_response.raise_for_status()
@@ -741,7 +743,7 @@ def normalize_directory_component_id(folderpath):
 def post_digital_object_component(json_data):
     # client = ASnakeClient()
     # client.authorize()
-    post_response = client.post(
+    post_response = asnake_client.post(
         "/repositories/2/digital_object_components", json=json_data
     )
     post_response.raise_for_status()
@@ -980,9 +982,9 @@ def set_digital_object_id(uri, digital_object_id):
     # raises an HTTPError exception if unsuccessful
     # client = ASnakeClient()
     # client.authorize()
-    get_response_json = client.get(uri).json()
+    get_response_json = asnake_client.get(uri).json()
     get_response_json["digital_object_id"] = digital_object_id
-    post_response = client.post(uri, json=get_response_json)
+    post_response = asnake_client.post(uri, json=get_response_json)
     post_response.raise_for_status()
     return
 
