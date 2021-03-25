@@ -1,7 +1,6 @@
 # CALTECH ARCHIVES AND SPECIAL COLLECTIONS DIGITAL OBJECT WORKFLOW
 
 # PREREQUISITES
-# - An ~/.archivessnake.yml credentials file for the ArchivesSpace connection.
 # - An ~/.aws/credentials file for the S3 connection.
 
 import base64
@@ -25,6 +24,15 @@ from requests import HTTPError
 if __debug__:
     from sidetrack import set_debug, log, logr
 
+# TODO do we need a class? https://stackoverflow.com/a/16502408/4100024
+# we have 8 functions that need an authorized connection to ArchivesSpace
+# TODO remove 8 instances of:
+# client = ASnakeClient()
+# client.authorize()
+client = ASnakeClient(
+    baseurl=config("ASPACE_BASEURL"), username=config("ASPACE_USERNAME"), password=config("ASPACE_PASSWORD")
+)
+client.authorize()
 
 @plac.annotations(
     collection_id=("the collection identifier from ArchivesSpace"),
@@ -320,8 +328,8 @@ def create_digital_object(folder_data):
     # NOTE leaving created digital objects unpublished
     # digital_object['publish'] = True
 
-    client = ASnakeClient()
-    client.authorize()
+    # client = ASnakeClient()
+    # client.authorize()
     digital_object_post_response = client.post(
         "/repositories/2/digital_objects", json=digital_object
     )
@@ -406,8 +414,8 @@ def get_aip_image_data(filepath):
 
 
 def get_archival_object(id):
-    client = ASnakeClient()
-    client.authorize()
+    # client = ASnakeClient()
+    # client.authorize()
     response = client.get("/repositories/2/archival_objects/" + id)
     response.raise_for_status()
     return response.json()
@@ -424,20 +432,20 @@ def get_collection_directory(SOURCE_DIRECTORY, collection_id):
 
 
 def get_collection_data(collection_uri):
-    client = ASnakeClient()
-    client.authorize()
+    # client = ASnakeClient()
+    # client.authorize()
     return client.get(collection_uri).json()
 
 
 def get_collection_tree(collection_uri):
-    client = ASnakeClient()
-    client.authorize()
+    # client = ASnakeClient()
+    # client.authorize()
     return client.get(collection_uri + "/ordered_records").json()
 
 
 def get_collection_uri(collection_id):
-    client = ASnakeClient()
-    client.authorize()
+    # client = ASnakeClient()
+    # client.authorize()
     search_results_json = client.get(
         '/repositories/2/search?page=1&page_size=1&type[]=resource&fields[]=uri&aq={"query":{"field":"identifier","value":"'
         + collection_id
@@ -559,8 +567,8 @@ def get_folder_arrangement(folder_data):
 
 def get_folder_data(component_id):
     # returns archival object metadata using the component_id; two API calls
-    client = ASnakeClient()
-    client.authorize()
+    # client = ASnakeClient()
+    # client.authorize()
     find_by_id_response = client.get(
         f"/repositories/2/find_by_id/archival_objects?component_id[]={component_id}"
     )
@@ -731,8 +739,8 @@ def normalize_directory_component_id(folderpath):
 
 
 def post_digital_object_component(json_data):
-    client = ASnakeClient()
-    client.authorize()
+    # client = ASnakeClient()
+    # client.authorize()
     post_response = client.post(
         "/repositories/2/digital_object_components", json=json_data
     )
@@ -970,8 +978,8 @@ def save_collection_metadata(collection_data, COMPLETED_DIRECTORY):
 
 def set_digital_object_id(uri, digital_object_id):
     # raises an HTTPError exception if unsuccessful
-    client = ASnakeClient()
-    client.authorize()
+    # client = ASnakeClient()
+    # client.authorize()
     get_response_json = client.get(uri).json()
     get_response_json["digital_object_id"] = digital_object_id
     post_response = client.post(uri, json=get_response_json)
