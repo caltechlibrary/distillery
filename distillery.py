@@ -1,8 +1,5 @@
 # CALTECH ARCHIVES AND SPECIAL COLLECTIONS DIGITAL OBJECT WORKFLOW
 
-# PREREQUISITES
-# - An ~/.aws/credentials file for the S3 connection.
-
 import base64
 import boto3
 import botocore
@@ -35,6 +32,13 @@ asnake_client = ASnakeClient(
     password=config("ASPACE_PASSWORD"),
 )
 asnake_client.authorize()
+
+s3_client = boto3.client(
+    "s3",
+    aws_access_key_id=config("AWS_ACCESS_KEY"),
+    aws_secret_access_key=config("AWS_SECRET_KEY"),
+)
+
 
 @plac.annotations(
     collection_id=("the collection identifier from ArchivesSpace"),
@@ -71,7 +75,7 @@ def main(collection_id, debug):
 
     # Send collection metadata to S3.
     try:
-        boto3.client("s3").put_object(
+        s3_client.put_object(
             Bucket=PRESERVATION_BUCKET,
             Key=collection_id + "/" + collection_id + ".json",
             Body=json.dumps(collection_data, sort_keys=True, indent=4),
@@ -109,7 +113,7 @@ def main(collection_id, debug):
 
         # Send ArchivesSpace folder metadata to S3 as a JSON file.
         try:
-            boto3.client("s3").put_object(
+            s3_client.put_object(
                 Bucket=PRESERVATION_BUCKET,
                 Key=get_s3_aip_folder_key(
                     get_s3_aip_folder_prefix(folder_arrangement, folder_data),
@@ -169,7 +173,7 @@ def main(collection_id, debug):
             #     "ETag": "\"614bccea2760f37f41be65c62c41d66e\""
             # }
             try:
-                aip_image_put_response = boto3.client("s3").put_object(
+                aip_image_put_response = s3_client.put_object(
                     Bucket=PRESERVATION_BUCKET,
                     Key=aip_image_data["s3key"],
                     Body=open(aip_image_data["filepath"], "rb"),
