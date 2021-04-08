@@ -1,22 +1,22 @@
 # CALTECH ARCHIVES AND SPECIAL COLLECTIONS DIGITAL OBJECT WORKFLOW
 
 import base64
-import boto3
-import botocore
 import hashlib
 import json
 import os
-import plac
 import pprint
 import random
-import sh
 import string
-
-from asnake.client import ASnakeClient
 from datetime import datetime
+from requests import HTTPError
+
+import boto3
+import botocore
+import bottle
+import sh
+from asnake.client import ASnakeClient
 from decouple import config
 from jpylyzer import jpylyzer
-from requests import HTTPError
 
 if __debug__:
     from sidetrack import set_debug, log, logr
@@ -40,29 +40,59 @@ s3_client = boto3.client(
 )
 
 
-@plac.annotations(
-    collection_id=("the collection identifier from ArchivesSpace"),
-    debug=("print extra debugging info", "flag", "@"),
-)
-def main(collection_id, debug):
+@bottle.get("/")
+def formview():
+    return bottle.template("form_collection_id", error=None)
+
+
+@bottle.post("/")
+def formpost():
+    collection_id = bottle.request.forms.get("collection_id").strip()
+    # TODO refactor because main() is a long-running process \
+    # and the form hangs on submission because the whole function must finish
+    if collection_id:
+        return main(collection_id)
+    else:
+        return bottle.template(
+            "form_collection_id", error="❌ CollectionID must not be empty."
+        )
+
+
+@bottle.error(200)
+def problem(error):
+    # NOTE this captures the abort() in a function that fails
+    # TODO create a different template for environment errors
+    return bottle.template("form_collection_id", error=error.body)
+
+
+def main(collection_id, debug=False):
 
     if debug:
         if __debug__:
             set_debug(True)
 
     time_start = datetime.now()
+    # yield '<style type="text/css">* {white-space:pre-wrap;}</style>'
+    # yield bottle.template(
+    #     "Hello {{name}}!\n", name=collection_id
+    # )  # don't think we need a template
 
     # TODO refactor into a validate_settings() function
+    # SEE dibsprep.py
     (
         SOURCE_DIRECTORY,
         COMPLETED_DIRECTORY,
         PRESERVATION_BUCKET,
     ) = get_file_location_variables()
 
+    # TODO refactor so that we can get an initial report on the results of both
+    # the directory and the uri so that users can know if one or both of the
+    # points of failure are messed up right away
     collection_directory = get_collection_directory(SOURCE_DIRECTORY, collection_id)
     collection_uri = get_collection_uri(collection_id)
     collection_data = get_collection_data(collection_uri)
     collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
+    yield f"✅ collection data gathered for {collection_id}\n"
 
     # Verify write permission on `COMPLETED_DIRECTORY` by saving collection metadata.
     # TODO how to check bucket write permission without writing?
@@ -80,7 +110,8 @@ def main(collection_id, debug):
             Key=collection_id + "/" + collection_id + ".json",
             Body=json.dumps(collection_data, sort_keys=True, indent=4),
         )
-        print(f"✅ metadata sent to S3 for {collection_id}\n")
+        # print(f"✅ metadata sent to S3 for {collection_id}\n")
+        yield f"✅ metadata sent to S3 for {collection_id}\n"
     except botocore.exceptions.ClientError as e:
         # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
         if e.response["Error"]["Code"] == "InternalError":  # Generic error
@@ -90,7 +121,8 @@ def main(collection_id, debug):
             print(f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}")
         else:
             raise e
-
+    yield "done"
+    return
     folders, filecount = prepare_folder_list(collection_directory)
     filecounter = filecount
 
@@ -249,9 +281,6 @@ def main(collection_id, debug):
             print(f"✅ {os.path.basename(filepath)} processed successfully\n")
 
             print(f"⏳ time elpased: {datetime.now() - time_start}\n")
-
-
-###
 
 
 def calculate_pixel_signature(filepath):
@@ -431,10 +460,10 @@ def get_collection_directory(SOURCE_DIRECTORY, collection_id):
     if os.path.isdir(os.path.join(SOURCE_DIRECTORY, collection_id)):
         return os.path.join(SOURCE_DIRECTORY, collection_id)
     else:
-        print(
-            f"❌  invalid or missing directory: {os.path.join(SOURCE_DIRECTORY, collection_id)}"
+        bottle.abort(
+            200,
+            f" ❌\t Directory missing or invalid: {os.path.join(SOURCE_DIRECTORY, collection_id)}",
         )
-        exit()
 
 
 def get_collection_data(collection_uri):
@@ -458,11 +487,13 @@ def get_collection_uri(collection_id):
         + '","jsonmodel_type":"field_query","negated":false,"literal":false}}'
     ).json()
     # TODO raise exception for multiple results
+    # TODO friendly webform error if search field is empty
     if bool(search_results_json["results"]):
         return search_results_json["results"][0]["uri"]
     else:
-        print("❌  Collection Identifier not found in ArchivesSpace: " + collection_id)
-        exit()
+        bottle.abort(
+            200, f" ❌\t CollectionID not found in ArchivesSpace: {collection_id}"
+        )
 
 
 def get_crockford_characters(n=4):
@@ -1009,4 +1040,4 @@ def write_xmp_metadata(filepath, metadata):
 ###
 
 if __name__ == "__main__":
-    plac.call(main)
+    bottle.run(host="localhost", port=1234, debug=True, reloader=True)
