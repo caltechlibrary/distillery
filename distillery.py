@@ -137,9 +137,21 @@ def main(collection_id, debug=False):
         yield "<p><a href='/'>return to form</a>"
         sys.exit()
 
-    collection_data = get_collection_data(collection_uri)
-    collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
-    yield f"✅ collection data gathered for {collection_id}\n"
+    try:
+        collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
+        if collection_data["tree"]["_resolved"]:
+            yield f"✅ Collection tree for {collection_id} retrieved from ArchivesSpace.\n"
+        # TODO report on contents of collection_tree
+    except RuntimeError as e:
+        yield f"⚠️ {str(e)}\n"
+        yield "❌ exiting…\n"
+        yield "<p><a href='/'>return to form</a>"
+        sys.exit()
+    except HTTPError as e:
+        yield f"⚠️ There was a problem with the connection to ArchivesSpace.\n"
+        yield "❌ exiting…\n"
+        yield "<p><a href='/'>return to form</a>"
+        sys.exit()
 
     # Verify write permission on `COMPLETED_DIRECTORY` by saving collection metadata.
     # TODO how to check bucket write permission without writing?
@@ -528,7 +540,14 @@ def get_collection_directory(SOURCE_DIRECTORY, collection_id):
 
 
 def get_collection_tree(collection_uri):
-    return asnake_client.get(collection_uri + "/ordered_records").json()
+    # raises an HTTPError exception if unsuccessful
+    collection_tree = asnake_client.get(collection_uri + "/ordered_records").json()
+    if collection_tree:
+        return collection_tree
+    else:
+        raise RuntimeError(
+            f"There was a problem retrieving the collection tree from ArchivesSpace.\n"
+        )
 
 
 def get_collection_uri(collection_id):
