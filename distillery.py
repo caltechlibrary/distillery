@@ -92,9 +92,6 @@ def main(collection_id, debug=False):
     # the directory and the uri so that users can know if one or both of the
     # points of failure are messed up right away
 
-    # TODO: change these function calls to try/except so that we \
-    # don't have to change the function definitions for bottle
-
     try:
         collection_directory = get_collection_directory(SOURCE_DIRECTORY, collection_id)
         if collection_directory:
@@ -182,8 +179,7 @@ def main(collection_id, debug=False):
             sys.exit()
         else:
             raise e
-    yield "done"
-    return
+
     folders, filecount = prepare_folder_list(collection_directory)
     filecounter = filecount
 
@@ -197,10 +193,20 @@ def main(collection_id, debug=False):
         # TODO find out how to properly catch exceptions here
         try:
             folder_arrangement, folder_data = process_folder_metadata(folderpath)
+            yield f"✅ Folder data for {folder_data['component_id']} [{folder_data['display_string']}] retrieved from ArchivesSpace.\n"
         except RuntimeError as e:
-            print(str(e))
-            print("❌ unable to process folder metadata...")
-            print(f"...skipping {folderpath}\n")
+            yield f"⚠️ Unable to retrieve metadata for: {folderpath}\n"
+            # NOTE possible error strings include:
+            # f"The component_id cannot be determined from the directory name: {os.path.basename(folderpath)}"
+            # f"The directory name does not correspond to the collection_id: {os.path.basename(folderpath)}"
+            # f"No records found with component_id: {component_id}"
+            # f"Multiple records found with component_id: {component_id}"
+            # f"The ArchivesSpace record for {folder_data['component_id']} contains multiple digital objects."
+            # f"Missing collection data for: {folder_data['component_id']}"
+            # f"Sub-Series record is missing component_id: {subseries['display_string']} {ancestor['ref']}"
+            # f"Missing series data for: {folder_data['component_id']}"
+            yield f"⚠️ {str(e)}\n"
+            yield f"↩️ …skipping: {folderpath}\n"
             # TODO increment file counter by the count of files in this folder
             continue
 
@@ -372,7 +378,7 @@ def confirm_digital_object(folder_data):
             digital_object_count += 1
     if digital_object_count > 1:
         raise ValueError(
-            f"❌ the ArchivesSpace record for {folder_data['component_id']} contains multiple digital objects"
+            f"The ArchivesSpace record for {folder_data['component_id']} contains multiple digital objects."
         )
     if digital_object_count < 1:
         # returns new folder_data with digital object info included
@@ -383,7 +389,6 @@ def confirm_digital_object(folder_data):
 def confirm_digital_object_id(folder_data):
     # returns folder_data always in case digital_object_id was updated
     for instance in folder_data["instances"]:
-        # TODO(tk) confirm Archives policy disallows multiple digital objects
         # TODO(tk) create script/report to periodically check for violations
         if "digital_object" in instance:
             if (
@@ -616,7 +621,7 @@ def get_folder_arrangement(folder_data):
                 ]["_resolved"]["collection"][0]["identifier"]
             else:
                 raise ValueError(
-                    f" ⚠️\t missing collection data for {folder_data['component_id']}"
+                    f"Missing collection data for: {folder_data['component_id']}"
                 )
             if instance["sub_container"]["top_container"]["_resolved"].get("series"):
                 folder_arrangement["series_display"] = instance["sub_container"][
@@ -637,7 +642,7 @@ def get_folder_arrangement(folder_data):
                             ]
                         else:
                             raise ValueError(
-                                f" ⚠️\t Sub-Series record is missing component_id: {subseries['display_string']} {ancestor['ref']}"
+                                f"Sub-Series record is missing component_id: {subseries['display_string']} {ancestor['ref']}"
                             )
             else:
                 if __debug__:
@@ -645,7 +650,7 @@ def get_folder_arrangement(folder_data):
                         f"👀 series: {instance['sub_container']['top_container']['_resolved']['series']}"
                     )
                 raise ValueError(
-                    f" ⚠️\t missing series data for {folder_data['component_id']}"
+                    f"Missing series data for: {folder_data['component_id']}"
                 )
     return folder_arrangement
 
@@ -658,11 +663,9 @@ def get_folder_data(component_id):
     find_by_id_response.raise_for_status()
     if len(find_by_id_response.json()["archival_objects"]) < 1:
         # figure out the box folder
-        raise ValueError(f" ⚠️\t No records found with component_id: {component_id}")
+        raise ValueError(f"No records found with component_id: {component_id}")
     if len(find_by_id_response.json()["archival_objects"]) > 1:
-        raise ValueError(
-            f" ⚠️\t Multiple records found with component_id: {component_id}"
-        )
+        raise ValueError(f"Multiple records found with component_id: {component_id}")
     archival_object_get_response = asnake_client.get(
         f"{find_by_id_response.json()['archival_objects'][0]['ref']}?resolve[]=digital_object&resolve[]=repository&resolve[]=top_container"
     )
@@ -809,12 +812,12 @@ def normalize_directory_component_id(folderpath):
     component_id_parts = os.path.basename(folderpath).split("_")
     if len(component_id_parts) > 3:
         raise ValueError(
-            f"⚠️\tThe component_id cannot be determined from the directory name: {os.path.basename(folderpath)}"
+            f"The component_id cannot be determined from the directory name: {os.path.basename(folderpath)}"
         )
     collection_id = component_id_parts[0]
     if collection_id != os.path.basename(os.path.dirname(folderpath)):
         raise ValueError(
-            f"⚠️\tThe directory name does not correspond to the collection_id: {os.path.basename(folderpath)}"
+            f"The directory name does not correspond to the collection_id: {os.path.basename(folderpath)}"
         )
     box_number = component_id_parts[1].lstrip("0")
     # TODO parse non-numeric folder identifiers, like: 03b
