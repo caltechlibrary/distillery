@@ -98,7 +98,7 @@ def main(collection_id, debug=False):
     try:
         collection_directory = get_collection_directory(SOURCE_DIRECTORY, collection_id)
         if collection_directory:
-            yield f"✅ Collection directory found on filesystem: {collection_directory}\n"
+            yield f"✅ Collection directory for {collection_id} found on filesystem: {collection_directory}\n"
         # TODO report on contents of collection_directory
     except NotADirectoryError as e:
         yield f"⚠️ {str(e)}\n"
