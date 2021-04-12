@@ -91,7 +91,21 @@ def main(collection_id, debug=False):
     # TODO refactor so that we can get an initial report on the results of both
     # the directory and the uri so that users can know if one or both of the
     # points of failure are messed up right away
-    collection_directory = get_collection_directory(SOURCE_DIRECTORY, collection_id)
+
+    # TODO: change these function calls to try/except so that we \
+    # don't have to change the function definitions for bottle
+
+    try:
+        collection_directory = get_collection_directory(SOURCE_DIRECTORY, collection_id)
+        if collection_directory:
+            yield f"✅ collection directory found on filesystem: {collection_directory}\n"
+        # TODO report on contents of collection_directory
+    except NotADirectoryError as e:
+        yield f"⚠️ {str(e)}\n"
+        yield "❌ exiting…\n"
+        yield "<p><a href='/'>return to form</a>"
+        sys.exit()
+
     collection_uri = get_collection_uri(collection_id)
     collection_data = get_collection_data(collection_uri)
     collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
@@ -467,9 +481,8 @@ def get_collection_directory(SOURCE_DIRECTORY, collection_id):
     if os.path.isdir(os.path.join(SOURCE_DIRECTORY, collection_id)):
         return os.path.join(SOURCE_DIRECTORY, collection_id)
     else:
-        bottle.abort(
-            200,
-            f" ❌\t Directory missing or invalid: {os.path.join(SOURCE_DIRECTORY, collection_id)}",
+        raise NotADirectoryError(
+            f"missing or invalid collection directory: {os.path.join(SOURCE_DIRECTORY, collection_id)}"
         )
 
 
