@@ -81,10 +81,10 @@ def main(collection_id, debug=False):
             PRESERVATION_BUCKET,
         ) = validate_settings()
     except Exception as e:
-        yield f"⚠️ there was a problem with the configuration settings\n"
+        yield f"⚠️ There was a problem with the configuration settings.\n"
         yield f"➡️ <em>{str(e)}</em>\n"
         yield "❌ exiting…\n"
-        yield "<p>this issue must be resolved before continuing</a>"
+        yield "<p>This issue must be resolved before continuing.</a>"
         # TODO send notification to DLD
         sys.exit()
 
@@ -98,7 +98,7 @@ def main(collection_id, debug=False):
     try:
         collection_directory = get_collection_directory(SOURCE_DIRECTORY, collection_id)
         if collection_directory:
-            yield f"✅ collection directory found on filesystem: {collection_directory}\n"
+            yield f"✅ Collection directory found on filesystem: {collection_directory}\n"
         # TODO report on contents of collection_directory
     except NotADirectoryError as e:
         yield f"⚠️ {str(e)}\n"
@@ -482,7 +482,7 @@ def get_collection_directory(SOURCE_DIRECTORY, collection_id):
         return os.path.join(SOURCE_DIRECTORY, collection_id)
     else:
         raise NotADirectoryError(
-            f"missing or invalid collection directory: {os.path.join(SOURCE_DIRECTORY, collection_id)}"
+            f"Missing or invalid collection directory: {os.path.join(SOURCE_DIRECTORY, collection_id)}\n"
         )
 
 
