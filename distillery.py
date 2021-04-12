@@ -170,7 +170,7 @@ def main(collection_id, debug=False):
         yield f"✅ Collection metadata for {collection_id} sent to {PRESERVATION_BUCKET} on S3.\n"
     except botocore.exceptions.ClientError as e:
         if e.response["Error"]["Code"] == "InternalError":
-            yield f"⚠️ Unable to send collection metadata for {collection_id} to to {PRESERVATION_BUCKET} on S3.\n"
+            yield f"⚠️ Unable to send collection metadata for {collection_id} to {PRESERVATION_BUCKET} on S3.\n"
             yield f"Error Message: {e.response['Error']['Message']}\n"
             yield f"Request ID: {e.response['ResponseMetadata']['RequestId']}\n"
             yield f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}\n"
@@ -220,14 +220,14 @@ def main(collection_id, debug=False):
                 ),
                 Body=json.dumps(folder_data, sort_keys=True, indent=4),
             )
-            print(f"✅ metadata sent to S3 for {folder_data['component_id']}\n")
+            yield f"✅ Folder metadata for {folder_data['component_id']} sent to {PRESERVATION_BUCKET} on S3.\n"
         except botocore.exceptions.ClientError as e:
-            # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
-            if e.response["Error"]["Code"] == "InternalError":  # Generic error
-                # We grab the message, request ID, and HTTP code to give to customer support
-                print(f"Error Message: {e.response['Error']['Message']}")
-                print(f"Request ID: {e.response['ResponseMetadata']['RequestId']}")
-                print(f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}")
+            if e.response["Error"]["Code"] == "InternalError":
+                yield f"⚠️ Unable to send folder metadata for {folder_data['component_id']} to {PRESERVATION_BUCKET} on S3.\n"
+                yield f"Error Message: {e.response['Error']['Message']}\n"
+                yield f"Request ID: {e.response['ResponseMetadata']['RequestId']}\n"
+                yield f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}\n"
+                yield f"↩️ …skipping: {folderpath}\n"
                 continue
             else:
                 raise e
