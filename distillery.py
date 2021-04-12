@@ -106,7 +106,21 @@ def main(collection_id, debug=False):
         yield "<p><a href='/'>return to form</a>"
         sys.exit()
 
-    collection_uri = get_collection_uri(collection_id)
+    try:
+        collection_uri = get_collection_uri(collection_id)
+        if collection_uri:
+            yield f"✅ Collection URI found in ArchivesSpace for {collection_id}: {collection_uri}\n"
+    except ValueError as e:
+        yield f"⚠️ {str(e)}\n"
+        yield "❌ exiting…\n"
+        yield "<p><a href='/'>return to form</a>"
+        sys.exit()
+    except HTTPError as e:
+        yield f"⚠️ There was a problem with the connection to ArchivesSpace.\n"
+        yield "❌ exiting…\n"
+        yield "<p><a href='/'>return to form</a>"
+        sys.exit()
+
     collection_data = get_collection_data(collection_uri)
     collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
     yield f"✅ collection data gathered for {collection_id}\n"
@@ -495,19 +509,22 @@ def get_collection_tree(collection_uri):
 
 
 def get_collection_uri(collection_id):
+    # raises an HTTPError exception if unsuccessful
     search_results_json = asnake_client.get(
         '/repositories/2/search?page=1&page_size=1&type[]=resource&fields[]=uri&aq={"query":{"field":"identifier","value":"'
         + collection_id
         + '","jsonmodel_type":"field_query","negated":false,"literal":false}}'
     ).json()
-    # TODO raise exception for multiple results
-    # TODO friendly webform error if search field is empty
-    if bool(search_results_json["results"]):
-        return search_results_json["results"][0]["uri"]
-    else:
-        bottle.abort(
-            200, f" ❌\t CollectionID not found in ArchivesSpace: {collection_id}"
+    if len(search_results_json["results"]) < 1:
+        raise ValueError(
+            f"No collection found in ArchivesSpace with the ID: {collection_id}\n"
         )
+    elif len(search_results_json["results"]) > 1:
+        raise ValueError(
+            f"Multiple collections found in ArchivesSpace with the ID: {collection_id}\n"
+        )
+    else:
+        return search_results_json["results"][0]["uri"]
 
 
 def get_crockford_characters(n=4):
