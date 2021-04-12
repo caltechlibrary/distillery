@@ -7,7 +7,9 @@ import os
 import pprint
 import random
 import string
+import sys
 from datetime import datetime
+from pathlib import Path
 from requests import HTTPError
 
 import boto3
@@ -74,13 +76,20 @@ def main(collection_id, debug=False):
     #     "Hello {{name}}!\n", name=collection_id
     # )  # don't think we need a template
 
-    # TODO refactor into a validate_settings() function
-    # SEE dibsprep.py
-    (
-        SOURCE_DIRECTORY,
-        COMPLETED_DIRECTORY,
-        PRESERVATION_BUCKET,
-    ) = get_file_location_variables()
+    # TODO move outside of main to validate ASPACE & AWS variables
+    try:
+        (
+            SOURCE_DIRECTORY,
+            COMPLETED_DIRECTORY,
+            PRESERVATION_BUCKET,
+        ) = validate_settings()
+    except Exception as e:
+        yield f"⚠️ there was a problem with the configuration settings\n"
+        yield f"➡️ <em>{str(e)}</em>\n"
+        yield "❌ exiting…\n"
+        yield "<p>this issue must be resolved before continuing</a>"
+        # TODO send notification to DLD
+        sys.exit()
 
     # TODO refactor so that we can get an initial report on the results of both
     # the directory and the uri so that users can know if one or both of the
@@ -419,6 +428,14 @@ def create_digital_object(folder_data):
     return folder_data
 
 
+def directory_setup(directory):
+    if not Path(directory).exists():
+        Path(directory).mkdir()
+    elif Path(directory).is_file():
+        raise FileExistsError(f"a non-directory file exists at: {directory}")
+    return Path(directory)
+
+
 def get_aip_image_data(filepath):
     aip_image_data = {}
     aip_image_data["filepath"] = filepath
@@ -491,31 +508,6 @@ def get_digital_object_component_id():
     return get_crockford_characters() + "_" + get_crockford_characters()
 
 
-def get_file_location_variables():
-    # TODO catch UndefinedValueError exceptions with a friendly message
-    SOURCE_DIRECTORY = os.path.abspath(config("SOURCE_DIRECTORY"))
-    COMPLETED_DIRECTORY = os.path.abspath(
-        config("COMPLETED_DIRECTORY", f"{SOURCE_DIRECTORY}/S3")
-    )
-    PRESERVATION_BUCKET = config("PRESERVATION_BUCKET")
-    if all([SOURCE_DIRECTORY, COMPLETED_DIRECTORY, PRESERVATION_BUCKET]):
-        if __debug__:
-            log(f"SOURCE_DIRECTORY: {SOURCE_DIRECTORY}")
-        if __debug__:
-            log(f"COMPLETED_DIRECTORY: {COMPLETED_DIRECTORY}")
-        if __debug__:
-            log(f"PRESERVATION_BUCKET: {PRESERVATION_BUCKET}")
-    else:
-        print("❌  all environment variables must be set:")
-        print("➡️   SOURCE_DIRECTORY: /path/to/directory above collection files")
-        print("➡️   COMPLETED_DIRECTORY: /path/to/directory for processed source files")
-        print(
-            "➡️   PRESERVATION_BUCKET: name of Amazon S3 bucket for preservation files"
-        )
-        print("🖥   to set variable: export VAR=value")
-        print("🖥   to see value: echo $VAR")
-        exit()
-    return SOURCE_DIRECTORY, COMPLETED_DIRECTORY, PRESERVATION_BUCKET
 
 
 def get_file_parts(filepath):
@@ -1003,6 +995,19 @@ def set_digital_object_id(uri, digital_object_id):
     post_response = asnake_client.post(uri, json=get_response_json)
     post_response.raise_for_status()
     return
+
+
+def validate_settings():
+    SOURCE_DIRECTORY = Path(os.path.expanduser(config("SOURCE_DIRECTORY"))).resolve(
+        strict=True
+    )  # NOTE do not create missing `SOURCE_DIRECTORY`
+    COMPLETED_DIRECTORY = directory_setup(
+        os.path.expanduser(config("COMPLETED_DIRECTORY", f"{SOURCE_DIRECTORY}/S3"))
+    ).resolve(strict=True)
+    PRESERVATION_BUCKET = config(
+        "PRESERVATION_BUCKET"
+    )  # TODO validate access to bucket
+    return SOURCE_DIRECTORY, COMPLETED_DIRECTORY, PRESERVATION_BUCKET
 
 
 def write_xmp_metadata(filepath, metadata):
