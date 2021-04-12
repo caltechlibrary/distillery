@@ -154,13 +154,14 @@ def main(collection_id, debug=False):
         sys.exit()
 
     # Verify write permission on `COMPLETED_DIRECTORY` by saving collection metadata.
-    # TODO how to check bucket write permission without writing?
     try:
         save_collection_metadata(collection_data, COMPLETED_DIRECTORY)
+        yield f"✅ Collection metadata for {collection_id} saved to: {COMPLETED_DIRECTORY}/{collection_id}.json\n"
     except OSError as e:
-        print(str(e))
-        print(f"❌  unable to save file to {COMPLETED_DIRECTORY}\n")
-        exit()
+        yield f"⚠️ Unable to save {collection_id}.json file to: {COMPLETED_DIRECTORY}\n"
+        yield "❌ exiting…\n"
+        yield "<p><a href='/'>return to form</a>"
+        sys.exit()
 
     # Send collection metadata to S3.
     try:
