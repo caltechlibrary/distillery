@@ -53,7 +53,7 @@ def formpost():
         return main(collection_id)
     else:
         return bottle.template(
-            "form_collection_id", error="❌ CollectionID must not be empty."
+            "status", status="⚠️ <em>CollectionID</em> must not be empty."
         )
 
 
@@ -71,10 +71,7 @@ def main(collection_id, debug=False):
             set_debug(True)
 
     time_start = datetime.now()
-    # yield '<style type="text/css">* {white-space:pre-wrap;}</style>'
-    # yield bottle.template(
-    #     "Hello {{name}}!\n", name=collection_id
-    # )  # don't think we need a template
+    yield '<style type="text/css">* {white-space:pre-wrap;}</style>'
 
     # TODO move outside of main to validate ASPACE & AWS variables
     try:
@@ -506,8 +503,6 @@ def get_crockford_characters(n=4):
 
 def get_digital_object_component_id():
     return get_crockford_characters() + "_" + get_crockford_characters()
-
-
 
 
 def get_file_parts(filepath):
