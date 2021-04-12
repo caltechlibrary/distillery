@@ -109,8 +109,24 @@ def main(collection_id, debug=False):
     try:
         collection_uri = get_collection_uri(collection_id)
         if collection_uri:
-            yield f"✅ Collection URI found in ArchivesSpace for {collection_id}: {collection_uri}\n"
+            yield f"✅ Collection URI for {collection_id} found in ArchivesSpace: {collection_uri}\n"
     except ValueError as e:
+        yield f"⚠️ {str(e)}\n"
+        yield "❌ exiting…\n"
+        yield "<p><a href='/'>return to form</a>"
+        sys.exit()
+    except HTTPError as e:
+        yield f"⚠️ There was a problem with the connection to ArchivesSpace.\n"
+        yield "❌ exiting…\n"
+        yield "<p><a href='/'>return to form</a>"
+        sys.exit()
+
+    try:
+        collection_data = get_collection_data(collection_uri)
+        if collection_data:
+            yield f"✅ Collection data for {collection_id} retrieved from ArchivesSpace.\n"
+        # TODO report on contents of collection_data
+    except RuntimeError as e:
         yield f"⚠️ {str(e)}\n"
         yield "❌ exiting…\n"
         yield "<p><a href='/'>return to form</a>"
@@ -491,6 +507,17 @@ def get_archival_object(id):
     return response.json()
 
 
+def get_collection_data(collection_uri):
+    # raises an HTTPError exception if unsuccessful
+    collection_data = asnake_client.get(collection_uri).json()
+    if collection_data:
+        return collection_data
+    else:
+        raise RuntimeError(
+            f"There was a problem retrieving the collection data from ArchivesSpace.\n"
+        )
+
+
 def get_collection_directory(SOURCE_DIRECTORY, collection_id):
     if os.path.isdir(os.path.join(SOURCE_DIRECTORY, collection_id)):
         return os.path.join(SOURCE_DIRECTORY, collection_id)
@@ -498,10 +525,6 @@ def get_collection_directory(SOURCE_DIRECTORY, collection_id):
         raise NotADirectoryError(
             f"Missing or invalid collection directory: {os.path.join(SOURCE_DIRECTORY, collection_id)}\n"
         )
-
-
-def get_collection_data(collection_uri):
-    return asnake_client.get(collection_uri).json()
 
 
 def get_collection_tree(collection_uri):
