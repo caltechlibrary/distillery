@@ -282,7 +282,7 @@ def main(collection_id, debug=False):
                         aip_image_data["md5"].digest()
                     ).decode(),
                 )
-                yield f"✅ JPEG 2000 for {Path(filepath).stem} sent to {PRESERVATION_BUCKET} on S3.\n"
+                yield f"✅ Sent JPEG 2000 for {Path(filepath).stem} to {PRESERVATION_BUCKET} on S3.\n"
             except botocore.exceptions.ClientError as e:
                 if e.response["Error"]["Code"] == "InternalError":
                     yield f"⚠️ Unable to send JPEG 2000 for {Path(filepath).stem} to {PRESERVATION_BUCKET} on S3.\n"
