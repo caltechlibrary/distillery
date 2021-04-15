@@ -274,14 +274,15 @@ def main(collection_id, debug=False):
             }"""
             try:
                 yield f"☁️ Sending JPEG 2000 for {Path(filepath).stem} to {PRESERVATION_BUCKET} on S3.\n"
-                aip_image_put_response = s3_client.put_object(
-                    Bucket=PRESERVATION_BUCKET,
-                    Key=aip_image_data["s3key"],
-                    Body=open(aip_image_data["filepath"], "rb"),
-                    ContentMD5=base64.b64encode(
-                        aip_image_data["md5"].digest()
-                    ).decode(),
-                )
+                with open(aip_image_data["filepath"], "rb") as body:
+                    aip_image_put_response = s3_client.put_object(
+                        Bucket=PRESERVATION_BUCKET,
+                        Key=aip_image_data["s3key"],
+                        Body=body,
+                        ContentMD5=base64.b64encode(
+                            aip_image_data["md5"].digest()
+                        ).decode(),
+                    )
                 yield f"✅ Sent JPEG 2000 for {Path(filepath).stem} to {PRESERVATION_BUCKET} on S3.\n"
             except botocore.exceptions.ClientError as e:
                 if e.response["Error"]["Code"] == "InternalError":
