@@ -255,23 +255,23 @@ def main(collection_id, debug=False):
 
             # Send AIP image to S3.
             # example success response:
-            # {
-            #     "ResponseMetadata": {
-            #         "RequestId": "6BBE41DE8A1CABCE",
-            #         "HostId": "c473fwfRMo+soCkOUwMsNZwR5fw0RIw2qcDVIXQOXVm1aGLV5clcL8JgBXojEJL99Umo4HYEzng=",
-            #         "HTTPStatusCode": 200,
-            #         "HTTPHeaders": {
-            #             "x-amz-id-2": "c473fwfRMo+soCkOUwMsNZwR5fw0RIw2qcDVIXQOXVm1aGLV5clcL8JgBXojEJL99Umo4HYEzng=",
-            #             "x-amz-request-id": "6BBE41DE8A1CABCE",
-            #             "date": "Mon, 30 Nov 2020 22:58:33 GMT",
-            #             "etag": "\"614bccea2760f37f41be65c62c41d66e\"",
-            #             "content-length": "0",
-            #             "server": "AmazonS3"
-            #         },
-            #         "RetryAttempts": 0
-            #     },
-            #     "ETag": "\"614bccea2760f37f41be65c62c41d66e\""
-            # }
+            """{
+                "ResponseMetadata": {
+                    "RequestId": "6BBE41DE8A1CABCE",
+                    "HostId": "c473fwfRMo+soCkOUwMsNZwR5fw0RIw2qcDVIXQOXVm1aGLV5clcL8JgBXojEJL99Umo4HYEzng=",
+                    "HTTPStatusCode": 200,
+                    "HTTPHeaders": {
+                        "x-amz-id-2": "c473fwfRMo+soCkOUwMsNZwR5fw0RIw2qcDVIXQOXVm1aGLV5clcL8JgBXojEJL99Umo4HYEzng=",
+                        "x-amz-request-id": "6BBE41DE8A1CABCE",
+                        "date": "Mon, 30 Nov 2020 22:58:33 GMT",
+                        "etag": "\"614bccea2760f37f41be65c62c41d66e\"",
+                        "content-length": "0",
+                        "server": "AmazonS3"
+                    },
+                    "RetryAttempts": 0
+                },
+                "ETag": "\"614bccea2760f37f41be65c62c41d66e\""
+            }"""
             try:
                 yield f"☁️ Sending JPEG 2000 for {Path(filepath).stem} to {PRESERVATION_BUCKET} on S3.\n"
                 aip_image_put_response = s3_client.put_object(
@@ -282,15 +282,15 @@ def main(collection_id, debug=False):
                         aip_image_data["md5"].digest()
                     ).decode(),
                 )
+                yield f"✅ JPEG 2000 for {Path(filepath).stem} sent to {PRESERVATION_BUCKET} on S3.\n"
             except botocore.exceptions.ClientError as e:
-                # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
-                if e.response["Error"]["Code"] == "InternalError":  # Generic error
-                    # We grab the message, request ID, and HTTP code to give to customer support
-                    print(f"Error Message: {e.response['Error']['Message']}")
-                    print(f"Request ID: {e.response['ResponseMetadata']['RequestId']}")
-                    print(
-                        f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}"
-                    )
+                if e.response["Error"]["Code"] == "InternalError":
+                    yield f"⚠️ Unable to send JPEG 2000 for {Path(filepath).stem} to {PRESERVATION_BUCKET} on S3.\n"
+                    yield f"Error Message: {e.response['Error']['Message']}\n"
+                    yield f"Request ID: {e.response['ResponseMetadata']['RequestId']}\n"
+                    yield f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}\n"
+                    yield f"↩️ …skipping: {Path(filepath).stem}\n"
+                    # TODO cleanup
                     continue
                 else:
                     raise e
@@ -300,7 +300,7 @@ def main(collection_id, debug=False):
                 aip_image_put_response["ETag"].strip('"')
                 == aip_image_data["md5"].hexdigest()
             ):
-                pass
+                yield f"✅ Verified checksums for JPEG 2000 of {Path(filepath).stem} sent to {PRESERVATION_BUCKET} on S3.\n"
             else:
                 raise ValueError(
                     f"❌ the S3 ETag did not match for {aip_image_data['filepath']}"
