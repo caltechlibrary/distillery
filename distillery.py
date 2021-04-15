@@ -235,21 +235,22 @@ def main(collection_id, debug=False):
         # Set up list of TIFF paths for the current folder.
         filepaths = prepare_filepaths_list(folderpath)
 
-        # We reverse the sort for use with pop() and so the components will be
-        # ingested in the correct order for the digital object tree
+        # NOTE: We reverse the sort for use with pop() and so the components
+        # will be ingested in the correct order for the digital object tree.
         filepaths.sort(reverse=True)
         for f in range(len(filepaths)):
             filepath = filepaths.pop()
-            print(
-                f"▶️  {os.path.basename(filepath)} [images remaining: {filecounter}/{filecount}]"
-            )
+            yield f"▶️ Converting {os.path.basename(filepath)} to JPEG 2000. [images remaining: {filecounter}/{filecount}]\n"
             filecounter -= 1
             try:
                 aip_image_data = process_aip_image(
                     filepath, collection_data, folder_arrangement, folder_data
                 )
+                yield f"✅ Successfully converted {os.path.basename(filepath)} to JPEG 2000.\n"
             except RuntimeError as e:
-                print(str(e))
+                yield f"⚠️ There was a problem converting {os.path.basename(filepath)} to JPEG 2000.\n"
+                yield f"⚠️ {str(e)}\n"
+                yield f"↩️ …skipping: {os.path.basename(filepath)}\n"
                 continue
 
             # Send AIP image to S3.
@@ -272,6 +273,7 @@ def main(collection_id, debug=False):
             #     "ETag": "\"614bccea2760f37f41be65c62c41d66e\""
             # }
             try:
+                yield f"☁️ Sending JPEG 2000 for {Path(filepath).stem} to {PRESERVATION_BUCKET} on S3.\n"
                 aip_image_put_response = s3_client.put_object(
                     Bucket=PRESERVATION_BUCKET,
                     Key=aip_image_data["s3key"],
@@ -1014,7 +1016,7 @@ def process_aip_image(filepath, collection_data, folder_arrangement, folder_data
     # verify image signatures match
     if aip_image_signature != sip_image_signature:
         raise RuntimeError(
-            f"❌  image signatures did not match: {file_parts['image_id']}"
+            f"❌ image signatures did not match: {file_parts['image_id']}"
         )
     aip_image_s3key = get_s3_aip_image_key(
         get_s3_aip_folder_prefix(folder_arrangement, folder_data), file_parts
