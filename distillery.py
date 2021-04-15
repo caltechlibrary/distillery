@@ -516,7 +516,8 @@ def get_aip_image_data(filepath):
     aip_image_data["quantization"] = jpylyzer_xml.findtext(
         "./properties/contiguousCodestreamBox/qcd/qStyle"
     )
-    aip_image_data["md5"] = hashlib.md5(open(aip_image_data["filepath"], "rb").read())
+    with open(aip_image_data["filepath"], "rb") as f:
+        aip_image_data["md5"] = hashlib.md5(f.read())
     return aip_image_data
 
 
