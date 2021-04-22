@@ -1,6 +1,7 @@
 # CALTECH ARCHIVES AND SPECIAL COLLECTIONS DIGITAL OBJECT WORKFLOW
 
 import base64
+import concurrent.futures
 import hashlib
 import json
 import os
@@ -8,6 +9,7 @@ import pprint
 import random
 import string
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from requests import HTTPError
@@ -84,7 +86,7 @@ def main(collection_id, debug=False):
         yield f"⚠️ There was a problem with the configuration settings.\n"
         yield f"➡️ <em>{str(e)}</em>\n"
         yield "❌ exiting…\n"
-        yield "<p>This issue must be resolved before continuing.</a>"
+        yield "<p>This issue must be resolved before continuing.</p>"
         # TODO send notification to DLD
         sys.exit()
 
@@ -240,17 +242,34 @@ def main(collection_id, debug=False):
         filepaths.sort(reverse=True)
         for f in range(len(filepaths)):
             filepath = filepaths.pop()
-            yield f"▶️ Converting {os.path.basename(filepath)} to JPEG 2000. [images remaining: {filecounter}/{filecount}]\n"
             filecounter -= 1
             try:
-                aip_image_data = process_aip_image(
-                    filepath, collection_data, folder_arrangement, folder_data
-                )
-                yield f"✅ Successfully converted {os.path.basename(filepath)} to JPEG 2000.\n"
+                yield f"⏳ Converting {os.path.basename(filepath)} to JPEG 2000."
+                # yield f"⏱ {datetime.now()}\n"
+                # start this in the background
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(process_aip_image, filepath, collection_data, folder_arrangement, folder_data)
+                    # DEBUG
+                    print("DEBUG:")
+                    print(str(future))
+                    print(":GUBED")
+                    # run a loop checking for it to be done
+                    iteration = 0
+                    while "state=running" in str(future):
+                        time.sleep(1)
+                        # NOTE: the following `yield` must begin with `\n`
+                        yield '.'
+                        iteration += 1
+                    aip_image_data = future.result()
+                # aip_image_data = process_aip_image(
+                #     filepath, collection_data, folder_arrangement, folder_data
+                # )
+                yield f"\n✅ Successfully converted {os.path.basename(filepath)} to JPEG&nbsp;2000. [images remaining: {filecounter}/{filecount}]\n"
+                # yield f"⏱ {datetime.now()}\n"
             except RuntimeError as e:
-                yield f"⚠️ There was a problem converting {os.path.basename(filepath)} to JPEG 2000.\n"
+                yield f"\n⚠️ There was a problem converting {os.path.basename(filepath)} to JPEG 2000.\n"
                 yield f"⚠️ {str(e)}\n"
-                yield f"↩️ …skipping: {os.path.basename(filepath)}\n"
+                yield f"↩️ Skipping: {os.path.basename(filepath)} [images remaining: {filecounter}/{filecount}]\n"
                 continue
 
             # Send AIP image to S3.
@@ -954,7 +973,10 @@ def prepare_folder_list(collection_directory):
 
 
 def process_aip_image(filepath, collection_data, folder_arrangement, folder_data):
+    print(f"⏱ {datetime.now()} sip_image_signature")
     # cut out only the checksum string for the pixel stream
+    # NOTE running this process in the background saves time because
+    # the conversion starts soon after in a different subprocess
     sip_image_signature = sh.cut(
         sh.sha512sum(
             sh.magick.stream(
@@ -976,19 +998,36 @@ def process_aip_image(filepath, collection_data, folder_arrangement, folder_data
         "1",
         _bg=True,
     )
+    print(f"⏱ {datetime.now()} aip_image_path")
     aip_image_path = os.path.splitext(filepath)[0] + "-LOSSLESS.jp2"
+    print(f"⏱ {datetime.now()} aip_image_conversion")
     aip_image_conversion = sh.magick.convert(
         "-quiet", filepath, "-quality", "0", aip_image_path, _bg=True
     )
+    print(f"⏱ {datetime.now()} file_parts")
     file_parts = get_file_parts(filepath)
     # if __debug__: log('file_parts ⬇️'); print(json.dumps(file_parts, sort_keys=True, indent=4))
+    print(f"⏱ {datetime.now()} xmp_dc")
     xmp_dc = get_xmp_dc_metadata(
         folder_arrangement, file_parts, folder_data, collection_data
     )
-    # print(json.dumps(xmp_dc, sort_keys=True, indent=4))
-    aip_image_conversion.wait()
+    # catch any conversion errors in order to skip file and continue
+    try:
+        print(f"⏱ {datetime.now()} aip_image_conversion.wait")
+        aip_image_conversion.wait()
+    except Exception as e:
+        # TODO log unfriendly `str(e)` instead of sending it along
+        # EXAMPLE:
+        # RAN: /usr/local/bin/magick convert -quiet /path/to/HBF/HBF_001_02/HBF_001_02_00.tif -quality 0 /path/to/HBF/HBF_001_02/HBF_001_02_00-LOSSLESS.jp2
+        # STDOUT:
+        # STDERR:
+        # convert: Cannot read TIFF header. `/path/to/HBF/HBF_001_02/HBF_001_02_00.tif' @ error/tiff.c/TIFFErrors/595.
+        # convert: no images defined `/path/to/HBF/HBF_001_02/HBF_001_02_00-LOSSLESS.jp2' @ error/convert.c/ConvertImageCommand/3304.
+        raise RuntimeError(str(e))
+    print(f"⏱ {datetime.now()} write_xmp_metadata")
     write_xmp_metadata(aip_image_path, xmp_dc)
     # cut out only the checksum string for the pixel stream
+    print(f"⏱ {datetime.now()} aip_image_signature")
     aip_image_signature = sh.cut(
         sh.sha512sum(
             sh.magick.stream(
@@ -1011,14 +1050,19 @@ def process_aip_image(filepath, collection_data, folder_arrangement, folder_data
         _bg=True,
     )
     # TODO change `get_aip_image_data()` to `get_initial_aip_image_data()`
+    print(f"⏱ {datetime.now()} aip_image_data")
     aip_image_data = get_aip_image_data(aip_image_path)
+    print(f"⏱ {datetime.now()} sip_image_signature.wait")
     sip_image_signature.wait()
+    print(f"⏱ {datetime.now()} aip_image_signature.wait")
     aip_image_signature.wait()
     # verify image signatures match
+    print(f"⏱ {datetime.now()} if aip_image_signature != sip_image_signature")
     if aip_image_signature != sip_image_signature:
         raise RuntimeError(
             f"❌ image signatures did not match: {file_parts['image_id']}"
         )
+    print(f"⏱ {datetime.now()} aip_image_s3key")
     aip_image_s3key = get_s3_aip_image_key(
         get_s3_aip_folder_prefix(folder_arrangement, folder_data), file_parts
     )
@@ -1028,6 +1072,7 @@ def process_aip_image(filepath, collection_data, folder_arrangement, folder_data
     aip_image_data["sequence"] = file_parts["sequence"]
     aip_image_data["s3key"] = aip_image_s3key
     # if __debug__: log('aip_image_data ⬇️'); print(json.dumps(aip_image_data, sort_keys=True, indent=4))
+    print(f"⏱ {datetime.now()} return")
     return aip_image_data
 
 
