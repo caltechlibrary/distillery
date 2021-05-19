@@ -15,7 +15,6 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from requests import HTTPError
 
 import boto3
 import botocore
@@ -24,6 +23,7 @@ import sh
 from asnake.client import ASnakeClient
 from decouple import config
 from jpylyzer import jpylyzer
+from requests import HTTPError
 
 if __debug__:
     from sidetrack import set_debug, log, logr
@@ -44,16 +44,10 @@ s3_client = boto3.client(
 )
 
 
-def main(collection_id, debug=False):
-
-    if debug:
-        if __debug__:
-            set_debug(True)
+def distill(collection_id: "the Collection ID from ArchivesSpace"):
 
     time_start = datetime.now()
-    yield '<style type="text/css">* {white-space:pre-wrap;}</style>'
 
-    # TODO move outside of main to validate ASPACE & AWS variables
     try:
         (
             SOURCE_DIRECTORY,
@@ -61,12 +55,27 @@ def main(collection_id, debug=False):
             PRESERVATION_BUCKET,
         ) = validate_settings()
     except Exception as e:
-        yield f"⚠️ There was a problem with the configuration settings.\n"
-        yield f"➡️ <em>{str(e)}</em>\n"
-        yield "❌ exiting…\n"
-        yield "<p>This issue must be resolved before continuing.</p>"
-        # TODO send notification to DLD
-        sys.exit()
+        # NOTE we cannot guarantee that `STATUS_FILES_DIR` is set
+        # - it must exist if script is started from `watcher.sh`
+        # TODO figure out how to not send a message every minute
+        message = "❌ there was a problem with the settings for the processing script"
+        print(message)
+        # TODO set up notify
+        # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
+        raise
+
+    # TODO this is an example of how to write to the processing file
+    # repeat this whereever we are yielding
+    iteration = 0
+    while iteration < 20:
+        with open(Path(config("STATUS_FILES_DIR")).joinpath(f"{collection_id}-processing"), "a") as f:
+            f.write(f"{collection_id} {iteration}\n")
+        # print(f"{collection_id} {iteration}")
+        time.sleep(1)
+        iteration += 1
+    # TODO this is to be run at the very end of the process, delete the file
+    Path(config("STATUS_FILES_DIR")).joinpath(f"{collection_id}-processing").unlink(missing_ok=True)
+    sys.exit()
 
     # TODO refactor so that we can get an initial report on the results of both
     # the directory and the uri so that users can know if one or both of the
@@ -226,7 +235,13 @@ def main(collection_id, debug=False):
                 # yield f"⏱ {datetime.now()}\n"
                 # start this in the background
                 with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(process_aip_image, filepath, collection_data, folder_arrangement, folder_data)
+                    future = executor.submit(
+                        process_aip_image,
+                        filepath,
+                        collection_data,
+                        folder_arrangement,
+                        folder_data,
+                    )
                     # DEBUG
                     print("DEBUG:")
                     print(str(future))
@@ -236,7 +251,7 @@ def main(collection_id, debug=False):
                     while "state=running" in str(future):
                         time.sleep(1)
                         # NOTE: the following `yield` must begin with `\n`
-                        yield '.'
+                        yield "."
                         iteration += 1
                     aip_image_data = future.result()
                 # aip_image_data = process_aip_image(
@@ -1123,4 +1138,4 @@ def write_xmp_metadata(filepath, metadata):
 
 
 if __name__ == "__main__":
-    plac.call(scratch)
+    plac.call(distill)
