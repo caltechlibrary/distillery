@@ -1,4 +1,7 @@
-# CALTECH ARCHIVES AND SPECIAL COLLECTIONS DIGITAL OBJECT WORKFLOW
+# CALTECH ARCHIVES AND SPECIAL COLLECTIONS
+# digital object preservation workflow
+
+# processing functionality; see distillery.py for bottlepy web application
 
 import base64
 import concurrent.futures
@@ -16,7 +19,7 @@ from requests import HTTPError
 
 import boto3
 import botocore
-import bottle
+import plac
 import sh
 from asnake.client import ASnakeClient
 from decouple import config
@@ -39,31 +42,6 @@ s3_client = boto3.client(
     aws_access_key_id=config("AWS_ACCESS_KEY"),
     aws_secret_access_key=config("AWS_SECRET_KEY"),
 )
-
-
-@bottle.get("/")
-def formview():
-    return bottle.template("form_collection_id", error=None)
-
-
-@bottle.post("/")
-def formpost():
-    collection_id = bottle.request.forms.get("collection_id").strip()
-    # TODO refactor because main() is a long-running process \
-    # and the form hangs on submission because the whole function must finish
-    if collection_id:
-        return main(collection_id)
-    else:
-        return bottle.template(
-            "status", status="⚠️ <em>CollectionID</em> must not be empty."
-        )
-
-
-@bottle.error(200)
-def problem(error):
-    # NOTE this captures the abort() in a function that fails
-    # TODO create a different template for environment errors
-    return bottle.template("form_collection_id", error=error.body)
 
 
 def main(collection_id, debug=False):
@@ -1144,7 +1122,5 @@ def write_xmp_metadata(filepath, metadata):
     )
 
 
-###
-
 if __name__ == "__main__":
-    bottle.run(host="localhost", port=1234, debug=True, reloader=True)
+    plac.call(scratch)
