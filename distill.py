@@ -64,18 +64,19 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
 
+    stream_path = Path(config("STATUS_FILES_DIR")).joinpath(f"{collection_id}-processing")
+
     # TODO this is an example of how to write to the processing file
     # repeat this whereever we are yielding
     iteration = 0
-    while iteration < 20:
-        with open(Path(config("STATUS_FILES_DIR")).joinpath(f"{collection_id}-processing"), "a") as f:
+    while iteration < 10:
+        with open(stream_path, "a") as f:
             f.write(f"{collection_id} {iteration}\n")
         # print(f"{collection_id} {iteration}")
         time.sleep(1)
         iteration += 1
     # TODO this is to be run at the very end of the process, delete the file
-    Path(config("STATUS_FILES_DIR")).joinpath(f"{collection_id}-processing").unlink(missing_ok=True)
-    sys.exit()
+    stream_path.unlink(missing_ok=True)
 
     # TODO refactor so that we can get an initial report on the results of both
     # the directory and the uri so that users can know if one or both of the
@@ -84,13 +85,26 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
     try:
         collection_directory = get_collection_directory(SOURCE_DIRECTORY, collection_id)
         if collection_directory:
-            yield f"✅ Collection directory for {collection_id} found on filesystem: {collection_directory}\n"
+            # yield f"✅ Collection directory for {collection_id} found on filesystem: {collection_directory}\n"
+            with open(stream_path, "a") as f:
+                f.write(f"✅ Collection directory for {collection_id} found on filesystem: {collection_directory}\n")
         # TODO report on contents of collection_directory
     except NotADirectoryError as e:
-        yield f"⚠️ {str(e)}\n"
-        yield "❌ exiting…\n"
-        yield "<p><a href='/'>return to form</a>"
-        sys.exit()
+        # TODO write friendly message to stream
+        # TODO write traceback to some log file
+        # TODO notify DLD
+
+        # yield f"⚠️ {str(e)}\n"
+        # yield "❌ exiting…\n"
+        # yield "<p><a href='/'>return to form</a>"
+        # TODO figure out how to not send a message every minute
+        message = "❌ there was a problem with the settings for the processing script"
+        print(message)
+        # TODO set up notify
+        # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
+        raise
+
+    sys.exit()
 
     try:
         collection_uri = get_collection_uri(collection_id)
@@ -368,7 +382,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
 def calculate_pixel_signature(filepath):
     return sh.cut(
         sh.sha512sum(
-            sh.magick.stream(
+            sh.magick.stream_path(
                 "-quiet",
                 "-map",
                 "rgb",
@@ -523,13 +537,13 @@ def get_aip_image_data(filepath):
         "./properties/jp2HeaderBox/imageHeaderBox/height"
     )
     aip_image_data["standard"] = jpylyzer_xml.findtext(
-        "./properties/contiguousCodestreamBox/siz/rsiz"
+        "./properties/contiguousCodestream_pathBox/siz/rsiz"
     )
     aip_image_data["transformation"] = jpylyzer_xml.findtext(
-        "./properties/contiguousCodestreamBox/cod/transformation"
+        "./properties/contiguousCodestream_pathBox/cod/transformation"
     )
     aip_image_data["quantization"] = jpylyzer_xml.findtext(
-        "./properties/contiguousCodestreamBox/qcd/qStyle"
+        "./properties/contiguousCodestream_pathBox/qcd/qStyle"
     )
     with open(aip_image_data["filepath"], "rb") as f:
         aip_image_data["md5"] = hashlib.md5(f.read())
@@ -967,12 +981,12 @@ def prepare_folder_list(collection_directory):
 
 def process_aip_image(filepath, collection_data, folder_arrangement, folder_data):
     print(f"⏱ {datetime.now()} sip_image_signature")
-    # cut out only the checksum string for the pixel stream
+    # cut out only the checksum string for the pixel stream_path
     # NOTE running this process in the background saves time because
     # the conversion starts soon after in a different subprocess
     sip_image_signature = sh.cut(
         sh.sha512sum(
-            sh.magick.stream(
+            sh.magick.stream_path(
                 "-quiet",
                 "-map",
                 "rgb",
@@ -1019,11 +1033,11 @@ def process_aip_image(filepath, collection_data, folder_arrangement, folder_data
         raise RuntimeError(str(e))
     print(f"⏱ {datetime.now()} write_xmp_metadata")
     write_xmp_metadata(aip_image_path, xmp_dc)
-    # cut out only the checksum string for the pixel stream
+    # cut out only the checksum string for the pixel stream_path
     print(f"⏱ {datetime.now()} aip_image_signature")
     aip_image_signature = sh.cut(
         sh.sha512sum(
-            sh.magick.stream(
+            sh.magick.stream_path(
                 "-quiet",
                 "-map",
                 "rgb",
