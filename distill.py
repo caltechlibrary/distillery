@@ -67,16 +67,14 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
     stream_path = Path(config("STATUS_FILES_DIR")).joinpath(f"{collection_id}-processing")
 
     # TODO this is an example of how to write to the processing file
-    # repeat this whereever we are yielding
+    # repeat this wherever we are yielding
     iteration = 0
-    while iteration < 10:
+    while iteration < 5:
         with open(stream_path, "a") as f:
             f.write(f"{collection_id} {iteration}\n")
         # print(f"{collection_id} {iteration}")
         time.sleep(1)
         iteration += 1
-    # TODO this is to be run at the very end of the process, delete the file
-    stream_path.unlink(missing_ok=True)
 
     # TODO refactor so that we can get an initial report on the results of both
     # the directory and the uri so that users can know if one or both of the
@@ -85,83 +83,131 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
     try:
         collection_directory = get_collection_directory(SOURCE_DIRECTORY, collection_id)
         if collection_directory:
-            # yield f"✅ Collection directory for {collection_id} found on filesystem: {collection_directory}\n"
             with open(stream_path, "a") as f:
                 f.write(f"✅ Collection directory for {collection_id} found on filesystem: {collection_directory}\n")
         # TODO report on contents of collection_directory
     except NotADirectoryError as e:
-        # TODO write friendly message to stream
-        # TODO write traceback to some log file
-        # TODO notify DLD
-
-        # yield f"⚠️ {str(e)}\n"
-        # yield "❌ exiting…\n"
-        # yield "<p><a href='/'>return to form</a>"
-        # TODO figure out how to not send a message every minute
-        message = "❌ there was a problem with the settings for the processing script"
+        message = f"❌ No valid directory for {collection_id} was found on filesystem: {os.path.join(SOURCE_DIRECTORY, collection_id)}\n"
+        with open(stream_path, "a") as f:
+            f.write(message)
+        # delete the stream file, otherwise it will continue trying to process
+        stream_path.unlink(missing_ok=True)
+        # TODO better logging
         print(message)
+        print(str(e))
         # TODO set up notify
         # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
 
-    sys.exit()
-
     try:
         collection_uri = get_collection_uri(collection_id)
         if collection_uri:
-            yield f"✅ Collection URI for {collection_id} found in ArchivesSpace: {collection_uri}\n"
+            with open(stream_path, "a") as f:
+                f.write(f"✅ Collection URI for {collection_id} found in ArchivesSpace: {collection_uri}\n")
     except ValueError as e:
-        yield f"⚠️ {str(e)}\n"
-        yield "❌ exiting…\n"
-        yield "<p><a href='/'>return to form</a>"
-        sys.exit()
+        message = f"❌ No collection URI for {collection_id} was found in ArchivesSpace.\n"
+        with open(stream_path, "a") as f:
+            f.write(message)
+        # delete the stream file, otherwise it will continue trying to process
+        stream_path.unlink(missing_ok=True)
+        # TODO better logging
+        print(message)
+        print(str(e))
+        # TODO set up notify
+        # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
+        raise
     except HTTPError as e:
-        yield f"⚠️ There was a problem with the connection to ArchivesSpace.\n"
-        yield "❌ exiting…\n"
-        yield "<p><a href='/'>return to form</a>"
-        sys.exit()
+        message = f"❌ There was a problem with the connection to ArchivesSpace."
+        with open(stream_path, "a") as f:
+            f.write(message)
+        # delete the stream file, otherwise it will continue trying to process
+        stream_path.unlink(missing_ok=True)
+        # TODO better logging
+        print(message)
+        print(str(e))
+        # TODO set up notify
+        # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
+        raise
 
     try:
         collection_data = get_collection_data(collection_uri)
         if collection_data:
-            yield f"✅ Collection data for {collection_id} retrieved from ArchivesSpace.\n"
+            with open(stream_path, "a") as f:
+                f.write(f"✅ Collection data for {collection_id} retrieved from ArchivesSpace.\n")
         # TODO report on contents of collection_data
     except RuntimeError as e:
-        yield f"⚠️ {str(e)}\n"
-        yield "❌ exiting…\n"
-        yield "<p><a href='/'>return to form</a>"
-        sys.exit()
+        message = f"❌ No collection data for {collection_id} retrieved from ArchivesSpace.\n"
+        with open(stream_path, "a") as f:
+            f.write(message)
+        # delete the stream file, otherwise it will continue trying to process
+        stream_path.unlink(missing_ok=True)
+        # TODO better logging
+        print(message)
+        print(str(e))
+        # TODO set up notify
+        # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
+        raise
     except HTTPError as e:
-        yield f"⚠️ There was a problem with the connection to ArchivesSpace.\n"
-        yield "❌ exiting…\n"
-        yield "<p><a href='/'>return to form</a>"
-        sys.exit()
+        message = f"❌ There was a problem with the connection to ArchivesSpace.\n"
+        with open(stream_path, "a") as f:
+            f.write(message)
+        # delete the stream file, otherwise it will continue trying to process
+        stream_path.unlink(missing_ok=True)
+        # TODO better logging
+        print(message)
+        print(str(e))
+        # TODO set up notify
+        # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
+        raise
 
     try:
         collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
         if collection_data["tree"]["_resolved"]:
-            yield f"✅ Collection tree for {collection_id} retrieved from ArchivesSpace.\n"
+            with open(stream_path, "a") as f:
+                f.write(f"✅ Collection tree for {collection_id} retrieved from ArchivesSpace.\n")
         # TODO report on contents of collection_tree
     except RuntimeError as e:
-        yield f"⚠️ {str(e)}\n"
-        yield "❌ exiting…\n"
-        yield "<p><a href='/'>return to form</a>"
-        sys.exit()
+        message = f"❌ No collection tree for {collection_id} retrieved from ArchivesSpace.\n"
+        with open(stream_path, "a") as f:
+            f.write(message)
+        # delete the stream file, otherwise it will continue trying to process
+        stream_path.unlink(missing_ok=True)
+        # TODO better logging
+        print(message)
+        print(str(e))
+        # TODO set up notify
+        # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
+        raise
     except HTTPError as e:
-        yield f"⚠️ There was a problem with the connection to ArchivesSpace.\n"
-        yield "❌ exiting…\n"
-        yield "<p><a href='/'>return to form</a>"
-        sys.exit()
+        message = f"❌ There was a problem with the connection to ArchivesSpace.\n"
+        with open(stream_path, "a") as f:
+            f.write(message)
+        # delete the stream file, otherwise it will continue trying to process
+        stream_path.unlink(missing_ok=True)
+        # TODO better logging
+        print(message)
+        print(str(e))
+        # TODO set up notify
+        # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
+        raise
 
     # Verify write permission on `COMPLETED_DIRECTORY` by saving collection metadata.
     try:
         save_collection_metadata(collection_data, COMPLETED_DIRECTORY)
-        yield f"✅ Collection metadata for {collection_id} saved to: {COMPLETED_DIRECTORY}/{collection_id}.json\n"
+        with open(stream_path, "a") as f:
+            f.write(f"✅ Collection metadata for {collection_id} saved to: {COMPLETED_DIRECTORY}/{collection_id}.json\n")
     except OSError as e:
-        yield f"⚠️ Unable to save {collection_id}.json file to: {COMPLETED_DIRECTORY}\n"
-        yield "❌ exiting…\n"
-        yield "<p><a href='/'>return to form</a>"
-        sys.exit()
+        message = f"❌ Unable to save {collection_id}.json file to: {COMPLETED_DIRECTORY}\n"
+        with open(stream_path, "a") as f:
+            f.write(message)
+        # delete the stream file, otherwise it will continue trying to process
+        stream_path.unlink(missing_ok=True)
+        # TODO better logging
+        print(message)
+        print(str(e))
+        # TODO set up notify
+        # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
+        raise
 
     # Send collection metadata to S3.
     try:
@@ -170,18 +216,31 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
             Key=collection_id + "/" + collection_id + ".json",
             Body=json.dumps(collection_data, sort_keys=True, indent=4),
         )
-        yield f"✅ Collection metadata for {collection_id} sent to {PRESERVATION_BUCKET} on S3.\n"
+        with open(stream_path, "a") as f:
+            f.write(f"✅ Collection metadata for {collection_id} sent to {PRESERVATION_BUCKET} on S3.\n")
     except botocore.exceptions.ClientError as e:
         if e.response["Error"]["Code"] == "InternalError":
-            yield f"⚠️ Unable to send collection metadata for {collection_id} to {PRESERVATION_BUCKET} on S3.\n"
-            yield f"Error Message: {e.response['Error']['Message']}\n"
-            yield f"Request ID: {e.response['ResponseMetadata']['RequestId']}\n"
-            yield f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}\n"
-            yield "❌ exiting…\n"
-            yield "<p><a href='/'>return to form</a>"
-            sys.exit()
+            message = (f"❌ Unable to send collection metadata for {collection_id} to {PRESERVATION_BUCKET} on S3.\n"
+                f"Error Message: {e.response['Error']['Message']}\n"
+                f"Request ID: {e.response['ResponseMetadata']['RequestId']}\n"
+                f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}\n"
+            )
+            with open(stream_path, "a") as f:
+                f.write(message)
+            # delete the stream file, otherwise it will continue trying to process
+            stream_path.unlink(missing_ok=True)
+            # TODO better logging
+            print(message)
+            print(str(e))
+            # TODO set up notify
+            # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
+            raise
         else:
             raise e
+
+    # TODO this is to be run at the very end of the process, delete the file
+    stream_path.unlink(missing_ok=True)
+    sys.exit()
 
     folders, filecount = prepare_folder_list(collection_directory)
     filecounter = filecount
