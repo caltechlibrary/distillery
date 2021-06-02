@@ -48,6 +48,9 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
 
     time_start = datetime.now()
 
+    # NOTE we have to assume that STATUS_FILES_DIR is set correctly
+    stream_path = Path(config("STATUS_FILES_DIR")).joinpath(f"{collection_id}-processing")
+
     try:
         (
             SOURCE_DIRECTORY,
@@ -55,26 +58,19 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
             PRESERVATION_BUCKET,
         ) = validate_settings()
     except Exception as e:
-        # NOTE we cannot guarantee that `STATUS_FILES_DIR` is set
-        # - it must exist if script is started from `watcher.sh`
-        # TODO figure out how to not send a message every minute
-        message = "❌ there was a problem with the settings for the processing script"
+        message = "❌ There was a problem with the settings for the processing script.\n"
+        with open(stream_path, "a") as f:
+            f.write(message)
+        # delete the stream file, otherwise it will continue trying to process
+        stream_path.unlink(missing_ok=True)
+        # TODO better logging
         print(message)
         # TODO set up notify
         # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
 
-    stream_path = Path(config("STATUS_FILES_DIR")).joinpath(f"{collection_id}-processing")
-
-    # TODO this is an example of how to write to the processing file
-    # repeat this wherever we are yielding
-    iteration = 0
-    while iteration < 5:
-        with open(stream_path, "a") as f:
-            f.write(f"{collection_id} {iteration}\n")
-        # print(f"{collection_id} {iteration}")
-        time.sleep(1)
-        iteration += 1
+    with open(stream_path, "a") as f:
+        f.write(f"📅 {datetime.now()}\n🗄 {collection_id}\n")
 
     # TODO refactor so that we can get an initial report on the results of both
     # the directory and the uri so that users can know if one or both of the
@@ -238,12 +234,8 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         else:
             raise e
 
-    # TODO this is to be run at the very end of the process, delete the file
-    stream_path.unlink(missing_ok=True)
-    sys.exit()
-
     folders, filecount = prepare_folder_list(collection_directory)
-    filecounter = filecount
+    filecounter = 0
 
     # Loop over folders list.
     folders.sort(reverse=True)
@@ -255,9 +247,9 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         # TODO find out how to properly catch exceptions here
         try:
             folder_arrangement, folder_data = process_folder_metadata(folderpath)
-            yield f"✅ Folder data for {folder_data['component_id']} [{folder_data['display_string']}] retrieved from ArchivesSpace.\n"
+            with open(stream_path, "a") as f:
+                f.write(f"✅ Folder data for {folder_data['component_id']} [{folder_data['display_string']}] retrieved from ArchivesSpace.\n")
         except RuntimeError as e:
-            yield f"⚠️ Unable to retrieve metadata for: {folderpath}\n"
             # NOTE possible error strings include:
             # f"The component_id cannot be determined from the directory name: {os.path.basename(folderpath)}"
             # f"The directory name does not correspond to the collection_id: {os.path.basename(folderpath)}"
@@ -267,8 +259,14 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
             # f"Missing collection data for: {folder_data['component_id']}"
             # f"Sub-Series record is missing component_id: {subseries['display_string']} {ancestor['ref']}"
             # f"Missing series data for: {folder_data['component_id']}"
-            yield f"⚠️ {str(e)}\n"
-            yield f"↩️ …skipping: {folderpath}\n"
+            message = f"⚠️ Unable to retrieve metadata for: {folderpath}\n↩️ Skipping {folderpath} folder.\n"
+            with open(stream_path, "a") as f:
+                f.write(message)
+            # TODO better logging
+            print(message)
+            print(str(e))
+            # TODO set up notify
+            # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
             # TODO increment file counter by the count of files in this folder
             continue
 
@@ -282,14 +280,23 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 ),
                 Body=json.dumps(folder_data, sort_keys=True, indent=4),
             )
-            yield f"✅ Folder metadata for {folder_data['component_id']} sent to {PRESERVATION_BUCKET} on S3.\n"
+            with open(stream_path, "a") as f:
+                f.write(f"✅ Folder metadata for {folder_data['component_id']} sent to {PRESERVATION_BUCKET} on S3.\n")
         except botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "InternalError":
-                yield f"⚠️ Unable to send folder metadata for {folder_data['component_id']} to {PRESERVATION_BUCKET} on S3.\n"
-                yield f"Error Message: {e.response['Error']['Message']}\n"
-                yield f"Request ID: {e.response['ResponseMetadata']['RequestId']}\n"
-                yield f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}\n"
-                yield f"↩️ …skipping: {folderpath}\n"
+                message = (f"⚠️ Unable to send folder metadata for {folder_data['component_id']} to {PRESERVATION_BUCKET} on S3.\n"
+                    f"Error Message: {e.response['Error']['Message']}\n"
+                    f"Request ID: {e.response['ResponseMetadata']['RequestId']}\n"
+                    f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}\n"
+                    f"↩️ Skipping {folderpath} folder.\n"
+                )
+                with open(stream_path, "a") as f:
+                    f.write(message)
+                # TODO better logging
+                print(message)
+                print(str(e))
+                # TODO set up notify
+                # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
                 continue
             else:
                 raise e
@@ -302,10 +309,10 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         filepaths.sort(reverse=True)
         for f in range(len(filepaths)):
             filepath = filepaths.pop()
-            filecounter -= 1
+            filecounter += 1
             try:
-                yield f"⏳ Converting {os.path.basename(filepath)} to JPEG 2000."
-                # yield f"⏱ {datetime.now()}\n"
+                with open(stream_path, "a") as f:
+                    f.write(f"⏳ Converting {os.path.basename(filepath)} to JPEG 2000")
                 # start this in the background
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     future = executor.submit(
@@ -315,27 +322,28 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                         folder_arrangement,
                         folder_data,
                     )
-                    # DEBUG
-                    print("DEBUG:")
-                    print(str(future))
-                    print(":GUBED")
                     # run a loop checking for it to be done
+                    # indicate processing by printing a dot every second to the web
                     iteration = 0
                     while "state=running" in str(future):
                         time.sleep(1)
-                        # NOTE: the following `yield` must begin with `\n`
-                        yield "."
+                        with open(stream_path, "a", newline="") as f:
+                            f.write(".")
                         iteration += 1
                     aip_image_data = future.result()
-                # aip_image_data = process_aip_image(
-                #     filepath, collection_data, folder_arrangement, folder_data
-                # )
-                yield f"\n✅ Successfully converted {os.path.basename(filepath)} to JPEG&nbsp;2000. [images remaining: {filecounter}/{filecount}]\n"
-                # yield f"⏱ {datetime.now()}\n"
+                with open(stream_path, "a") as f:
+                    f.write(f"\n✅ Successfully converted {os.path.basename(filepath)} to JPEG 2000. [image {filecounter}/{filecount}]\n")
             except RuntimeError as e:
-                yield f"\n⚠️ There was a problem converting {os.path.basename(filepath)} to JPEG 2000.\n"
-                yield f"⚠️ {str(e)}\n"
-                yield f"↩️ Skipping: {os.path.basename(filepath)} [images remaining: {filecounter}/{filecount}]\n"
+                message = (f"\n⚠️ There was a problem converting {os.path.basename(filepath)} to JPEG 2000.\n"
+                    f"↩️ Skipping {os.path.basename(filepath)} file. [image {filecounter}/{filecount}]\n"
+                )
+                with open(stream_path, "a") as f:
+                    f.write(message)
+                # TODO better logging
+                print(message)
+                print(str(e))
+                # TODO set up notify
+                # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
                 continue
 
             # Send AIP image to S3.
@@ -358,24 +366,46 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 "ETag": "\"614bccea2760f37f41be65c62c41d66e\""
             }"""
             try:
-                yield f"☁️ Sending JPEG 2000 for {Path(filepath).stem} to {PRESERVATION_BUCKET} on S3.\n"
+                with open(stream_path, "a") as f:
+                    f.write(f"☁️ Sending JPEG 2000 for {Path(filepath).stem} to {PRESERVATION_BUCKET} on S3")
                 with open(aip_image_data["filepath"], "rb") as body:
-                    aip_image_put_response = s3_client.put_object(
-                        Bucket=PRESERVATION_BUCKET,
-                        Key=aip_image_data["s3key"],
-                        Body=body,
-                        ContentMD5=base64.b64encode(
-                            aip_image_data["md5"].digest()
-                        ).decode(),
-                    )
-                yield f"✅ Sent JPEG 2000 for {Path(filepath).stem} to {PRESERVATION_BUCKET} on S3.\n"
+                    # start this in the background
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            s3_client.put_object,
+                            Bucket=PRESERVATION_BUCKET,
+                            Key=aip_image_data["s3key"],
+                            Body=body,
+                            ContentMD5=base64.b64encode(
+                                aip_image_data["md5"].digest()
+                            ).decode(),
+                        )
+                        # run a loop checking for it to be done
+                        # indicate processing by printing a dot every second to the web
+                        iteration = 0
+                        while "state=running" in str(future):
+                            time.sleep(1)
+                            with open(stream_path, "a", newline="") as f:
+                                f.write(".")
+                            iteration += 1
+                        aip_image_put_response = future.result()
+                with open(stream_path, "a") as f:
+                    f.write(f"\n✅ Sent JPEG 2000 for {Path(filepath).stem} to {PRESERVATION_BUCKET} on S3.\n")
             except botocore.exceptions.ClientError as e:
                 if e.response["Error"]["Code"] == "InternalError":
-                    yield f"⚠️ Unable to send JPEG 2000 for {Path(filepath).stem} to {PRESERVATION_BUCKET} on S3.\n"
-                    yield f"Error Message: {e.response['Error']['Message']}\n"
-                    yield f"Request ID: {e.response['ResponseMetadata']['RequestId']}\n"
-                    yield f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}\n"
-                    yield f"↩️ …skipping: {Path(filepath).stem}\n"
+                    message = (f"⚠️ Unable to send JPEG 2000 for {Path(filepath).stem} to {PRESERVATION_BUCKET} on S3.\n"
+                        f"Error Message: {e.response['Error']['Message']}\n"
+                        f"Request ID: {e.response['ResponseMetadata']['RequestId']}\n"
+                        f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}\n"
+                        f"↩️ Skipping {Path(filepath).stem} file.\n"
+                    )
+                    with open(stream_path, "a") as f:
+                        f.write(message)
+                    # TODO better logging
+                    print(message)
+                    print(str(e))
+                    # TODO set up notify
+                    # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
                     # TODO cleanup
                     continue
                 else:
@@ -386,11 +416,17 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 aip_image_put_response["ETag"].strip('"')
                 == aip_image_data["md5"].hexdigest()
             ):
-                yield f"✅ Verified checksums for JPEG 2000 of {Path(filepath).stem} sent to {PRESERVATION_BUCKET} on S3.\n"
+                with open(stream_path, "a") as f:
+                    f.write(f"✅ Verified checksums for JPEG 2000 of {Path(filepath).stem} sent to {PRESERVATION_BUCKET} on S3.\n")
             else:
-                raise ValueError(
-                    f"❌ the S3 ETag did not match for {aip_image_data['filepath']}"
-                )
+                message = f"⚠️ the S3 ETag did not match for {aip_image_data['filepath']}"
+                with open(stream_path, "a") as f:
+                    f.write(message)
+                # TODO better logging
+                print(message)
+                # TODO set up notify
+                # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
+                continue
 
             # Set up ArchivesSpace record.
             digital_object_component = prepare_digital_object_component(
@@ -400,15 +436,23 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
             # Post Digital Object Component to ArchivesSpace.
             try:
                 post_digital_object_component(digital_object_component)
+                with open(stream_path, "a") as f:
+                    f.write(f"✅ Created Digital Object Component {digital_object_component['label']} / {digital_object_component['component_id']} for {folder_data['title']} in ArchivesSpace.\n")
             except HTTPError as e:
+                message = (f"⚠️ Unable to create Digital Object Component for {folder_data['component_id']} in ArchivesSpace.\n"
+                    f"↩️ Skipping.\n"
+                )
+                with open(stream_path, "a") as f:
+                    f.write(message)
+                # TODO better logging
+                print(message)
                 print(str(e))
-                print(
-                    f"❌ unable to create Digital Object Component for {folder_data['component_id']}; skipping...\n"
-                )
-                print(
-                    f"⚠️  clean up {aip_image_data['s3key']} file in {PRESERVATION_BUCKET} bucket\n"
-                )
+                # TODO set up notify
+                # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
                 # TODO programmatically remove file from bucket?
+                print(
+                    f"⚠️ Clean up {aip_image_data['s3key']} file in {PRESERVATION_BUCKET} bucket.\n"
+                )
                 continue
 
             # Move processed source file into `COMPLETED_DIRECTORY` with the structure
@@ -417,12 +461,14 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 os.renames(
                     filepath,
                     os.path.join(
-                        COMPLETED_DIRECTORY, filepath[len(SOURCE_DIRECTORY) + 1 :]
+                        COMPLETED_DIRECTORY, filepath[len(str(SOURCE_DIRECTORY)) + 1 :]
                     ),
                 )
             except OSError as e:
                 print(str(e))
-                print(f"⚠️  unable to move {filepath} to {COMPLETED_DIRECTORY}/\n")
+                print(f"⚠️ Unable to move {filepath} to {COMPLETED_DIRECTORY}/.\n")
+                # TODO set up notify
+                # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
                 continue
 
             # Remove generated `*-LOSSLESS.jp2` file.
@@ -430,12 +476,24 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 os.remove(aip_image_data["filepath"])
             except OSError as e:
                 print(str(e))
-                print(f"⚠️  unable to remove {aip_image_data['filepath']}\n")
+                print(f"⚠️ Unable to remove {aip_image_data['filepath']} file.\n")
+                # TODO set up notify
+                # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
                 continue
 
-            print(f"✅ {os.path.basename(filepath)} processed successfully\n")
+            with open(stream_path, "a") as f:
+                f.write(f"📄 Finished processing {os.path.basename(filepath)} file.\n")
 
-            print(f"⏳ time elpased: {datetime.now() - time_start}\n")
+        with open(stream_path, "a") as f:
+            f.write(f"📁 Finished processing folder {folder_data['component_id']} [{folder_data['display_string']}].\n")
+
+    with open(stream_path, "a") as f:
+        f.write(f"🗄 Finished processing {collection_id}.\n📆 {datetime.now()}\n")
+
+    # this is to be run at the very end of the process, delete the file
+    stream_path.unlink(missing_ok=True)
+
+    print(f"⏳ time elpased: {datetime.now() - time_start}\n")
 
 
 def calculate_pixel_signature(filepath):
