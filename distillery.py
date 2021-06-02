@@ -43,7 +43,11 @@ def stream(collection_id):
     ) as f:
         for line in tailer.follow(f):
             # the event stream format starts with "data: " and ends with "\n\n"
-            yield f"data: {line}\n\n"
+            if line.startswith("📅") or line.startswith("❌"):
+                # we send an event field targeting a specific listener
+                yield f"event: start\ndata: {line}\n\n"
+            else:
+                yield f"data: {line}\n\n"
             print(line)
 
 
