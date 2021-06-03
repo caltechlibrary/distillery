@@ -1101,9 +1101,12 @@ def process_aip_image(filepath, collection_data, folder_arrangement, folder_data
     # cut out only the checksum string for the pixel stream_path
     # NOTE running this process in the background saves time because
     # the conversion starts soon after in a different subprocess
-    sip_image_signature = sh.cut(
-        sh.sha512sum(
-            sh.magick.stream_path(
+    cut_cmd = sh.Command(config("CUT_CMD"))
+    sha512sum_cmd = sh.Command(config("SHA512SUM_CMD"))
+    magick_cmd = sh.Command(config("MAGICK_CMD"))
+    sip_image_signature = cut_cmd(
+        sha512sum_cmd(
+            magick_cmd.stream_path(
                 "-quiet",
                 "-map",
                 "rgb",
@@ -1125,7 +1128,7 @@ def process_aip_image(filepath, collection_data, folder_arrangement, folder_data
     print(f"⏱ {datetime.now()} aip_image_path")
     aip_image_path = os.path.splitext(filepath)[0] + "-LOSSLESS.jp2"
     print(f"⏱ {datetime.now()} aip_image_conversion")
-    aip_image_conversion = sh.magick.convert(
+    aip_image_conversion = magick_cmd.convert(
         "-quiet", filepath, "-quality", "0", aip_image_path, _bg=True
     )
     print(f"⏱ {datetime.now()} file_parts")
@@ -1152,9 +1155,9 @@ def process_aip_image(filepath, collection_data, folder_arrangement, folder_data
     write_xmp_metadata(aip_image_path, xmp_dc)
     # cut out only the checksum string for the pixel stream_path
     print(f"⏱ {datetime.now()} aip_image_signature")
-    aip_image_signature = sh.cut(
-        sh.sha512sum(
-            sh.magick.stream_path(
+    aip_image_signature = cut_cmd(
+        sha512sum_cmd(
+            magick_cmd.stream_path(
                 "-quiet",
                 "-map",
                 "rgb",
@@ -1257,7 +1260,8 @@ def validate_settings():
 
 def write_xmp_metadata(filepath, metadata):
     # NOTE: except `source` all the dc elements here are keywords in exiftool
-    return sh.exiftool(
+    exiftool_cmd = sh.Command(config("EXIFTOOL_CMD"))
+    return exiftool_cmd(
         "-title=" + metadata["title"],
         "-identifier=" + metadata["identifier"],
         "-XMP-dc:source=" + metadata["source"],
