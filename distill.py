@@ -58,7 +58,8 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
             PRESERVATION_BUCKET,
         ) = validate_settings()
     except Exception as e:
-        message = "❌ There was a problem with the settings for the processing script.\n"
+        # different emoji to indicate start of script for event listener
+        message = "⛔️ There was a problem with the settings for the processing script.\n"
         with open(stream_path, "a") as f:
             f.write(message)
         # delete the stream file, otherwise it will continue trying to process
