@@ -14,5 +14,7 @@ shopt -s nullglob
 for FILE in "$1"/*-processing; do
     collection_id=$(basename "$FILE" | cut -d '-' -f 1)
     python=$(source "$(dirname "$0")"/alchemist.ini && echo "$PYTHON")
+    echo "📅 $(date)"
+    echo "🗄 $collection_id"
     $python "$(dirname "$0")"/distill.py "$collection_id"
 done
