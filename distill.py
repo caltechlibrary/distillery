@@ -25,7 +25,11 @@ from decouple import config
 from jpylyzer import jpylyzer
 from requests import HTTPError
 
-logging.basicConfig(level=logging.DEBUG, filename=config("LOG_FILE"), format="%(asctime)s %(levelname)s - %(filename)s:%(lineno)d %(funcName)s - %(message)s")
+logging.basicConfig(
+    level=logging.DEBUG,
+    filename=config("LOG_FILE"),
+    format="%(asctime)s %(levelname)s - %(filename)s:%(lineno)d %(funcName)s - %(message)s",
+)
 
 logging.info("🛁 distilling")
 time_start = datetime.now()
@@ -49,7 +53,9 @@ s3_client = boto3.client(
 def distill(collection_id: "the Collection ID from ArchivesSpace"):
 
     # NOTE we have to assume that STATUS_FILES_DIR is set correctly
-    stream_path = Path(config("STATUS_FILES_DIR")).joinpath(f"{collection_id}-processing")
+    stream_path = Path(config("STATUS_FILES_DIR")).joinpath(
+        f"{collection_id}-processing"
+    )
 
     try:
         (
@@ -59,7 +65,9 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         ) = validate_settings()
     except Exception as e:
         # different emoji to indicate start of script for event listener
-        message = "⛔️ There was a problem with the settings for the processing script.\n"
+        message = (
+            "⛔️ There was a problem with the settings for the processing script.\n"
+        )
         with open(stream_path, "a") as f:
             f.write(message)
         # delete the stream file, otherwise it will continue trying to process
@@ -80,7 +88,9 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         collection_directory = get_collection_directory(SOURCE_DIRECTORY, collection_id)
         if collection_directory:
             with open(stream_path, "a") as f:
-                f.write(f"✅ Collection directory for {collection_id} found on filesystem: {collection_directory}\n")
+                f.write(
+                    f"✅ Collection directory for {collection_id} found on filesystem: {collection_directory}\n"
+                )
         # TODO report on contents of collection_directory
     except NotADirectoryError as e:
         message = f"❌ No valid directory for {collection_id} was found on filesystem: {os.path.join(SOURCE_DIRECTORY, collection_id)}\n"
@@ -97,9 +107,13 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         collection_uri = get_collection_uri(collection_id)
         if collection_uri:
             with open(stream_path, "a") as f:
-                f.write(f"✅ Collection URI for {collection_id} found in ArchivesSpace: {collection_uri}\n")
+                f.write(
+                    f"✅ Collection URI for {collection_id} found in ArchivesSpace: {collection_uri}\n"
+                )
     except ValueError as e:
-        message = f"❌ No collection URI for {collection_id} was found in ArchivesSpace.\n"
+        message = (
+            f"❌ No collection URI for {collection_id} was found in ArchivesSpace.\n"
+        )
         with open(stream_path, "a") as f:
             f.write(message)
         # delete the stream file, otherwise it will continue trying to process
@@ -123,10 +137,14 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         collection_data = get_collection_data(collection_uri)
         if collection_data:
             with open(stream_path, "a") as f:
-                f.write(f"✅ Collection data for {collection_id} retrieved from ArchivesSpace.\n")
+                f.write(
+                    f"✅ Collection data for {collection_id} retrieved from ArchivesSpace.\n"
+                )
         # TODO report on contents of collection_data
     except RuntimeError as e:
-        message = f"❌ No collection data for {collection_id} retrieved from ArchivesSpace.\n"
+        message = (
+            f"❌ No collection data for {collection_id} retrieved from ArchivesSpace.\n"
+        )
         with open(stream_path, "a") as f:
             f.write(message)
         # delete the stream file, otherwise it will continue trying to process
@@ -150,10 +168,14 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
         if collection_data["tree"]["_resolved"]:
             with open(stream_path, "a") as f:
-                f.write(f"✅ Collection tree for {collection_id} retrieved from ArchivesSpace.\n")
+                f.write(
+                    f"✅ Collection tree for {collection_id} retrieved from ArchivesSpace.\n"
+                )
         # TODO report on contents of collection_tree
     except RuntimeError as e:
-        message = f"❌ No collection tree for {collection_id} retrieved from ArchivesSpace.\n"
+        message = (
+            f"❌ No collection tree for {collection_id} retrieved from ArchivesSpace.\n"
+        )
         with open(stream_path, "a") as f:
             f.write(message)
         # delete the stream file, otherwise it will continue trying to process
@@ -177,9 +199,13 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
     try:
         save_collection_metadata(collection_data, COMPLETED_DIRECTORY)
         with open(stream_path, "a") as f:
-            f.write(f"✅ Collection metadata for {collection_id} saved to: {COMPLETED_DIRECTORY}/{collection_id}.json\n")
+            f.write(
+                f"✅ Collection metadata for {collection_id} saved to: {COMPLETED_DIRECTORY}/{collection_id}.json\n"
+            )
     except OSError as e:
-        message = f"❌ Unable to save {collection_id}.json file to: {COMPLETED_DIRECTORY}\n"
+        message = (
+            f"❌ Unable to save {collection_id}.json file to: {COMPLETED_DIRECTORY}\n"
+        )
         with open(stream_path, "a") as f:
             f.write(message)
         # delete the stream file, otherwise it will continue trying to process
@@ -197,10 +223,13 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
             Body=json.dumps(collection_data, sort_keys=True, indent=4),
         )
         with open(stream_path, "a") as f:
-            f.write(f"✅ Collection metadata for {collection_id} sent to {PRESERVATION_BUCKET} on S3.\n")
+            f.write(
+                f"✅ Collection metadata for {collection_id} sent to {PRESERVATION_BUCKET} on S3.\n"
+            )
     except botocore.exceptions.ClientError as e:
         if e.response["Error"]["Code"] == "InternalError":
-            message = (f"❌ Unable to send collection metadata for {collection_id} to {PRESERVATION_BUCKET} on S3.\n"
+            message = (
+                f"❌ Unable to send collection metadata for {collection_id} to {PRESERVATION_BUCKET} on S3.\n"
                 f"Error Message: {e.response['Error']['Message']}\n"
                 f"Request ID: {e.response['ResponseMetadata']['RequestId']}\n"
                 f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}\n"
@@ -230,7 +259,9 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         try:
             folder_arrangement, folder_data = process_folder_metadata(folderpath)
             with open(stream_path, "a") as f:
-                f.write(f"✅ Folder data for {folder_data['component_id']} [{folder_data['display_string']}] retrieved from ArchivesSpace.\n")
+                f.write(
+                    f"✅ Folder data for {folder_data['component_id']} [{folder_data['display_string']}] retrieved from ArchivesSpace.\n"
+                )
         except RuntimeError as e:
             # NOTE possible error strings include:
             # f"The component_id cannot be determined from the directory name: {os.path.basename(folderpath)}"
@@ -261,10 +292,13 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 Body=json.dumps(folder_data, sort_keys=True, indent=4),
             )
             with open(stream_path, "a") as f:
-                f.write(f"✅ Folder metadata for {folder_data['component_id']} sent to {PRESERVATION_BUCKET} on S3.\n")
+                f.write(
+                    f"✅ Folder metadata for {folder_data['component_id']} sent to {PRESERVATION_BUCKET} on S3.\n"
+                )
         except botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "InternalError":
-                message = (f"⚠️ Unable to send folder metadata for {folder_data['component_id']} to {PRESERVATION_BUCKET} on S3.\n"
+                message = (
+                    f"⚠️ Unable to send folder metadata for {folder_data['component_id']} to {PRESERVATION_BUCKET} on S3.\n"
                     f"Error Message: {e.response['Error']['Message']}\n"
                     f"Request ID: {e.response['ResponseMetadata']['RequestId']}\n"
                     f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}\n"
@@ -310,9 +344,12 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                         iteration += 1
                     aip_image_data = future.result()
                 with open(stream_path, "a") as f:
-                    f.write(f"\n✅ Successfully converted {os.path.basename(filepath)} to JPEG 2000. [image {filecounter}/{filecount}]\n")
+                    f.write(
+                        f"\n✅ Successfully converted {os.path.basename(filepath)} to JPEG 2000. [image {filecounter}/{filecount}]\n"
+                    )
             except RuntimeError as e:
-                message = (f"\n⚠️ There was a problem converting {os.path.basename(filepath)} to JPEG 2000.\n"
+                message = (
+                    f"\n⚠️ There was a problem converting {os.path.basename(filepath)} to JPEG 2000.\n"
                     f"↩️ Skipping {os.path.basename(filepath)} file. [image {filecounter}/{filecount}]\n"
                 )
                 with open(stream_path, "a") as f:
@@ -343,7 +380,9 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
             }"""
             try:
                 with open(stream_path, "a") as f:
-                    f.write(f"☁️ Sending JPEG 2000 for {Path(filepath).stem} to {PRESERVATION_BUCKET} on S3")
+                    f.write(
+                        f"☁️ Sending JPEG 2000 for {Path(filepath).stem} to {PRESERVATION_BUCKET} on S3"
+                    )
                 with open(aip_image_data["filepath"], "rb") as body:
                     # start this in the background
                     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -366,10 +405,13 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                             iteration += 1
                         aip_image_put_response = future.result()
                 with open(stream_path, "a") as f:
-                    f.write(f"\n✅ Sent JPEG 2000 for {Path(filepath).stem} to {PRESERVATION_BUCKET} on S3.\n")
+                    f.write(
+                        f"\n✅ Sent JPEG 2000 for {Path(filepath).stem} to {PRESERVATION_BUCKET} on S3.\n"
+                    )
             except botocore.exceptions.ClientError as e:
                 if e.response["Error"]["Code"] == "InternalError":
-                    message = (f"⚠️ Unable to send JPEG 2000 for {Path(filepath).stem} to {PRESERVATION_BUCKET} on S3.\n"
+                    message = (
+                        f"⚠️ Unable to send JPEG 2000 for {Path(filepath).stem} to {PRESERVATION_BUCKET} on S3.\n"
                         f"Error Message: {e.response['Error']['Message']}\n"
                         f"Request ID: {e.response['ResponseMetadata']['RequestId']}\n"
                         f"HTTP Code: {e.response['ResponseMetadata']['HTTPStatusCode']}\n"
@@ -392,9 +434,13 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 == aip_image_data["md5"].hexdigest()
             ):
                 with open(stream_path, "a") as f:
-                    f.write(f"✅ Verified checksums for JPEG 2000 of {Path(filepath).stem} sent to {PRESERVATION_BUCKET} on S3.\n")
+                    f.write(
+                        f"✅ Verified checksums for JPEG 2000 of {Path(filepath).stem} sent to {PRESERVATION_BUCKET} on S3.\n"
+                    )
             else:
-                message = f"⚠️ the S3 ETag did not match for {aip_image_data['filepath']}"
+                message = (
+                    f"⚠️ the S3 ETag did not match for {aip_image_data['filepath']}"
+                )
                 with open(stream_path, "a") as f:
                     f.write(message)
                 logging.warning(message)
@@ -411,9 +457,12 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
             try:
                 post_digital_object_component(digital_object_component)
                 with open(stream_path, "a") as f:
-                    f.write(f"✅ Created Digital Object Component {digital_object_component['label']} / {digital_object_component['component_id']} for {folder_data['title']} in ArchivesSpace.\n")
+                    f.write(
+                        f"✅ Created Digital Object Component {digital_object_component['label']} / {digital_object_component['component_id']} for {folder_data['title']} in ArchivesSpace.\n"
+                    )
             except HTTPError as e:
-                message = (f"⚠️ Unable to create Digital Object Component for {folder_data['component_id']} in ArchivesSpace.\n"
+                message = (
+                    f"⚠️ Unable to create Digital Object Component for {folder_data['component_id']} in ArchivesSpace.\n"
                     f"↩️ Skipping.\n"
                 )
                 with open(stream_path, "a") as f:
@@ -457,7 +506,9 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 f.write(f"📄 Finished processing {os.path.basename(filepath)} file.\n")
 
         with open(stream_path, "a") as f:
-            f.write(f"📁 Finished processing folder {folder_data['component_id']} [{folder_data['display_string']}].\n")
+            f.write(
+                f"📁 Finished processing folder {folder_data['component_id']} [{folder_data['display_string']}].\n"
+            )
 
     with open(stream_path, "a") as f:
         f.write(f"🗄 Finished processing {collection_id}.\n📆 {datetime.now()}\n")
@@ -764,8 +815,8 @@ def get_folder_arrangement(folder_data):
                             )
             else:
                 logging.info(
-                        f"👀 series: {instance['sub_container']['top_container']['_resolved']['series']}"
-                    )
+                    f"👀 series: {instance['sub_container']['top_container']['_resolved']['series']}"
+                )
                 raise ValueError(
                     f"Missing series data for: {folder_data['component_id']}"
                 )
