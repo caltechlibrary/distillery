@@ -25,8 +25,11 @@ import sh
 from datetime import datetime
 from lxml import etree
 from lxml.builder import ElementMaker
+from pathlib import Path
 from requests import HTTPError
 from shutil import copyfile
+
+from decouple import config
 
 
 @plac.annotations(
@@ -34,14 +37,25 @@ from shutil import copyfile
 )
 def main(collection_id):
 
-    (
-        SOURCE_DIRECTORY,
-        COMPLETED_DIRECTORY,
-        ISLANDORA_STAGING_DIRECTORY,
-    ) = get_environment_variables()
+    try:
+        (
+            UNCOMPRESSED_SOURCE_FILES,
+            COMPRESSED_ACCESS_FILES,
+        ) = validate_settings()
+    except Exception as e:
+        # # different emoji to indicate start of script for event listener
+        # message = (
+        #     "⛔️ There was a problem with the settings for the processing script.\n"
+        # )
+        # with open(stream_path, "a") as f:
+        #     f.write(message)
+        # # delete the stream file, otherwise it will continue trying to process
+        # stream_path.unlink(missing_ok=True)
+        # logging.error(message, exc_info=True)
+        raise
 
     collection_directory = distill.get_collection_directory(
-        SOURCE_DIRECTORY, collection_id
+        UNCOMPRESSED_SOURCE_FILES, collection_id
     )
     collection_uri = distill.get_collection_uri(collection_id)
     collection_data = distill.get_collection_data(collection_uri)
@@ -50,7 +64,7 @@ def main(collection_id):
     # NOTE: The parent directory name is formatted for use as a PID:
     # https://github.com/mjordan/islandora_batch_with_derivs#preserving-existing-pids-and-relationships
     islandora_collection_metadata_directory = os.path.join(
-        ISLANDORA_STAGING_DIRECTORY,
+        COMPRESSED_ACCESS_FILES,
         "collections",
         f"caltech+{collection_data['id_0']}",
     )
@@ -112,7 +126,7 @@ def main(collection_id):
         # Save the MODS.xml file for the book.
         save_xml_file(
             os.path.join(
-                ISLANDORA_STAGING_DIRECTORY,
+                COMPRESSED_ACCESS_FILES,
                 "books",
                 folder_data["component_id"],
                 "MODS.xml",
@@ -136,7 +150,7 @@ def main(collection_id):
                 generate_islandora_page_datastreams(
                     filepath,
                     page_sequence,
-                    ISLANDORA_STAGING_DIRECTORY,
+                    COMPRESSED_ACCESS_FILES,
                     collection_data,
                     folder_arrangement,
                     folder_data,
@@ -273,7 +287,7 @@ def create_page_mods_xml(xmp_dc):
 def generate_islandora_page_datastreams(
     filepath,
     page_sequence,
-    ISLANDORA_STAGING_DIRECTORY,
+    COMPRESSED_ACCESS_FILES,
     collection_data,
     folder_arrangement,
     folder_data,
@@ -287,7 +301,7 @@ def generate_islandora_page_datastreams(
     )
 
     page_datastreams_directory = os.path.join(
-        ISLANDORA_STAGING_DIRECTORY, "books", folder_data["component_id"], page_sequence
+        COMPRESSED_ACCESS_FILES, "books", folder_data["component_id"], page_sequence
     )
     os.makedirs(page_datastreams_directory, exist_ok=True)
 
@@ -356,66 +370,6 @@ def generate_islandora_page_datastreams(
     )
 
 
-def get_environment_variables():
-    problem_detected = False
-    SOURCE_DIRECTORY = os.environ.get("SOURCE_DIRECTORY")
-    if SOURCE_DIRECTORY:
-        if os.path.abspath(SOURCE_DIRECTORY) == SOURCE_DIRECTORY:
-            if __debug__:
-                print(f" ✅\t SOURCE_DIRECTORY: {SOURCE_DIRECTORY}")
-        else:
-            problem_detected = True
-            print(
-                f" ❌\t SOURCE_DIRECTORY enviornment variable is not an absolute path."
-            )
-    else:
-        problem_detected = True
-        print(f" ❌\t SOURCE_DIRECTORY enviornment variable not set")
-    COMPLETED_DIRECTORY = os.environ.get(
-        "COMPLETED_DIRECTORY", f"{SOURCE_DIRECTORY}/_COMPLETED"
-    )
-    if COMPLETED_DIRECTORY:
-        if os.path.abspath(COMPLETED_DIRECTORY) == COMPLETED_DIRECTORY:
-            if __debug__:
-                print(f" ✅\t COMPLETED_DIRECTORY: {COMPLETED_DIRECTORY}")
-        else:
-            problem_detected = True
-            print(
-                f" ❌\t COMPLETED_DIRECTORY enviornment variable is not an absolute path."
-            )
-    else:
-        problem_detected = True
-        print(f" ❌\t COMPLETED_DIRECTORY enviornment variable not set")
-    ISLANDORA_STAGING_DIRECTORY = os.environ.get("ISLANDORA_STAGING_DIRECTORY")
-    if ISLANDORA_STAGING_DIRECTORY:
-        if os.path.abspath(ISLANDORA_STAGING_DIRECTORY) == ISLANDORA_STAGING_DIRECTORY:
-            if __debug__:
-                print(
-                    f" ✅\t ISLANDORA_STAGING_DIRECTORY: {ISLANDORA_STAGING_DIRECTORY}"
-                )
-        else:
-            problem_detected = True
-            print(
-                f" ❌\t ISLANDORA_STAGING_DIRECTORY enviornment variable is not an absolute path."
-            )
-    else:
-        problem_detected = True
-        print(f" ❌\t ISLANDORA_STAGING_DIRECTORY enviornment variable not set")
-    if problem_detected:
-        print(" ℹ️\t Required Environment Variables:")
-        print(" ➡️\t SOURCE_DIRECTORY: /path/to/directory above collection files")
-        print(
-            " ➡️\t COMPLETED_DIRECTORY: /path/to/directory for processed source files"
-        )
-        print(
-            " ➡️\t ISLANDORA_STAGING_DIRECTORY: /path/to/directory for structured Islandora Book Batch files"
-        )
-        print(" 🖥\t to set variable: export VARIABLE=value")
-        print(" 🖥\t to see value: echo $VARIABLE")
-        exit()
-    return SOURCE_DIRECTORY, COMPLETED_DIRECTORY, ISLANDORA_STAGING_DIRECTORY
-
-
 def process_folder_metadata(folderpath):
     try:
         folder_data = distill.get_folder_data(
@@ -436,6 +390,20 @@ def save_xml_file(destination_filepath, xml):
     os.makedirs(os.path.dirname(destination_filepath), exist_ok=True)
     with open(destination_filepath, "w") as f:
         f.write(etree.tostring(xml, encoding="unicode", pretty_print=True))
+
+
+def validate_settings():
+    UNCOMPRESSED_SOURCE_FILES = Path(
+        os.path.expanduser(config("UNCOMPRESSED_SOURCE_FILES"))
+    ).resolve(
+        strict=True
+    )  # NOTE do not create missing `UNCOMPRESSED_SOURCE_FILES` directory
+    COMPRESSED_ACCESS_FILES = Path(
+        os.path.expanduser(config("COMPRESSED_ACCESS_FILES"))
+    ).resolve(
+        strict=True
+    )  # NOTE do not create missing `COMPRESSED_ACCESS_FILES` directory
+    return UNCOMPRESSED_SOURCE_FILES, COMPRESSED_ACCESS_FILES
 
 
 if __name__ == "__main__":
