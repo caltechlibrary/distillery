@@ -17,19 +17,20 @@
 # - PDF?
 # - RELS-INT
 
-import distill
 import json
 import os
-import plac
-import sh
 from datetime import datetime
-from lxml import etree
-from lxml.builder import ElementMaker
 from pathlib import Path
-from requests import HTTPError
 from shutil import copyfile
 
+import plac
+import sh
 from decouple import config
+from lxml import etree
+from lxml.builder import ElementMaker
+from requests import HTTPError
+
+import distill
 
 
 @plac.annotations(
@@ -158,6 +159,10 @@ def main(collection_id):
             except RuntimeError as e:
                 print(str(e))
                 continue
+
+    # TODO when all the folders have been processed
+    # - find any existing collection in Islandora / create a collection in Islandora
+    # - add “books” to collection
 
 
 def create_book_mods_xml(collection_data, folder_arrangement, folder_data, filepaths):
