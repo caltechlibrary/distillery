@@ -102,7 +102,7 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
     )
 
     folders, filecount = distill.prepare_folder_list(collection_directory)
-    filecounter = filecount
+    filecounter = 0
 
     # Loop over folders list.
     folders.sort(reverse=True)
@@ -150,9 +150,9 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
             if __debug__:
                 print(
                     # TODO use ascending count, both folder and total
-                    f" ▶️\t {os.path.basename(filepath)} [images remaining: {filecounter}/{filecount}]"
+                    f" ▶️\t {os.path.basename(filepath)} [image {filecounter}/{filecount}]"
                 )
-            filecounter -= 1
+            filecounter += 1
             page_sequence = str(filecount_folder - len(filepaths)).zfill(4)
             try:
                 generate_islandora_page_datastreams(
