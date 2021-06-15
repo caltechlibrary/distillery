@@ -30,7 +30,7 @@ from lxml import etree
 from lxml.builder import ElementMaker
 from requests import HTTPError
 
-import distill # TODO logs end up in distillery.log; why?
+import distill # TODO sh logs end up in distillery.log; why?
 
 
 islandora_server = sh.ssh.bake(
@@ -198,6 +198,7 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
             raise e
 
     # add “books” to Islandora collection
+    # TODO return something?
     add_books_to_islandora_collection(islandora_collection_pid, islandora_staging_files)
 
     # TODO are we done at this point?
