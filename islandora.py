@@ -30,13 +30,20 @@ from lxml import etree
 from lxml.builder import ElementMaker
 from requests import HTTPError
 
-import distill
+import distill # TODO logs end up in distillery.log; why?
 
 
-@plac.annotations(
-    collection_id=("the collection identifier from ArchivesSpace"),
+islandora_server = sh.ssh.bake(
+    f"{config('ISLANDORA_SSH_USER')}@{config('ISLANDORA_SSH_HOST')}",
+    f"-p{config('ISLANDORA_SSH_PORT')}",
 )
-def main(collection_id):
+
+# TODO normalize collection_id (limit to allowed characters)
+# function islandora_is_valid_pid($pid) {
+#   return drupal_strlen(trim($pid)) <= 64 && preg_match('/^([A-Za-z0-9]|-|\.)+:(([A-Za-z0-9])|-|\.|~|_|(%[0-9A-F]{2}))+$/', trim($pid));
+# }
+# https://regexr.com/
+def main(collection_id: "the Collection ID from ArchivesSpace"):
 
     try:
         (
@@ -160,9 +167,66 @@ def main(collection_id):
                 print(str(e))
                 continue
 
-    # TODO when all the folders have been processed
-    # - find any existing collection in Islandora / create a collection in Islandora
-    # - add “books” to collection
+    # upload staging files to Islandora server
+    try:
+        islandora_staging_files = upload_to_islandora_server().strip()
+    except Exception as e:
+        # TODO log something
+        raise e
+
+    # retrieve a collection pid from Islandora
+    try:
+        # run a solr query via drush for the expected collection pid
+        # NOTE: using dc fields for simpler syntax; a solr query string example using
+        # fedora fields would be:
+        # f"--solr_query='PID:caltech\:{collection_id} AND RELS_EXT_hasModel_uri_s:info\:fedora\/islandora\:collectionCModel'",
+        idcrudfp = islandora_server(
+            "drush",
+            f"--root={config('ISLANDORA_WEBROOT')}",
+            "islandora_datastream_crud_fetch_pids",
+            f"--solr_query='dc.identifier:caltech\:{collection_id} AND dc.type:Collection'",
+        )
+        islandora_collection_pid = idcrudfp.strip()
+    except sh.ErrorReturnCode as e:
+        # drush exits with a non-zero status when no PIDs are found,
+        # which is interpreted as an error
+        # TODO how to structure this condition? it seems wrong to call a function inside here
+        if "Sorry, no PIDS were found." in str(e.stderr, "utf-8"):
+            # create a new collection because the identifier was not found
+            islandora_collection_pid = create_islandora_collection(islandora_staging_files)
+        else:
+            raise e
+
+    # add “books” to Islandora collection
+    add_books_to_islandora_collection(islandora_collection_pid, islandora_staging_files)
+
+    # TODO are we done at this point?
+
+
+def add_books_to_islandora_collection(islandora_collection_pid, islandora_staging_files):
+    ibbp = islandora_server(
+        "drush",
+        "--user=1",
+        f"--root={config('ISLANDORA_WEBROOT')}",
+        "islandora_book_batch_preprocess",
+        "--output_set_id=TRUE",
+        f"--parent={islandora_collection_pid}",
+        f"--scan_target={islandora_staging_files}/books",
+        "--type=directory",
+    )
+    # ibbp contains a trailing newline
+    ingest_set = ibbp.strip()
+    ibi = islandora_server(
+        "drush",
+        "--user=1",
+        f"--root={config('ISLANDORA_WEBROOT')}",
+        "islandora_batch_ingest",
+        f"--ingest_set={ingest_set}",
+    )
+    # ibi is formatted like:
+    # b'Ingested HBF:302.                                                           [ok]\nIngested HBF:303.                                                           [ok]\nIngested HBF:304.                                                           [ok]\nIngested HBF:301.                                                           [ok]\nProcessing complete; review the queue for some additional               [status]\ninformation.\n'
+    print(str(ibi.stderr, "utf-8")) # TODO log this
+    # TODO what should return?
 
 
 def create_book_mods_xml(collection_data, folder_arrangement, folder_data, filepaths):
@@ -224,6 +288,37 @@ def create_book_mods_xml(collection_data, folder_arrangement, folder_data, filep
             )
     return modsxml
 
+def create_islandora_collection(islandora_staging_files):
+    # Islandora Batch with Derivatives allows us to set a PID for our new collection.
+    # https://github.com/mjordan/islandora_batch_with_derivs#preserving-existing-pids-and-relationships
+    ibwd = islandora_server(
+        "drush",
+        "--user=1",
+        f"--root={config('ISLANDORA_WEBROOT')}",
+        "islandora_batch_with_derivs_preprocess",
+        "--content_models=islandora:collectionCModel",
+        "--key_datastream=MODS",
+        "--namespace=caltech", # TODO setting?
+        "--parent=islandora:root", # TODO setting?
+        f"--scan_target={islandora_staging_files}/collections",
+        "--use_pids=TRUE",
+    )
+    # ibwd.stderr is formatted like:
+    # b'SetId: 1234                                                                 [ok]\n'
+    # we capture just the integer portion (1234)
+    ingest_set = str(ibwd.stderr, "utf-8").split()[1]
+    ibi = islandora_server(
+        "drush",
+        "--user=1",
+        f"--root={config('ISLANDORA_WEBROOT')}",
+        "islandora_batch_ingest",
+        f"--ingest_set={ingest_set}",
+    )
+    # ibi.stderr is formatted like:
+    # b'Ingested caltech:ABC.                                                       [ok]\nProcessing complete; review the queue for some additional               [status]\ninformation.\n'
+    # we capture just the namespace:id portion (caltech:ABC)
+    collection_pid = str(ibi.stderr, "utf-8").split()[1].strip(".")
+    return collection_pid
 
 def create_collection_mods_xml(collection_data):
     ns = "http://www.loc.gov/mods/v3"
@@ -395,6 +490,19 @@ def save_xml_file(destination_filepath, xml):
     os.makedirs(os.path.dirname(destination_filepath), exist_ok=True)
     with open(destination_filepath, "w") as f:
         f.write(etree.tostring(xml, encoding="unicode", pretty_print=True))
+
+
+def upload_to_islandora_server():
+    # TODO try/except?
+    islandora_staging_files = islandora_server("mktemp", "-d")
+    sh.rsync(
+        "-az",
+        "-e",
+        f"ssh -p{config('ISLANDORA_SSH_PORT')}",
+        f"{config('COMPRESSED_ACCESS_FILES')}/",
+        f"{config('ISLANDORA_SSH_USER')}@{config('ISLANDORA_SSH_HOST')}:{islandora_staging_files}",
+    )
+    return islandora_staging_files
 
 
 def validate_settings():
