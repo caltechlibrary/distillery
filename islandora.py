@@ -147,12 +147,11 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
         filecount_folder = len(filepaths)
         for f in range(filecount_folder):
             filepath = filepaths.pop()
+            filecounter += 1
             if __debug__:
                 print(
-                    # TODO use ascending count, both folder and total
                     f" ▶️\t {os.path.basename(filepath)} [image {filecounter}/{filecount}]"
                 )
-            filecounter += 1
             page_sequence = str(filecount_folder - len(filepaths)).zfill(4)
             try:
                 generate_islandora_page_datastreams(
