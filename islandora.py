@@ -18,6 +18,7 @@
 # - RELS-INT
 
 import json
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
@@ -32,6 +33,12 @@ from requests import HTTPError
 
 import distill # TODO sh logs end up in distillery.log; why?
 
+logging.config.fileConfig('settings.ini', disable_existing_loggers=False)
+# TODO need to understand more about naming the logger with __name__ and avoiding the
+# problem(?) with it looking for a logger named __main__
+# maybe we need a __main__.py file that calls distill.py and islandora.py?
+logger = logging.getLogger('islandora')
+logger.info("🦕 islandora")
 
 islandora_server = sh.ssh.bake(
     f"{config('ISLANDORA_SSH_USER')}@{config('ISLANDORA_SSH_HOST')}",
@@ -200,8 +207,7 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
     # TODO return something?
     add_books_to_islandora_collection(islandora_collection_pid, islandora_staging_files)
 
-    # TODO are we done at this point?
-
+    # TODO write to ArchivesSpace digital object
 
 def add_books_to_islandora_collection(islandora_collection_pid, islandora_staging_files):
     ibbp = islandora_server(
