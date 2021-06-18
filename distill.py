@@ -60,8 +60,8 @@ s3_client = boto3.client(
 
 def distill(collection_id: "the Collection ID from ArchivesSpace"):
 
-    # NOTE we have to assume that STATUS_FILES_DIR is set correctly
-    stream_path = Path(config("STATUS_FILES_DIR")).joinpath(
+    # NOTE we have to assume that PROCESSING_FILES is set correctly
+    stream_path = Path(config("PROCESSING_FILES")).joinpath(
         f"{collection_id}-processing"
     )
 

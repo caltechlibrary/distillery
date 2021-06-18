@@ -24,7 +24,7 @@ def form_collection_id():
 def begin_processing():
     collection_id = request.forms.get("collection_id").strip()
     # write a file to a shared status directory for alchemist.sh to find
-    Path(config("STATUS_FILES_DIR")).joinpath(f"{collection_id}-processing").touch()
+    Path(config("PROCESSING_FILES")).joinpath(f"{collection_id}-processing").touch()
     return template("distilling", collection_id=collection_id)
 
 
@@ -35,7 +35,7 @@ def stream(collection_id):
     response.cache_control = "no-cache"
 
     with open(
-        Path(config("STATUS_FILES_DIR")).joinpath(f"{collection_id}-processing")
+        Path(config("PROCESSING_FILES")).joinpath(f"{collection_id}-processing")
     ) as f:
         for line in tailer.follow(f):
             # the event stream format starts with "data: " and ends with "\n\n"

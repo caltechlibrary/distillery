@@ -8,7 +8,7 @@ from subprocess import run
 
 from decouple import config
 
-for f in glob(os.path.join(config("STATUS_FILES_DIR"), "*-processing")):
+for f in glob(os.path.join(config("PROCESSING_FILES"), "*-processing")):
     collection_id = os.path.basename(f).split("-")[0]
     PYTHON_CMD = config("PYTHON_CMD")
     print(f"📅 {datetime.now()}")
