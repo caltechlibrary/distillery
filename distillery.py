@@ -23,13 +23,9 @@ def form_collection_id():
 @post("/distilling")
 def begin_processing():
     collection_id = request.forms.get("collection_id").strip()
-    if collection_id:
-        # write a file to a shared status directory for alchemist.sh to find
-        # TODO sanitize input
-        Path(config("STATUS_FILES_DIR")).joinpath(f"{collection_id}-processing").touch()
-        return template("distilling", collection_id=collection_id)
-    else:
-        return "<p>⚠️ <em>CollectionID</em> must not be empty.<p><a href='/'>return to form</a>"
+    # write a file to a shared status directory for alchemist.sh to find
+    Path(config("STATUS_FILES_DIR")).joinpath(f"{collection_id}-processing").touch()
+    return template("distilling", collection_id=collection_id)
 
 
 @get("/distill/<collection_id>")
