@@ -27,18 +27,19 @@ from decouple import config
 from jpylyzer import jpylyzer
 from requests import HTTPError
 
-logging.config.fileConfig('settings.ini', disable_existing_loggers=False)
+# logging.config.fileConfig('settings.ini', disable_existing_loggers=False)
 # TODO need to understand more about naming the logger with __name__ and avoiding the
 # problem(?) with it looking for a logger named __main__
 # maybe we need a __main__.py file that calls distill.py and islandora.py?
-logger = logging.getLogger('distillery')
-# logging.basicConfig(
-#     level=logging.DEBUG,
-#     filename=config("LOG_FILE"),
-#     format="%(asctime)s %(levelname)s - %(filename)s:%(lineno)d %(funcName)s - %(message)s",
-# )
+# logger = logging.getLogger('distillery')
+logging.basicConfig(
+    level=logging.DEBUG,
+    filename=config("LOG_FILE"),
+    format="%(asctime)s %(levelname)s - %(filename)s:%(lineno)d %(funcName)s - %(message)s",
+)
 
-logger.info("🛁 distilling")
+logging.info("🛁 distilling")
+# logger.info("🛁 distilling")
 time_start = datetime.now()
 
 # TODO do we need a class? https://stackoverflow.com/a/16502408/4100024
@@ -55,7 +56,7 @@ s3_client = boto3.client(
     aws_access_key_id=config("AWS_ACCESS_KEY"),
     aws_secret_access_key=config("AWS_SECRET_KEY"),
 )
-sys.exit
+# sys.exit  # TODO using for logging experiments
 
 def distill(collection_id: "the Collection ID from ArchivesSpace"):
 
