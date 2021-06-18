@@ -17,7 +17,7 @@ from decouple import config
 
 @get("/")
 def form_collection_id():
-    return template("form-collection-id")
+    return template("form")
 
 
 @post("/distilling")
