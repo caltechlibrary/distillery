@@ -67,8 +67,8 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
 
     try:
         (
-            SOURCE_DIRECTORY,
-            COMPLETED_DIRECTORY,
+            STAGE_1_ORIGINAL_FILES,
+            STAGE_2_ORIGINAL_FILES,
             PRESERVATION_BUCKET,
         ) = validate_settings()
     except Exception as e:
@@ -93,7 +93,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
     # points of failure are messed up right away
 
     try:
-        collection_directory = get_collection_directory(SOURCE_DIRECTORY, collection_id)
+        collection_directory = get_collection_directory(STAGE_1_ORIGINAL_FILES, collection_id)
         if collection_directory:
             with open(stream_path, "a") as f:
                 f.write(
@@ -101,7 +101,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 )
         # TODO report on contents of collection_directory
     except NotADirectoryError as e:
-        message = f"❌ No valid directory for {collection_id} was found on filesystem: {os.path.join(SOURCE_DIRECTORY, collection_id)}\n"
+        message = f"❌ No valid directory for {collection_id} was found on filesystem: {os.path.join(STAGE_1_ORIGINAL_FILES, collection_id)}\n"
         with open(stream_path, "a") as f:
             f.write(message)
         # delete the stream file, otherwise it will continue trying to process
@@ -203,16 +203,16 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
 
-    # Verify write permission on `COMPLETED_DIRECTORY` by saving collection metadata.
+    # Verify write permission on `STAGE_2_ORIGINAL_FILES` by saving collection metadata.
     try:
-        save_collection_metadata(collection_data, COMPLETED_DIRECTORY)
+        save_collection_metadata(collection_data, STAGE_2_ORIGINAL_FILES)
         with open(stream_path, "a") as f:
             f.write(
-                f"✅ Collection metadata for {collection_id} saved to: {COMPLETED_DIRECTORY}/{collection_id}.json\n"
+                f"✅ Collection metadata for {collection_id} saved to: {STAGE_2_ORIGINAL_FILES}/{collection_id}.json\n"
             )
     except OSError as e:
         message = (
-            f"❌ Unable to save {collection_id}.json file to: {COMPLETED_DIRECTORY}\n"
+            f"❌ Unable to save {collection_id}.json file to: {STAGE_2_ORIGINAL_FILES}\n"
         )
         with open(stream_path, "a") as f:
             f.write(message)
@@ -484,17 +484,17 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 )
                 continue
 
-            # Move processed source file into `COMPLETED_DIRECTORY` with the structure
-            # under `SOURCE_DIRECTORY` (the `+ 1` strips a path seperator).
+            # Move processed source file into `STAGE_2_ORIGINAL_FILES` with the structure
+            # under `STAGE_1_ORIGINAL_FILES` (the `+ 1` strips a path seperator).
             try:
                 os.renames(
                     filepath,
                     os.path.join(
-                        COMPLETED_DIRECTORY, filepath[len(str(SOURCE_DIRECTORY)) + 1 :]
+                        STAGE_2_ORIGINAL_FILES, filepath[len(str(STAGE_1_ORIGINAL_FILES)) + 1 :]
                     ),
                 )
             except OSError as e:
-                message = f"⚠️ Unable to move {filepath} to {COMPLETED_DIRECTORY}/.\n"
+                message = f"⚠️ Unable to move {filepath} to {STAGE_2_ORIGINAL_FILES}/.\n"
                 logging.warning(message, exc_info=True)
                 # TODO set up notify
                 # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
@@ -714,12 +714,12 @@ def get_collection_data(collection_uri):
         )
 
 
-def get_collection_directory(SOURCE_DIRECTORY, collection_id):
-    if os.path.isdir(os.path.join(SOURCE_DIRECTORY, collection_id)):
-        return os.path.join(SOURCE_DIRECTORY, collection_id)
+def get_collection_directory(STAGE_1_ORIGINAL_FILES, collection_id):
+    if os.path.isdir(os.path.join(STAGE_1_ORIGINAL_FILES, collection_id)):
+        return os.path.join(STAGE_1_ORIGINAL_FILES, collection_id)
     else:
         raise NotADirectoryError(
-            f"Missing or invalid collection directory: {os.path.join(SOURCE_DIRECTORY, collection_id)}\n"
+            f"Missing or invalid collection directory: {os.path.join(STAGE_1_ORIGINAL_FILES, collection_id)}\n"
         )
 
 
@@ -916,7 +916,7 @@ def get_s3_aip_image_key(prefix, file_parts):
     #     "component_id": "me5v-z1yp",
     #     "extension": "tiff",
     #     "filename": "HaleGE_02_0B_056_07_0001.tiff",
-    #     "filepath": "/path/to/archives/data/SOURCE_DIRECTORY/HaleGE/HaleGE_02_0B_056_07_0001.tiff",
+    #     "filepath": "/path/to/archives/data/STAGE_1_ORIGINAL_FILES/HaleGE/HaleGE_02_0B_056_07_0001.tiff",
     #     "folder_id": "HaleGE_02_0B_056_07",
     #     "image_id": "HaleGE_02_0B_056_07_0001",
     #     "sequence": "0001"
@@ -1239,9 +1239,9 @@ def process_folder_metadata(folderpath):
     return folder_arrangement, folder_data
 
 
-def save_collection_metadata(collection_data, COMPLETED_DIRECTORY):
+def save_collection_metadata(collection_data, STAGE_2_ORIGINAL_FILES):
     filename = os.path.join(
-        COMPLETED_DIRECTORY, collection_data["id_0"], f"{collection_data['id_0']}.json"
+        STAGE_2_ORIGINAL_FILES, collection_data["id_0"], f"{collection_data['id_0']}.json"
     )
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, "w") as f:
@@ -1258,16 +1258,16 @@ def set_digital_object_id(uri, digital_object_id):
 
 
 def validate_settings():
-    SOURCE_DIRECTORY = Path(os.path.expanduser(config("SOURCE_DIRECTORY"))).resolve(
+    STAGE_1_ORIGINAL_FILES = Path(os.path.expanduser(config("STAGE_1_ORIGINAL_FILES"))).resolve(
         strict=True
-    )  # NOTE do not create missing `SOURCE_DIRECTORY`
-    COMPLETED_DIRECTORY = directory_setup(
-        os.path.expanduser(config("COMPLETED_DIRECTORY", f"{SOURCE_DIRECTORY}/S3"))
+    )  # NOTE do not create missing `STAGE_1_ORIGINAL_FILES`
+    STAGE_2_ORIGINAL_FILES = directory_setup(
+        os.path.expanduser(config("STAGE_2_ORIGINAL_FILES", f"{STAGE_1_ORIGINAL_FILES}/S3"))
     ).resolve(strict=True)
     PRESERVATION_BUCKET = config(
         "PRESERVATION_BUCKET"
     )  # TODO validate access to bucket
-    return SOURCE_DIRECTORY, COMPLETED_DIRECTORY, PRESERVATION_BUCKET
+    return STAGE_1_ORIGINAL_FILES, STAGE_2_ORIGINAL_FILES, PRESERVATION_BUCKET
 
 
 def write_xmp_metadata(filepath, metadata):
