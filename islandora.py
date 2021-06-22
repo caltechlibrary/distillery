@@ -410,7 +410,8 @@ def generate_islandora_page_datastreams(
 ):
     page_start = datetime.now()
 
-    sh.magick.convert("-quiet", filepath, "-compress", "None", "/tmp/uncompressed.tiff")
+    magick_cmd = sh.Command(config("MAGICK_CMD"))
+    magick_cmd.convert("-quiet", filepath, "-compress", "None", "/tmp/uncompressed.tiff")
 
     ocr_generation = sh.tesseract(
         "/tmp/uncompressed.tiff", "/tmp/tesseract", "txt", "hocr", _bg=True
@@ -422,12 +423,12 @@ def generate_islandora_page_datastreams(
     os.makedirs(page_datastreams_directory, exist_ok=True)
 
     jpg_path = os.path.join(page_datastreams_directory, "JPG.jpg")
-    jpg_conversion = sh.magick.convert(
+    jpg_conversion = magick_cmd.convert(
         "-quiet", filepath, "-quality", "75", "-resize", "600x800", jpg_path, _bg=True
     )
 
     tn_path = os.path.join(page_datastreams_directory, "TN.jpg")
-    tn_conversion = sh.magick.convert(
+    tn_conversion = magick_cmd.convert(
         "-quiet", filepath, "-quality", "75", "-thumbnail", "200x200", tn_path, _bg=True
     )
 
