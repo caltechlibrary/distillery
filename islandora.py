@@ -439,7 +439,8 @@ def generate_islandora_page_datastreams(
     )
 
     obj_path = os.path.join(page_datastreams_directory, "OBJ.jp2")
-    obj_conversion = sh.kdu_compress(
+    kdu_compress_cmd = sh.Command(config("KDU_COMPRESS_CMD"))
+    obj_conversion = kdu_compress_cmd(
         "-i",
         "/tmp/uncompressed.tiff",
         "-o",
