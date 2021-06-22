@@ -55,28 +55,91 @@ islandora_server = sh.ssh.bake(
 # https://regexr.com/
 def main(collection_id: "the Collection ID from ArchivesSpace"):
 
+    # NOTE we have to assume that PROCESSING_FILES is set correctly
+    stream_path = Path(config("PROCESSING_FILES")).joinpath(
+        f"{collection_id}-processing"
+    )
+
     try:
         (
             STAGE_2_ORIGINAL_FILES,
             COMPRESSED_ACCESS_FILES,
         ) = validate_settings()
     except Exception as e:
-        # # different emoji to indicate start of script for event listener
-        # message = (
-        #     "⛔️ There was a problem with the settings for the processing script.\n"
-        # )
-        # with open(stream_path, "a") as f:
-        #     f.write(message)
-        # # delete the stream file, otherwise it will continue trying to process
-        # stream_path.unlink(missing_ok=True)
-        # logging.error(message, exc_info=True)
+        # specific emoji required to indicate start of script for event listener
+        message = (
+            "⛔️ There was a problem with the settings for the processing script.\n"
+        )
+        with open(stream_path, "a") as f:
+            f.write(message)
+        logger.error(message, exc_info=True)
         raise
 
-    collection_directory = distill.get_collection_directory(
-        STAGE_2_ORIGINAL_FILES, collection_id
-    )
-    collection_uri = distill.get_collection_uri(collection_id)
-    collection_data = distill.get_collection_data(collection_uri)
+    with open(stream_path, "a") as f:
+        # specific emoji required to indicate start of script for event listener
+        f.write(f"📅 {datetime.now()}\n🦕 islandora processing\n🗄 {collection_id}\n")
+
+    try:
+        collection_directory = distill.get_collection_directory(
+            STAGE_2_ORIGINAL_FILES, collection_id
+        )
+        if collection_directory:
+            with open(stream_path, "a") as f:
+                f.write(
+                    f"✅ Collection directory for {collection_id} found on filesystem: {collection_directory}\n"
+                )
+        # TODO report on contents of collection_directory
+    except NotADirectoryError as e:
+        message = f"❌ No valid directory for {collection_id} was found on filesystem: {os.path.join(STAGE_2_ORIGINAL_FILES, collection_id)}\n"
+        with open(stream_path, "a") as f:
+            f.write(message)
+        logger.error(message, exc_info=True)
+        raise
+
+    try:
+        collection_uri = distill.get_collection_uri(collection_id)
+        if collection_uri:
+            with open(stream_path, "a") as f:
+                f.write(
+                    f"✅ Collection URI for {collection_id} found in ArchivesSpace: {collection_uri}\n"
+                )
+    except ValueError as e:
+        message = (
+            f"❌ No collection URI for {collection_id} was found in ArchivesSpace.\n"
+        )
+        with open(stream_path, "a") as f:
+            f.write(message)
+        logger.error(message, exc_info=True)
+        raise
+    except HTTPError as e:
+        message = f"❌ There was a problem with the connection to ArchivesSpace."
+        with open(stream_path, "a") as f:
+            f.write(message)
+        logger.error(message, exc_info=True)
+        raise
+
+    try:
+        collection_data = distill.get_collection_data(collection_uri)
+        if collection_data:
+            with open(stream_path, "a") as f:
+                f.write(
+                    f"✅ Collection data for {collection_id} retrieved from ArchivesSpace.\n"
+                )
+        # TODO report on contents of collection_data
+    except RuntimeError as e:
+        message = (
+            f"❌ No collection data for {collection_id} retrieved from ArchivesSpace.\n"
+        )
+        with open(stream_path, "a") as f:
+            f.write(message)
+        logger.error(message, exc_info=True)
+        raise
+    except HTTPError as e:
+        message = f"❌ There was a problem with the connection to ArchivesSpace.\n"
+        with open(stream_path, "a") as f:
+            f.write(message)
+        logger.error(message, exc_info=True)
+        raise
 
     # Set the directory for the Islandora collection files.
     # NOTE: The parent directory name is formatted for use as a PID:
