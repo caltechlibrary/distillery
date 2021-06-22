@@ -36,6 +36,10 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         # NOTE shutil.move() in Python < 3.9 needs strings as arguments
         try:
             shutil.move(
+                # TODO need to rethink file locations; some files may be explicitly not
+                # sent to islandora, so islandora.py should not look for files in the
+                # same place; probably need two different locations: one for when
+                # originals are not to be published and one for when they may be
                 str(os.path.join(config("STAGE_1_ORIGINAL_FILES"), collection_id)),
                 str(config("STAGE_2_ORIGINAL_FILES")),
             )
