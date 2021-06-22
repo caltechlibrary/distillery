@@ -466,6 +466,9 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
 
             # Post Digital Object Component to ArchivesSpace.
             try:
+                # TODO return URI of digital object component
+                # http://localhost:4321/resolve/readonly?uri=%2Frepositories%2F2%2Fdigital_object_components%2F108109
+                # http://localhost:4321/resolve/edit?uri=%2Frepositories%2F2%2Fdigital_object_components%2F108109
                 post_digital_object_component(digital_object_component)
                 with open(stream_path, "a") as f:
                     f.write(
@@ -489,6 +492,11 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
 
             # Move processed source file into `STAGE_2_ORIGINAL_FILES` with the structure
             # under `STAGE_1_ORIGINAL_FILES` (the `+ 1` strips a path seperator).
+
+            # TODO need to rethink file locations; some files may be explicitly not sent
+            # to islandora, so islandora.py should not look for files in the same place;
+            # probably need two different locations: one for when originals are not to
+            # be published and one for when they may be
             try:
                 os.renames(
                     filepath,
@@ -507,6 +515,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 continue
 
             # Remove generated `*-LOSSLESS.jp2` file.
+            # TODO redirect LOSSLESS.jp2 files for tape storage
             try:
                 os.remove(aip_image_data["filepath"])
             except OSError as e:
