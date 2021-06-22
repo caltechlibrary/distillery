@@ -33,7 +33,10 @@ from requests import HTTPError
 
 import distill  # TODO sh logs end up in distillery.log; why?
 
-logging.config.fileConfig("settings.ini", disable_existing_loggers=False)
+logging.config.fileConfig(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.ini"),
+    disable_existing_loggers=False,
+)
 # TODO need to understand more about naming the logger with __name__ and avoiding the
 # problem(?) with it looking for a logger named __main__
 # maybe we need a __main__.py file that calls distill.py and islandora.py?
