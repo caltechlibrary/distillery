@@ -414,9 +414,12 @@ def generate_islandora_page_datastreams(
     page_start = datetime.now()
 
     magick_cmd = sh.Command(config("MAGICK_CMD"))
-    magick_cmd.convert("-quiet", filepath, "-compress", "None", "/tmp/uncompressed.tiff")
+    magick_cmd.convert(
+        "-quiet", filepath, "-compress", "None", "/tmp/uncompressed.tiff"
+    )
 
-    ocr_generation = sh.tesseract(
+    tesseract_cmd = sh.Command(config("TESSERACT_CMD"))
+    ocr_generation = tesseract_cmd(
         "/tmp/uncompressed.tiff", "/tmp/tesseract", "txt", "hocr", _bg=True
     )
 
