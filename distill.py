@@ -58,6 +58,7 @@ s3_client = boto3.client(
 )
 # sys.exit  # TODO using for logging experiments
 
+
 def distill(collection_id: "the Collection ID from ArchivesSpace"):
 
     # NOTE we have to assume that PROCESSING_FILES is set correctly
@@ -93,7 +94,9 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
     # points of failure are messed up right away
 
     try:
-        collection_directory = get_collection_directory(STAGE_1_ORIGINAL_FILES, collection_id)
+        collection_directory = get_collection_directory(
+            STAGE_1_ORIGINAL_FILES, collection_id
+        )
         if collection_directory:
             with open(stream_path, "a") as f:
                 f.write(
@@ -490,11 +493,14 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 os.renames(
                     filepath,
                     os.path.join(
-                        STAGE_2_ORIGINAL_FILES, filepath[len(str(STAGE_1_ORIGINAL_FILES)) + 1 :]
+                        STAGE_2_ORIGINAL_FILES,
+                        filepath[len(str(STAGE_1_ORIGINAL_FILES)) + 1 :],
                     ),
                 )
             except OSError as e:
-                message = f"⚠️ Unable to move {filepath} to {STAGE_2_ORIGINAL_FILES}/.\n"
+                message = (
+                    f"⚠️ Unable to move {filepath} to {STAGE_2_ORIGINAL_FILES}/.\n"
+                )
                 logging.warning(message, exc_info=True)
                 # TODO set up notify
                 # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
@@ -1241,7 +1247,9 @@ def process_folder_metadata(folderpath):
 
 def save_collection_metadata(collection_data, STAGE_2_ORIGINAL_FILES):
     filename = os.path.join(
-        STAGE_2_ORIGINAL_FILES, collection_data["id_0"], f"{collection_data['id_0']}.json"
+        STAGE_2_ORIGINAL_FILES,
+        collection_data["id_0"],
+        f"{collection_data['id_0']}.json",
     )
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, "w") as f:
@@ -1258,11 +1266,15 @@ def set_digital_object_id(uri, digital_object_id):
 
 
 def validate_settings():
-    STAGE_1_ORIGINAL_FILES = Path(os.path.expanduser(config("STAGE_1_ORIGINAL_FILES"))).resolve(
+    STAGE_1_ORIGINAL_FILES = Path(
+        os.path.expanduser(config("STAGE_1_ORIGINAL_FILES"))
+    ).resolve(
         strict=True
     )  # NOTE do not create missing `STAGE_1_ORIGINAL_FILES`
     STAGE_2_ORIGINAL_FILES = directory_setup(
-        os.path.expanduser(config("STAGE_2_ORIGINAL_FILES", f"{STAGE_1_ORIGINAL_FILES}/S3"))
+        os.path.expanduser(
+            config("STAGE_2_ORIGINAL_FILES", f"{STAGE_1_ORIGINAL_FILES}/S3")
+        )
     ).resolve(strict=True)
     PRESERVATION_BUCKET = config(
         "PRESERVATION_BUCKET"
