@@ -31,13 +31,13 @@ from lxml import etree
 from lxml.builder import ElementMaker
 from requests import HTTPError
 
-import distill # TODO sh logs end up in distillery.log; why?
+import distill  # TODO sh logs end up in distillery.log; why?
 
-logging.config.fileConfig('settings.ini', disable_existing_loggers=False)
+logging.config.fileConfig("settings.ini", disable_existing_loggers=False)
 # TODO need to understand more about naming the logger with __name__ and avoiding the
 # problem(?) with it looking for a logger named __main__
 # maybe we need a __main__.py file that calls distill.py and islandora.py?
-logger = logging.getLogger('islandora')
+logger = logging.getLogger("islandora")
 logger.info("🦕 islandora")
 
 islandora_server = sh.ssh.bake(
@@ -54,7 +54,7 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
 
     try:
         (
-            UNCOMPRESSED_SOURCE_FILES,
+            STAGE_2_ORIGINAL_FILES,
             COMPRESSED_ACCESS_FILES,
         ) = validate_settings()
     except Exception as e:
@@ -70,7 +70,7 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
         raise
 
     collection_directory = distill.get_collection_directory(
-        UNCOMPRESSED_SOURCE_FILES, collection_id
+        STAGE_2_ORIGINAL_FILES, collection_id
     )
     collection_uri = distill.get_collection_uri(collection_id)
     collection_data = distill.get_collection_data(collection_uri)
@@ -199,7 +199,9 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
         # TODO how to structure this condition? it seems wrong to call a function inside here
         if "Sorry, no PIDS were found." in str(e.stderr, "utf-8"):
             # create a new collection because the identifier was not found
-            islandora_collection_pid = create_islandora_collection(islandora_staging_files)
+            islandora_collection_pid = create_islandora_collection(
+                islandora_staging_files
+            )
         else:
             raise e
 
@@ -209,7 +211,10 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
 
     # TODO write to ArchivesSpace digital object
 
-def add_books_to_islandora_collection(islandora_collection_pid, islandora_staging_files):
+
+def add_books_to_islandora_collection(
+    islandora_collection_pid, islandora_staging_files
+):
     ibbp = islandora_server(
         "drush",
         "--user=1",
@@ -231,7 +236,7 @@ def add_books_to_islandora_collection(islandora_collection_pid, islandora_stagin
     )
     # ibi is formatted like:
     # b'Ingested HBF:302.                                                           [ok]\nIngested HBF:303.                                                           [ok]\nIngested HBF:304.                                                           [ok]\nIngested HBF:301.                                                           [ok]\nProcessing complete; review the queue for some additional               [status]\ninformation.\n'
-    print(str(ibi.stderr, "utf-8")) # TODO log this
+    print(str(ibi.stderr, "utf-8"))  # TODO log this
     # TODO what should return?
 
 
@@ -294,6 +299,7 @@ def create_book_mods_xml(collection_data, folder_arrangement, folder_data, filep
             )
     return modsxml
 
+
 def create_islandora_collection(islandora_staging_files):
     # Islandora Batch with Derivatives allows us to set a PID for our new collection.
     # https://github.com/mjordan/islandora_batch_with_derivs#preserving-existing-pids-and-relationships
@@ -304,8 +310,8 @@ def create_islandora_collection(islandora_staging_files):
         "islandora_batch_with_derivs_preprocess",
         "--content_models=islandora:collectionCModel",
         "--key_datastream=MODS",
-        "--namespace=caltech", # TODO setting?
-        "--parent=islandora:root", # TODO setting?
+        "--namespace=caltech",  # TODO setting?
+        "--parent=islandora:root",  # TODO setting?
         f"--scan_target={islandora_staging_files}/collections",
         "--use_pids=TRUE",
     )
@@ -325,6 +331,7 @@ def create_islandora_collection(islandora_staging_files):
     # we capture just the namespace:id portion (caltech:ABC)
     collection_pid = str(ibi.stderr, "utf-8").split()[1].strip(".")
     return collection_pid
+
 
 def create_collection_mods_xml(collection_data):
     ns = "http://www.loc.gov/mods/v3"
@@ -512,17 +519,17 @@ def upload_to_islandora_server():
 
 
 def validate_settings():
-    UNCOMPRESSED_SOURCE_FILES = Path(
-        os.path.expanduser(config("UNCOMPRESSED_SOURCE_FILES"))
+    STAGE_2_ORIGINAL_FILES = Path(
+        os.path.expanduser(config("STAGE_2_ORIGINAL_FILES"))
     ).resolve(
         strict=True
-    )  # NOTE do not create missing `UNCOMPRESSED_SOURCE_FILES` directory
+    )  # NOTE do not create missing `STAGE_2_ORIGINAL_FILES` directory
     COMPRESSED_ACCESS_FILES = Path(
         os.path.expanduser(config("COMPRESSED_ACCESS_FILES"))
     ).resolve(
         strict=True
     )  # NOTE do not create missing `COMPRESSED_ACCESS_FILES` directory
-    return UNCOMPRESSED_SOURCE_FILES, COMPRESSED_ACCESS_FILES
+    return STAGE_2_ORIGINAL_FILES, COMPRESSED_ACCESS_FILES
 
 
 if __name__ == "__main__":
