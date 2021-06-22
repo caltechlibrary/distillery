@@ -172,6 +172,9 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
                     folder_arrangement,
                     folder_data,
                 )
+            except sh.ErrorReturnCode as e:
+                print(str(e))
+                continue
             except RuntimeError as e:
                 print(str(e))
                 continue
