@@ -527,9 +527,6 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
     with open(stream_path, "a") as f:
         f.write(f"🗄 Finished processing {collection_id}.\n📆 {datetime.now()}\n")
 
-    # this is to be run at the very end of the process, delete the file
-    stream_path.unlink(missing_ok=True)
-
     logging.info(f"🥃 finished distilling in {datetime.now() - time_start}\n")
 
 
