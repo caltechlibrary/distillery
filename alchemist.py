@@ -1,8 +1,8 @@
 # NOTE: this file is intended to be run via cron every minute
 # configure /path/to/python3 in `settings.ini`
 
-# TODO notification of errors from this file
-
+import logging
+import logging.config
 import os
 import shutil
 import subprocess
@@ -11,15 +11,28 @@ from glob import glob
 
 from decouple import config
 
+# NOTE the following logs deliberate output from this file as well as output from the
+# subprocesses; errors from running this file are output wherever the initiating process
+# (cron/launchd) sends them
+logging.config.fileConfig(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.ini"),
+    disable_existing_loggers=False,
+)
+logger = logging.getLogger("alchemist")
+
 for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
     # using rsplit() in case the collection_id contains a - (hyphen) character
     collection_id = os.path.basename(f).rsplit("-", 2)[0]
     PYTHON_CMD = config("PYTHON_CMD")
-    print(f"📅 {datetime.now()}")
-    print(f"🗄 {collection_id}")
+
+    logger.info(f"📅 {datetime.now()} begin")
+    logger.info(f"🗄 {collection_id}")
+
     if os.path.basename(f).split("-")[-1] == "report":
+        logger.info("⚗️ report processing")
         pass
     elif os.path.basename(f).split("-")[-1] == "preservation":
+        logger.info("⚗️ preservation processing")
         # delete the init file
         os.remove(f)
         subprocess.run(
@@ -30,6 +43,7 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
             ]
         )
     elif os.path.basename(f).split("-")[-1] == "access":
+        logger.info("⚗️ access processing")
         # delete the init file
         os.remove(f)
         # move the `collection_id` directory into `STAGE_2_ORIGINAL_FILES`
@@ -45,6 +59,10 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
             )
         except Exception as e:
             # TODO log a problem and notify
+            logger.error(
+                f"❌ unable to move directory: {str(os.path.join(config('STAGE_1_ORIGINAL_FILES'), collection_id))}"
+            )
+            logger.error(e)
             raise
         subprocess.run(
             [
@@ -57,6 +75,7 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
             ]
         )
     elif os.path.basename(f).split("-")[-1] == "preservation_access":
+        logger.info("⚗️ preservation & access processing")
         # delete the init file
         os.remove(f)
         subprocess.run(
@@ -79,3 +98,5 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
     else:
         # TODO log a message that an unknown file was found
         pass
+
+    logger.info(f"📆 {datetime.now()} end")
