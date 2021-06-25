@@ -1,11 +1,11 @@
 # NOTE: this file is intended to be run via cron every minute
-# configure /path/to/python3 in `settings.ini`
 
 import logging
 import logging.config
 import os
 import shutil
 import subprocess
+import sys
 from datetime import datetime
 from glob import glob
 
@@ -23,7 +23,6 @@ logger = logging.getLogger("alchemist")
 for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
     # using rsplit() in case the collection_id contains a - (hyphen) character
     collection_id = os.path.basename(f).rsplit("-", 2)[0]
-    PYTHON_CMD = config("PYTHON_CMD")
 
     logger.info(f"📅 {datetime.now()} begin")
     logger.info(f"🗄 {collection_id}")
@@ -38,7 +37,7 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         try:
             subprocess.run(
                 [
-                    PYTHON_CMD,
+                    sys.executable,
                     os.path.join(
                         os.path.dirname(os.path.abspath(__file__)), "distill.py"
                     ),
@@ -84,7 +83,7 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         try:
             subprocess.run(
                 [
-                    PYTHON_CMD,
+                    sys.executable,
                     os.path.join(
                         os.path.dirname(os.path.abspath(__file__)),
                         f"{config('ACCESS_PLATFORM')}.py",
@@ -104,7 +103,7 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         try:
             subprocess.run(
                 [
-                    PYTHON_CMD,
+                    sys.executable,
                     os.path.join(
                         os.path.dirname(os.path.abspath(__file__)), "distill.py"
                     ),
@@ -119,7 +118,7 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         try:
             subprocess.run(
                 [
-                    PYTHON_CMD,
+                    sys.executable,
                     os.path.join(
                         os.path.dirname(os.path.abspath(__file__)),
                         f"{config('ACCESS_PLATFORM')}.py",
