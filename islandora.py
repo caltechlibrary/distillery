@@ -33,15 +33,15 @@ from requests import HTTPError
 
 import distill  # TODO sh logs end up in distillery.log; why?
 
-logging.config.fileConfig(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.ini"),
-    disable_existing_loggers=False,
-)
-# TODO need to understand more about naming the logger with __name__ and avoiding the
-# problem(?) with it looking for a logger named __main__
-# maybe we need a __main__.py file that calls distill.py and islandora.py?
-logger = logging.getLogger("islandora")
-logger.info("🦕 islandora")
+# logging.config.fileConfig(
+#     os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.ini"),
+#     disable_existing_loggers=False,
+# )
+# # TODO need to understand more about naming the logger with __name__ and avoiding the
+# # problem(?) with it looking for a logger named __main__
+# # maybe we need a __main__.py file that calls distill.py and islandora.py?
+# logger = logging.getLogger("islandora")
+# logger.info("🦕 islandora")
 
 islandora_server = sh.ssh.bake(
     f"{config('ISLANDORA_SSH_USER')}@{config('ISLANDORA_SSH_HOST')}",
@@ -72,7 +72,7 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
         )
         with open(stream_path, "a") as f:
             f.write(message)
-        logger.error(message, exc_info=True)
+        # logger.error(message, exc_info=True)
         raise
 
     with open(stream_path, "a") as f:
@@ -93,7 +93,7 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
         message = f"❌ No valid directory for {collection_id} was found on filesystem: {os.path.join(STAGE_2_ORIGINAL_FILES, collection_id)}\n"
         with open(stream_path, "a") as f:
             f.write(message)
-        logger.error(message, exc_info=True)
+        # logger.error(message, exc_info=True)
         raise
 
     try:
@@ -109,13 +109,13 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
         )
         with open(stream_path, "a") as f:
             f.write(message)
-        logger.error(message, exc_info=True)
+        # logger.error(message, exc_info=True)
         raise
     except HTTPError as e:
         message = f"❌ There was a problem with the connection to ArchivesSpace."
         with open(stream_path, "a") as f:
             f.write(message)
-        logger.error(message, exc_info=True)
+        # logger.error(message, exc_info=True)
         raise
 
     try:
@@ -132,13 +132,13 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
         )
         with open(stream_path, "a") as f:
             f.write(message)
-        logger.error(message, exc_info=True)
+        # logger.error(message, exc_info=True)
         raise
     except HTTPError as e:
         message = f"❌ There was a problem with the connection to ArchivesSpace.\n"
         with open(stream_path, "a") as f:
             f.write(message)
-        logger.error(message, exc_info=True)
+        # logger.error(message, exc_info=True)
         raise
 
     # Set the directory for the Islandora collection files.

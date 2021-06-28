@@ -32,13 +32,13 @@ from requests import HTTPError
 # problem(?) with it looking for a logger named __main__
 # maybe we need a __main__.py file that calls distill.py and islandora.py?
 # logger = logging.getLogger('distillery')
-logging.basicConfig(
-    level=logging.DEBUG,
-    filename=config("LOG_FILE"),
-    format="%(asctime)s %(levelname)s - %(filename)s:%(lineno)d %(funcName)s - %(message)s",
-)
+# logging.basicConfig(
+#     level=logging.DEBUG,
+#     filename=config("LOG_FILE"),
+#     format="%(asctime)s %(levelname)s - %(filename)s:%(lineno)d %(funcName)s - %(message)s",
+# )
 
-logging.info("🛁 distilling")
+# logging.info("🛁 distilling")
 # logger.info("🛁 distilling")
 time_start = datetime.now()
 
@@ -79,7 +79,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         )
         with open(stream_path, "a") as f:
             f.write(message)
-        logging.error(message, exc_info=True)
+        # logging.error(message, exc_info=True)
         # TODO set up notify
         # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
@@ -105,7 +105,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         message = f"❌ No valid directory for {collection_id} was found on filesystem: {os.path.join(STAGE_2_ORIGINAL_FILES, collection_id)}\n"
         with open(stream_path, "a") as f:
             f.write(message)
-        logging.error(message, exc_info=True)
+        # logging.error(message, exc_info=True)
         # TODO set up notify
         # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
@@ -123,7 +123,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         )
         with open(stream_path, "a") as f:
             f.write(message)
-        logging.error(message, exc_info=True)
+        # logging.error(message, exc_info=True)
         # TODO set up notify
         # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
@@ -131,7 +131,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         message = f"❌ There was a problem with the connection to ArchivesSpace."
         with open(stream_path, "a") as f:
             f.write(message)
-        logging.error(message, exc_info=True)
+        # logging.error(message, exc_info=True)
         # TODO set up notify
         # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
@@ -150,7 +150,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         )
         with open(stream_path, "a") as f:
             f.write(message)
-        logging.error(message, exc_info=True)
+        # logging.error(message, exc_info=True)
         # TODO set up notify
         # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
@@ -158,7 +158,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         message = f"❌ There was a problem with the connection to ArchivesSpace.\n"
         with open(stream_path, "a") as f:
             f.write(message)
-        logging.error(message, exc_info=True)
+        # logging.error(message, exc_info=True)
         # TODO set up notify
         # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
@@ -177,7 +177,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         )
         with open(stream_path, "a") as f:
             f.write(message)
-        logging.error(message, exc_info=True)
+        # logging.error(message, exc_info=True)
         # TODO set up notify
         # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
@@ -185,7 +185,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         message = f"❌ There was a problem with the connection to ArchivesSpace.\n"
         with open(stream_path, "a") as f:
             f.write(message)
-        logging.error(message, exc_info=True)
+        # logging.error(message, exc_info=True)
         # TODO set up notify
         # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
@@ -201,7 +201,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         message = f"❌ Unable to save {collection_id}.json file to: {STAGE_3_ORIGINAL_FILES}/{collection_id}\n"
         with open(stream_path, "a") as f:
             f.write(message)
-        logging.error(message, exc_info=True)
+        # logging.error(message, exc_info=True)
         # TODO set up notify
         # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
@@ -227,7 +227,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
             )
             with open(stream_path, "a") as f:
                 f.write(message)
-            logging.error(message, exc_info=True)
+            # logging.error(message, exc_info=True)
             # TODO set up notify
             # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
             raise
@@ -264,7 +264,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
             message = f"⚠️ Unable to retrieve metadata for: {folderpath}\n↩️ Skipping {folderpath} folder.\n"
             with open(stream_path, "a") as f:
                 f.write(message)
-            logging.warning(message, exc_info=True)
+            # logging.warning(message, exc_info=True)
             # TODO set up notify
             # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
             # TODO increment file counter by the count of files in this folder
@@ -295,7 +295,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 )
                 with open(stream_path, "a") as f:
                     f.write(message)
-                logging.warning(message, exc_info=True)
+                # logging.warning(message, exc_info=True)
                 # TODO set up notify
                 # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
                 continue
@@ -343,7 +343,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 )
                 with open(stream_path, "a") as f:
                     f.write(message)
-                logging.warning(message, exc_info=True)
+                # logging.warning(message, exc_info=True)
                 # TODO set up notify
                 # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
                 continue
@@ -408,13 +408,13 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                     )
                     with open(stream_path, "a") as f:
                         f.write(message)
-                    logging.warning(message, exc_info=True)
+                    # logging.warning(message, exc_info=True)
                     # TODO set up notify
                     # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
                     # TODO cleanup
                     continue
                 else:
-                    logging.error(exc_info=True)
+                    # logging.error(exc_info=True)
                     raise e
 
             # Verify S3 ETag.
@@ -432,7 +432,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 )
                 with open(stream_path, "a") as f:
                     f.write(message)
-                logging.warning(message)
+                # logging.warning(message)
                 # TODO set up notify
                 # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
                 continue
@@ -459,13 +459,13 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 )
                 with open(stream_path, "a") as f:
                     f.write(message)
-                logging.warning(message, exc_info=True)
+                # logging.warning(message, exc_info=True)
                 # TODO set up notify
                 # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
                 # TODO programmatically remove file from bucket?
-                logging.warning(
-                    f"‼️ Clean up {aip_image_data['s3key']} file in {PRESERVATION_BUCKET} bucket.\n"
-                )
+                # logging.warning(
+                #     f"‼️ Clean up {aip_image_data['s3key']} file in {PRESERVATION_BUCKET} bucket.\n"
+                # )
                 continue
 
             # # Move processed source file into `STAGE_3_ORIGINAL_FILES` with the structure
@@ -498,7 +498,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 os.remove(aip_image_data["filepath"])
             except OSError as e:
                 message = f"⚠️ Unable to remove {aip_image_data['filepath']} file.\n"
-                logging.warning(message, exc_info=True)
+                # logging.warning(message, exc_info=True)
                 # TODO set up notify
                 # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
                 continue
@@ -514,7 +514,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
     with open(stream_path, "a") as f:
         f.write(f"🗄 Finished processing {collection_id}.\n📆 {datetime.now()}\n")
 
-    logging.info(f"🥃 finished distilling in {datetime.now() - time_start}\n")
+    # logging.info(f"🥃 finished distilling in {datetime.now() - time_start}\n")
 
 
 def calculate_pixel_signature(filepath):
@@ -568,9 +568,9 @@ def confirm_digital_object_id(folder_data):
                 )
                 # call get_folder_data() again to include updated digital_object_id
                 folder_data = get_folder_data(folder_data["component_id"])
-                logging.info(
-                    f"❇️ updated digital_object_id: {instance['digital_object']['_resolved']['digital_object_id']} ➡️ {folder_data['component_id']} {instance['digital_object']['ref']}"
-                )
+                # logging.info(
+                #     f"❇️ updated digital_object_id: {instance['digital_object']['_resolved']['digital_object_id']} ➡️ {folder_data['component_id']} {instance['digital_object']['ref']}"
+                # )
     return folder_data
 
 
@@ -648,9 +648,9 @@ def create_digital_object(folder_data):
     # call get_folder_data() again to include digital object instance
     folder_data = get_folder_data(folder_data["component_id"])
 
-    logging.info(
-        f"✳️ created digital object {digital_object['digital_object_id']} {digital_object_post_response.json()['uri']}"
-    )
+    # logging.info(
+    #     f"✳️ created digital object {digital_object['digital_object_id']} {digital_object_post_response.json()['uri']}"
+    # )
     return folder_data
 
 
@@ -812,9 +812,9 @@ def get_folder_arrangement(folder_data):
                                 f"Sub-Series record is missing component_id: {subseries['display_string']} {ancestor['ref']}"
                             )
             else:
-                logging.info(
-                    f"👀 series: {instance['sub_container']['top_container']['_resolved']['series']}"
-                )
+                # logging.info(
+                #     f"👀 series: {instance['sub_container']['top_container']['_resolved']['series']}"
+                # )
                 raise ValueError(
                     f"Missing series data for: {folder_data['component_id']}"
                 )
@@ -1020,9 +1020,9 @@ def prepare_digital_object_component(folder_data, PRESERVATION_BUCKET, aip_image
             ]["_resolved"]["uri"]
     if digital_object_component["digital_object"]["ref"]:
         pass
-    else:
-        # TODO(tk) figure out what to do if the folder has no digital objects
-        logging.info("😶 no digital object")
+    # else:
+    #     # TODO(tk) figure out what to do if the folder has no digital objects
+    #     logging.info("😶 no digital object")
     digital_object_component["component_id"] = aip_image_data["component_id"]
     if (
         aip_image_data["transformation"] == "5-3 reversible"
