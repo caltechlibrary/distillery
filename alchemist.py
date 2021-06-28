@@ -11,7 +11,7 @@ from glob import glob
 
 from decouple import config
 
-# NOTE the following logs deliberate output from this file as well as output from the
+# NOTE the following logs explicit output from this file as well as output from the
 # subprocesses; errors from running this file are output wherever the initiating process
 # (cron/launchd) sends them
 logging.config.fileConfig(
@@ -94,6 +94,7 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         except BaseException as e:
             logger.error(f"❌ {e.stdout.decode('utf-8')}")
     elif os.path.basename(f).split("-")[-1] == "access":
+        # TODO check for ACCESS_PLATFORM first
         logger.info("⚗️ access processing")
         # delete the init file
         os.remove(f)
@@ -114,6 +115,7 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         except BaseException as e:
             logger.error(f"❌ {e.stdout.decode('utf-8')}")
     elif os.path.basename(f).split("-")[-1] == "preservation_access":
+        # TODO check for ACCESS_PLATFORM first
         logger.info("⚗️ preservation & access processing")
         # delete the init file
         os.remove(f)
