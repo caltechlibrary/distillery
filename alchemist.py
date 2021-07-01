@@ -58,6 +58,8 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         with open(stream_path, "a") as stream:
             stream.write(message)
         logger.error(f"❌ {e}")
+        # remove the stream file because it only contains one error message
+        os.remove(stream_path)
         # we re-raise the exception because we cannot continue without the files
         raise
     except BaseException as e:
@@ -68,6 +70,8 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         with open(stream_path, "a") as stream:
             stream.write(message)
         logger.error(f"❌ {e}")
+        # remove the stream file because it only contains one error message
+        os.remove(stream_path)
         # we re-raise the exception because we cannot continue without the files
         raise
 
