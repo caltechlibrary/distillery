@@ -9,6 +9,7 @@ import sys
 from datetime import datetime
 from glob import glob
 
+import decouple
 from decouple import config
 
 # NOTE the following logs explicit output from this file as well as output from the
@@ -98,10 +99,18 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         except BaseException as e:
             logger.error(f"❌ {e.stdout.decode('utf-8')}")
     elif os.path.basename(f).split("-")[-1] == "access":
-        # TODO check for ACCESS_PLATFORM first
         logger.info("⚗️ access processing")
         # delete the init file
         os.remove(f)
+        # validate ACCESS_PLATFORM
+        try:
+            config("ACCESS_PLATFORM")
+        except decouple.UndefinedValueError as e:
+            message = "❌ ACCESS_PLATFORM not defined in settings file\n"
+            with open(stream_path, "a") as stream:
+                stream.write(message)
+            logger.error(f"❌ {e}")
+            raise
         try:
             subprocess.run(
                 [
@@ -119,10 +128,18 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         except BaseException as e:
             logger.error(f"❌ {e.stdout.decode('utf-8')}")
     elif os.path.basename(f).split("-")[-1] == "preservation_access":
-        # TODO check for ACCESS_PLATFORM first
         logger.info("⚗️ preservation & access processing")
         # delete the init file
         os.remove(f)
+        # validate ACCESS_PLATFORM
+        try:
+            config("ACCESS_PLATFORM")
+        except decouple.UndefinedValueError as e:
+            message = "❌ ACCESS_PLATFORM not defined in settings file\n"
+            with open(stream_path, "a") as stream:
+                stream.write(message)
+            logger.error(f"❌ {e}")
+            raise
         try:
             subprocess.run(
                 [
