@@ -42,9 +42,10 @@ def stream(collection_id):
     ) as f:
         for line in tailer.follow(f):
             # the event stream format starts with "data: " and ends with "\n\n"
-            if line.startswith("📅") or line.startswith("⛔️"):
-                # we send an event field targeting a specific listener
-                yield f"event: start\ndata: {line}\n\n"
+            # https://web.archive.org/web/20210701185847/https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format
+            if line.startswith("🟢"):
+                # we send an event field targeting a specific listener without data
+                yield f"event: init\n"
             else:
                 yield f"data: {line}\n\n"
             print(line)

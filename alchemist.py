@@ -25,13 +25,17 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
     # using rsplit() in case the collection_id contains a - (hyphen) character
     collection_id = os.path.basename(f).rsplit("-", 2)[0]
 
-    logger.info(f"📅 {datetime.now()} begin")
-    logger.info(f"🗄 {collection_id}")
-
     # NOTE we assume that PROCESSING_FILES is set correctly
     stream_path = os.path.join(
         config("PROCESSING_FILES"), f"{collection_id}-processing"
     )
+    with open(stream_path, "a") as stream:
+        # NOTE specific emoji used to indicate start of script for event listener
+        # SEE distillery.py:stream()
+        stream.write(f"🟢\n")
+
+    logger.info(f"📅 {datetime.now()} begin")
+    logger.info(f"🗄 {collection_id}")
 
     # move the `collection_id` directory into `STAGE_2_ORIGINAL_FILES`
     # NOTE shutil.move() in Python < 3.9 needs strings as arguments
@@ -54,8 +58,7 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
     except FileNotFoundError as e:
         # delete the init file to stop loop
         os.remove(f)
-        # NOTE specific emoji used to indicate start of script for event listener
-        message = f"⛔️ {collection_id} directory not found in {config('STAGE_1_ORIGINAL_FILES')}\n"
+        message = f"❌ {collection_id} directory not found in {config('STAGE_1_ORIGINAL_FILES')}\n"
         with open(stream_path, "a") as stream:
             stream.write(message)
         logger.error(f"❌ {e}")
@@ -66,8 +69,7 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
     except BaseException as e:
         # delete the init file to stop loop
         os.remove(f)
-        # NOTE specific emoji used to indicate start of script for event listener
-        message = "⛔️ unable to move the source files for processing\n"
+        message = "❌ unable to move the source files for processing\n"
         with open(stream_path, "a") as stream:
             stream.write(message)
         logger.error(f"❌ {e}")
