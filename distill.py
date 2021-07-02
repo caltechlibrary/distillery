@@ -65,6 +65,10 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
     stream_path = Path(config("PROCESSING_FILES")).joinpath(
         f"{collection_id}-processing"
     )
+    with open(stream_path, "a") as stream:
+        # NOTE specific emoji used to indicate start of script for event listener
+        # SEE distillery.py:stream()
+        stream.write(f"🟢\n")
 
     try:
         (
@@ -73,9 +77,8 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
             PRESERVATION_BUCKET,
         ) = validate_settings()
     except Exception as e:
-        # different emoji to indicate start of script for event listener
         message = (
-            "⛔️ There was a problem with the settings for the processing script.\n"
+            "❌ There was a problem with the settings for the processing script.\n"
         )
         with open(stream_path, "a") as f:
             f.write(message)
