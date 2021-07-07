@@ -149,7 +149,7 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
     islandora_collection_metadata_directory = os.path.join(
         COMPRESSED_ACCESS_FILES,
         "collections",
-        f"caltech+{collection_data['id_0']}",
+        f"caltech+{collection_data['id_0']}", # NOTE hardcoded namespace
     )
 
     # Set up the MODS XML for the collection.
@@ -216,6 +216,8 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
             ),
             modsxml,
         )
+
+        # TODO need a thumbnail for the book
 
         # Loop over filepaths list inside this folder.
         filepaths.sort(reverse=True)
