@@ -231,7 +231,15 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
                 )
             page_sequence = str(filecount_folder - len(filepaths)).zfill(4)
             try:
-                generate_islandora_page_datastreams(
+                (
+                    hocr_path,
+                    jp2_path,
+                    jpg_path,
+                    mods_path,
+                    obj_path,
+                    ocr_path,
+                    tn_path,
+                ) = generate_islandora_page_datastreams(
                     filepath,
                     page_sequence,
                     COMPRESSED_ACCESS_FILES,
@@ -239,6 +247,17 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
                     folder_arrangement,
                     folder_data,
                 )
+                # copy first page thumbnail to book-level thumbnail
+                if filecounter == 1:
+                    copyfile(
+                        tn_path,
+                        os.path.join(
+                            COMPRESSED_ACCESS_FILES,
+                            "books",
+                            folder_data["component_id"],
+                            "TN.jpg",
+                        ),
+                    )
             except sh.ErrorReturnCode as e:
                 print(str(e))
                 continue
@@ -559,6 +578,8 @@ def generate_islandora_page_datastreams(
     print(
         f" ⏳\t {os.path.basename(filepath)} processing time: {datetime.now() - page_start}"
     )
+
+    return (hocr_path, jp2_path, jpg_path, mods_path, obj_path, ocr_path, tn_path)
 
 
 def process_folder_metadata(folderpath):
