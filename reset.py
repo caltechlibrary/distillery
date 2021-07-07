@@ -21,6 +21,11 @@ for d in glob(os.path.join(config("STAGE_3_ORIGINAL_FILES"), "*/")):
     print(f"🔥 deleting {d}")
     shutil.rmtree(d)
 
+# remove directories from COMPRESSED_ACCESS_FILES
+for d in glob(os.path.join(config("COMPRESSED_ACCESS_FILES"), "*/")):
+    print(f"🔥 deleting {d}")
+    shutil.rmtree(d)
+
 # copy test data to STAGE_1_ORIGINAL_FILES and store collection identifiers for later
 collections = []
 for d in glob(
