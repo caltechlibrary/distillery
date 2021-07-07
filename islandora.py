@@ -70,9 +70,7 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
             COMPRESSED_ACCESS_FILES,
         ) = validate_settings()
     except Exception as e:
-        message = (
-            "❌ There was a problem with the settings for the processing script.\n"
-        )
+        message = "❌ There was a problem with the settings for the processing script.\n"
         with open(stream_path, "a") as f:
             f.write(message)
         # logger.error(message, exc_info=True)
@@ -149,7 +147,7 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
     islandora_collection_metadata_directory = os.path.join(
         COMPRESSED_ACCESS_FILES,
         "collections",
-        f"caltech+{collection_data['id_0']}", # NOTE hardcoded namespace
+        f"caltech+{collection_data['id_0']}",  # NOTE hardcoded namespace
     )
 
     # Set up the MODS XML for the collection.
