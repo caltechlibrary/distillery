@@ -71,58 +71,58 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
         ) = validate_settings()
     except Exception as e:
         message = "❌ There was a problem with the settings for the processing script.\n"
-        with open(stream_path, "a") as f:
-            f.write(message)
+        with open(stream_path, "a") as stream:
+            stream.write(message)
         # logger.error(message, exc_info=True)
         raise
 
-    with open(stream_path, "a") as f:
-        f.write(f"📅 {datetime.now()}\n🦕 islandora processing\n🗄 {collection_id}\n")
+    with open(stream_path, "a") as stream:
+        stream.write(f"📅 {datetime.now()}\n🦕 islandora processing\n🗄 {collection_id}\n")
 
     try:
         collection_directory = distill.get_collection_directory(
             STAGE_2_ORIGINAL_FILES, collection_id
         )
         if collection_directory:
-            with open(stream_path, "a") as f:
-                f.write(
+            with open(stream_path, "a") as stream:
+                stream.write(
                     f"✅ Collection directory for {collection_id} found on filesystem: {collection_directory}\n"
                 )
         # TODO report on contents of collection_directory
     except NotADirectoryError as e:
         message = f"❌ No valid directory for {collection_id} was found on filesystem: {os.path.join(STAGE_2_ORIGINAL_FILES, collection_id)}\n"
-        with open(stream_path, "a") as f:
-            f.write(message)
+        with open(stream_path, "a") as stream:
+            stream.write(message)
         # logger.error(message, exc_info=True)
         raise
 
     try:
         collection_uri = distill.get_collection_uri(collection_id)
         if collection_uri:
-            with open(stream_path, "a") as f:
-                f.write(
+            with open(stream_path, "a") as stream:
+                stream.write(
                     f"✅ Collection URI for {collection_id} found in ArchivesSpace: {collection_uri}\n"
                 )
     except ValueError as e:
         message = (
             f"❌ No collection URI for {collection_id} was found in ArchivesSpace.\n"
         )
-        with open(stream_path, "a") as f:
-            f.write(message)
+        with open(stream_path, "a") as stream:
+            stream.write(message)
         # logger.error(message, exc_info=True)
         raise
     except HTTPError as e:
         message = f"❌ There was a problem with the connection to ArchivesSpace."
-        with open(stream_path, "a") as f:
-            f.write(message)
+        with open(stream_path, "a") as stream:
+            stream.write(message)
         # logger.error(message, exc_info=True)
         raise
 
     try:
         collection_data = distill.get_collection_data(collection_uri)
         if collection_data:
-            with open(stream_path, "a") as f:
-                f.write(
+            with open(stream_path, "a") as stream:
+                stream.write(
                     f"✅ Collection data for {collection_id} retrieved from ArchivesSpace.\n"
                 )
         # TODO report on contents of collection_data
@@ -130,14 +130,14 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
         message = (
             f"❌ No collection data for {collection_id} retrieved from ArchivesSpace.\n"
         )
-        with open(stream_path, "a") as f:
-            f.write(message)
+        with open(stream_path, "a") as stream:
+            stream.write(message)
         # logger.error(message, exc_info=True)
         raise
     except HTTPError as e:
         message = f"❌ There was a problem with the connection to ArchivesSpace.\n"
-        with open(stream_path, "a") as f:
-            f.write(message)
+        with open(stream_path, "a") as stream:
+            stream.write(message)
         # logger.error(message, exc_info=True)
         raise
 
@@ -161,6 +161,10 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
         ),
         collection_mods_xml,
     )
+    with open(stream_path, "a") as stream:
+        stream.write(
+            f"✅ Created the MODS.xml file for the {collection_id} collection.\n"
+        )
 
     # Set up the COLLECTION_POLICY XML for the collection.
     collection_policy_xml = create_collection_policy_xml(collection_data)
@@ -173,6 +177,10 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
         ),
         collection_policy_xml,
     )
+    with open(stream_path, "a") as stream:
+        stream.write(
+            f"✅ Created the COLLECTION_POLICY.xml file for the {collection_id} collection.\n"
+        )
 
     folders, filecount = distill.prepare_folder_list(collection_directory)
     filecounter = 0
@@ -192,10 +200,24 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
 
         try:
             folder_arrangement, folder_data = process_folder_metadata(folderpath)
+            with open(stream_path, "a") as stream:
+                stream.write(
+                    f"✅ Folder data for {folder_data['component_id']} [{folder_data['display_string']}] retrieved from ArchivesSpace.\n"
+                )
         except RuntimeError as e:
-            print(str(e))
-            print(" ❌\t Unable to process folder metadata...")
-            print(f" \t ...skipping {folderpath}\n")
+            # NOTE possible error strings include:
+            # f"The component_id cannot be determined from the directory name: {os.path.basename(folderpath)}"
+            # f"The directory name does not correspond to the collection_id: {os.path.basename(folderpath)}"
+            # f"No records found with component_id: {component_id}"
+            # f"Multiple records found with component_id: {component_id}"
+            # f"The ArchivesSpace record for {folder_data['component_id']} contains multiple digital objects."
+            # f"Missing collection data for: {folder_data['component_id']}"
+            # f"Sub-Series record is missing component_id: {subseries['display_string']} {ancestor['ref']}"
+            # f"Missing series data for: {folder_data['component_id']}"
+            message = f"⚠️ Unable to retrieve metadata for: {folderpath}\n↩️ Skipping {folderpath} folder.\n"
+            with open(stream_path, "a") as stream:
+                stream.write(message)
+            # logging.warning(message, exc_info=True)
             # TODO increment file counter by the count of files in this folder
             continue
 
@@ -214,8 +236,10 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
             ),
             modsxml,
         )
-
-        # TODO need a thumbnail for the book
+        with open(stream_path, "a") as stream:
+            stream.write(
+                f"✅ Created the MODS.xml file for the {folder_data['component_id']} [{folder_data['display_string']}] folder.\n"
+            )
 
         # Loop over filepaths list inside this folder.
         filepaths.sort(reverse=True)
@@ -245,6 +269,8 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
                     folder_arrangement,
                     folder_data,
                 )
+                with open(stream_path, "a") as stream:
+                    stream.write(f"✅ Generated datastreams for: {os.path.basename(filepath)} [image {filecounter}/{filecount}]\n")
                 # copy first page thumbnail to book-level thumbnail
                 if filecounter == 1:
                     copyfile(
@@ -256,6 +282,8 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
                             "TN.jpg",
                         ),
                     )
+                    with open(stream_path, "a") as stream:
+                        stream.write(f"✅ Copied image {page_sequence} TN datastream to {folder_data['component_id']} [{folder_data['display_string']}] book-level TN datastream.\n")
             except sh.ErrorReturnCode as e:
                 print(str(e))
                 continue
@@ -266,6 +294,8 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
     # upload staging files to Islandora server
     try:
         islandora_staging_files = upload_to_islandora_server().strip()
+        with open(stream_path, "a") as stream:
+            stream.write("✅ Uploaded files to Islandora server.\n")
     except Exception as e:
         # TODO log something
         raise e
@@ -283,6 +313,8 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
             f"--solr_query='dc.identifier:caltech\:{collection_id} AND dc.type:Collection'",
         )
         islandora_collection_pid = idcrudfp.strip()
+        with open(stream_path, "a") as stream:
+            stream.write(f"✅ Existing Islandora collection found: {islandora_collection_pid}\n")
     except sh.ErrorReturnCode as e:
         # drush exits with a non-zero status when no PIDs are found,
         # which is interpreted as an error
@@ -292,12 +324,16 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
             islandora_collection_pid = create_islandora_collection(
                 islandora_staging_files
             )
+            with open(stream_path, "a") as stream:
+                stream.write(f"✅ Created new Islandora collection: {islandora_collection_pid}\n")
         else:
             raise e
 
     # add “books” to Islandora collection
     # TODO return something?
     add_books_to_islandora_collection(islandora_collection_pid, islandora_staging_files)
+    with open(stream_path, "a") as stream:
+        stream.write("✅ Ingested Islandora books.\n")
 
     # TODO write to ArchivesSpace digital object
 
