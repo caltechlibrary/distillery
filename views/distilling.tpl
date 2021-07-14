@@ -119,6 +119,7 @@
           <div class="double-bounce1"></div>
           <div class="double-bounce2"></div>
         </div>
+        <!-- document why #return and #anchor must be within #waiting initially -->
         <p id="return"><a href="/">return to form</a></p>
         <div id="anchor"></div>
       </div>
