@@ -147,7 +147,7 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
     islandora_collection_metadata_directory = os.path.join(
         COMPRESSED_ACCESS_FILES,
         "collections",
-        f"caltech+{collection_data['id_0']}",  # NOTE hardcoded namespace
+        f"caltech+{collection_id}",  # NOTE hardcoded namespace
     )
 
     # Set up the MODS XML for the collection.
@@ -186,6 +186,15 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
     filecounter = 0
 
     # Loop over folders list.
+    # The folders here will end up as Islandora Books.
+    # _data/HBF <-- looping over folders under here
+    # ├── HBF_000_XX
+    # ├── HBF_001_02
+    # │   ├── HBF_001_02_01.tif
+    # │   ├── HBF_001_02_02.tif
+    # │   ├── HBF_001_02_03.tif
+    # │   └── HBF_001_02_04.tif
+    # └── HBF_007_08
     folders.sort(reverse=True)
     for _ in range(len(folders)):
         # Using pop() (and/or range(len()) above) maybe helps to be sure that
@@ -231,7 +240,7 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
             os.path.join(
                 COMPRESSED_ACCESS_FILES,
                 "books",
-                folder_data["component_id"],
+                f"{collection_id}+{folder_data['component_id']}",
                 "MODS.xml",
             ),
             modsxml,
@@ -252,6 +261,7 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
                     f" ▶️\t {os.path.basename(filepath)} [image {filecounter}/{filecount}]"
                 )
             page_sequence = str(filecount_folder - len(filepaths)).zfill(4)
+            # TODO run this in the background in order to get a status indicator
             try:
                 (
                     hocr_path,
@@ -270,7 +280,9 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
                     folder_data,
                 )
                 with open(stream_path, "a") as stream:
-                    stream.write(f"✅ Generated datastreams for: {os.path.basename(filepath)} [image {filecounter}/{filecount}]\n")
+                    stream.write(
+                        f"✅ Generated datastreams for: {os.path.basename(filepath)} [image {filecounter}/{filecount}]\n"
+                    )
                 # copy first page thumbnail to book-level thumbnail
                 if filecounter == 1:
                     copyfile(
@@ -278,64 +290,108 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
                         os.path.join(
                             COMPRESSED_ACCESS_FILES,
                             "books",
-                            folder_data["component_id"],
+                            f"{collection_id}+{folder_data['component_id']}",
                             "TN.jpg",
                         ),
                     )
                     with open(stream_path, "a") as stream:
-                        stream.write(f"✅ Copied image {page_sequence} TN datastream to {folder_data['component_id']} [{folder_data['display_string']}] book-level TN datastream.\n")
+                        stream.write(
+                            f"✅ Copied image {page_sequence} TN datastream to {folder_data['component_id']} [{folder_data['display_string']}] book-level TN datastream.\n"
+                        )
             except sh.ErrorReturnCode as e:
+                # TODO message that there was a problem
+                # with open(stream_path, "a") as stream:
+                #     stream.write(f"✅ Generated datastreams for: {os.path.basename(filepath)} [image {filecounter}/{filecount}]\n")
                 print(str(e))
                 continue
             except RuntimeError as e:
                 print(str(e))
                 continue
 
-    # upload staging files to Islandora server
-    try:
-        islandora_staging_files = upload_to_islandora_server().strip()
-        with open(stream_path, "a") as stream:
-            stream.write("✅ Uploaded files to Islandora server.\n")
-    except Exception as e:
-        # TODO log something
-        raise e
-
-    # retrieve a collection pid from Islandora
-    try:
-        # run a solr query via drush for the expected collection pid
-        # NOTE: using dc fields for simpler syntax; a solr query string example using
-        # fedora fields would be:
-        # f"--solr_query='PID:caltech\:{collection_id} AND RELS_EXT_hasModel_uri_s:info\:fedora\/islandora\:collectionCModel'",
-        idcrudfp = islandora_server(
-            "drush",
-            f"--root={config('ISLANDORA_WEBROOT')}",
-            "islandora_datastream_crud_fetch_pids",
-            f"--solr_query='dc.identifier:caltech\:{collection_id} AND dc.type:Collection'",
-        )
-        islandora_collection_pid = idcrudfp.strip()
-        with open(stream_path, "a") as stream:
-            stream.write(f"✅ Existing Islandora collection found: {islandora_collection_pid}\n")
-    except sh.ErrorReturnCode as e:
-        # drush exits with a non-zero status when no PIDs are found,
-        # which is interpreted as an error
-        # TODO how to structure this condition? it seems wrong to call a function inside here
-        if "Sorry, no PIDS were found." in str(e.stderr, "utf-8"):
-            # create a new collection because the identifier was not found
-            islandora_collection_pid = create_islandora_collection(
-                islandora_staging_files
-            )
+        # upload book staging files to Islandora server
+        try:
+            islandora_staging_files = upload_to_islandora_server().strip()
             with open(stream_path, "a") as stream:
-                stream.write(f"✅ Created new Islandora collection: {islandora_collection_pid}\n")
-        else:
+                stream.write("✅ Uploaded files to Islandora server.\n")
+        except Exception as e:
+            # TODO log something
             raise e
 
-    # add “books” to Islandora collection
-    # TODO return something?
-    add_books_to_islandora_collection(islandora_collection_pid, islandora_staging_files)
-    with open(stream_path, "a") as stream:
-        stream.write("✅ Ingested Islandora books.\n")
+        # retrieve a collection pid from Islandora (existing or new)
+        try:
+            # run a solr query via drush for the expected collection pid
+            # NOTE: using dc fields for simpler syntax; a solr query string example using
+            # fedora fields would be:
+            # f"--solr_query='PID:caltech\:{collection_id} AND RELS_EXT_hasModel_uri_s:info\:fedora\/islandora\:collectionCModel'",
+            idcrudfp = islandora_server(
+                "drush",
+                f"--root={config('ISLANDORA_WEBROOT')}",
+                "islandora_datastream_crud_fetch_pids",
+                f"--solr_query='dc.identifier:caltech\:{collection_id} AND dc.type:Collection'",
+            )
+            islandora_collection_pid = idcrudfp.strip()
+            with open(stream_path, "a") as stream:
+                stream.write(
+                    f"✅ Existing Islandora collection found: {islandora_collection_pid}\n"
+                )
+        except sh.ErrorReturnCode as e:
+            # drush exits with a non-zero status when no PIDs are found,
+            # which is interpreted as an error
+            # TODO how to structure this condition? it seems wrong to call a function inside here
+            if "Sorry, no PIDS were found." in str(e.stderr, "utf-8"):
+                # create a new collection because the identifier was not found
+                islandora_collection_pid = create_islandora_collection(
+                    islandora_staging_files
+                )
+                with open(stream_path, "a") as stream:
+                    stream.write(
+                        f"✅ Created new Islandora collection: {islandora_collection_pid}\n"
+                    )
+            else:
+                raise e
 
-    # TODO write to ArchivesSpace digital object
+        # add “book” to Islandora collection
+        # TODO return something?
+        add_books_to_islandora_collection(
+            islandora_collection_pid, islandora_staging_files
+        )
+        with open(stream_path, "a") as stream:
+            stream.write("✅ Ingested Islandora books.\n")
+
+        # update ArchivesSpace digital object
+        # 1. prepare file_versions
+        file_versions = [
+            {
+                "file_uri": f"{config('ISLANDORA_URL').rstrip('/')}/islandora/object/{collection_id}:{folder_data['component_id']}",
+                "jsonmodel_type": "file_version",
+                "publish": True,
+            },
+            {
+                "file_uri": f"{config('ISLANDORA_URL').rstrip('/')}/islandora/object/{collection_id}:{folder_data['component_id']}/datastream/TN/view",
+                "jsonmodel_type": "file_version",
+                "publish": True,
+                "xlink_show_attribute": "embed",
+            },
+        ]
+        # 1. get existing single digital object id from archival_object record
+        # - distill.py:confirm_digital_object() will return folder_data that includes a single digital object id
+        try:
+            folder_data = distill.confirm_digital_object(folder_data)
+        except ValueError as e:
+            raise RuntimeError(str(e))
+        # 1. check for existing file_versions data on _resolved digital_object record
+        for instance in folder_data["instances"]:
+            if "digital_object" in instance.keys():
+                if instance["digital_object"]["_resolved"]["file_versions"]:
+                    raise RuntimeError(
+                        f"⚠️ uh oh, digital_object file_versions for {folder_data['component_id']} has data: {instance['digital_object']['ref']}"
+                    )
+                else:
+                    digital_object = instance["digital_object"]["_resolved"]
+        # 1. add prepared file_versions data to digital_object record
+        digital_object["file_versions"] = file_versions
+        # 1. post updated digital_object to ArchivesSpace
+        distill.update_digital_object(digital_object["uri"], digital_object)
 
 
 def add_books_to_islandora_collection(
@@ -544,7 +600,10 @@ def generate_islandora_page_datastreams(
     )
 
     page_datastreams_directory = os.path.join(
-        COMPRESSED_ACCESS_FILES, "books", folder_data["component_id"], page_sequence
+        COMPRESSED_ACCESS_FILES,
+        "books",
+        f"{collection_data['id_0']}+{folder_data['component_id']}",
+        page_sequence,
     )
     os.makedirs(page_datastreams_directory, exist_ok=True)
 

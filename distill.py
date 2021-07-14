@@ -1252,6 +1252,13 @@ def set_digital_object_id(uri, digital_object_id):
     return
 
 
+def update_digital_object(uri, data):
+    # raises an HTTPError exception if unsuccessful
+    response = asnake_client.post(uri, json=data)
+    response.raise_for_status()
+    return
+
+
 def validate_settings():
     STAGE_2_ORIGINAL_FILES = Path(
         os.path.expanduser(config("STAGE_2_ORIGINAL_FILES"))
