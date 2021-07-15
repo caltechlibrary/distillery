@@ -141,6 +141,12 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
         # logger.error(message, exc_info=True)
         raise
 
+    if not distill.collection_identifiers_match(collection_id, collection_data):
+        message = f"❌ The Collection ID from the form, {collection_id}, must exactly match the identifier in ArchivesSpace, {collection_data['id_0']}, including case-sensitively.\n"
+        with open(stream_path, "a") as stream:
+            stream.write(message)
+        raise ValueError(message)
+
     # Set the directory for the Islandora collection files.
     # NOTE: The parent directory name is formatted for use as a PID:
     # https://github.com/mjordan/islandora_batch_with_derivs#preserving-existing-pids-and-relationships
