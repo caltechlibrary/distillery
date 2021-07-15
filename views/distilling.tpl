@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <title>Processing {{collection_id}} | Distillery</title>
     <script>
+      function linkify(inputText) {
+          var replacedText, replacePattern;
+          //URLs starting with http:// or https://
+          replacePattern = /(\bhttps?:\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/gim;
+          replacedText = inputText.replace(replacePattern, '<a href="$1" target="_blank">$1</a>');
+          return replacedText;
+      }
       document.addEventListener("DOMContentLoaded", function() {
         // https://web.archive.org/web/20210602172836/https://developer.mozilla.org/en-US/docs/Web/API/EventSource
         const sse = new EventSource("distill/{{collection_id}}");
@@ -26,7 +33,7 @@
             eventList.appendChild(newElement);
           } else {
             var newElement = document.createElement("p");
-            newElement.textContent = e.data;
+            newElement.innerHTML = linkify(e.data);
             eventList.appendChild(newElement);
           }
         })
