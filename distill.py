@@ -718,13 +718,18 @@ def get_collection_data(collection_uri):
 
 
 def get_collection_directory(STAGE_2_ORIGINAL_FILES, collection_id):
+    # make a list of directory names to check against
+    entries = []
     for entry in os.scandir(STAGE_2_ORIGINAL_FILES):
-        if entry.is_dir and entry.name == collection_id:
-            return os.path.join(STAGE_2_ORIGINAL_FILES, collection_id)
-        else:
-            raise NotADirectoryError(
-                f"Missing or invalid collection directory: {os.path.join(STAGE_2_ORIGINAL_FILES, collection_id)}\n"
-            )
+        if entry.is_dir:
+            entries.append(entry.name)
+    # check that collection_id case matches directory name
+    if collection_id in entries:
+        return os.path.join(STAGE_2_ORIGINAL_FILES, collection_id)
+    else:
+        raise NotADirectoryError(
+            f"Missing or invalid collection directory: {os.path.join(STAGE_2_ORIGINAL_FILES, collection_id)}\n"
+        )
 
 
 def get_collection_tree(collection_uri):
