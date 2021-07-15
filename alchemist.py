@@ -40,21 +40,35 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
     # move the `collection_id` directory into `STAGE_2_ORIGINAL_FILES`
     # NOTE shutil.move() in Python < 3.9 needs strings as arguments
     try:
-        if os.path.isdir(os.path.join(config("STAGE_2_ORIGINAL_FILES"), collection_id)):
-            # NOTE using copy+rm in order to not destroy an existing destination structure
-            shutil.copytree(
-                str(os.path.join(config("STAGE_1_ORIGINAL_FILES"), collection_id)),
-                str(config("STAGE_2_ORIGINAL_FILES")),
-                dirs_exist_ok=True,
-            )
-            shutil.rmtree(
-                str(os.path.join(config("STAGE_1_ORIGINAL_FILES"), collection_id))
-            )
+        # make a list of directory names to check against
+        entries = []
+        for entry in os.scandir(config("STAGE_1_ORIGINAL_FILES")):
+            if entry.is_dir:
+                entries.append(entry.name)
+        # check that collection_id case matches directory name
+        if collection_id in entries:
+            if os.path.isdir(
+                os.path.join(config("STAGE_2_ORIGINAL_FILES"), collection_id)
+            ):
+                # NOTE using copy+rm in order to not destroy an existing destination structure
+                shutil.copytree(
+                    str(os.path.join(config("STAGE_1_ORIGINAL_FILES"), collection_id)),
+                    str(config("STAGE_2_ORIGINAL_FILES")),
+                    dirs_exist_ok=True,
+                )
+                shutil.rmtree(
+                    str(os.path.join(config("STAGE_1_ORIGINAL_FILES"), collection_id))
+                )
+            else:
+                shutil.move(
+                    str(os.path.join(config("STAGE_1_ORIGINAL_FILES"), collection_id)),
+                    str(config("STAGE_2_ORIGINAL_FILES")),
+                )
         else:
-            shutil.move(
-                str(os.path.join(config("STAGE_1_ORIGINAL_FILES"), collection_id)),
-                str(config("STAGE_2_ORIGINAL_FILES")),
-            )
+            message = f"❌ no directory name matching {collection_id} in {config('STAGE_1_ORIGINAL_FILES')}\n"
+            with open(stream_path, "a") as stream:
+                stream.write(message)
+            raise NotADirectoryError(message)
     except FileNotFoundError as e:
         # delete the init file to stop loop
         os.remove(f)
@@ -100,6 +114,7 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
             )
         except BaseException as e:
             logger.error(f"❌ {e.stdout.decode('utf-8')}")
+            raise
     elif os.path.basename(f).split("-")[-1] == "access":
         logger.info("⚗️ access processing")
         # delete the init file
@@ -129,6 +144,7 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
             )
         except BaseException as e:
             logger.error(f"❌ {e.stdout.decode('utf-8')}")
+            raise
     elif os.path.basename(f).split("-")[-1] == "preservation_access":
         logger.info("⚗️ preservation & access processing")
         # delete the init file
@@ -170,6 +186,7 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
             )
         except BaseException as e:
             logger.error(f"❌ {e.stdout.decode('utf-8')}")
+            raise
     else:
         # TODO log a message that an unknown file was found
         pass
@@ -197,6 +214,7 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         with open(stream_path, "a") as stream:
             stream.write(message)
         logger.error(f"❌ {e}")
+        raise
 
     # move the `*-processing` file to `STAGE_3_ORIGINAL_FILES`
     try:
@@ -214,5 +232,6 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         with open(stream_path, "a") as stream:
             stream.write(message)
         logger.error(f"❌ {e}")
+        raise
 
     logger.info(f"📆 {datetime.now()} end")

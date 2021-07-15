@@ -77,9 +77,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
             PRESERVATION_BUCKET,
         ) = validate_settings()
     except Exception as e:
-        message = (
-            "❌ There was a problem with the settings for the processing script.\n"
-        )
+        message = "❌ There was a problem with the settings for the processing script.\n"
         with open(stream_path, "a") as f:
             f.write(message)
         # logging.error(message, exc_info=True)
@@ -131,7 +129,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
     except HTTPError as e:
-        message = f"❌ There was a problem with the connection to ArchivesSpace."
+        message = f"❌ There was a problem with the connection to ArchivesSpace.\n"
         with open(stream_path, "a") as f:
             f.write(message)
         # logging.error(message, exc_info=True)
@@ -165,6 +163,12 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         # TODO set up notify
         # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
+
+    if not collection_identifiers_match(collection_id, collection_data):
+        message = f"❌ The Collection ID from the form, {collection_id}, must exactly match the identifier in ArchivesSpace, {collection_data['id_0']}, including case-sensitively.\n"
+        with open(stream_path, "a") as f:
+            f.write(message)
+        raise ValueError(message)
 
     try:
         collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
@@ -541,6 +545,12 @@ def calculate_pixel_signature(filepath):
     )
 
 
+def collection_identifiers_match(collection_id, collection_data):
+    if collection_id != collection_data["id_0"]:
+        return False
+    return True
+
+
 def confirm_digital_object(folder_data):
     digital_object_count = 0
     for instance in folder_data["instances"]:
@@ -708,12 +718,13 @@ def get_collection_data(collection_uri):
 
 
 def get_collection_directory(STAGE_2_ORIGINAL_FILES, collection_id):
-    if os.path.isdir(os.path.join(STAGE_2_ORIGINAL_FILES, collection_id)):
-        return os.path.join(STAGE_2_ORIGINAL_FILES, collection_id)
-    else:
-        raise NotADirectoryError(
-            f"Missing or invalid collection directory: {os.path.join(STAGE_2_ORIGINAL_FILES, collection_id)}\n"
-        )
+    for entry in os.scandir(STAGE_2_ORIGINAL_FILES):
+        if entry.is_dir and entry.name == collection_id:
+            return os.path.join(STAGE_2_ORIGINAL_FILES, collection_id)
+        else:
+            raise NotADirectoryError(
+                f"Missing or invalid collection directory: {os.path.join(STAGE_2_ORIGINAL_FILES, collection_id)}\n"
+            )
 
 
 def get_collection_tree(collection_uri):
@@ -730,20 +741,14 @@ def get_collection_tree(collection_uri):
 def get_collection_uri(collection_id):
     # raises an HTTPError exception if unsuccessful
     search_results_json = asnake_client.get(
-        '/repositories/2/search?page=1&page_size=1&type[]=resource&fields[]=uri&aq={"query":{"field":"identifier","value":"'
-        + collection_id
-        + '","jsonmodel_type":"field_query","negated":false,"literal":false}}'
+        f'/repositories/2/find_by_id/resources?identifier[]=["{collection_id}"]'
     ).json()
-    if len(search_results_json["results"]) < 1:
+    if len(search_results_json["resources"]) < 1:
         raise ValueError(
             f"No collection found in ArchivesSpace with the ID: {collection_id}\n"
         )
-    elif len(search_results_json["results"]) > 1:
-        raise ValueError(
-            f"Multiple collections found in ArchivesSpace with the ID: {collection_id}\n"
-        )
     else:
-        return search_results_json["results"][0]["uri"]
+        return search_results_json["resources"][0]["ref"]
 
 
 def get_crockford_characters(n=4):
