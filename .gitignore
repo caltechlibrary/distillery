@@ -3,4 +3,5 @@ settings.ini
 
 # DEVELOPMENT
 __pycache__
+_data
 .vscode

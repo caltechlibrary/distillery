@@ -27,7 +27,7 @@
         <p>Enter a Collection ID as it appears in ArchivesSpace and the folder name on the filesystem:</p>
         <label for="collection_id">Collection ID</label>
         <input id="collection_id" name="collection_id" type="text" pattern="^[a-zA-Z0-9-\.~_]+$" title="only letters, numbers, hyphens, periods, tildes, and underscores allowed" required>
-        <div><small>examples: HaleGE, HBF, etc.</small></div>
+        <div><small>examples: HaleGE, HBF, etc. (case-sensitive)</small></div>
         <p>Select the process you would like to run for the Collection:</p>
         <input type="radio" id="report" name="process" value="report" required disabled>
         <label for="report">Preview Report</label>

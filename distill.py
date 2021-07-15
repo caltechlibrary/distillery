@@ -45,7 +45,7 @@ time_start = datetime.now()
 # TODO do we need a class? https://stackoverflow.com/a/16502408/4100024
 # we have 8 functions that need an authorized connection to ArchivesSpace
 asnake_client = ASnakeClient(
-    baseurl=config("ASPACE_BASEURL"),
+    baseurl=config("ASPACE_API_URL"),
     username=config("ASPACE_USERNAME"),
     password=config("ASPACE_PASSWORD"),
 )
@@ -116,7 +116,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         if collection_uri:
             with open(stream_path, "a") as f:
                 f.write(
-                    f"✅ Collection URI for {collection_id} found in ArchivesSpace: {collection_uri}\n"
+                    f"✅ Collection URI for {collection_id} found in ArchivesSpace. [{config('ASPACE_STAFF_URL')}/resolve/readonly?uri={collection_uri}]\n"
                 )
     except ValueError as e:
         message = (
@@ -256,7 +256,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
             folder_arrangement, folder_data = process_folder_metadata(folderpath)
             with open(stream_path, "a") as f:
                 f.write(
-                    f"✅ Folder data for {folder_data['component_id']} [{folder_data['display_string']}] retrieved from ArchivesSpace.\n"
+                    f"✅ Folder data for {folder_data['component_id']} ({folder_data['display_string']}) retrieved from ArchivesSpace. [{config('ASPACE_STAFF_URL')}/resolve/readonly?uri={folder_data['uri']}]\n"
                 )
         except RuntimeError as e:
             # NOTE possible error strings include:
@@ -454,15 +454,15 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 # TODO return URI of digital object component
                 # http://localhost:4321/resolve/readonly?uri=%2Frepositories%2F2%2Fdigital_object_components%2F108109
                 # http://localhost:4321/resolve/edit?uri=%2Frepositories%2F2%2Fdigital_object_components%2F108109
-                post_digital_object_component(digital_object_component)
+                digital_object_component_post_response = post_digital_object_component(digital_object_component).json()
                 with open(stream_path, "a") as f:
                     f.write(
-                        f"✅ Created Digital Object Component {digital_object_component['label']} / {digital_object_component['component_id']} for {folder_data['title']} in ArchivesSpace.\n"
+                        f"✅ Created Digital Object Component for {Path(filepath).stem} ({digital_object_component['component_id']}) in ArchivesSpace. [{config('ASPACE_STAFF_URL')}/resolve/readonly?uri={digital_object_component_post_response['uri']}]\n"
                     )
-            except HTTPError as e:
+            except BaseException as e:
                 message = (
-                    f"⚠️ Unable to create Digital Object Component for {folder_data['component_id']} in ArchivesSpace.\n"
-                    f"↩️ Skipping.\n"
+                    f"⚠️ Unable to create Digital Object Component for {Path(filepath).stem} in ArchivesSpace.\n"
+                    f"↩️ Skipping. //TODO: DLD has been notified.\n"
                 )
                 with open(stream_path, "a") as f:
                     f.write(message)
