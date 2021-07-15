@@ -1,6 +1,11 @@
 # PUBLISH ACCESS FILES AND METADATA TO ISLANDORA
 # generate image files and metadata for display
 
+# NOTE: be sure that the islandora_batch moduel is patched on the Islandora server;
+# publishing the correct file_uri in ArchivesSpace for digital objects relies on a
+# patched islandora_batch module so PIDs can be specified for bookCModel objects
+# SEE https://github.com/caltechlibrary/islandora_batch/commit/9968d30e68f3a12b03a071b45ada4d20a6c6b04b
+
 # Islandora 7
 # steps:
 # - MODS XML, folder level
@@ -365,6 +370,9 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
             stream.write("✅ Ingested Islandora books.\n")
 
         # update ArchivesSpace digital object
+        # NOTE: the file_uri value used below relies on a patched islandora_batch module
+        # which allows PIDs to be specified for bookCModel objects
+        # SEE https://github.com/caltechlibrary/islandora_batch/commit/9968d30e68f3a12b03a071b45ada4d20a6c6b04b
         # 1. prepare file_versions
         file_versions = [
             {
