@@ -27,20 +27,13 @@ from decouple import config
 from jpylyzer import jpylyzer
 from requests import HTTPError
 
-# logging.config.fileConfig('settings.ini', disable_existing_loggers=False)
-# TODO need to understand more about naming the logger with __name__ and avoiding the
-# problem(?) with it looking for a logger named __main__
-# maybe we need a __main__.py file that calls distill.py and islandora.py?
-# logger = logging.getLogger('distillery')
-# logging.basicConfig(
-#     level=logging.DEBUG,
-#     filename=config("LOG_FILE"),
-#     format="%(asctime)s %(levelname)s - %(filename)s:%(lineno)d %(funcName)s - %(message)s",
-# )
-
-# logging.info("🛁 distilling")
-# logger.info("🛁 distilling")
-time_start = datetime.now()
+logging.config.fileConfig(
+    # set the logging configuration in the settings.ini file
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.ini"),
+    disable_existing_loggers=False,
+)
+logger = logging.getLogger("distill")
+archivesspace_logger = logging.getLogger("archivesspace")
 
 # TODO do we need a class? https://stackoverflow.com/a/16502408/4100024
 # we have 8 functions that need an authorized connection to ArchivesSpace
@@ -56,10 +49,12 @@ s3_client = boto3.client(
     aws_access_key_id=config("AWS_ACCESS_KEY"),
     aws_secret_access_key=config("AWS_SECRET_KEY"),
 )
-# sys.exit  # TODO using for logging experiments
 
 
 def distill(collection_id: "the Collection ID from ArchivesSpace"):
+
+    logger.info("🛁 distilling")
+    time_start = datetime.now()
 
     # NOTE we have to assume that PROCESSING_FILES is set correctly
     stream_path = Path(config("PROCESSING_FILES")).joinpath(
@@ -245,13 +240,28 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
     filecounter = 0
 
     # Loop over folders list.
+    # The folders here will end up as Islandora Books.
+    # _data/HBF <-- looping over folders under here
+    # ├── HBF_000_XX
+    # ├── HBF_001_02
+    # │   ├── HBF_001_02_01.tif
+    # │   ├── HBF_001_02_02.tif
+    # │   ├── HBF_001_02_03.tif
+    # │   └── HBF_001_02_04.tif
+    # └── HBF_007_08
     folders.sort(reverse=True)
     for _ in range(len(folders)):
         # Using pop() (and/or range(len()) above) maybe helps to be sure that
         # if folder metadata fails to process properly, it and its images are
         # skipped completely and the script moves on to the next folder.
         folderpath = folders.pop()
-        # TODO find out how to properly catch exceptions here
+
+        # Set up list of TIFF paths for the current folder.
+        filepaths = prepare_filepaths_list(folderpath)
+        # Avoid processing folder when there are no files.
+        if not filepaths:
+            continue
+
         try:
             folder_arrangement, folder_data = process_folder_metadata(folderpath)
             with open(stream_path, "a") as f:
@@ -308,9 +318,6 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 continue
             else:
                 raise e
-
-        # Set up list of TIFF paths for the current folder.
-        filepaths = prepare_filepaths_list(folderpath)
 
         # NOTE: We reverse the sort for use with pop() and so the components
         # will be ingested in the correct order for the digital object tree.
@@ -454,7 +461,9 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 # TODO return URI of digital object component
                 # http://localhost:4321/resolve/readonly?uri=%2Frepositories%2F2%2Fdigital_object_components%2F108109
                 # http://localhost:4321/resolve/edit?uri=%2Frepositories%2F2%2Fdigital_object_components%2F108109
-                digital_object_component_post_response = post_digital_object_component(digital_object_component).json()
+                digital_object_component_post_response = post_digital_object_component(
+                    digital_object_component
+                ).json()
                 with open(stream_path, "a") as f:
                     f.write(
                         f"✅ Created Digital Object Component for {Path(filepath).stem} ({digital_object_component['component_id']}) in ArchivesSpace. [{config('ASPACE_STAFF_URL')}/resolve/readonly?uri={digital_object_component_post_response['uri']}]\n"
@@ -515,7 +524,7 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
 
         with open(stream_path, "a") as f:
             f.write(
-                f"📁 Finished processing folder {folder_data['component_id']} [{folder_data['display_string']}].\n"
+                f"📁 Finished processing folder {folder_data['component_id']} ({folder_data['display_string']}).\n"
             )
 
     with open(stream_path, "a") as f:
@@ -640,6 +649,8 @@ def create_digital_object(folder_data):
                     f" ⚠️\t non-unique digital_object_id: {folder_data['component_id']}"
                 )
     digital_object_post_response.raise_for_status()
+
+    archivesspace_logger.info(digital_object_post_response.json()["uri"])
 
     # set up a digital object instance to add to the archival object
     digital_object_instance = {
@@ -1008,6 +1019,7 @@ def post_digital_object_component(json_data):
         "/repositories/2/digital_object_components", json=json_data
     )
     post_response.raise_for_status()
+    archivesspace_logger.info(post_response.json()["uri"])
     return post_response
 
 
