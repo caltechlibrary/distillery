@@ -1,4 +1,5 @@
-# NOTE: this file is intended to be run via cron every minute
+# file: alchemist.py
+# NOTE: this file is intended to be run every minute (via cron/launchd)
 
 import logging
 import logging.config
@@ -12,15 +13,17 @@ from glob import glob
 import decouple
 from decouple import config
 
-# NOTE the following logs explicit output from this file as well as output from the
-# subprocesses; errors from running this file are output wherever the initiating process
-# (cron/launchd) sends them
+# NOTE: the following configuration is for explicit output from this file as well as
+# output from the subprocesses; any errors from running this file are output wherever
+# the initiating process (cron/launchd) sends them
 logging.config.fileConfig(
+    # set the logging configuration in the settings.ini file
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.ini"),
     disable_existing_loggers=False,
 )
 logger = logging.getLogger("alchemist")
 
+# the main loop which checks for init files in the PROCESSING_FILES directory
 for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
     # using rsplit() in case the collection_id contains a - (hyphen) character
     collection_id = os.path.basename(f).rsplit("-", 2)[0]

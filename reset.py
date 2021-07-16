@@ -4,7 +4,29 @@ from datetime import datetime
 from glob import glob
 
 import sh
+from asnake.client import ASnakeClient
 from decouple import config
+from requests import HTTPError
+
+# delete created ArchivesSpace objects
+asnake_client = ASnakeClient(
+    baseurl=config("ASPACE_API_URL"),
+    username=config("ASPACE_USERNAME"),
+    password=config("ASPACE_PASSWORD"),
+)
+asnake_client.authorize()
+# delete all digital_object_components before digital_objects
+for uri in ["/repositories/2/digital_object_components/", "/repositories/2/digital_objects/"]:
+    with open(os.path.join(os.path.dirname(os.path.abspath(config("LOG_FILE"))), "archivesspace.log")) as log:
+        lines = log.readlines()
+        for line in lines:
+            if line.startswith(uri):
+                try:
+                    print(f"🔥 deleting {line.strip()}")
+                    delete_response = asnake_client.delete(line.strip())
+                    delete_response.raise_for_status()
+                except HTTPError as e:
+                    print(f"⚠️ {e}")
 
 # remove directories from STAGE_1_ORIGINAL_FILES
 for d in glob(os.path.join(config("STAGE_1_ORIGINAL_FILES"), "*/")):

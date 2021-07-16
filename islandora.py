@@ -36,17 +36,14 @@ from lxml import etree
 from lxml.builder import ElementMaker
 from requests import HTTPError
 
-import distill  # TODO sh logs end up in distillery.log; why?
+import distill
 
-# logging.config.fileConfig(
-#     os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.ini"),
-#     disable_existing_loggers=False,
-# )
-# # TODO need to understand more about naming the logger with __name__ and avoiding the
-# # problem(?) with it looking for a logger named __main__
-# # maybe we need a __main__.py file that calls distill.py and islandora.py?
-# logger = logging.getLogger("islandora")
-# logger.info("🦕 islandora")
+logging.config.fileConfig(
+    # set the logging configuration in the settings.ini file
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.ini"),
+    disable_existing_loggers=False,
+)
+logger = logging.getLogger("islandora")
 
 islandora_server = sh.ssh.bake(
     f"{config('ISLANDORA_SSH_USER')}@{config('ISLANDORA_SSH_HOST')}",
@@ -60,6 +57,8 @@ islandora_server = sh.ssh.bake(
 # https://regexr.com/
 def main(collection_id: "the Collection ID from ArchivesSpace"):
 
+    logger.info("🦕 islandora")
+
     # NOTE we have to assume that PROCESSING_FILES is set correctly
     stream_path = Path(config("PROCESSING_FILES")).joinpath(
         f"{collection_id}-processing"
@@ -67,6 +66,8 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
     with open(stream_path, "a") as stream:
         # NOTE specific emoji used to indicate start of script for event listener
         # SEE distillery.py:stream()
+        # TODO we need some kind of condition to know if stream has started already
+        # because with Preservation & Access option autoscrolling breaks here
         stream.write(f"🟢\n")
 
     try:
