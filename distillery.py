@@ -11,8 +11,13 @@ from gevent import monkey; monkey.patch_all()
 from pathlib import Path
 
 import tailer
-from bottle import get, post, request, response, run, template
+from bottle import default_app, error, get, post, request, response, run, template
 from decouple import config
+
+
+@error(403)
+def error403(error):
+    return "Please contact Archives & Special Collections or Digital Library Development if you should have access."
 
 
 @get("/")
@@ -48,8 +53,10 @@ def stream(collection_id):
                 yield f"event: init\n"
             else:
                 yield f"data: {line}\n\n"
-            print(line)
 
 
 if __name__ == "__main__":
     run(host="localhost", port=1234, server="gevent", reloader=True, debug=True)
+else:
+    # for attaching Bottle to Apache using mod_wsgi
+    application = default_app()
