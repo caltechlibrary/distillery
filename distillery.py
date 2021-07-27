@@ -8,10 +8,21 @@
 from gevent import monkey; monkey.patch_all()
 # fmt: on
 
+from csv import DictReader
 from pathlib import Path
 
 import tailer
-from bottle import default_app, error, get, post, request, response, run, template
+from bottle import (
+    abort,
+    default_app,
+    error,
+    get,
+    post,
+    request,
+    response,
+    run,
+    template,
+)
 from decouple import config
 
 
@@ -22,7 +33,8 @@ def error403(error):
 
 @get("/")
 def form_collection_id():
-    return template("form")
+    # we pass the user dictionary to the template
+    return template("form", user=authorize_user())
 
 
 @post("/distilling")
@@ -55,8 +67,35 @@ def stream(collection_id):
                 yield f"data: {line}\n\n"
 
 
+def authorize_user():
+    if debug_user:
+        # debug_user is set when running bottle locally
+        return debug_user
+    elif request.environ.get("REMOTE_USER", None):
+        # REMOTE_USER will be set by basic auth and shibboleth
+        username = request.environ["REMOTE_USER"]
+        # we check the username against our authorized users.csv file
+        with open(Path(__file__).parent.resolve().joinpath("users.csv")) as csvfile:
+            users = DictReader(csvfile)
+            for user in users:
+                if user["username"] == username:
+                    print(user)
+                    return user
+        abort(403)
+    else:
+        abort(403)
+
+
 if __name__ == "__main__":
+    # supply a user when running bottle locally
+    debug_user = {
+        "username": "hello",
+        "display_name": "World!",
+        "email_address": "hello@example.com",
+    }
     run(host="localhost", port=1234, server="gevent", reloader=True, debug=True)
 else:
+    # set the variable to avoid a NameError
+    debug_user = False
     # for attaching Bottle to Apache using mod_wsgi
     application = default_app()

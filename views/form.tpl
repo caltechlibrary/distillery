@@ -23,6 +23,10 @@
 </head>
 
 <body>
+    <p>
+        <div>Hello, {{user["display_name"]}}!</div>
+        <div><a href="/Shibboleth.sso/Logout">log out</a></div>
+    </p>
     <form action="/distilling" method="post">
         <p>Enter a Collection ID as it appears in ArchivesSpace and the folder name on the filesystem:</p>
         <label for="collection_id">Collection ID</label>
