@@ -95,10 +95,20 @@ if __name__ == "__main__":
     }
     run(host="localhost", port=1234, server="gevent", reloader=True, debug=True)
 else:
-    import os
+    # fmt: off
+
     # change working directory so relative paths (and template lookup) work again
+    import os
     os.chdir(os.path.dirname(__file__))
+
     # set the variable to avoid a NameError
     debug_user = None
+
+    # bottle requires gevent.monkey.patch_all()
+    from gevent import monkey
+    monkey.patch_all()
+
     # for attaching Bottle to Apache using mod_wsgi
     application = default_app()
+
+    # fmt: on
