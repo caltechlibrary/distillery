@@ -95,7 +95,10 @@ if __name__ == "__main__":
     }
     run(host="localhost", port=1234, server="gevent", reloader=True, debug=True)
 else:
+    import os
+    # change working directory so relative paths (and template lookup) work again
+    os.chdir(os.path.dirname(__file__))
     # set the variable to avoid a NameError
-    debug_user = False
+    debug_user = None
     # for attaching Bottle to Apache using mod_wsgi
     application = default_app()
