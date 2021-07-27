@@ -72,14 +72,13 @@ def authorize_user():
         # debug_user is set when running bottle locally
         return debug_user
     elif request.environ.get("REMOTE_USER", None):
-        # REMOTE_USER will be set by basic auth and shibboleth
-        username = request.environ["REMOTE_USER"]
+        # REMOTE_USER is an email address in Shibboleth
+        email_address = request.environ["REMOTE_USER"]
         # we check the username against our authorized users.csv file
         with open(Path(__file__).parent.resolve().joinpath("users.csv")) as csvfile:
             users = DictReader(csvfile)
             for user in users:
-                if user["username"] == username:
-                    print(user)
+                if user["email_address"] == email_address:
                     return user
         abort(403)
     else:
@@ -89,9 +88,8 @@ def authorize_user():
 if __name__ == "__main__":
     # supply a user when running bottle locally
     debug_user = {
-        "username": "hello",
-        "display_name": "World!",
         "email_address": "hello@example.com",
+        "display_name": "World",
     }
     run(host="localhost", port=1234, server="gevent", reloader=True, debug=True)
 else:

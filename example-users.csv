@@ -1,2 +1,2 @@
-username,display_name,email_address
-username,Display Name,user@example.com
+email_address,display_name
+user@example.edu,Display Name
