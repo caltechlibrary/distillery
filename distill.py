@@ -102,8 +102,6 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         with open(stream_path, "a") as f:
             f.write(message)
         # logging.error(message, exc_info=True)
-        # TODO set up notify
-        # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
 
     try:
@@ -120,16 +118,12 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         with open(stream_path, "a") as f:
             f.write(message)
         # logging.error(message, exc_info=True)
-        # TODO set up notify
-        # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
     except HTTPError as e:
         message = f"❌ There was a problem with the connection to ArchivesSpace.\n"
         with open(stream_path, "a") as f:
             f.write(message)
         # logging.error(message, exc_info=True)
-        # TODO set up notify
-        # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
 
     try:
@@ -147,16 +141,12 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         with open(stream_path, "a") as f:
             f.write(message)
         # logging.error(message, exc_info=True)
-        # TODO set up notify
-        # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
     except HTTPError as e:
         message = f"❌ There was a problem with the connection to ArchivesSpace.\n"
         with open(stream_path, "a") as f:
             f.write(message)
         # logging.error(message, exc_info=True)
-        # TODO set up notify
-        # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
 
     if not collection_identifiers_match(collection_id, collection_data):
@@ -180,16 +170,12 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         with open(stream_path, "a") as f:
             f.write(message)
         # logging.error(message, exc_info=True)
-        # TODO set up notify
-        # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
     except HTTPError as e:
         message = f"❌ There was a problem with the connection to ArchivesSpace.\n"
         with open(stream_path, "a") as f:
             f.write(message)
         # logging.error(message, exc_info=True)
-        # TODO set up notify
-        # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
 
     # Verify write permission on `STAGE_3_ORIGINAL_FILES` by saving collection metadata.
@@ -204,8 +190,6 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
         with open(stream_path, "a") as f:
             f.write(message)
         # logging.error(message, exc_info=True)
-        # TODO set up notify
-        # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
         raise
 
     # Send collection metadata to S3.
@@ -230,8 +214,6 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
             with open(stream_path, "a") as f:
                 f.write(message)
             # logging.error(message, exc_info=True)
-            # TODO set up notify
-            # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
             raise
         else:
             raise e
@@ -282,8 +264,6 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
             with open(stream_path, "a") as f:
                 f.write(message)
             # logging.warning(message, exc_info=True)
-            # TODO set up notify
-            # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
             # TODO increment file counter by the count of files in this folder
             continue
 
@@ -313,8 +293,6 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 with open(stream_path, "a") as f:
                     f.write(message)
                 # logging.warning(message, exc_info=True)
-                # TODO set up notify
-                # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
                 continue
             else:
                 raise e
@@ -358,8 +336,6 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 with open(stream_path, "a") as f:
                     f.write(message)
                 # logging.warning(message, exc_info=True)
-                # TODO set up notify
-                # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
                 continue
 
             # Send AIP image to S3.
@@ -423,8 +399,6 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                     with open(stream_path, "a") as f:
                         f.write(message)
                     # logging.warning(message, exc_info=True)
-                    # TODO set up notify
-                    # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
                     # TODO cleanup
                     continue
                 else:
@@ -447,8 +421,6 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 with open(stream_path, "a") as f:
                     f.write(message)
                 # logging.warning(message)
-                # TODO set up notify
-                # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
                 continue
 
             # Set up ArchivesSpace record.
@@ -476,8 +448,6 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
                 with open(stream_path, "a") as f:
                     f.write(message)
                 # logging.warning(message, exc_info=True)
-                # TODO set up notify
-                # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
                 # TODO programmatically remove file from bucket?
                 # logging.warning(
                 #     f"‼️ Clean up {aip_image_data['s3key']} file in {PRESERVATION_BUCKET} bucket.\n"
@@ -504,8 +474,6 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
             #         f"⚠️ Unable to move {filepath} to {STAGE_3_ORIGINAL_FILES}/.\n"
             #     )
             #     # logging.warning(message, exc_info=True)
-            #     # TODO set up notify
-            #     # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
             #     continue
 
             # Remove generated `*-LOSSLESS.jp2` file.
@@ -515,8 +483,6 @@ def distill(collection_id: "the Collection ID from ArchivesSpace"):
             except OSError as e:
                 message = f"⚠️ Unable to remove {aip_image_data['filepath']} file.\n"
                 # logging.warning(message, exc_info=True)
-                # TODO set up notify
-                # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
                 continue
 
             with open(stream_path, "a") as f:
