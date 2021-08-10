@@ -23,9 +23,15 @@ logging.config.fileConfig(
 logger = logging.getLogger("alchemist")
 
 # the main loop which checks for init files in the PROCESSING_FILES directory
+# NOTE: init files are created in distillery.py
 for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
     # using rsplit() in case the collection_id contains a - (hyphen) character
     collection_id = os.path.basename(f).rsplit("-", 2)[0]
+
+    # set up list of flags
+    flags = os.path.basename(f).rsplit("-", 1)[-1].split("_")
+    for i, flag in enumerate(flags):
+        flags[i] = f"--{flag}"
 
     # NOTE we assume that PROCESSING_FILES is set correctly
     stream_path = os.path.join(
