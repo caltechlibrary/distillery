@@ -48,6 +48,19 @@
         .checkboxes {
             padding: 1rem;
         }
+        .checkboxes label,
+        .checkboxes small {
+            display: block;
+        }
+        .checkboxes label {
+            margin-block: 1rem;
+        }
+        .checkboxes label:first-of-type {
+            margin-block-start: 0;
+        }
+        .checkboxes label:last-of-type {
+            margin-block-end: 0;
+        }
         button {
             margin-block: 1rem;
             padding-inline: 1rem;
@@ -74,26 +87,27 @@
             <p class="required">Select at least one process you would like to run on the available files.</p>
             <div class="checkboxes">
                 <label>
+                    <input type="checkbox" name="processes" value="report" disabled>
+                    Report on available files
+                    <small>preview file and metadata status</small>
+                </label>
+                <label>
+                    <input type="checkbox" name="processes" value="cloud">
+                    Send to cloud preservation storage
+                    <small>generate and send files to S3 Glacier Deep Archive</small>
+                </label>
+                <label>
                     <input type="checkbox" name="processes" value="onsite">
-                    Prepare for on-site storage
-                    <div><small>generate and structure files for tape storage</small></div>
+                    Prepare for on-site preservation storage
+                    <small>generate and structure files for tape storage</small>
+                </label>
+                <label>
+                    <input type="checkbox" name="processes" value="access">
+                    Publish files and metadata for access
+                    <small>generate files and metadata and ingest into Islandora</small>
                 </label>
             </div>
         </div>
-        <!-- TODO change form to checkboxes
-        <input type="radio" id="report" name="process" value="report" required disabled>
-        <label for="report">Preview Report</label>
-        <div><small>run a report about the files found that would be processed</small></div>
-        <input type="radio" id="preservation" name="process" value="preservation" required>
-        <label for="preservation">Preservation</label>
-        <div><small>send the files to Glacier</small></div>
-        <input type="radio" id="access" name="process" value="access">
-        <label for="access">Access</label>
-        <div><small>publish the files in Islandora</small></div>
-        <input type="radio" id="preservation_access" name="process" value="preservation_access" required>
-        <label for="preservation_access">Preservation & Access</label>
-        <div><small>send the files to Glacier and publish the files in Islandora</small></div>
-        -->
         <button>🚀</button>
     </form>
 </body>
