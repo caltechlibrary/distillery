@@ -123,6 +123,38 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         except BaseException as e:
             logger.error(f"❌ {e.stdout.decode('utf-8')}")
             raise
+    elif "--onsite" in flags:
+        logger.info("⚗️ processing onsite copies")
+        # delete the init file
+        os.remove(f)
+        # validate ONSITE_MEDIUM
+        try:
+            config("ONSITE_MEDIUM")
+        except UndefinedValueError as e:
+            message = "❌ ONSITE_MEDIUM not defined in settings file\n"
+            with open(stream_path, "a") as stream:
+                stream.write(message)
+            logger.error(f"❌ {e}")
+            raise
+        try:
+            command = [
+                sys.executable,
+                os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)),
+                    f"{config('ONSITE_MEDIUM')}.py",
+                ),
+                collection_id,
+            ]
+            command.extend(flags)
+            subprocess.run(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=True,
+            )
+        except BaseException as e:
+            logger.error(f"❌ {e}")
+            raise
     elif os.path.basename(f).split("-")[-1] == "access":
         logger.info("⚗️ access processing")
         # delete the init file
