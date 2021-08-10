@@ -40,9 +40,9 @@ def form_collection_id():
 @post("/distilling")
 def begin_processing():
     collection_id = request.forms.get("collection_id").strip()
-    process = request.forms.get("process").strip()
+    processes = "_".join(request.forms.getall("processes"))
     # write a file for alchemist.sh to find
-    Path(config("PROCESSING_FILES")).joinpath(f"{collection_id}-init-{process}").touch()
+    Path(config("PROCESSING_FILES")).joinpath(f"{collection_id}-init-{processes}").touch()
     # write a file for the event stream
     Path(config("PROCESSING_FILES")).joinpath(f"{collection_id}-processing").touch()
     return template("distilling", collection_id=collection_id)
