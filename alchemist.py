@@ -10,8 +10,7 @@ import sys
 from datetime import datetime
 from glob import glob
 
-import decouple
-from decouple import config
+from decouple import config, UndefinedValueError
 
 # NOTE: the following configuration is for explicit output from this file as well as
 # output from the subprocesses; any errors from running this file are output wherever
@@ -125,7 +124,7 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         # validate ACCESS_PLATFORM
         try:
             config("ACCESS_PLATFORM")
-        except decouple.UndefinedValueError as e:
+        except UndefinedValueError as e:
             message = "❌ ACCESS_PLATFORM not defined in settings file\n"
             with open(stream_path, "a") as stream:
                 stream.write(message)
@@ -155,7 +154,7 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         # validate ACCESS_PLATFORM
         try:
             config("ACCESS_PLATFORM")
-        except decouple.UndefinedValueError as e:
+        except UndefinedValueError as e:
             message = "❌ ACCESS_PLATFORM not defined in settings file\n"
             with open(stream_path, "a") as stream:
                 stream.write(message)
