@@ -1,6 +1,6 @@
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 from glob import glob
 
 import sh
@@ -15,9 +15,16 @@ asnake_client = ASnakeClient(
     password=config("ASPACE_PASSWORD"),
 )
 asnake_client.authorize()
-# delete all digital_object_components before digital_objects
-for uri in ["/repositories/2/digital_object_components/", "/repositories/2/digital_objects/"]:
-    with open(os.path.join(os.path.dirname(os.path.abspath(config("LOG_FILE"))), "archivesspace.log")) as log:
+# loop over URI paths, checking digital_object_components before digital_objects
+for uri in [
+    "/repositories/2/digital_object_components/",
+    "/repositories/2/digital_objects/",
+]:
+    with open(
+        os.path.join(
+            os.path.dirname(os.path.abspath(config("LOG_FILE"))), "archivesspace.log"
+        )
+    ) as log:
         lines = log.readlines()
         for line in lines:
             if line.startswith(uri):
@@ -75,6 +82,8 @@ for f in glob(os.path.join(os.path.dirname(os.path.abspath(config("LOG_FILE"))),
         )
 
 islandora_server = sh.ssh.bake(
+    f"-i",
+    f"{config('ISLANDORA_SSH_KEY')}",
     f"{config('ISLANDORA_SSH_USER')}@{config('ISLANDORA_SSH_HOST')}",
     f"-p{config('ISLANDORA_SSH_PORT')}",
 )
@@ -170,5 +179,18 @@ islandora_server(
 )
 print("✅ cleaned-up Islandora Batch processed sets")
 
-# TODO reset ArchivesSpace db?
-print("❓ reset ArchivesSpace database manually")
+# reset ArchivesSpace db
+print("🔄 resetting ArchivesSpace database")
+archivesspace_server = sh.ssh.bake(
+    f"-A",  # enable agent forwarding
+    f"-i",
+    f"{config('ARCHIVESSPACE_SSH_KEY')}",
+    f"{config('ARCHIVESSPACE_SSH_USER')}@{config('ARCHIVESSPACE_SSH_HOST')}",
+    f"-p{config('ARCHIVESSPACE_SSH_PORT')}",
+)
+archivesspace_server(
+    "/bin/bash",
+    "/home/vagrant/shared/stop-load_db-start.sh",
+    (datetime.now() - timedelta(1)).strftime("%Y-%m-%d"),
+    _fg=True,
+)
