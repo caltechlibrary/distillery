@@ -1228,9 +1228,9 @@ def process_folder_metadata(folderpath):
     return folder_arrangement, folder_data
 
 
-def save_collection_metadata(collection_data, STAGE_3_ORIGINAL_FILES):
+def save_collection_metadata(collection_data, directory):
     filename = os.path.join(
-        STAGE_3_ORIGINAL_FILES,
+        directory,
         collection_data["id_0"],
         f"{collection_data['id_0']}.json",
     )
