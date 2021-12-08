@@ -186,15 +186,15 @@ def distill(
         # logging.error(message, exc_info=True)
         raise
 
-    # Verify write permission on `STAGE_3_ORIGINAL_FILES` by saving collection metadata.
+    # Save collection metadata to LOSSLESS_PRESERVATION_FILES directory.
     try:
-        save_collection_metadata(collection_data, STAGE_3_ORIGINAL_FILES)
+        save_collection_metadata(collection_data, LOSSLESS_PRESERVATION_FILES)
         with open(stream_path, "a") as f:
             f.write(
-                f"✅ Collection metadata for {collection_id} saved to: {STAGE_3_ORIGINAL_FILES}/{collection_id}/{collection_id}.json\n"
+                f"✅ Collection metadata for {collection_id} saved to: {LOSSLESS_PRESERVATION_FILES}/{collection_id}/{collection_id}.json\n"
             )
     except OSError as e:
-        message = f"❌ Unable to save {collection_id}.json file to: {STAGE_3_ORIGINAL_FILES}/{collection_id}\n"
+        message = f"❌ Unable to save {collection_id}.json file to: {LOSSLESS_PRESERVATION_FILES}/{collection_id}\n"
         with open(stream_path, "a") as f:
             f.write(message)
         # logging.error(message, exc_info=True)
