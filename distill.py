@@ -51,25 +51,33 @@ s3_client = boto3.client(
 )
 
 
-def distill(collection_id: "the Collection ID from ArchivesSpace"):
+def distill(
+    cloud: ("sending to cloud storage", "flag", "c"),  # type: ignore
+    onsite: ("preparing for onsite storage", "flag", "o"),  # type: ignore
+    access: ("publishing access copies", "flag", "a"),  # type: ignore
+    collection_id: "the Collection ID from ArchivesSpace",  # type: ignore
+):
 
     logger.info("🛁 distilling")
-    time_start = datetime.now()
 
     # NOTE we have to assume that PROCESSING_FILES is set correctly
     stream_path = Path(config("PROCESSING_FILES")).joinpath(
         f"{collection_id}-processing"
     )
-    with open(stream_path, "a") as stream:
-        # NOTE specific emoji used to indicate start of script for event listener
-        # SEE distillery.py:stream()
-        stream.write(f"🟢\n")
+
+    if not cloud:
+        message = "❌ distill.py script was initiated without cloud being selected"
+        logger.error(message)
+        with open(stream_path, "a") as stream:
+            stream.write(message)
+        raise RuntimeError(message)
 
     try:
         (
             STAGE_2_ORIGINAL_FILES,
             STAGE_3_ORIGINAL_FILES,
             PRESERVATION_BUCKET,
+            LOSSLESS_PRESERVATION_FILES,
         ) = validate_settings()
     except Exception as e:
         message = "❌ There was a problem with the settings for the processing script.\n"
@@ -1244,7 +1252,8 @@ def update_digital_object(uri, data):
     # raises an HTTPError exception if unsuccessful
     response = asnake_client.post(uri, json=data)
     response.raise_for_status()
-    return
+    archivesspace_logger.info(response.json()["uri"])
+    return response
 
 
 def validate_settings():
@@ -1259,7 +1268,15 @@ def validate_settings():
     PRESERVATION_BUCKET = config(
         "PRESERVATION_BUCKET"
     )  # TODO validate access to bucket
-    return STAGE_2_ORIGINAL_FILES, STAGE_3_ORIGINAL_FILES, PRESERVATION_BUCKET
+    LOSSLESS_PRESERVATION_FILES = directory_setup(
+        os.path.expanduser(config("LOSSLESS_PRESERVATION_FILES"))
+    ).resolve(strict=True)
+    return (
+        STAGE_2_ORIGINAL_FILES,
+        STAGE_3_ORIGINAL_FILES,
+        PRESERVATION_BUCKET,
+        LOSSLESS_PRESERVATION_FILES,
+    )
 
 
 def write_xmp_metadata(filepath, metadata):
