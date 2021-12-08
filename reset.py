@@ -50,6 +50,11 @@ for d in glob(os.path.join(config("STAGE_3_ORIGINAL_FILES"), "*/")):
     print(f"🔥 deleting {d}")
     shutil.rmtree(d)
 
+# remove directories from LOSSLESS_PRESERVATION_FILES
+for d in glob(os.path.join(config("LOSSLESS_PRESERVATION_FILES"), "*/")):
+    print(f"🔥 deleting {d}")
+    shutil.rmtree(d)
+
 # remove directories from COMPRESSED_ACCESS_FILES
 for d in glob(os.path.join(config("COMPRESSED_ACCESS_FILES"), "*/")):
     print(f"🔥 deleting {d}")
