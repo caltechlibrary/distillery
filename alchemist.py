@@ -33,6 +33,9 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
     for i, flag in enumerate(flags):
         flags[i] = f"--{flag}"
 
+    # delete the init file to stop future initiation with the same file
+    os.remove(f)
+
     # NOTE we assume that PROCESSING_FILES is set correctly
     stream_path = os.path.join(
         config("PROCESSING_FILES"), f"{collection_id}-processing"
@@ -78,8 +81,6 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
                 stream.write(message)
             raise NotADirectoryError(message)
     except FileNotFoundError as e:
-        # delete the init file to stop loop
-        os.remove(f)
         message = f"❌ {collection_id} directory not found in {config('STAGE_1_ORIGINAL_FILES')}\n"
         with open(stream_path, "a") as stream:
             stream.write(message)
@@ -89,8 +90,6 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         # we re-raise the exception because we cannot continue without the files
         raise
     except BaseException as e:
-        # delete the init file to stop loop
-        os.remove(f)
         message = "❌ unable to move the source files for processing\n"
         with open(stream_path, "a") as stream:
             stream.write(message)
@@ -100,33 +99,35 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         # we re-raise the exception because we cannot continue without the files
         raise
 
-    if os.path.basename(f).split("-")[-1] == "report":
-        logger.info("⚗️ report processing")
+    # check independently for each flag option; the different processing scripts are
+    # each responsible for checking the list of flag options that were passed in order
+    # to know what other processes will have run
+    # NOTE the order of these conditions matters for certain processing scripts
+    if "--report" in flags:
+        logger.info("⚗️ processing report")
         pass
-    elif os.path.basename(f).split("-")[-1] == "preservation":
-        logger.info("⚗️ preservation processing")
-        # delete the init file
-        os.remove(f)
+    if "--cloud" in flags:
+        logger.info("⚗️ processing cloud preservation files")
         try:
+            command = [
+                sys.executable,
+                os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)), "distill.py"
+                ),
+                collection_id,
+            ]
+            command.extend(flags)
             subprocess.run(
-                [
-                    sys.executable,
-                    os.path.join(
-                        os.path.dirname(os.path.abspath(__file__)), "distill.py"
-                    ),
-                    collection_id,
-                ],
+                command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 check=True,
             )
         except BaseException as e:
-            logger.error(f"❌ {e.stdout.decode('utf-8')}")
+            logger.error(f"❌ {e}")
             raise
-    elif "--onsite" in flags:
-        logger.info("⚗️ processing onsite copies")
-        # delete the init file
-        os.remove(f)
+    if "--onsite" in flags:
+        logger.info("⚗️ processing onsite preservation files")
         # validate ONSITE_MEDIUM
         try:
             config("ONSITE_MEDIUM")
@@ -155,10 +156,8 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         except BaseException as e:
             logger.error(f"❌ {e}")
             raise
-    elif os.path.basename(f).split("-")[-1] == "access":
-        logger.info("⚗️ access processing")
-        # delete the init file
-        os.remove(f)
+    if "--access" in flags:
+        logger.info("⚗️ processing access files")
         # validate ACCESS_PLATFORM
         try:
             config("ACCESS_PLATFORM")
@@ -169,67 +168,24 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
             logger.error(f"❌ {e}")
             raise
         try:
+            command = [
+                sys.executable,
+                os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)),
+                    f"{config('ACCESS_PLATFORM')}.py",
+                ),
+                collection_id,
+            ]
+            command.extend(flags)
             subprocess.run(
-                [
-                    sys.executable,
-                    os.path.join(
-                        os.path.dirname(os.path.abspath(__file__)),
-                        f"{config('ACCESS_PLATFORM')}.py",
-                    ),
-                    collection_id,
-                ],
+                command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 check=True,
             )
         except BaseException as e:
-            logger.error(f"❌ {e.stdout.decode('utf-8')}")
-            raise
-    elif os.path.basename(f).split("-")[-1] == "preservation_access":
-        logger.info("⚗️ preservation & access processing")
-        # delete the init file
-        os.remove(f)
-        # validate ACCESS_PLATFORM
-        try:
-            config("ACCESS_PLATFORM")
-        except UndefinedValueError as e:
-            message = "❌ ACCESS_PLATFORM not defined in settings file\n"
-            with open(stream_path, "a") as stream:
-                stream.write(message)
             logger.error(f"❌ {e}")
             raise
-        try:
-            subprocess.run(
-                [
-                    sys.executable,
-                    os.path.join(
-                        os.path.dirname(os.path.abspath(__file__)), "distill.py"
-                    ),
-                    collection_id,
-                ],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                check=True,
-            )
-            subprocess.run(
-                [
-                    sys.executable,
-                    os.path.join(
-                        os.path.dirname(os.path.abspath(__file__)),
-                        f"{config('ACCESS_PLATFORM')}.py",
-                    ),
-                    collection_id,
-                ],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                check=True,
-            )
-        except BaseException as e:
-            logger.error(f"❌ {e.stdout.decode('utf-8')}")
-            raise
-    else:
-        # TODO log a message that an unknown file was found
-        pass
 
     # move the `collection_id` directory into `STAGE_3_ORIGINAL_FILES`
     # NOTE shutil.move() in Python < 3.9 needs strings as arguments
