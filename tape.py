@@ -17,10 +17,10 @@ logger = logging.getLogger("tape")
 
 
 def main(
-    cloud: ("sending to cloud storage", "flag", "c"),
-    onsite: ("preparing for onsite storage", "flag", "o"),
-    access: ("publishing access copies", "flag", "a"),
-    collection_id: "the Collection ID from ArchivesSpace",
+    cloud: ("sending to cloud storage", "flag", "c"),  # type: ignore
+    onsite: ("preparing for onsite storage", "flag", "o"),  # type: ignore
+    access: ("publishing access copies", "flag", "a"),  # type: ignore
+    collection_id: "the Collection ID from ArchivesSpace",  # type: ignore
 ):
 
     logger.info("📼 tape")
