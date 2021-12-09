@@ -275,6 +275,20 @@ def distill(
             # TODO increment file counter by the count of files in this folder
             continue
 
+        # Save folder metadata to LOSSLESS_PRESERVATION_FILES directory.
+        try:
+            save_folder_data(folder_arrangement, folder_data, LOSSLESS_PRESERVATION_FILES)
+            with open(stream_path, "a") as f:
+                f.write(
+                    f"✅ Folder metadata for {folder_data['component_id']} saved under: {LOSSLESS_PRESERVATION_FILES}/{collection_id}\n"
+                )
+        except Exception as e:
+            message = f"❌ Unable to save {folder_data['component_id']}.json file to: {LOSSLESS_PRESERVATION_FILES}/{collection_id}\n"
+            with open(stream_path, "a") as f:
+                f.write(message)
+            # logging.error(message, exc_info=True)
+            raise
+
         # Send ArchivesSpace folder metadata to S3 as a JSON file.
         try:
             s3_client.put_object(
@@ -1237,6 +1251,20 @@ def save_collection_metadata(collection_data, directory):
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, "w") as f:
         f.write(json.dumps(collection_data, indent=4))
+
+
+def save_folder_data(folder_arrangement, folder_data, directory):
+    filename = os.path.join(
+        directory,
+        # TODO rename functions to be more abstract
+        get_s3_aip_folder_key(
+            get_s3_aip_folder_prefix(folder_arrangement, folder_data),
+            folder_data,
+        ),
+    )
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    with open(filename, "w") as f:
+        f.write(json.dumps(folder_data, indent=4))
 
 
 def set_digital_object_id(uri, digital_object_id):
