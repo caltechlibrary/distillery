@@ -12,6 +12,7 @@ import logging.config
 import logging.handlers
 import os
 import random
+import shutil
 import string
 import sys
 import time
@@ -359,6 +360,27 @@ def distill(
                     f.write(message)
                 # logging.warning(message, exc_info=True)
                 continue
+
+            # # DEBUG
+            # with open(stream_path, "a") as f:
+            #     f.write(
+            #         f"🔍 {aip_image_data}\n"
+            #     )
+
+            # Save Preservation Image in local filesystem structure.
+            try:
+                with open(stream_path, "a") as f:
+                    f.write(
+                        f"📂 Saving lossless JPEG 2000 for {Path(filepath).stem} under {LOSSLESS_PRESERVATION_FILES}/{collection_id}\n"
+                    )
+                # TODO change variable names (“aip” is always confusing; “s3key” is too specific)
+                save_preservation_file(aip_image_data["filepath"], f'{LOSSLESS_PRESERVATION_FILES}/{aip_image_data["s3key"]}')
+            except Exception as e:
+                message = f'❌ There was a problem saving the file: {LOSSLESS_PRESERVATION_FILES}/{aip_image_data["s3key"]}\n'
+                with open(stream_path, "a") as f:
+                    f.write(message)
+                # logging.error(message, exc_info=True)
+                raise
 
             # Send AIP image to S3.
             # example success response:
@@ -1214,6 +1236,7 @@ def process_aip_image(filepath, collection_data, folder_arrangement, folder_data
     # Add more values to `aip_image_data` dictionary.
     aip_image_data["component_id"] = file_parts["component_id"]
     aip_image_data["sequence"] = file_parts["sequence"]
+    # TODO change `s3key` to something more generic; also use for tape filepath
     aip_image_data["s3key"] = aip_image_s3key
     return aip_image_data
 
@@ -1265,6 +1288,11 @@ def save_folder_data(folder_arrangement, folder_data, directory):
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, "w") as f:
         f.write(json.dumps(folder_data, indent=4))
+
+
+def save_preservation_file(source, destination):
+    os.makedirs(os.path.dirname(destination), exist_ok=True)
+    shutil.copy2(source, destination)
 
 
 def set_digital_object_id(uri, digital_object_id):
