@@ -793,7 +793,7 @@ def get_file_parts(filepath):
     file_parts["extension"] = file_parts["filename"].split(".")[-1]
     file_parts["folder_id"] = file_parts["image_id"].rsplit("_", 1)[0]
     # TODO rename 'sequence' because it is not always numeric
-    file_parts["sequence"] = file_parts["image_id"].split("_")[-1]
+    file_parts["sequence"] = file_parts["image_id"].split("_")[-1].zfill(4)
     file_parts["component_id"] = get_digital_object_component_id()
     return file_parts
 
