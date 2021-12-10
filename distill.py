@@ -708,13 +708,13 @@ def get_aip_image_data(filepath):
         "./properties/jp2HeaderBox/imageHeaderBox/height"
     )
     aip_image_data["standard"] = jpylyzer_xml.findtext(
-        "./properties/contiguousCodestream_pathBox/siz/rsiz"
+        "./properties/contiguousCodestreamBox/siz/rsiz"
     )
     aip_image_data["transformation"] = jpylyzer_xml.findtext(
-        "./properties/contiguousCodestream_pathBox/cod/transformation"
+        "./properties/contiguousCodestreamBox/cod/transformation"
     )
     aip_image_data["quantization"] = jpylyzer_xml.findtext(
-        "./properties/contiguousCodestream_pathBox/qcd/qStyle"
+        "./properties/contiguousCodestreamBox/qcd/qStyle"
     )
     with open(aip_image_data["filepath"], "rb") as f:
         aip_image_data["md5"] = hashlib.md5(f.read())
