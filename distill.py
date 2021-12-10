@@ -957,7 +957,7 @@ def get_s3_aip_image_key(prefix, file_parts):
         + file_parts["sequence"]
         + "/"
         + file_parts["component_id"]
-        + "-lossless.jp2"
+        + ".jp2"
     )
 
 
