@@ -114,12 +114,13 @@ def distill(
         raise
 
     try:
-        collection_uri = get_collection_uri(collection_id)
-        if collection_uri:
+        collection_data = get_collection_data(collection_id)
+        if collection_data:
             with open(stream_path, "a") as f:
                 f.write(
-                    f"✅ Collection URI for {collection_id} found in ArchivesSpace. [{config('ASPACE_STAFF_URL')}/resolve/readonly?uri={collection_uri}]\n"
+                    f"✅ Collection data for {collection_id} retrieved from ArchivesSpace.\n"
                 )
+        # TODO report on contents of collection_data
     except ValueError as e:
         message = (
             f"❌ No collection URI for {collection_id} was found in ArchivesSpace.\n"
@@ -128,21 +129,6 @@ def distill(
             f.write(message)
         # logging.error(message, exc_info=True)
         raise
-    except HTTPError as e:
-        message = f"❌ There was a problem with the connection to ArchivesSpace.\n"
-        with open(stream_path, "a") as f:
-            f.write(message)
-        # logging.error(message, exc_info=True)
-        raise
-
-    try:
-        collection_data = get_collection_data(collection_uri)
-        if collection_data:
-            with open(stream_path, "a") as f:
-                f.write(
-                    f"✅ Collection data for {collection_id} retrieved from ArchivesSpace.\n"
-                )
-        # TODO report on contents of collection_data
     except RuntimeError as e:
         message = (
             f"❌ No collection data for {collection_id} retrieved from ArchivesSpace.\n"
@@ -157,35 +143,15 @@ def distill(
             f.write(message)
         # logging.error(message, exc_info=True)
         raise
-
-    if not collection_identifiers_match(collection_id, collection_data):
-        message = f"❌ The Collection ID from the form, {collection_id}, must exactly match the identifier in ArchivesSpace, {collection_data['id_0']}, including case-sensitively.\n"
-        with open(stream_path, "a") as f:
-            f.write(message)
-        raise ValueError(message)
-
-    try:
-        collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
-        if collection_data["tree"]["_resolved"]:
-            with open(stream_path, "a") as f:
-                f.write(
-                    f"✅ Collection tree for {collection_id} retrieved from ArchivesSpace.\n"
-                )
-        # TODO report on contents of collection_tree
-    except RuntimeError as e:
+    except Exception as e:
         message = (
-            f"❌ No collection tree for {collection_id} retrieved from ArchivesSpace.\n"
+            f"❌ There was a problem retrieving collection data for {collection_id} from ArchivesSpace.\n"
         )
         with open(stream_path, "a") as f:
             f.write(message)
         # logging.error(message, exc_info=True)
         raise
-    except HTTPError as e:
-        message = f"❌ There was a problem with the connection to ArchivesSpace.\n"
-        with open(stream_path, "a") as f:
-            f.write(message)
-        # logging.error(message, exc_info=True)
-        raise
+
 
     # Save collection metadata to LOSSLESS_PRESERVATION_FILES directory.
     try:
@@ -727,11 +693,17 @@ def get_archival_object(id):
     return response.json()
 
 
-def get_collection_data(collection_uri):
+def get_collection_data(collection_id):
     # raises an HTTPError exception if unsuccessful
+    collection_uri = get_collection_uri(collection_id)
     collection_data = asnake_client.get(collection_uri).json()
+    if not collection_identifiers_match(collection_id, collection_data):
+        message = f"❌ The Collection ID from the form, {collection_id}, must exactly match the identifier in ArchivesSpace, {collection_data['id_0']}, including case-sensitively.\n"
+        raise ValueError(message)
     if collection_data:
-        return collection_data
+        collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
+        if collection_data["tree"]["_resolved"]:
+            return collection_data
     else:
         raise RuntimeError(
             f"There was a problem retrieving the collection data from ArchivesSpace.\n"

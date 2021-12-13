@@ -103,29 +103,7 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
         raise
 
     try:
-        collection_uri = distill.get_collection_uri(collection_id)
-        if collection_uri:
-            with open(stream_path, "a") as stream:
-                stream.write(
-                    f"✅ Collection URI for {collection_id} found in ArchivesSpace: {collection_uri}\n"
-                )
-    except ValueError as e:
-        message = (
-            f"❌ No collection URI for {collection_id} was found in ArchivesSpace.\n"
-        )
-        with open(stream_path, "a") as stream:
-            stream.write(message)
-        # logger.error(message, exc_info=True)
-        raise
-    except HTTPError as e:
-        message = f"❌ There was a problem with the connection to ArchivesSpace."
-        with open(stream_path, "a") as stream:
-            stream.write(message)
-        # logger.error(message, exc_info=True)
-        raise
-
-    try:
-        collection_data = distill.get_collection_data(collection_uri)
+        collection_data = distill.get_collection_data(collection_id)
         if collection_data:
             with open(stream_path, "a") as stream:
                 stream.write(
@@ -146,12 +124,6 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
             stream.write(message)
         # logger.error(message, exc_info=True)
         raise
-
-    if not distill.collection_identifiers_match(collection_id, collection_data):
-        message = f"❌ The Collection ID from the form, {collection_id}, must exactly match the identifier in ArchivesSpace, {collection_data['id_0']}, including case-sensitively.\n"
-        with open(stream_path, "a") as stream:
-            stream.write(message)
-        raise ValueError(message)
 
     # Set the directory for the Islandora collection files.
     # NOTE: The parent directory name is formatted for use as a PID:
