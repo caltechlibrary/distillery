@@ -152,9 +152,7 @@ def distill(
         # logging.error(message, exc_info=True)
         raise
     except Exception as e:
-        message = (
-            f"❌ There was a problem retrieving collection data for {collection_id} from ArchivesSpace.\n"
-        )
+        message = f"❌ There was a problem retrieving collection data for {collection_id} from ArchivesSpace.\n"
         with open(stream_path, "a") as f:
             f.write(message)
         # logging.error(message, exc_info=True)
@@ -253,7 +251,9 @@ def distill(
 
         # Save folder metadata to LOSSLESS_PRESERVATION_FILES directory.
         try:
-            save_folder_data(folder_arrangement, folder_data, LOSSLESS_PRESERVATION_FILES)
+            save_folder_data(
+                folder_arrangement, folder_data, LOSSLESS_PRESERVATION_FILES
+            )
             with open(stream_path, "a") as f:
                 f.write(
                     f"✅ Folder metadata for {folder_data['component_id']} saved under: {LOSSLESS_PRESERVATION_FILES}/{collection_id}\n"
@@ -349,7 +349,10 @@ def distill(
                         f"📂 Saving lossless JPEG 2000 for {Path(filepath).stem} under {LOSSLESS_PRESERVATION_FILES}/{collection_id}\n"
                     )
                 # TODO change variable names (“aip” is always confusing; “s3key” is too specific)
-                save_preservation_file(aip_image_data["filepath"], f'{LOSSLESS_PRESERVATION_FILES}/{aip_image_data["s3key"]}')
+                save_preservation_file(
+                    aip_image_data["filepath"],
+                    f'{LOSSLESS_PRESERVATION_FILES}/{aip_image_data["s3key"]}',
+                )
             except Exception as e:
                 message = f'❌ There was a problem saving the file: {LOSSLESS_PRESERVATION_FILES}/{aip_image_data["s3key"]}\n'
                 with open(stream_path, "a") as f:
