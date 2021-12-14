@@ -1132,7 +1132,7 @@ def prepare_folder_list(collection_directory):
 
 
 def process_aip_image(filepath, collection_data, folder_arrangement, folder_data):
-    # cut out only the checksum string for the pixel stream_path
+    # cut out only the checksum string for the pixel stream
     # NOTE running this process in the background saves time because
     # the conversion starts soon after in a different subprocess
     cut_cmd = sh.Command(config("CUT_CMD"))
@@ -1140,7 +1140,7 @@ def process_aip_image(filepath, collection_data, folder_arrangement, folder_data
     magick_cmd = sh.Command(config("MAGICK_CMD"))
     sip_image_signature = cut_cmd(
         sha512sum_cmd(
-            magick_cmd.stream_path(
+            magick_cmd.stream(
                 "-quiet",
                 "-map",
                 "rgb",
@@ -1180,10 +1180,10 @@ def process_aip_image(filepath, collection_data, folder_arrangement, folder_data
         # convert: no images defined `/path/to/HBF/HBF_001_02/HBF_001_02_00-LOSSLESS.jp2' @ error/convert.c/ConvertImageCommand/3304.
         raise RuntimeError(str(e))
     write_xmp_metadata(aip_image_path, xmp_dc)
-    # cut out only the checksum string for the pixel stream_path
+    # cut out only the checksum string for the pixel stream
     aip_image_signature = cut_cmd(
         sha512sum_cmd(
-            magick_cmd.stream_path(
+            magick_cmd.stream(
                 "-quiet",
                 "-map",
                 "rgb",
