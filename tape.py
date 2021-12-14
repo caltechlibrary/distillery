@@ -55,7 +55,9 @@ def main(
         # the cloud process has not run, so we need to create JP2 files
         logger.info("the cloud process has not run, so we need to create JP2 files")
         with open(stream_path, "a") as stream:
-            stream.write("the cloud process has not run, so we need to create JP2 files")
+            stream.write(
+                "the cloud process has not run, so we need to create JP2 files"
+            )
 
         (
             IN_PROCESS_ORIGINAL_FILES,
