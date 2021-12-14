@@ -1330,5 +1330,123 @@ def write_xmp_metadata(filepath, metadata):
     )
 
 
+def loop_over_collection_subdirectories(variables):
+    """Loop over subdirectories in `collection_directory`.
+
+    Example:
+    _data/HBF <-- looping over folders under here
+    ├── HBF_000_XX
+    ├── HBF_001_02
+    │   ├── HBF_001_02_01.tif
+    │   ├── HBF_001_02_02.tif
+    │   ├── HBF_001_02_03.tif
+    │   └── HBF_001_02_04.tif
+    └── HBF_007_08
+    """
+    variables["folders"], variables["filecount"] = prepare_folder_list(
+        variables["collection_directory"]
+    )
+    variables["folders"].sort(reverse=True)
+    for _ in range(len(variables["folders"])):
+        # Using pop() (and/or range(len()) above) maybe helps to be sure that
+        # if folder metadata fails to process properly, it and its images are
+        # skipped completely and the script moves on to the next folder.
+        variables["folderpath"] = variables["folders"].pop()
+        # Set up list of TIFF paths for the current folder.
+        variables["filepaths"] = prepare_filepaths_list(variables["folderpath"])
+        # Avoid processing folder when there are no files.
+        if not variables["filepaths"]:
+            continue
+        (
+            variables["folder_arrangement"],
+            variables["folder_data"],
+        ) = process_folder_metadata(variables["folderpath"])
+
+        if variables["onsite"] and config("ONSITE_MEDIUM"):
+            # Import a module named the same as the ONSITE_MEDIUM setting.
+            onsite_medium = __import__(config("ONSITE_MEDIUM"))
+            onsite_medium.process_during_subdirectories_loop(variables)
+
+        """
+        if variables["cloud"] and config("CLOUD_PLATFORM"):
+            # Import a module named the same as the CLOUD_PLATFORM setting.
+            cloud_platform = __import__(config("CLOUD_PLATFORM"))
+            cloud_platform.process_during_subdirectories_loop(variables)
+
+        if variables["access"] and config("ACCESS_PLATFORM"):
+            # Import a module named the same as the ACCESS_PLATFORM setting.
+            access_platform = __import__(config("ACCESS_PLATFORM"))
+            access_platform.process_during_subdirectories_loop(variables)
+        """
+
+        loop_over_digital_files(variables)
+
+
+def loop_over_digital_files(variables):
+    """Loop over files in `collection_directory` subdirectory.
+
+    Example:
+    _data/HBF
+    ├── HBF_000_XX
+    ├── HBF_001_02 <-- looping over files under here
+    │   ├── HBF_001_02_01.tif
+    │   ├── HBF_001_02_02.tif
+    │   ├── HBF_001_02_03.tif
+    │   └── HBF_001_02_04.tif
+    └── HBF_007_08
+    """
+    # NOTE: We reverse the sort for use with pop() and so the components
+    # will be ingested in the correct order for the digital object tree.
+    filepaths = variables["filepaths"]
+    filepaths.sort(reverse=True)
+    for f in range(len(filepaths)):
+        filepath = filepaths.pop()
+        try:
+            # start this in the background
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    process_aip_image,
+                    filepath,
+                    variables["collection_data"],
+                    variables["folder_arrangement"],
+                    variables["folder_data"],
+                )
+                # run a loop checking for it to be done
+                # indicate processing by printing a dot every second to the web
+                iteration = 0
+                while "state=running" in str(future):
+                    time.sleep(1)
+                    with open(variables["stream_path"], "a", newline="") as f:
+                        f.write(".")
+                    iteration += 1
+                variables["preservation_image_data"] = future.result()
+            with open(variables["stream_path"], "a") as f:
+                f.write(
+                    f"\n✅ Successfully converted {os.path.basename(filepath)} to JPEG 2000.\n"
+                )
+        except RuntimeError as e:
+            message = (
+                f"\n⚠️ There was a problem converting {os.path.basename(filepath)} to JPEG 2000.\n"
+                f"↩️ Skipping {os.path.basename(filepath)} file.\n"
+            )
+            with open(variables["stream_path"], "a") as f:
+                f.write(message)
+            # logging.warning(message, exc_info=True)
+            continue
+
+        if variables["onsite"] and config("ONSITE_MEDIUM"):
+            # Import a module named the same as the ONSITE_MEDIUM setting.
+            onsite_medium = __import__(config("ONSITE_MEDIUM"))
+            onsite_medium.process_during_files_loop(variables)
+
+        # Remove generated `*-LOSSLESS.jp2` file.
+        try:
+            os.remove(variables["preservation_image_data"]["filepath"])
+        except OSError as e:
+            message = f'⚠️ Unable to remove {variables["preservation_image_data"]["filepath"]} file.\n'
+            # logging.warning(message, exc_info=True)
+            continue
+
+
 if __name__ == "__main__":
     plac.call(distill)
