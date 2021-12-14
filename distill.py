@@ -61,6 +61,12 @@ def distill(
 
     logger.info("🛁 distilling")
 
+    variables = {}
+
+    variables["cloud"] = cloud
+    variables["onsite"] = onsite
+    variables["access"] = access
+
     # NOTE we have to assume that PROCESSING_FILES is set correctly
     stream_path = Path(config("PROCESSING_FILES")).joinpath(
         f"{collection_id}-processing"
@@ -113,6 +119,8 @@ def distill(
         # logging.error(message, exc_info=True)
         raise
 
+    variables["collection_directory"] = collection_directory
+
     try:
         collection_data = get_collection_data(collection_id)
         if collection_data:
@@ -152,6 +160,7 @@ def distill(
         # logging.error(message, exc_info=True)
         raise
 
+    variables["collection_data"] = collection_data
 
     # Save collection metadata to LOSSLESS_PRESERVATION_FILES directory.
     try:
