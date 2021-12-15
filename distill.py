@@ -778,7 +778,7 @@ def get_file_parts(filepath):
     file_parts["folder_id"] = file_parts["filestem"].rsplit("_", 1)[0]
     # TODO rename 'sequence' because it is not always numeric
     file_parts["sequence"] = file_parts["filestem"].split("_")[-1].zfill(4)
-    file_parts["component_id"] = get_crockford_id()
+    file_parts["crockford_id"] = get_crockford_id()
     return file_parts
 
 
@@ -921,7 +921,7 @@ def get_s3_aip_image_key(prefix, file_parts):
     # NOTE: '.jp2' is hardcoded as the extension
     # HaleGE/HaleGE_s02_Correspondence_and_Documents_Relating_to_Organizations/HaleGE_s02_ss0B_National_Academy_of_Sciences/HaleGE_056_07_Section_on_Astronomy/HaleGE_056_07_0001/8c38-d9cy.jp2
     # {
-    #     "component_id": "me5v-z1yp",
+    #     "crockford_id": "me5v-z1yp",
     #     "extension": "tiff",
     #     "filename": "HaleGE_02_0B_056_07_0001.tiff",
     #     "filepath": "/path/to/archives/data/STAGE_2_ORIGINAL_FILES/HaleGE/HaleGE_02_0B_056_07_0001.tiff",
@@ -940,7 +940,7 @@ def get_s3_aip_image_key(prefix, file_parts):
         + "_"
         + file_parts["sequence"]
         + "/"
-        + file_parts["component_id"]
+        + file_parts["crockford_id"]
         + ".jp2"
     )
 
@@ -958,7 +958,7 @@ def get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_
             + folder_data["extents"][0]["number"].zfill(4)
             + "]"
         )
-    xmp_dc["identifier"] = file_parts["component_id"]
+    xmp_dc["identifier"] = file_parts["crockford_id"]
     xmp_dc["publisher"] = folder_arrangement["repository_name"]
     xmp_dc["source"] = (
         folder_arrangement["repository_code"]
@@ -1218,7 +1218,7 @@ def process_aip_image(filepath, collection_data, folder_arrangement, folder_data
         get_s3_aip_folder_prefix(folder_arrangement, folder_data), file_parts
     )
     # Add more values to `aip_image_data` dictionary.
-    aip_image_data["component_id"] = file_parts["component_id"]
+    aip_image_data["component_id"] = file_parts["crockford_id"]
     aip_image_data["sequence"] = file_parts["sequence"]
     # TODO change `s3key` to something more generic; also use for tape filepath
     aip_image_data["s3key"] = aip_image_s3key
