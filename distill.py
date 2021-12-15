@@ -765,7 +765,7 @@ def get_crockford_characters(n=4):
     return "".join(random.choices("abcdefghjkmnpqrstvwxyz" + string.digits, k=n))
 
 
-def get_digital_object_component_id():
+def get_crockford_id():
     return get_crockford_characters() + "_" + get_crockford_characters()
 
 
@@ -778,7 +778,7 @@ def get_file_parts(filepath):
     file_parts["folder_id"] = file_parts["filestem"].rsplit("_", 1)[0]
     # TODO rename 'sequence' because it is not always numeric
     file_parts["sequence"] = file_parts["filestem"].split("_")[-1].zfill(4)
-    file_parts["component_id"] = get_digital_object_component_id()
+    file_parts["component_id"] = get_crockford_id()
     return file_parts
 
 
