@@ -1370,7 +1370,6 @@ def loop_over_collection_subdirectories(variables):
             onsite_medium = __import__(config("ONSITE_MEDIUM"))
             onsite_medium.process_during_subdirectories_loop(variables)
 
-        """
         if variables["cloud"] and config("CLOUD_PLATFORM"):
             # Import a module named the same as the CLOUD_PLATFORM setting.
             cloud_platform = __import__(config("CLOUD_PLATFORM"))
@@ -1380,7 +1379,6 @@ def loop_over_collection_subdirectories(variables):
             # Import a module named the same as the ACCESS_PLATFORM setting.
             access_platform = __import__(config("ACCESS_PLATFORM"))
             access_platform.process_during_subdirectories_loop(variables)
-        """
 
         loop_over_digital_files(variables)
 
@@ -1441,6 +1439,16 @@ def loop_over_digital_files(variables):
             # Import a module named the same as the ONSITE_MEDIUM setting.
             onsite_medium = __import__(config("ONSITE_MEDIUM"))
             onsite_medium.process_during_files_loop(variables)
+
+        if variables["cloud"] and config("CLOUD_PLATFORM"):
+            # Import a module named the same as the CLOUD_PLATFORM setting.
+            cloud_platform = __import__(config("CLOUD_PLATFORM"))
+            cloud_platform.process_during_files_loop(variables)
+
+        if variables["access"] and config("ACCESS_PLATFORM"):
+            # Import a module named the same as the ACCESS_PLATFORM setting.
+            access_platform = __import__(config("ACCESS_PLATFORM"))
+            access_platform.process_during_files_loop(variables)
 
         # Remove generated `*-LOSSLESS.jp2` file.
         try:
