@@ -773,11 +773,11 @@ def get_file_parts(filepath):
     file_parts = {}
     file_parts["filepath"] = filepath
     file_parts["filename"] = file_parts["filepath"].split("/")[-1]
-    file_parts["image_id"] = file_parts["filename"].split(".")[0]
+    file_parts["filestem"] = file_parts["filename"].split(".")[0]
     file_parts["extension"] = file_parts["filename"].split(".")[-1]
-    file_parts["folder_id"] = file_parts["image_id"].rsplit("_", 1)[0]
+    file_parts["folder_id"] = file_parts["filestem"].rsplit("_", 1)[0]
     # TODO rename 'sequence' because it is not always numeric
-    file_parts["sequence"] = file_parts["image_id"].split("_")[-1].zfill(4)
+    file_parts["sequence"] = file_parts["filestem"].split("_")[-1].zfill(4)
     file_parts["component_id"] = get_digital_object_component_id()
     return file_parts
 
@@ -926,7 +926,7 @@ def get_s3_aip_image_key(prefix, file_parts):
     #     "filename": "HaleGE_02_0B_056_07_0001.tiff",
     #     "filepath": "/path/to/archives/data/STAGE_2_ORIGINAL_FILES/HaleGE/HaleGE_02_0B_056_07_0001.tiff",
     #     "folder_id": "HaleGE_02_0B_056_07",
-    #     "image_id": "HaleGE_02_0B_056_07_0001",
+    #     "filestem": "HaleGE_02_0B_056_07_0001",
     #     "sequence": "0001"
     # }
     # exception for extended identifiers like HaleGE_02_0B_056_07
@@ -1212,7 +1212,7 @@ def process_aip_image(filepath, collection_data, folder_arrangement, folder_data
     # verify image signatures match
     if aip_image_signature != sip_image_signature:
         raise RuntimeError(
-            f"❌ image signatures did not match: {file_parts['image_id']}"
+            f'❌ image signatures did not match: {file_parts["filestem"]}'
         )
     aip_image_s3key = get_s3_aip_image_key(
         get_s3_aip_folder_prefix(folder_arrangement, folder_data), file_parts
