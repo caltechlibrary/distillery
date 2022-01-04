@@ -1,5 +1,6 @@
 import os
 import shutil
+import sys
 from datetime import datetime, timedelta
 from glob import glob
 
@@ -7,6 +8,12 @@ import sh
 from asnake.client import ASnakeClient
 from decouple import config
 from requests import HTTPError
+
+if len(sys.argv) < 1:
+    backup_file_date = (datetime.now() - timedelta(1)).strftime("%Y-%m-%d")
+else:
+    # TODO ensure argument is a date
+    backup_file_date = sys.argv[1]
 
 # delete created ArchivesSpace objects
 asnake_client = ASnakeClient(
@@ -196,6 +203,6 @@ archivesspace_server = sh.ssh.bake(
 archivesspace_server(
     "/bin/bash",
     "/home/vagrant/shared/stop-load_db-start.sh",
-    (datetime.now() - timedelta(1)).strftime("%Y-%m-%d"),
+    backup_file_date,
     _fg=True,
 )
