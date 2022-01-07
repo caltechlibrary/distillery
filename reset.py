@@ -9,11 +9,11 @@ from asnake.client import ASnakeClient
 from decouple import config
 from requests import HTTPError
 
-if len(sys.argv) < 1:
-    backup_file_date = (datetime.now() - timedelta(1)).strftime("%Y-%m-%d")
-else:
+if len(sys.argv) > 1:
     # TODO ensure argument is a date
     backup_file_date = sys.argv[1]
+else:
+    backup_file_date = (datetime.now() - timedelta(1)).strftime("%Y-%m-%d")
 
 # delete created ArchivesSpace objects
 asnake_client = ASnakeClient(
