@@ -208,10 +208,10 @@ def distill(
     # _data/HBF <-- looping over folders under here
     # ├── HBF_000_XX
     # ├── HBF_001_02
-    # │   ├── HBF_001_02_01.tif
-    # │   ├── HBF_001_02_02.tif
-    # │   ├── HBF_001_02_03.tif
-    # │   └── HBF_001_02_04.tif
+    # │   ├── HBF_001_02_01.tif
+    # │   ├── HBF_001_02_02.tif
+    # │   ├── HBF_001_02_03.tif
+    # │   └── HBF_001_02_04.tif
     # └── HBF_007_08
     folders.sort(reverse=True)
     for _ in range(len(folders)):
@@ -1340,10 +1340,10 @@ def loop_over_collection_subdirectories(variables):
     _data/HBF <-- looping over folders under here
     ├── HBF_000_XX
     ├── HBF_001_02
-    │   ├── HBF_001_02_01.tif
-    │   ├── HBF_001_02_02.tif
-    │   ├── HBF_001_02_03.tif
-    │   └── HBF_001_02_04.tif
+    │   ├── HBF_001_02_01.tif
+    │   ├── HBF_001_02_02.tif
+    │   ├── HBF_001_02_03.tif
+    │   └── HBF_001_02_04.tif
     └── HBF_007_08
     """
     variables["folders"], variables["filecount"] = prepare_folder_list(
@@ -1390,10 +1390,10 @@ def loop_over_digital_files(variables):
     _data/HBF
     ├── HBF_000_XX
     ├── HBF_001_02 <-- looping over files under here
-    │   ├── HBF_001_02_01.tif
-    │   ├── HBF_001_02_02.tif
-    │   ├── HBF_001_02_03.tif
-    │   └── HBF_001_02_04.tif
+    │   ├── HBF_001_02_01.tif
+    │   ├── HBF_001_02_02.tif
+    │   ├── HBF_001_02_03.tif
+    │   └── HBF_001_02_04.tif
     └── HBF_007_08
     """
     # NOTE: We reverse the sort for use with pop() and so the components

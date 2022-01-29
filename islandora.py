@@ -1,7 +1,7 @@
 # PUBLISH ACCESS FILES AND METADATA TO ISLANDORA
 # generate image files and metadata for display
 
-# NOTE: be sure that the islandora_batch moduel is patched on the Islandora server;
+# NOTE: be sure that the islandora_batch module is patched on the Islandora server;
 # publishing the correct file_uri in ArchivesSpace for digital objects relies on a
 # patched islandora_batch module so PIDs can be specified for bookCModel objects
 # SEE https://github.com/caltechlibrary/islandora_batch/commit/9968d30e68f3a12b03a071b45ada4d20a6c6b04b
@@ -55,7 +55,12 @@ islandora_server = sh.ssh.bake(
 #   return drupal_strlen(trim($pid)) <= 64 && preg_match('/^([A-Za-z0-9]|-|\.)+:(([A-Za-z0-9])|-|\.|~|_|(%[0-9A-F]{2}))+$/', trim($pid));
 # }
 # https://regexr.com/
-def main(collection_id: "the Collection ID from ArchivesSpace"):
+def main(
+    cloud: ("sending to cloud storage", "flag", "c"),  # type: ignore
+    onsite: ("preparing for onsite storage", "flag", "o"),  # type: ignore
+    access: ("publishing access copies", "flag", "a"),  # type: ignore
+    collection_id: "the Collection ID from ArchivesSpace",  # type: ignore
+):
 
     logger.info("🦕 islandora")
 
@@ -63,12 +68,13 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
     stream_path = Path(config("PROCESSING_FILES")).joinpath(
         f"{collection_id}-processing"
     )
-    with open(stream_path, "a") as stream:
-        # NOTE specific emoji used to indicate start of script for event listener
-        # SEE distillery.py:stream()
-        # TODO we need some kind of condition to know if stream has started already
-        # because with Preservation & Access option autoscrolling breaks here
-        stream.write(f"🟢\n")
+
+    if not access:
+        message = "❌ islandora.py script was initiated without access being selected"
+        logger.error(message)
+        with open(stream_path, "a") as stream:
+            stream.write(message)
+        raise RuntimeError(message)
 
     try:
         (
@@ -316,7 +322,7 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
             islandora_collection_pid = idcrudfp.strip()
             with open(stream_path, "a") as stream:
                 stream.write(
-                    f"✅ Existing Islandora collection found: {islandora_collection_pid}\n"
+                    f"✅ Existing Islandora collection found: {config('ISLANDORA_URL').rstrip('/')}/islandora/object/{islandora_collection_pid}\n"
                 )
         except sh.ErrorReturnCode as e:
             # drush exits with a non-zero status when no PIDs are found,
@@ -329,18 +335,20 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
                 )
                 with open(stream_path, "a") as stream:
                     stream.write(
-                        f"✅ Created new Islandora collection: {islandora_collection_pid}\n"
+                        f"✅ Created new Islandora collection. [{config('ISLANDORA_URL').rstrip('/')}/islandora/object/{islandora_collection_pid}]\n"
                     )
             else:
                 raise e
 
         # add “book” to Islandora collection
+        book_url = f"{config('ISLANDORA_URL').rstrip('/')}/islandora/object/{collection_id}:{folder_data['component_id']}"
+
         # TODO return something?
         add_books_to_islandora_collection(
             islandora_collection_pid, islandora_staging_files
         )
         with open(stream_path, "a") as stream:
-            stream.write("✅ Ingested Islandora books.\n")
+            stream.write(f"✅ Ingested Islandora book. [{book_url}]\n")
 
         # update ArchivesSpace digital object
         # NOTE: the file_uri value used below relies on a patched islandora_batch module
@@ -349,12 +357,12 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
         # 1. prepare file_versions
         file_versions = [
             {
-                "file_uri": f"{config('ISLANDORA_URL').rstrip('/')}/islandora/object/{collection_id}:{folder_data['component_id']}",
+                "file_uri": book_url,
                 "jsonmodel_type": "file_version",
                 "publish": True,
             },
             {
-                "file_uri": f"{config('ISLANDORA_URL').rstrip('/')}/islandora/object/{collection_id}:{folder_data['component_id']}/datastream/TN/view",
+                "file_uri": f"{book_url}/datastream/TN/view",
                 "jsonmodel_type": "file_version",
                 "publish": True,
                 "xlink_show_attribute": "embed",
@@ -378,12 +386,22 @@ def main(collection_id: "the Collection ID from ArchivesSpace"):
         # 1. add prepared file_versions data to digital_object record
         digital_object["file_versions"] = file_versions
         # 1. post updated digital_object to ArchivesSpace
-        distill.update_digital_object(digital_object["uri"], digital_object)
+        digital_object_post_response = distill.update_digital_object(
+            digital_object["uri"], digital_object
+        ).json()
+        with open(stream_path, "a") as stream:
+            stream.write(
+                f"✅ Updated Digital Object for {folder_data['component_id']} in ArchivesSpace. [{config('ASPACE_STAFF_URL')}/resolve/readonly?uri={digital_object_post_response['uri']}]\n"
+            )
 
 
 def add_books_to_islandora_collection(
     islandora_collection_pid, islandora_staging_files
 ):
+    # NOTE: be sure that the islandora_batch module is patched on the Islandora server;
+    # publishing the correct file_uri in ArchivesSpace for digital objects relies on a
+    # patched islandora_batch module so PIDs can be specified for bookCModel objects
+    # SEE https://github.com/caltechlibrary/islandora_batch/commit/9968d30e68f3a12b03a071b45ada4d20a6c6b04b
     ibbp = islandora_server(
         "drush",
         "--user=1",
@@ -403,8 +421,14 @@ def add_books_to_islandora_collection(
         "islandora_batch_ingest",
         f"--ingest_set={ingest_set}",
     )
-    # ibi is formatted like:
-    # b'Ingested HBF:302.                                                           [ok]\nIngested HBF:303.                                                           [ok]\nIngested HBF:304.                                                           [ok]\nIngested HBF:301.                                                           [ok]\nProcessing complete; review the queue for some additional               [status]\ninformation.\n'
+    # ibi is formatted like (actual newlines inserted here for readability):
+    # b'Ingested HBF:302.                                                           [ok]
+    # \nIngested HBF:303.                                                           [ok]
+    # \nIngested HBF:304.                                                           [ok]
+    # \nIngested HBF:301.                                                           [ok]
+    # \nProcessing complete; review the queue for some additional               [status]
+    # \ninformation.
+    # \n'
     print(str(ibi.stderr, "utf-8"))  # TODO log this
     # TODO what should return?
 
@@ -495,8 +519,11 @@ def create_islandora_collection(islandora_staging_files):
         "islandora_batch_ingest",
         f"--ingest_set={ingest_set}",
     )
-    # ibi.stderr is formatted like:
-    # b'Ingested caltech:ABC.                                                       [ok]\nProcessing complete; review the queue for some additional               [status]\ninformation.\n'
+    # ibi.stderr is formatted like (actual newlines inserted here for readability):
+    # b'Ingested caltech:ABC.                                                       [ok]
+    # \nProcessing complete; review the queue for some additional               [status]
+    # \ninformation.
+    # \n'
     # we capture just the namespace:id portion (caltech:ABC)
     collection_pid = str(ibi.stderr, "utf-8").split()[1].strip(".")
     return collection_pid
