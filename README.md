@@ -12,3 +12,10 @@ Caltech Archives & Special Collections automated system for preparing and sendin
 ## TODO & Ideas
 
 - Move files to a structure and location appropriate for copying to LTO tape.
+
+### order of operations
+
+create structure of preservation files
+run destination-specific calculations
+send to destination(s)
+delete structure

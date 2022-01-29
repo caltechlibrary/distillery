@@ -99,28 +99,41 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
         # we re-raise the exception because we cannot continue without the files
         raise
 
-    # check independently for each flag option; the different processing scripts are
-    # each responsible for checking the list of flag options that were passed in order
-    # to know what other processes will have run
+    # check independently for each flag option; the different processing scripts
+    # are each responsible for checking the list of flag options that were
+    # passed in order to know what other processes will have run
+    # TODO NOT SURE THIS IS THE BEST WAY; MAYBE ALL LOGIC ABOUT WHAT TO RUN IN
+    # WHAT ORDER SHOULD ALL HAPPEN IN THIS FILE
+
     # NOTE the order of these conditions matters for certain processing scripts
     if "--report" in flags:
         logger.info("⚗️ processing report")
         pass
     if "--cloud" in flags:
         logger.info("⚗️ processing cloud preservation files")
+        # validate CLOUD_PLATFORM
+        try:
+            config("CLOUD_PLATFORM")
+        except UndefinedValueError as e:
+            message = "❌ CLOUD_PLATFORM not defined in settings file\n"
+            with open(stream_path, "a") as stream:
+                stream.write(message)
+            logger.error(f"❌ {e}")
+            raise
         try:
             command = [
                 sys.executable,
                 os.path.join(
-                    os.path.dirname(os.path.abspath(__file__)), "distill.py"
+                    os.path.dirname(os.path.abspath(__file__)),
+                    f'{config("CLOUD_PLATFORM")}.py',
                 ),
                 collection_id,
             ]
             command.extend(flags)
             subprocess.run(
                 command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                # stdout=subprocess.PIPE,
+                # stderr=subprocess.STDOUT,
                 check=True,
             )
         except BaseException as e:
@@ -147,10 +160,11 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
                 collection_id,
             ]
             command.extend(flags)
+            # TODO get errors and output from the subprocess somewhere
             subprocess.run(
                 command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                # stdout=subprocess.PIPE,
+                # stderr=subprocess.STDOUT,
                 check=True,
             )
         except BaseException as e:

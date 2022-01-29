@@ -208,10 +208,10 @@ def distill(
     # _data/EXAMPLE <-- looping over folders under here
     # ├── EXAMPLE_000_XX
     # ├── EXAMPLE_001_02
-    # │   ├── EXAMPLE_001_02_01.tif
-    # │   ├── EXAMPLE_001_02_02.tif
-    # │   ├── EXAMPLE_001_02_03.tif
-    # │   └── EXAMPLE_001_02_04.tif
+    # │   ├── EXAMPLE_001_02_01.tif
+    # │   ├── EXAMPLE_001_02_02.tif
+    # │   ├── EXAMPLE_001_02_03.tif
+    # │   └── EXAMPLE_001_02_04.tif
     # └── EXAMPLE_007_08
     folders.sort(reverse=True)
     for _ in range(len(folders)):
@@ -1340,10 +1340,10 @@ def loop_over_collection_subdirectories(variables):
     _data/EXAMPLE <-- looping over folders under here
     ├── EXAMPLE_000_XX
     ├── EXAMPLE_001_02
-    │   ├── EXAMPLE_001_02_01.tif
-    │   ├── EXAMPLE_001_02_02.tif
-    │   ├── EXAMPLE_001_02_03.tif
-    │   └── EXAMPLE_001_02_04.tif
+    │   ├── EXAMPLE_001_02_01.tif
+    │   ├── EXAMPLE_001_02_02.tif
+    │   ├── EXAMPLE_001_02_03.tif
+    │   └── EXAMPLE_001_02_04.tif
     └── EXAMPLE_007_08
     """
     variables["folders"], variables["filecount"] = prepare_folder_list(
@@ -1390,10 +1390,10 @@ def loop_over_digital_files(variables):
     _data/EXAMPLE
     ├── EXAMPLE_000_XX
     ├── EXAMPLE_001_02 <-- looping over files under here
-    │   ├── EXAMPLE_001_02_01.tif
-    │   ├── EXAMPLE_001_02_02.tif
-    │   ├── EXAMPLE_001_02_03.tif
-    │   └── EXAMPLE_001_02_04.tif
+    │   ├── EXAMPLE_001_02_01.tif
+    │   ├── EXAMPLE_001_02_02.tif
+    │   ├── EXAMPLE_001_02_03.tif
+    │   └── EXAMPLE_001_02_04.tif
     └── EXAMPLE_007_08
     """
     # NOTE: We reverse the sort for use with pop() and so the components
