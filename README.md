@@ -9,6 +9,11 @@ Caltech Archives & Special Collections automated system for preparing and sendin
 - `distill.py` retrieves metadata, converts images, writes metadata, uploads to S3, and creates ArchivesSpace records
 - `islandora.py` converts metadata and TIFFs to formats for Islandora, uploads and ingests the archival object folders as “book” items, records the proper digital object URLs in ArchivesSpace
 
+## Configuration
+
+1. Copy the `example-settings.ini` to `settings.ini` and set appropriate values.
+1. Copy the `example-users.csv` to `users.csv` and add authorized users.
+
 ## TODO & Ideas
 
 - Move files to a structure and location appropriate for copying to LTO tape. [Caltech Library Wiki: Transferring to LTO tape for preservation](https://caltechlibrary.atlassian.net/l/c/yJFLPJtJ)
