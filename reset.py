@@ -29,7 +29,7 @@ for uri in [
 ]:
     with open(
         os.path.join(
-            os.path.dirname(os.path.abspath(config("LOG_FILE"))), "archivesspace.log"
+            os.path.dirname(os.path.abspath(config("DISTILLERY_LOG_FILE"))), "archivesspace.log"
         )
     ) as log:
         lines = log.readlines()
@@ -82,7 +82,7 @@ for d in glob(
     )
 
 # move logs
-for f in glob(os.path.join(os.path.dirname(os.path.abspath(config("LOG_FILE"))), "*")):
+for f in glob(os.path.join(os.path.dirname(os.path.abspath(config("DISTILLERY_LOG_FILE"))), "*")):
     if os.path.getsize(f) > 0:
         print(f"📄 moving {f}")
         shutil.move(
