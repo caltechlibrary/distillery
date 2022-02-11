@@ -22,9 +22,9 @@ logging.config.fileConfig(
 )
 logger = logging.getLogger("alchemist")
 
-# the main loop which checks for init files in the PROCESSING_FILES directory
+# the main loop which checks for init files in the STATUS_FILES directory
 # NOTE: init files are created in distillery.py
-for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
+for f in glob(os.path.join(config("STATUS_FILES"), "*-init-*")):
     # using rsplit() in case the collection_id contains a - (hyphen) character
     collection_id = os.path.basename(f).rsplit("-", 2)[0]
 
@@ -36,9 +36,9 @@ for f in glob(os.path.join(config("PROCESSING_FILES"), "*-init-*")):
     # delete the init file to stop future initiation with the same file
     os.remove(f)
 
-    # NOTE we assume that PROCESSING_FILES is set correctly
+    # NOTE we assume that STATUS_FILES is set correctly
     stream_path = os.path.join(
-        config("PROCESSING_FILES"), f"{collection_id}-processing"
+        config("STATUS_FILES"), f"{collection_id}-processing"
     )
     with open(stream_path, "a") as stream:
         # NOTE specific emoji used to indicate start of script for event listener

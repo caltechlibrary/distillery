@@ -67,8 +67,8 @@ def distill(
     variables["onsite"] = onsite
     variables["access"] = access
 
-    # NOTE we have to assume that PROCESSING_FILES is set correctly
-    stream_path = Path(config("PROCESSING_FILES")).joinpath(
+    # NOTE we have to assume that STATUS_FILES is set correctly
+    stream_path = Path(config("STATUS_FILES")).joinpath(
         f"{collection_id}-processing"
     )
 
