@@ -24,6 +24,8 @@ For copying to the cloud we are using and assuming AWS S3. For publishing access
 ## Configuration
 
 1. Copy the `example-settings.ini` to `settings.ini` and set appropriate values.
+    - the web server handling `distillery.py` only needs the `STATUS_FILES` value set
+    - the processing server handling `alchemist.py` and its triggered modules needs all the values set
 1. Copy the `example-users.csv` to `users.csv` and add authorized users.
 
 ## TODO & Ideas
