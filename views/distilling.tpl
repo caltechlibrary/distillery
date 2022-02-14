@@ -127,7 +127,7 @@
           <div class="double-bounce2"></div>
         </div>
         <!-- document why #return and #anchor must be within #waiting initially -->
-        <div id="return"><a href="/">return to form</a></div>
+        <div id="return"><a href="{{base_url}}">return to form</a></div>
         <div id="anchor"></div>
       </div>
     </div>
