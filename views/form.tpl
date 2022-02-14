@@ -72,9 +72,9 @@
     <h1>Distillery</h1>
     <nav>
         <div>Hello, {{user["display_name"]}}!</div>
-        <div><a href="/Shibboleth.sso/Logout">log out</a></div>
+        <div><a href="{{base_url}}/Shibboleth.sso/Logout">log out</a></div>
     </nav>
-    <form action="/distilling" method="post" onsubmit="return validateCheckboxGroup()">
+    <form action="{{base_url}}/distilling" method="post" onsubmit="return validateCheckboxGroup()">
         <h2>Collection</h2>
         <p>Enter a Collection ID as it appears in ArchivesSpace and the folder name on the filesystem.</p>
         <label>

@@ -34,7 +34,7 @@ def error403(error):
 @get("/")
 def form_collection_id():
     # we pass the user dictionary to the template
-    return template("form", user=authorize_user())
+    return template("form", base_url=config("BASE_URL"), user=authorize_user())
 
 
 @post("/distilling")
@@ -45,7 +45,9 @@ def begin_processing():
     Path(config("STATUS_FILES")).joinpath(f"{collection_id}-init-{processes}").touch()
     # write a file for the event stream
     Path(config("STATUS_FILES")).joinpath(f"{collection_id}-processing").touch()
-    return template("distilling", collection_id=collection_id)
+    return template(
+        "distilling", base_url=config("BASE_URL"), collection_id=collection_id
+    )
 
 
 @get("/distill/<collection_id>")
