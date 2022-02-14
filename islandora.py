@@ -65,9 +65,7 @@ def main(
     logger.info("🦕 islandora")
 
     # NOTE we have to assume that STATUS_FILES is set correctly
-    stream_path = Path(config("STATUS_FILES")).joinpath(
-        f"{collection_id}-processing"
-    )
+    stream_path = Path(config("STATUS_FILES")).joinpath(f"{collection_id}-processing")
 
     if not access:
         message = "❌ islandora.py script was initiated without access being selected"
@@ -78,7 +76,7 @@ def main(
 
     try:
         (
-            STAGE_2_ORIGINAL_FILES,
+            WORKING_ORIGINAL_FILES,
             COMPRESSED_ACCESS_FILES,
         ) = validate_settings()
     except Exception as e:
@@ -93,7 +91,7 @@ def main(
 
     try:
         collection_directory = distill.get_collection_directory(
-            STAGE_2_ORIGINAL_FILES, collection_id
+            WORKING_ORIGINAL_FILES, collection_id
         )
         if collection_directory:
             with open(stream_path, "a") as stream:
@@ -102,7 +100,7 @@ def main(
                 )
         # TODO report on contents of collection_directory
     except NotADirectoryError as e:
-        message = f"❌ No valid directory for {collection_id} was found on filesystem: {os.path.join(STAGE_2_ORIGINAL_FILES, collection_id)}\n"
+        message = f"❌ No valid directory for {collection_id} was found on filesystem: {os.path.join(WORKING_ORIGINAL_FILES, collection_id)}\n"
         with open(stream_path, "a") as stream:
             stream.write(message)
         # logger.error(message, exc_info=True)
@@ -725,17 +723,17 @@ def upload_to_islandora_server():
 
 
 def validate_settings():
-    STAGE_2_ORIGINAL_FILES = Path(
-        os.path.expanduser(config("STAGE_2_ORIGINAL_FILES"))
+    WORKING_ORIGINAL_FILES = Path(
+        os.path.expanduser(config("WORKING_ORIGINAL_FILES"))
     ).resolve(
         strict=True
-    )  # NOTE do not create missing `STAGE_2_ORIGINAL_FILES` directory
+    )  # NOTE do not create missing `WORKING_ORIGINAL_FILES` directory
     COMPRESSED_ACCESS_FILES = Path(
         os.path.expanduser(config("COMPRESSED_ACCESS_FILES"))
     ).resolve(
         strict=True
     )  # NOTE do not create missing `COMPRESSED_ACCESS_FILES` directory
-    return STAGE_2_ORIGINAL_FILES, COMPRESSED_ACCESS_FILES
+    return WORKING_ORIGINAL_FILES, COMPRESSED_ACCESS_FILES
 
 
 if __name__ == "__main__":

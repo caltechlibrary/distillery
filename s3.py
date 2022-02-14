@@ -44,9 +44,7 @@ def main(
     variables["access"] = access
 
     # NOTE we have to assume that STATUS_FILES is set correctly
-    stream_path = Path(config("STATUS_FILES")).joinpath(
-        f"{collection_id}-processing"
-    )
+    stream_path = Path(config("STATUS_FILES")).joinpath(f"{collection_id}-processing")
 
     variables["stream_path"] = stream_path.as_posix()
 
@@ -75,9 +73,7 @@ def main(
 
     variables["PRESERVATION_BUCKET"] = PRESERVATION_BUCKET
     variables["IN_PROCESS_ORIGINAL_FILES"] = IN_PROCESS_ORIGINAL_FILES.as_posix()
-    variables[
-        "LOSSLESS_PRESERVATION_FILES"
-    ] = LOSSLESS_PRESERVATION_FILES.as_posix()
+    variables["LOSSLESS_PRESERVATION_FILES"] = LOSSLESS_PRESERVATION_FILES.as_posix()
 
     variables["collection_directory"] = distill.get_collection_directory(
         IN_PROCESS_ORIGINAL_FILES, collection_id
@@ -163,14 +159,14 @@ def process_during_files_loop(variables):
         s3_put_response["ETag"].strip('"')
         != variables["preservation_image_data"]["md5"].hexdigest()
     ):
-        message = (
-            f'⚠️ the S3 ETag did not match for {variables["preservation_image_data"]["filepath"]}'
-        )
+        message = f'⚠️ the S3 ETag did not match for {variables["preservation_image_data"]["filepath"]}'
         with open(variables["stream_path"], "a") as f:
             f.write(message)
     # Set up ArchivesSpace record.
     digital_object_component = distill.prepare_digital_object_component(
-        variables["folder_data"], variables["PRESERVATION_BUCKET"], variables["preservation_image_data"]
+        variables["folder_data"],
+        variables["PRESERVATION_BUCKET"],
+        variables["preservation_image_data"],
     )
     # Post Digital Object Component to ArchivesSpace.
     digital_object_component_post_response = distill.post_digital_object_component(
@@ -190,9 +186,11 @@ def process_during_subdirectories_loop(variables):
         variables["LOSSLESS_PRESERVATION_FILES"],
     )
     folder_data_key = distill.get_s3_aip_folder_key(
-            distill.get_s3_aip_folder_prefix(variables["folder_arrangement"], variables["folder_data"]),
-            variables["folder_data"],
-        )
+        distill.get_s3_aip_folder_prefix(
+            variables["folder_arrangement"], variables["folder_data"]
+        ),
+        variables["folder_data"],
+    )
     # Send ArchivesSpace folder metadata to S3 as a JSON file.
     s3_client.put_object(
         Bucket=variables["PRESERVATION_BUCKET"],
@@ -207,7 +205,7 @@ def process_during_subdirectories_loop(variables):
 
 def validate_settings():
     IN_PROCESS_ORIGINAL_FILES = Path(
-        os.path.expanduser(config("STAGE_2_ORIGINAL_FILES"))
+        os.path.expanduser(config("WORKING_ORIGINAL_FILES"))
     ).resolve(
         strict=True
     )  # NOTE do not create missing `IN_PROCESS_ORIGINAL_FILES`

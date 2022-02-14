@@ -37,9 +37,7 @@ for f in glob(os.path.join(config("STATUS_FILES"), "*-init-*")):
     os.remove(f)
 
     # NOTE we assume that STATUS_FILES is set correctly
-    stream_path = os.path.join(
-        config("STATUS_FILES"), f"{collection_id}-processing"
-    )
+    stream_path = os.path.join(config("STATUS_FILES"), f"{collection_id}-processing")
     with open(stream_path, "a") as stream:
         # NOTE specific emoji used to indicate start of script for event listener
         # SEE distillery.py:stream()
@@ -48,40 +46,40 @@ for f in glob(os.path.join(config("STATUS_FILES"), "*-init-*")):
     logger.info(f"📅 {datetime.now()} begin")
     logger.info(f"🗄 {collection_id}")
 
-    # move the `collection_id` directory into `STAGE_2_ORIGINAL_FILES`
+    # move the `collection_id` directory into `WORKING_ORIGINAL_FILES`
     # NOTE shutil.move() in Python < 3.9 needs strings as arguments
     try:
         # make a list of directory names to check against
         entries = []
-        for entry in os.scandir(config("STAGE_1_ORIGINAL_FILES")):
+        for entry in os.scandir(config("INITIAL_ORIGINAL_FILES")):
             if entry.is_dir:
                 entries.append(entry.name)
         # check that collection_id case matches directory name
         if collection_id in entries:
             if os.path.isdir(
-                os.path.join(config("STAGE_2_ORIGINAL_FILES"), collection_id)
+                os.path.join(config("WORKING_ORIGINAL_FILES"), collection_id)
             ):
                 # NOTE using copy+rm in order to not destroy an existing destination structure
                 shutil.copytree(
-                    str(os.path.join(config("STAGE_1_ORIGINAL_FILES"), collection_id)),
-                    str(config("STAGE_2_ORIGINAL_FILES")),
+                    str(os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id)),
+                    str(config("WORKING_ORIGINAL_FILES")),
                     dirs_exist_ok=True,
                 )
                 shutil.rmtree(
-                    str(os.path.join(config("STAGE_1_ORIGINAL_FILES"), collection_id))
+                    str(os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id))
                 )
             else:
                 shutil.move(
-                    str(os.path.join(config("STAGE_1_ORIGINAL_FILES"), collection_id)),
-                    str(config("STAGE_2_ORIGINAL_FILES")),
+                    str(os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id)),
+                    str(config("WORKING_ORIGINAL_FILES")),
                 )
         else:
-            message = f"❌ no directory name matching {collection_id} in {config('STAGE_1_ORIGINAL_FILES')}\n"
+            message = f"❌ no directory name matching {collection_id} in {config('INITIAL_ORIGINAL_FILES')}\n"
             with open(stream_path, "a") as stream:
                 stream.write(message)
             raise NotADirectoryError(message)
     except FileNotFoundError as e:
-        message = f"❌ {collection_id} directory not found in {config('STAGE_1_ORIGINAL_FILES')}\n"
+        message = f"❌ {collection_id} directory not found in {config('INITIAL_ORIGINAL_FILES')}\n"
         with open(stream_path, "a") as stream:
             stream.write(message)
         logger.error(f"❌ {e}")
@@ -207,16 +205,16 @@ for f in glob(os.path.join(config("STATUS_FILES"), "*-init-*")):
         if os.path.isdir(os.path.join(config("STAGE_3_ORIGINAL_FILES"), collection_id)):
             # NOTE using copy+rm in order to not destroy an existing destination structure
             shutil.copytree(
-                str(os.path.join(config("STAGE_2_ORIGINAL_FILES"), collection_id)),
+                str(os.path.join(config("WORKING_ORIGINAL_FILES"), collection_id)),
                 str(os.path.join(config("STAGE_3_ORIGINAL_FILES"), collection_id)),
                 dirs_exist_ok=True,
             )
             shutil.rmtree(
-                str(os.path.join(config("STAGE_2_ORIGINAL_FILES"), collection_id))
+                str(os.path.join(config("WORKING_ORIGINAL_FILES"), collection_id))
             )
         else:
             shutil.move(
-                str(os.path.join(config("STAGE_2_ORIGINAL_FILES"), collection_id)),
+                str(os.path.join(config("WORKING_ORIGINAL_FILES"), collection_id)),
                 str(config("STAGE_3_ORIGINAL_FILES")),
             )
     except BaseException as e:

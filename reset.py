@@ -29,7 +29,8 @@ for uri in [
 ]:
     with open(
         os.path.join(
-            os.path.dirname(os.path.abspath(config("DISTILLERY_LOG_FILE"))), "archivesspace.log"
+            os.path.dirname(os.path.abspath(config("DISTILLERY_LOG_FILE"))),
+            "archivesspace.log",
         )
     ) as log:
         lines = log.readlines()
@@ -42,13 +43,13 @@ for uri in [
                 except HTTPError as e:
                     print(f"⚠️ {e}")
 
-# remove directories from STAGE_1_ORIGINAL_FILES
-for d in glob(os.path.join(config("STAGE_1_ORIGINAL_FILES"), "*/")):
+# remove directories from INITIAL_ORIGINAL_FILES
+for d in glob(os.path.join(config("INITIAL_ORIGINAL_FILES"), "*/")):
     print(f"🔥 deleting {d}")
     shutil.rmtree(d)
 
-# remove directories from STAGE_2_ORIGINAL_FILES
-for d in glob(os.path.join(config("STAGE_2_ORIGINAL_FILES"), "*/")):
+# remove directories from WORKING_ORIGINAL_FILES
+for d in glob(os.path.join(config("WORKING_ORIGINAL_FILES"), "*/")):
     print(f"🔥 deleting {d}")
     shutil.rmtree(d)
 
@@ -67,7 +68,7 @@ for d in glob(os.path.join(config("COMPRESSED_ACCESS_FILES"), "*/")):
     print(f"🔥 deleting {d}")
     shutil.rmtree(d)
 
-# copy test data to STAGE_1_ORIGINAL_FILES and store collection identifiers for later
+# copy test data to INITIAL_ORIGINAL_FILES and store collection identifiers for later
 collections = []
 for d in glob(
     os.path.join(
@@ -78,11 +79,13 @@ for d in glob(
     collections.append(os.path.basename(d.rstrip("/")))
     shutil.copytree(
         d.rstrip("/"),
-        os.path.join(config("STAGE_1_ORIGINAL_FILES"), os.path.basename(d.rstrip("/"))),
+        os.path.join(config("INITIAL_ORIGINAL_FILES"), os.path.basename(d.rstrip("/"))),
     )
 
 # move logs
-for f in glob(os.path.join(os.path.dirname(os.path.abspath(config("DISTILLERY_LOG_FILE"))), "*")):
+for f in glob(
+    os.path.join(os.path.dirname(os.path.abspath(config("DISTILLERY_LOG_FILE"))), "*")
+):
     if os.path.getsize(f) > 0:
         print(f"📄 moving {f}")
         shutil.move(

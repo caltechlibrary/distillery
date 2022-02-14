@@ -25,6 +25,7 @@ tape_server = sh.ssh.bake(
     f"-p{config('TAPE_SSH_PORT')}",
 )
 
+
 def main(
     cloud: ("sending to cloud storage", "flag", "c"),  # type: ignore
     onsite: ("preparing for onsite storage", "flag", "o"),  # type: ignore
@@ -42,9 +43,7 @@ def main(
     variables["collection_id"] = collection_id
 
     # NOTE we have to assume that STATUS_FILES is set correctly
-    stream_path = Path(config("STATUS_FILES")).joinpath(
-        f"{collection_id}-processing"
-    )
+    stream_path = Path(config("STATUS_FILES")).joinpath(f"{collection_id}-processing")
 
     variables["stream_path"] = stream_path.as_posix()
 
@@ -69,21 +68,21 @@ def main(
             )
 
         (
-            IN_PROCESS_ORIGINAL_FILES,
-            LOSSLESS_PRESERVATION_FILES, # TODO use WORK_
+            WORKING_ORIGINAL_FILES,
+            LOSSLESS_PRESERVATION_FILES,  # TODO use WORK_
         ) = validate_settings()
 
-        variables["IN_PROCESS_ORIGINAL_FILES"] = IN_PROCESS_ORIGINAL_FILES.as_posix()
+        variables["WORKING_ORIGINAL_FILES"] = WORKING_ORIGINAL_FILES.as_posix()
         variables[
             "LOSSLESS_PRESERVATION_FILES"
-        ] = LOSSLESS_PRESERVATION_FILES.as_posix() # TODO use WORK_
+        ] = LOSSLESS_PRESERVATION_FILES.as_posix()  # TODO use WORK_
 
         # TODO distill.create_preservation_structure()
 
         # TODO possibly rename; "collection_directory" is becoming ambiguous
         #      "original_files_working_directory" maybe
         variables["collection_directory"] = distill.get_collection_directory(
-            IN_PROCESS_ORIGINAL_FILES, collection_id
+            WORKING_ORIGINAL_FILES, collection_id
         )
         variables["collection_data"] = distill.get_collection_data(collection_id)
 
@@ -91,7 +90,7 @@ def main(
         # to the NAS mounted on WORK
         distill.save_collection_metadata(
             variables["collection_data"], LOSSLESS_PRESERVATION_FILES
-        ) # TODO use WORK_
+        )  # TODO use WORK_
 
         # NOTE this loop contains the following sequence:
         # - process_during_subdirectories_loop()
@@ -107,37 +106,33 @@ def main(
         # - save container information in ArchivesSpace
 
         # get the (approximate) size of the collection directory in LOSSLESS_PRESERVATION_FILES
-        collection_directory_bytes = get_directory_bytes(f'{variables["LOSSLESS_PRESERVATION_FILES"]}/{variables["collection_id"]}') # TODO use WORK_
-        print(f'‼️{str(collection_directory_bytes)}‼️')
+        collection_directory_bytes = get_directory_bytes(
+            f'{variables["LOSSLESS_PRESERVATION_FILES"]}/{variables["collection_id"]}'
+        )  # TODO use WORK_
+        print(f"‼️{str(collection_directory_bytes)}‼️")
         with open(stream_path, "a") as stream:
             stream.write(
-                f'collection_directory_bytes: {str(collection_directory_bytes)}'
+                f"collection_directory_bytes: {str(collection_directory_bytes)}"
             )
         # get the indicator and available capacity of current tape
         tape_indicator = get_tape_indicator()
-        print(f'‼️{tape_indicator}‼️')
+        print(f"‼️{tape_indicator}‼️")
         with open(stream_path, "a") as stream:
-            stream.write(
-                f'tape_indicator: {tape_indicator}\n'
-            )
+            stream.write(f"tape_indicator: {tape_indicator}\n")
         # NOTE output from tape_server connection is a string
         tape_bytes = tape_server(
-            f'{config("TAPE_PYTHON3_CMD")} -c \'import shutil; total, used, free = shutil.disk_usage(\"{config("TAPE_LTO_MOUNTPOINT")}\"); print(total, free)\'',
+            f'{config("TAPE_PYTHON3_CMD")} -c \'import shutil; total, used, free = shutil.disk_usage("{config("TAPE_LTO_MOUNTPOINT")}"); print(total, free)\'',
         ).strip()
-        tape_total_bytes = tuple(map(int, tape_bytes.split(' ')))[0]
-        tape_free_bytes = tuple(map(int, tape_bytes.split(' ')))[1]
-        print(f'‼️{tape_total_bytes}‼️')
+        tape_total_bytes = tuple(map(int, tape_bytes.split(" ")))[0]
+        tape_free_bytes = tuple(map(int, tape_bytes.split(" ")))[1]
+        print(f"‼️{tape_total_bytes}‼️")
         with open(stream_path, "a") as stream:
-            stream.write(
-                f'tape_total_bytes: {tape_total_bytes}\n'
-            )
-        print(f'‼️{tape_free_bytes}‼️')
+            stream.write(f"tape_total_bytes: {tape_total_bytes}\n")
+        print(f"‼️{tape_free_bytes}‼️")
         with open(stream_path, "a") as stream:
-            stream.write(
-                f'tape_free_bytes: {tape_free_bytes}\n'
-            )
+            stream.write(f"tape_free_bytes: {tape_free_bytes}\n")
         # TODO calculate whether collection directory will fit on current tape
-        tape_capacity_buffer = tape_total_bytes * 0.01 # 1% for tape index
+        tape_capacity_buffer = tape_total_bytes * 0.01  # 1% for tape index
         if not tape_free_bytes - collection_directory_bytes > tape_capacity_buffer:
             # TODO unmount tape
             # TODO send mail to LIT
@@ -147,33 +142,46 @@ def main(
             with open(stream_path, "a") as stream:
                 stream.write("THIS DOES NOT FIT ON THE TAPE")
         # TODO rsync to tape
-        print(f'‼️rsync begin: {datetime.now()}')
-        rsync_to_tape() # TODO handle failure
-        print(f'‼️rsync end: {datetime.now()}')
+        print(f"‼️rsync begin: {datetime.now()}")
+        rsync_to_tape()  # TODO handle failure
+        print(f"‼️rsync end: {datetime.now()}")
         # TODO create UI for adding top containers in bulk to ArchivesSpace records
 
         with open(stream_path, "a") as stream:
-            stream.write(
-                "end tape process"
-            )
+            stream.write("end tape process")
+
 
 def rsync_to_tape():
     """Ensure NAS is mounted and copy collection directory tree to tape."""
     if nas_is_mounted():
         # NOTE LTFS will not save group, permission, or time attributes
-        output = tape_server(config("TAPE_RSYNC_CMD"), "-r", "--exclude=.DS_Store", f'{config("TAPE_NAS_MOUNTPOINT")}/{config("LOSSLESS_PRESERVATION_FILES_PATH")}/', config("TAPE_LTO_MOUNTPOINT"))
-        print(f'‼️{output.exit_code}‼️')
+        output = tape_server(
+            config("TAPE_RSYNC_CMD"),
+            "-r",
+            "--exclude=.DS_Store",
+            f'{config("TAPE_NAS_MOUNTPOINT")}/{config("LOSSLESS_PRESERVATION_FILES_PATH")}/',
+            config("TAPE_LTO_MOUNTPOINT"),
+        )
+        print(f"‼️{output.exit_code}‼️")
         return
     else:
         mount_nas()
         # NOTE LTFS will not save group, permission, or time attributes
-        output = tape_server(config("TAPE_RSYNC_CMD"), "-r", "--exclude=.DS_Store", f'{config("TAPE_NAS_MOUNTPOINT")}/{config("LOSSLESS_PRESERVATION_FILES_PATH")}/', config("TAPE_LTO_MOUNTPOINT"))
-        print(f'‼️{output.exit_code}‼️')
+        output = tape_server(
+            config("TAPE_RSYNC_CMD"),
+            "-r",
+            "--exclude=.DS_Store",
+            f'{config("TAPE_NAS_MOUNTPOINT")}/{config("LOSSLESS_PRESERVATION_FILES_PATH")}/',
+            config("TAPE_LTO_MOUNTPOINT"),
+        )
+        print(f"‼️{output.exit_code}‼️")
         return
+
 
 def get_directory_bytes(directory):
     """Returns the total bytes of all files under a given directory."""
-    return sum(f.stat().st_size for f in Path(directory).glob('**/*') if f.is_file())
+    return sum(f.stat().st_size for f in Path(directory).glob("**/*") if f.is_file())
+
 
 def get_tape_indicator():
     """Ensure tape is mounted and return contents of existing or created INDICATOR file."""
@@ -182,6 +190,7 @@ def get_tape_indicator():
     else:
         mount_tape()
         return try_tape_indicator()
+
 
 def try_tape_indicator():
     """Return contents of existing or created INDICATOR file."""
@@ -195,43 +204,64 @@ def try_tape_indicator():
     except Exception as e:
         raise e
 
+
 def read_tape_indicator():
     """"Return contents of existing INDICATOR file."""
-    tape_indicator = tape_server(f'{config("TAPE_PYTHON3_CMD")} -c \'with open(\"{config("TAPE_LTO_MOUNTPOINT")}/INDICATOR\") as f: print(f.read())\'').strip()
+    tape_indicator = tape_server(
+        f'{config("TAPE_PYTHON3_CMD")} -c \'with open("{config("TAPE_LTO_MOUNTPOINT")}/INDICATOR") as f: print(f.read())\''
+    ).strip()
     return tape_indicator
+
 
 def write_tape_indicator():
     """Write INDICATOR file to tape with contents of: YYYYMMDD_01"""
     tape_indicator = f'{date.today().strftime("%Y%m%d")}_01'
     # TODO check if indicator already exists
     # (unlikely, as it would require filling up an entire 6 TB tape in a day)
-    tape_server(f'{config("TAPE_PYTHON3_CMD")} -c \'with open(\"{config("TAPE_LTO_MOUNTPOINT")}/INDICATOR\", \"w\") as f: f.write(\"{tape_indicator}\\n\")\'')
+    tape_server(
+        f'{config("TAPE_PYTHON3_CMD")} -c \'with open("{config("TAPE_LTO_MOUNTPOINT")}/INDICATOR", "w") as f: f.write("{tape_indicator}\\n")\''
+    )
+
 
 def nas_is_mounted():
     """Returns boolean True or False."""
     # NOTE is_mounted is set as a string
-    is_mounted = tape_server(f'{config("TAPE_PYTHON3_CMD")} -c \'import os; print(os.path.ismount(\"{config("TAPE_NAS_MOUNTPOINT")}\"))\'').strip()
+    is_mounted = tape_server(
+        f'{config("TAPE_PYTHON3_CMD")} -c \'import os; print(os.path.ismount("{config("TAPE_NAS_MOUNTPOINT")}"))\''
+    ).strip()
     if is_mounted == "True":
         return True
     else:
         return False
+
 
 def tape_is_mounted():
     """Returns boolean True or False."""
     # NOTE is_mounted is set as a string
-    is_mounted = tape_server(f'{config("TAPE_PYTHON3_CMD")} -c \'import os; print(os.path.ismount(\"{config("TAPE_LTO_MOUNTPOINT")}\"))\'').strip()
+    is_mounted = tape_server(
+        f'{config("TAPE_PYTHON3_CMD")} -c \'import os; print(os.path.ismount("{config("TAPE_LTO_MOUNTPOINT")}"))\''
+    ).strip()
     if is_mounted == "True":
         return True
     else:
         return False
 
+
 def mount_tape():
     tape_server(config("TAPE_LTFS_CMD"), config("TAPE_LTO_MOUNTPOINT"))
+
 
 def mount_nas():
     # TODO make platform indpendent; macOS and Linux have different mount options
     # NOTE using urllib.parse.quote() to URL-encode special characters
-    tape_server("mount", "-t", "smbfs", f'//{config("TAPE_NAS_USER")}:{urllib.parse.quote(config("TAPE_NAS_PASS"))}@{config("NAS_IP_ADDRESS")}/{config("NAS_SHARE")}', config("TAPE_NAS_MOUNTPOINT"))
+    tape_server(
+        "mount",
+        "-t",
+        "smbfs",
+        f'//{config("TAPE_NAS_USER")}:{urllib.parse.quote(config("TAPE_NAS_PASS"))}@{config("NAS_IP_ADDRESS")}/{config("NAS_SHARE")}',
+        config("TAPE_NAS_MOUNTPOINT"),
+    )
+
 
 def process_during_files_loop(variables):
     # Save Preservation Image in local filesystem structure.
@@ -251,16 +281,18 @@ def process_during_subdirectories_loop(variables):
 
 
 def validate_settings():
-    IN_PROCESS_ORIGINAL_FILES = Path(
-        os.path.expanduser(config("STAGE_2_ORIGINAL_FILES"))
+    WORKING_ORIGINAL_FILES = Path(
+        os.path.expanduser(config("WORKING_ORIGINAL_FILES"))
     ).resolve(
         strict=True
-    )  # NOTE do not create missing `IN_PROCESS_ORIGINAL_FILES`
+    )  # NOTE do not create missing `WORKING_ORIGINAL_FILES`
     LOSSLESS_PRESERVATION_FILES = distill.directory_setup(
         os.path.expanduser(config("LOSSLESS_PRESERVATION_FILES"))
-    ).resolve(strict=True) # TODO use WORK_
+    ).resolve(
+        strict=True
+    )  # TODO use WORK_
     return (
-        IN_PROCESS_ORIGINAL_FILES,
+        WORKING_ORIGINAL_FILES,
         LOSSLESS_PRESERVATION_FILES,
     )
 
