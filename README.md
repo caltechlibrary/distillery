@@ -27,7 +27,7 @@ For copying to the cloud we are using and assuming AWS S3. For publishing access
 1. Create a virtual environment for the project on each server.
 1. Install the required packages in the virtual environment on each server.
 1. Copy the `example-settings.ini` to `settings.ini` and set appropriate values.
-    - the web server handling `distillery.py` only needs the `STATUS_FILES` value set
+    - the web server handling `distillery.py` needs the `WEB_NAS_APPS_MOUNTPOINT` and `NAS_STATUS_FILES_RELATIVE_PATH` values set
     - the processing server handling `alchemist.py` and its triggered modules needs all the values set
 1. On the web server, copy the `example-users.csv` to `users.csv` and add authorized users.
 1. On the processing server, set up a cron job to run `alchemist.py` every minute.

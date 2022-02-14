@@ -43,7 +43,9 @@ def main(
     variables["collection_id"] = collection_id
 
     # NOTE we have to assume that STATUS_FILES is set correctly
-    stream_path = Path(config("STATUS_FILES")).joinpath(f"{collection_id}-processing")
+    stream_path = Path(
+        f'{config("WORK_NAS_APPS_MOUNTPOINT")}/{config("NAS_STATUS_FILES_RELATIVE_PATH")}'
+    ).joinpath(f"{collection_id}-processing")
 
     variables["stream_path"] = stream_path.as_posix()
 

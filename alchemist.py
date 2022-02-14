@@ -24,7 +24,12 @@ logger = logging.getLogger("alchemist")
 
 # the main loop which checks for init files in the STATUS_FILES directory
 # NOTE: init files are created in distillery.py
-for f in glob(os.path.join(config("STATUS_FILES"), "*-init-*")):
+for f in glob(
+    os.path.join(
+        f'{config("WORK_NAS_APPS_MOUNTPOINT")}/{config("NAS_STATUS_FILES_RELATIVE_PATH")}',
+        "*-init-*",
+    )
+):
     # using rsplit() in case the collection_id contains a - (hyphen) character
     collection_id = os.path.basename(f).rsplit("-", 2)[0]
 
@@ -37,7 +42,10 @@ for f in glob(os.path.join(config("STATUS_FILES"), "*-init-*")):
     os.remove(f)
 
     # NOTE we assume that STATUS_FILES is set correctly
-    stream_path = os.path.join(config("STATUS_FILES"), f"{collection_id}-processing")
+    stream_path = os.path.join(
+        f'{config("WORK_NAS_APPS_MOUNTPOINT")}/{config("NAS_STATUS_FILES_RELATIVE_PATH")}',
+        f"{collection_id}-processing",
+    )
     with open(stream_path, "a") as stream:
         # NOTE specific emoji used to indicate start of script for event listener
         # SEE distillery.py:stream()
