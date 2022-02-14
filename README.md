@@ -11,7 +11,7 @@ Caltech Archives & Special Collections automated system for preparing and sendin
 - `s3.py`
 - `islandora.py` converts metadata and TIFFs to formats for Islandora, uploads and ingests the archival object folders as “book” items, records the proper digital object URLs in ArchivesSpace
 
-## Server Setup
+## Server Explanation
 
 `distillery.py` is a [Bottle](https://bottlepy.org/) application and can be run on localhost or a web server such as Apache with mod_wsgi.
 
@@ -21,12 +21,16 @@ We assume another server for ArchivesSpace and another that has a tape drive att
 
 For copying to the cloud we are using and assuming AWS S3. For publishing access copies we are currently using a separate server that runs Islandora 7.
 
-## Configuration
+## Setup
 
+1. Clone the [Distillery](https://github.com/caltechlibrary/distillery) repository to both the web server and processing server.
+1. Create a virtual environment for the project on each server.
+1. Install the required packages in the virtual environment on each server.
 1. Copy the `example-settings.ini` to `settings.ini` and set appropriate values.
     - the web server handling `distillery.py` only needs the `STATUS_FILES` value set
     - the processing server handling `alchemist.py` and its triggered modules needs all the values set
-1. Copy the `example-users.csv` to `users.csv` and add authorized users.
+1. On the web server, copy the `example-users.csv` to `users.csv` and add authorized users.
+1. On the processing server, set up a cron job to run `alchemist.py` every minute.
 
 ## TODO & Ideas
 
