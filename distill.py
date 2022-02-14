@@ -68,9 +68,7 @@ def distill(
     variables["access"] = access
 
     # NOTE we have to assume that STATUS_FILES is set correctly
-    stream_path = Path(config("STATUS_FILES")).joinpath(
-        f"{collection_id}-processing"
-    )
+    stream_path = Path(config("STATUS_FILES")).joinpath(f"{collection_id}-processing")
 
     if not cloud:
         message = "❌ distill.py script was initiated without cloud being selected"
@@ -81,7 +79,7 @@ def distill(
 
     try:
         (
-            STAGE_2_ORIGINAL_FILES,
+            WORKING_ORIGINAL_FILES,
             STAGE_3_ORIGINAL_FILES,
             PRESERVATION_BUCKET,
             LOSSLESS_PRESERVATION_FILES,
@@ -104,7 +102,7 @@ def distill(
 
     try:
         collection_directory = get_collection_directory(
-            STAGE_2_ORIGINAL_FILES, collection_id
+            WORKING_ORIGINAL_FILES, collection_id
         )
         if collection_directory:
             with open(stream_path, "a") as f:
@@ -113,7 +111,7 @@ def distill(
                 )
         # TODO report on contents of collection_directory
     except NotADirectoryError as e:
-        message = f"❌ No valid directory for {collection_id} was found on filesystem: {os.path.join(STAGE_2_ORIGINAL_FILES, collection_id)}\n"
+        message = f"❌ No valid directory for {collection_id} was found on filesystem: {os.path.join(WORKING_ORIGINAL_FILES, collection_id)}\n"
         with open(stream_path, "a") as f:
             f.write(message)
         # logging.error(message, exc_info=True)
@@ -477,7 +475,7 @@ def distill(
                 continue
 
             # # Move processed source file into `STAGE_3_ORIGINAL_FILES` with the structure
-            # # under `STAGE_2_ORIGINAL_FILES` (the `+ 1` strips a path seperator).
+            # # under `WORKING_ORIGINAL_FILES` (the `+ 1` strips a path seperator).
 
             # # TODO need to rethink file locations; some files may be explicitly not sent
             # # to islandora, so islandora.py should not look for files in the same place;
@@ -488,7 +486,7 @@ def distill(
             #         filepath,
             #         os.path.join(
             #             STAGE_3_ORIGINAL_FILES,
-            #             filepath[len(str(STAGE_2_ORIGINAL_FILES)) + 1 :],
+            #             filepath[len(str(WORKING_ORIGINAL_FILES)) + 1 :],
             #         ),
             #     )
             # except OSError as e:
@@ -722,18 +720,18 @@ def get_collection_data(collection_id):
         )
 
 
-def get_collection_directory(STAGE_2_ORIGINAL_FILES, collection_id):
+def get_collection_directory(WORKING_ORIGINAL_FILES, collection_id):
     # make a list of directory names to check against
     entries = []
-    for entry in os.scandir(STAGE_2_ORIGINAL_FILES):
+    for entry in os.scandir(WORKING_ORIGINAL_FILES):
         if entry.is_dir:
             entries.append(entry.name)
     # check that collection_id case matches directory name
     if collection_id in entries:
-        return os.path.join(STAGE_2_ORIGINAL_FILES, collection_id)
+        return os.path.join(WORKING_ORIGINAL_FILES, collection_id)
     else:
         raise NotADirectoryError(
-            f"Missing or invalid collection directory: {os.path.join(STAGE_2_ORIGINAL_FILES, collection_id)}\n"
+            f"Missing or invalid collection directory: {os.path.join(WORKING_ORIGINAL_FILES, collection_id)}\n"
         )
 
 
@@ -924,7 +922,7 @@ def get_s3_aip_image_key(prefix, file_parts):
     #     "crockford_id": "me5v-z1yp",
     #     "extension": "tiff",
     #     "filename": "HaleGE_02_0B_056_07_0001.tiff",
-    #     "filepath": "/path/to/archives/data/STAGE_2_ORIGINAL_FILES/HaleGE/HaleGE_02_0B_056_07_0001.tiff",
+    #     "filepath": "/path/to/archives/data/WORKING_ORIGINAL_FILES/HaleGE/HaleGE_02_0B_056_07_0001.tiff",
     #     "folder_id": "HaleGE_02_0B_056_07",
     #     "filestem": "HaleGE_02_0B_056_07_0001",
     #     "sequence": "0001"
@@ -1297,11 +1295,11 @@ def update_digital_object(uri, data):
 
 
 def validate_settings():
-    STAGE_2_ORIGINAL_FILES = Path(
-        os.path.expanduser(config("STAGE_2_ORIGINAL_FILES"))
+    WORKING_ORIGINAL_FILES = Path(
+        os.path.expanduser(config("WORKING_ORIGINAL_FILES"))
     ).resolve(
         strict=True
-    )  # NOTE do not create missing `STAGE_2_ORIGINAL_FILES`
+    )  # NOTE do not create missing `WORKING_ORIGINAL_FILES`
     STAGE_3_ORIGINAL_FILES = directory_setup(
         os.path.expanduser(config("STAGE_3_ORIGINAL_FILES"))
     ).resolve(strict=True)
@@ -1312,7 +1310,7 @@ def validate_settings():
         os.path.expanduser(config("LOSSLESS_PRESERVATION_FILES"))
     ).resolve(strict=True)
     return (
-        STAGE_2_ORIGINAL_FILES,
+        WORKING_ORIGINAL_FILES,
         STAGE_3_ORIGINAL_FILES,
         PRESERVATION_BUCKET,
         LOSSLESS_PRESERVATION_FILES,
