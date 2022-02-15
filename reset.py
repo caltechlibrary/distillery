@@ -59,7 +59,12 @@ for d in glob(os.path.join(config("STAGE_3_ORIGINAL_FILES"), "*/")):
     shutil.rmtree(d)
 
 # remove directories from LOSSLESS_PRESERVATION_FILES
-for d in glob(os.path.join(config("LOSSLESS_PRESERVATION_FILES"), "*/")):
+for d in glob(
+    os.path.join(
+        f'{config("WORK_NAS_ARCHIVES_MOUNTPOINT")}/{config("NAS_LOSSLESS_PRESERVATION_FILES_RELATIVE_PATH")}',
+        "*/",
+    )
+):
     print(f"🔥 deleting {d}")
     shutil.rmtree(d)
 

@@ -84,7 +84,7 @@ def distill(
             WORKING_ORIGINAL_FILES,
             STAGE_3_ORIGINAL_FILES,
             PRESERVATION_BUCKET,
-            LOSSLESS_PRESERVATION_FILES,
+            WORK_LOSSLESS_PRESERVATION_FILES,
         ) = validate_settings()
     except Exception as e:
         message = "❌ There was a problem with the settings for the processing script.\n"
@@ -160,15 +160,15 @@ def distill(
 
     variables["collection_data"] = collection_data
 
-    # Save collection metadata to LOSSLESS_PRESERVATION_FILES directory.
+    # Save collection metadata to WORK_LOSSLESS_PRESERVATION_FILES directory.
     try:
-        save_collection_metadata(collection_data, LOSSLESS_PRESERVATION_FILES)
+        save_collection_metadata(collection_data, WORK_LOSSLESS_PRESERVATION_FILES)
         with open(stream_path, "a") as f:
             f.write(
-                f"✅ Collection metadata for {collection_id} saved to: {LOSSLESS_PRESERVATION_FILES}/{collection_id}/{collection_id}.json\n"
+                f"✅ Collection metadata for {collection_id} saved to: {WORK_LOSSLESS_PRESERVATION_FILES}/{collection_id}/{collection_id}.json\n"
             )
     except OSError as e:
-        message = f"❌ Unable to save {collection_id}.json file to: {LOSSLESS_PRESERVATION_FILES}/{collection_id}\n"
+        message = f"❌ Unable to save {collection_id}.json file to: {WORK_LOSSLESS_PRESERVATION_FILES}/{collection_id}\n"
         with open(stream_path, "a") as f:
             f.write(message)
         # logging.error(message, exc_info=True)
@@ -249,17 +249,17 @@ def distill(
             # TODO increment file counter by the count of files in this folder
             continue
 
-        # Save folder metadata to LOSSLESS_PRESERVATION_FILES directory.
+        # Save folder metadata to WORK_LOSSLESS_PRESERVATION_FILES directory.
         try:
             save_folder_data(
-                folder_arrangement, folder_data, LOSSLESS_PRESERVATION_FILES
+                folder_arrangement, folder_data, WORK_LOSSLESS_PRESERVATION_FILES
             )
             with open(stream_path, "a") as f:
                 f.write(
-                    f"✅ Folder metadata for {folder_data['component_id']} saved under: {LOSSLESS_PRESERVATION_FILES}/{collection_id}\n"
+                    f"✅ Folder metadata for {folder_data['component_id']} saved under: {WORK_LOSSLESS_PRESERVATION_FILES}/{collection_id}\n"
                 )
         except Exception as e:
-            message = f"❌ Unable to save {folder_data['component_id']}.json file to: {LOSSLESS_PRESERVATION_FILES}/{collection_id}\n"
+            message = f"❌ Unable to save {folder_data['component_id']}.json file to: {WORK_LOSSLESS_PRESERVATION_FILES}/{collection_id}\n"
             with open(stream_path, "a") as f:
                 f.write(message)
             # logging.error(message, exc_info=True)
@@ -346,15 +346,15 @@ def distill(
             try:
                 with open(stream_path, "a") as f:
                     f.write(
-                        f"📂 Saving lossless JPEG 2000 for {Path(filepath).stem} under {LOSSLESS_PRESERVATION_FILES}/{collection_id}\n"
+                        f"📂 Saving lossless JPEG 2000 for {Path(filepath).stem} under {WORK_LOSSLESS_PRESERVATION_FILES}/{collection_id}\n"
                     )
                 # TODO change variable names (“aip” is always confusing; “s3key” is too specific)
                 save_preservation_file(
                     aip_image_data["filepath"],
-                    f'{LOSSLESS_PRESERVATION_FILES}/{aip_image_data["s3key"]}',
+                    f'{WORK_LOSSLESS_PRESERVATION_FILES}/{aip_image_data["s3key"]}',
                 )
             except Exception as e:
-                message = f'❌ There was a problem saving the file: {LOSSLESS_PRESERVATION_FILES}/{aip_image_data["s3key"]}\n'
+                message = f'❌ There was a problem saving the file: {WORK_LOSSLESS_PRESERVATION_FILES}/{aip_image_data["s3key"]}\n'
                 with open(stream_path, "a") as f:
                     f.write(message)
                 # logging.error(message, exc_info=True)
@@ -1308,14 +1308,16 @@ def validate_settings():
     PRESERVATION_BUCKET = config(
         "PRESERVATION_BUCKET"
     )  # TODO validate access to bucket
-    LOSSLESS_PRESERVATION_FILES = directory_setup(
-        os.path.expanduser(config("LOSSLESS_PRESERVATION_FILES"))
+    WORK_LOSSLESS_PRESERVATION_FILES = directory_setup(
+        os.path.expanduser(
+            f'{config("WORK_NAS_ARCHIVES_MOUNTPOINT")}/{config("NAS_LOSSLESS_PRESERVATION_FILES_RELATIVE_PATH")}'
+        )
     ).resolve(strict=True)
     return (
         WORKING_ORIGINAL_FILES,
         STAGE_3_ORIGINAL_FILES,
         PRESERVATION_BUCKET,
-        LOSSLESS_PRESERVATION_FILES,
+        WORK_LOSSLESS_PRESERVATION_FILES,
     )
 
 

@@ -71,13 +71,13 @@ def main(
 
         (
             WORKING_ORIGINAL_FILES,
-            LOSSLESS_PRESERVATION_FILES,  # TODO use WORK_
+            WORK_LOSSLESS_PRESERVATION_FILES,
         ) = validate_settings()
 
         variables["WORKING_ORIGINAL_FILES"] = WORKING_ORIGINAL_FILES.as_posix()
         variables[
-            "LOSSLESS_PRESERVATION_FILES"
-        ] = LOSSLESS_PRESERVATION_FILES.as_posix()  # TODO use WORK_
+            "WORK_LOSSLESS_PRESERVATION_FILES"
+        ] = WORK_LOSSLESS_PRESERVATION_FILES.as_posix()
 
         # TODO distill.create_preservation_structure()
 
@@ -91,8 +91,8 @@ def main(
         # NOTE this script is running on WORK and this metadata is being saved
         # to the NAS mounted on WORK
         distill.save_collection_metadata(
-            variables["collection_data"], LOSSLESS_PRESERVATION_FILES
-        )  # TODO use WORK_
+            variables["collection_data"], WORK_LOSSLESS_PRESERVATION_FILES
+        )
 
         # NOTE this loop contains the following sequence:
         # - process_during_subdirectories_loop()
@@ -109,8 +109,8 @@ def main(
 
         # get the (approximate) size of the collection directory in LOSSLESS_PRESERVATION_FILES
         collection_directory_bytes = get_directory_bytes(
-            f'{variables["LOSSLESS_PRESERVATION_FILES"]}/{variables["collection_id"]}'
-        )  # TODO use WORK_
+            f'{variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/{variables["collection_id"]}'
+        )
         print(f"‼️{str(collection_directory_bytes)}‼️")
         with open(stream_path, "a") as stream:
             stream.write(
@@ -161,7 +161,7 @@ def rsync_to_tape():
             config("TAPE_RSYNC_CMD"),
             "-r",
             "--exclude=.DS_Store",
-            f'{config("TAPE_NAS_MOUNTPOINT")}/{config("LOSSLESS_PRESERVATION_FILES_PATH")}/',
+            f'{config("TAPE_NAS_ARCHIVES_MOUNTPOINT")}/{config("NAS_LOSSLESS_PRESERVATION_FILES_RELATIVE_PATH")}/',
             config("TAPE_LTO_MOUNTPOINT"),
         )
         print(f"‼️{output.exit_code}‼️")
@@ -173,7 +173,7 @@ def rsync_to_tape():
             config("TAPE_RSYNC_CMD"),
             "-r",
             "--exclude=.DS_Store",
-            f'{config("TAPE_NAS_MOUNTPOINT")}/{config("LOSSLESS_PRESERVATION_FILES_PATH")}/',
+            f'{config("TAPE_NAS_ARCHIVES_MOUNTPOINT")}/{config("NAS_LOSSLESS_PRESERVATION_FILES_RELATIVE_PATH")}/',
             config("TAPE_LTO_MOUNTPOINT"),
         )
         print(f"‼️{output.exit_code}‼️")
@@ -218,7 +218,7 @@ def read_tape_indicator():
 def write_tape_indicator():
     """Write INDICATOR file to tape with contents of: YYYYMMDD_01"""
     tape_indicator = f'{date.today().strftime("%Y%m%d")}_01'
-    # TODO check if indicator already exists
+    # TODO check if indicator value already exists
     # (unlikely, as it would require filling up an entire 6 TB tape in a day)
     tape_server(
         f'{config("TAPE_PYTHON3_CMD")} -c \'with open("{config("TAPE_LTO_MOUNTPOINT")}/INDICATOR", "w") as f: f.write("{tape_indicator}\\n")\''
@@ -229,7 +229,7 @@ def nas_is_mounted():
     """Returns boolean True or False."""
     # NOTE is_mounted is set as a string
     is_mounted = tape_server(
-        f'{config("TAPE_PYTHON3_CMD")} -c \'import os; print(os.path.ismount("{config("TAPE_NAS_MOUNTPOINT")}"))\''
+        f'{config("TAPE_PYTHON3_CMD")} -c \'import os; print(os.path.ismount("{config("TAPE_NAS_ARCHIVES_MOUNTPOINT")}"))\''
     ).strip()
     if is_mounted == "True":
         return True
@@ -261,7 +261,7 @@ def mount_nas():
         "-t",
         "smbfs",
         f'//{config("TAPE_NAS_USER")}:{urllib.parse.quote(config("TAPE_NAS_PASS"))}@{config("NAS_IP_ADDRESS")}/{config("NAS_SHARE")}',
-        config("TAPE_NAS_MOUNTPOINT"),
+        config("TAPE_NAS_ARCHIVES_MOUNTPOINT"),
     )
 
 
@@ -269,7 +269,7 @@ def process_during_files_loop(variables):
     # Save Preservation Image in local filesystem structure.
     distill.save_preservation_file(
         variables["preservation_image_data"]["filepath"],
-        f'{variables["LOSSLESS_PRESERVATION_FILES"]}/{variables["preservation_image_data"]["s3key"]}',
+        f'{variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/{variables["preservation_image_data"]["s3key"]}',
     )
 
 
@@ -278,7 +278,7 @@ def process_during_subdirectories_loop(variables):
     distill.save_folder_data(
         variables["folder_arrangement"],
         variables["folder_data"],
-        variables["LOSSLESS_PRESERVATION_FILES"],
+        variables["WORK_LOSSLESS_PRESERVATION_FILES"],
     )
 
 
@@ -288,14 +288,14 @@ def validate_settings():
     ).resolve(
         strict=True
     )  # NOTE do not create missing `WORKING_ORIGINAL_FILES`
-    LOSSLESS_PRESERVATION_FILES = distill.directory_setup(
-        os.path.expanduser(config("LOSSLESS_PRESERVATION_FILES"))
-    ).resolve(
-        strict=True
-    )  # TODO use WORK_
+    WORK_LOSSLESS_PRESERVATION_FILES = distill.directory_setup(
+        os.path.expanduser(
+            f'{config("WORK_NAS_ARCHIVES_MOUNTPOINT")}/{config("NAS_LOSSLESS_PRESERVATION_FILES_RELATIVE_PATH")}'
+        )
+    ).resolve(strict=True)
     return (
         WORKING_ORIGINAL_FILES,
-        LOSSLESS_PRESERVATION_FILES,
+        WORK_LOSSLESS_PRESERVATION_FILES,
     )
 
 
