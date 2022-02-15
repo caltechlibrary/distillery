@@ -34,7 +34,7 @@ def error403(error):
 @get("/")
 def form_collection_id():
     # we pass the user dictionary to the template
-    return template("form", base_url=config("BASE_URL"), user=authorize_user())
+    return template("form", base_url=config("BASE_URL").rstrip("/"), user=authorize_user())
 
 
 @post("/distilling")
@@ -50,7 +50,7 @@ def begin_processing():
         f'{config("WEB_NAS_APPS_MOUNTPOINT")}/{config("NAS_STATUS_FILES_RELATIVE_PATH")}'
     ).joinpath(f"{collection_id}-processing").touch()
     return template(
-        "distilling", base_url=config("BASE_URL"), collection_id=collection_id
+        "distilling", base_url=config("BASE_URL").rstrip("/"), collection_id=collection_id
     )
 
 
