@@ -62,7 +62,7 @@ def main(
             IN_PROCESS_ORIGINAL_FILES,
             STAGE_3_ORIGINAL_FILES,
             PRESERVATION_BUCKET,
-            LOSSLESS_PRESERVATION_FILES,
+            WORK_LOSSLESS_PRESERVATION_FILES,
         ) = validate_settings()
     except Exception as e:
         message = "❌ There was a problem with the settings for the processing script.\n"
@@ -75,7 +75,9 @@ def main(
 
     variables["PRESERVATION_BUCKET"] = PRESERVATION_BUCKET
     variables["IN_PROCESS_ORIGINAL_FILES"] = IN_PROCESS_ORIGINAL_FILES.as_posix()
-    variables["LOSSLESS_PRESERVATION_FILES"] = LOSSLESS_PRESERVATION_FILES.as_posix()
+    variables[
+        "WORK_LOSSLESS_PRESERVATION_FILES"
+    ] = WORK_LOSSLESS_PRESERVATION_FILES.as_posix()
 
     variables["collection_directory"] = distill.get_collection_directory(
         IN_PROCESS_ORIGINAL_FILES, collection_id
@@ -83,11 +85,11 @@ def main(
     variables["collection_data"] = distill.get_collection_data(collection_id)
 
     distill.save_collection_metadata(
-        variables["collection_data"], LOSSLESS_PRESERVATION_FILES
+        variables["collection_data"], WORK_LOSSLESS_PRESERVATION_FILES
     )
     with open(stream_path, "a") as f:
         f.write(
-            f'✅ {variables["LOSSLESS_PRESERVATION_FILES"]}/{collection_id}/{collection_id}.json\n'
+            f'✅ {variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/{collection_id}/{collection_id}.json\n'
         )
 
     s3_client.put_object(
@@ -110,7 +112,7 @@ def process_during_files_loop(variables):
     # Save Preservation Image in local filesystem structure.
     distill.save_preservation_file(
         variables["preservation_image_data"]["filepath"],
-        f'{variables["LOSSLESS_PRESERVATION_FILES"]}/{variables["preservation_image_data"]["s3key"]}',
+        f'{variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/{variables["preservation_image_data"]["s3key"]}',
     )
     # Send Preservation File to S3.
     """example success response:
@@ -185,7 +187,7 @@ def process_during_subdirectories_loop(variables):
     distill.save_folder_data(
         variables["folder_arrangement"],
         variables["folder_data"],
-        variables["LOSSLESS_PRESERVATION_FILES"],
+        variables["WORK_LOSSLESS_PRESERVATION_FILES"],
     )
     folder_data_key = distill.get_s3_aip_folder_key(
         distill.get_s3_aip_folder_prefix(
@@ -217,14 +219,16 @@ def validate_settings():
     PRESERVATION_BUCKET = config(
         "PRESERVATION_BUCKET"
     )  # TODO validate access to bucket
-    LOSSLESS_PRESERVATION_FILES = distill.directory_setup(
-        os.path.expanduser(config("LOSSLESS_PRESERVATION_FILES"))
+    WORK_LOSSLESS_PRESERVATION_FILES = distill.directory_setup(
+        os.path.expanduser(
+            f'{config("WORK_NAS_ARCHIVES_MOUNTPOINT")}/{config("NAS_LOSSLESS_PRESERVATION_FILES_RELATIVE_PATH")}'
+        )
     ).resolve(strict=True)
     return (
         IN_PROCESS_ORIGINAL_FILES,
         STAGE_3_ORIGINAL_FILES,
         PRESERVATION_BUCKET,
-        LOSSLESS_PRESERVATION_FILES,
+        WORK_LOSSLESS_PRESERVATION_FILES,
     )
 
 
