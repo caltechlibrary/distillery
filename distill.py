@@ -1138,9 +1138,9 @@ def process_aip_image(filepath, collection_data, folder_arrangement, folder_data
     # cut out only the checksum string for the pixel stream
     # NOTE running this process in the background saves time because
     # the conversion starts soon after in a different subprocess
-    cut_cmd = sh.Command(config("CUT_CMD"))
-    sha512sum_cmd = sh.Command(config("SHA512SUM_CMD"))
-    magick_cmd = sh.Command(config("MAGICK_CMD"))
+    cut_cmd = sh.Command(config("WORK_CUT_CMD"))
+    sha512sum_cmd = sh.Command(config("WORK_SHA512SUM_CMD"))
+    magick_cmd = sh.Command(config("WORK_MAGICK_CMD"))
     sip_image_signature = cut_cmd(
         sha512sum_cmd(
             magick_cmd.stream(
@@ -1323,7 +1323,7 @@ def validate_settings():
 
 def write_xmp_metadata(filepath, metadata):
     # NOTE: except `source` all the dc elements here are keywords in exiftool
-    exiftool_cmd = sh.Command(config("EXIFTOOL_CMD"))
+    exiftool_cmd = sh.Command(config("WORK_EXIFTOOL_CMD"))
     return exiftool_cmd(
         "-title=" + metadata["title"],
         "-identifier=" + metadata["identifier"],

@@ -603,12 +603,12 @@ def generate_islandora_page_datastreams(
 ):
     page_start = datetime.now()
 
-    magick_cmd = sh.Command(config("MAGICK_CMD"))
+    magick_cmd = sh.Command(config("WORK_MAGICK_CMD"))
     magick_cmd.convert(
         "-quiet", filepath, "-compress", "None", "/tmp/uncompressed.tiff"
     )
 
-    tesseract_cmd = sh.Command(config("TESSERACT_CMD"))
+    tesseract_cmd = sh.Command(config("WORK_TESSERACT_CMD"))
     ocr_generation = tesseract_cmd(
         "/tmp/uncompressed.tiff", "/tmp/tesseract", "txt", "hocr", _bg=True
     )
@@ -632,7 +632,7 @@ def generate_islandora_page_datastreams(
     )
 
     obj_path = os.path.join(page_datastreams_directory, "OBJ.jp2")
-    kdu_compress_cmd = sh.Command(config("KDU_COMPRESS_CMD"))
+    kdu_compress_cmd = sh.Command(config("WORK_KDU_COMPRESS_CMD"))
     obj_conversion = kdu_compress_cmd(
         "-i",
         "/tmp/uncompressed.tiff",
