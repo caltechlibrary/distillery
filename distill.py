@@ -45,11 +45,11 @@ asnake_client = ASnakeClient(
 )
 asnake_client.authorize()
 
-s3_client = boto3.client(
-    "s3",
-    aws_access_key_id=config("AWS_ACCESS_KEY"),
-    aws_secret_access_key=config("AWS_SECRET_KEY"),
-)
+# s3_client = boto3.client(
+#     "s3",
+#     aws_access_key_id=config("AWS_ACCESS_KEY"),
+#     aws_secret_access_key=config("AWS_SECRET_KEY"),
+# )
 
 
 def distill(
@@ -176,7 +176,12 @@ def distill(
 
     # Send collection metadata to S3.
     try:
-        s3_client.put_object(
+        # s3_client.put_object(
+        boto3.client(
+            "s3",
+            aws_access_key_id=config("AWS_ACCESS_KEY"),
+            aws_secret_access_key=config("AWS_SECRET_KEY"),
+        ).put_object(
             Bucket=PRESERVATION_BUCKET,
             Key=collection_id + "/" + collection_id + ".json",
             Body=json.dumps(collection_data, sort_keys=True, indent=4),
@@ -267,7 +272,12 @@ def distill(
 
         # Send ArchivesSpace folder metadata to S3 as a JSON file.
         try:
-            s3_client.put_object(
+            # s3_client.put_object(
+            boto3.client(
+                "s3",
+                aws_access_key_id=config("AWS_ACCESS_KEY"),
+                aws_secret_access_key=config("AWS_SECRET_KEY"),
+            ).put_object(
                 Bucket=PRESERVATION_BUCKET,
                 Key=get_s3_aip_folder_key(
                     get_s3_aip_folder_prefix(folder_arrangement, folder_data),
@@ -388,7 +398,12 @@ def distill(
                     # start this in the background
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         future = executor.submit(
-                            s3_client.put_object,
+                            # s3_client.put_object,
+                            boto3.client(
+                                "s3",
+                                aws_access_key_id=config("AWS_ACCESS_KEY"),
+                                aws_secret_access_key=config("AWS_SECRET_KEY"),
+                            ).put_object,
                             Bucket=PRESERVATION_BUCKET,
                             Key=aip_image_data["s3key"],
                             Body=body,
