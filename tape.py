@@ -178,7 +178,8 @@ def rsync_to_tape(stream_path):
     """Ensure NAS is mounted and copy collection directory tree to tape."""
     def process_output(line):
         with open(stream_path, "a") as f:
-            f.write(line)
+            if line.strip():
+                f.write(line)
     def perform_rsync():
         # NOTE LTFS will not save group, permission, or time attributes
         output = tape_server(
