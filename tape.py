@@ -3,7 +3,6 @@
 import logging
 import os
 import shutil
-import subprocess
 import tempfile
 import time
 import urllib
@@ -278,14 +277,15 @@ def mount_nas():
     # create a temporary directory on TAPE server
     tape_mount_nas_tmpdir = tape_server("mktemp", "-d").strip()  # macOS
     # rsync WORK server script file to temporary directory on TAPE server
-    # TODO use sh instead of subprocess.run()
-    rsync_output = subprocess.run(
-        [
+    try:
+        sh(
             config("WORK_RSYNC_CMD"),
             f"{work_mount_nas_tmpdir}/distillery_tape_mount_nas.sh",
             f"{config('TAPE_SSH_USER')}@{config('TAPE_SSH_HOST')}:{tape_mount_nas_tmpdir}/distillery_tape_mount_nas.sh",
-        ]
-    )
+        )
+    except sh.ErrorReturnCode as e:
+        print("❌  COULD NOT RSYNC THE SCRIPT FILE TO THE TAPE SERVER")
+        raise e
     # run script on TAPE server via sh
     # TODO create TAPE_BASH_CMD in settings.ini
     try:
