@@ -40,8 +40,6 @@ def main(
     collection_id: "the Collection ID from ArchivesSpace",  # type: ignore
 ):
 
-    logger.info("📼 tape")
-
     variables = {}
 
     variables["cloud"] = cloud
@@ -50,9 +48,9 @@ def main(
     variables["collection_id"] = collection_id
 
     # NOTE we have to assume that STATUS_FILES is set correctly
-    stream_path = Path(
-        f'{config("WORK_NAS_APPS_MOUNTPOINT")}/{config("NAS_STATUS_FILES_RELATIVE_PATH")}'
-    ).joinpath(f"{collection_id}-processing")
+    stream_path = Path(config("WORK_NAS_APPS_MOUNTPOINT")).joinpath(
+        config("NAS_STATUS_FILES_RELATIVE_PATH"), f"{collection_id}-processing"
+    )
 
     variables["stream_path"] = stream_path.as_posix()
 
@@ -62,9 +60,6 @@ def main(
         with open(stream_path, "a") as stream:
             stream.write(message)
         raise RuntimeError(message)
-
-    with open(stream_path, "a") as stream:
-        stream.write("the cloud process has not run, so we need to create JP2 files")
 
     (
         WORKING_ORIGINAL_FILES,
@@ -76,11 +71,17 @@ def main(
         "WORK_LOSSLESS_PRESERVATION_FILES"
     ] = WORK_LOSSLESS_PRESERVATION_FILES.as_posix()
 
-    # TODO test TAPE mounts
+    # verify TAPE NAS mount
     if not nas_is_mounted():
         with open(stream_path, "a") as stream:
             stream.write("🤖  WE ARE GOING TO TRY TO MOUNT THE NAS\n")
         mount_nas()
+    # verify TAPE tape mount
+    # TODO confirm ASSUMPTION that any tape in the drive can be used
+    if not tape_is_mounted():
+        with open(stream_path, "a") as stream:
+            stream.write("🤖  WE ARE GOING TO TRY TO MOUNT THE TAPE\n")
+        mount_tape()
 
     # TODO distill.create_preservation_structure()
 
@@ -114,27 +115,28 @@ def main(
     collection_directory_bytes = get_directory_bytes(
         f'{variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/{variables["collection_id"]}'
     )
-    print(f"‼️{str(collection_directory_bytes)}‼️")
     with open(stream_path, "a") as stream:
         stream.write(f"collection_directory_bytes: {str(collection_directory_bytes)}\n")
+
     # get the indicator and available capacity of current tape
     tape_indicator = get_tape_indicator()
-    print(f"‼️{tape_indicator}‼️")
     with open(stream_path, "a") as stream:
         stream.write(f"tape_indicator: {tape_indicator}\n")
-    # NOTE output from tape_server connection is a string
+
+    # NOTE output from tape_server connection is a string formatted like:
+    # `5732142415872 5690046283776`
     tape_bytes = tape_server(
         f'{config("TAPE_PYTHON3_CMD")} -c \'import shutil; total, used, free = shutil.disk_usage("{config("TAPE_LTO_MOUNTPOINT")}"); print(total, free)\'',
     ).strip()
+    # convert the string to a tuple and get the parts
     tape_total_bytes = tuple(map(int, tape_bytes.split(" ")))[0]
     tape_free_bytes = tuple(map(int, tape_bytes.split(" ")))[1]
-    print(f"‼️{tape_total_bytes}‼️")
     with open(stream_path, "a") as stream:
         stream.write(f"tape_total_bytes: {tape_total_bytes}\n")
-    print(f"‼️{tape_free_bytes}‼️")
     with open(stream_path, "a") as stream:
         stream.write(f"tape_free_bytes: {tape_free_bytes}\n")
-    # TODO calculate whether collection directory will fit on current tape
+
+    # calculate whether collection directory will fit on current tape
     tape_capacity_buffer = tape_total_bytes * 0.01  # 1% for tape index
     if not tape_free_bytes - collection_directory_bytes > tape_capacity_buffer:
         # TODO unmount tape
@@ -144,35 +146,32 @@ def main(
         #   OR reset original files so the whole process gets redone
         with open(stream_path, "a") as stream:
             stream.write("THIS DOES NOT FIT ON THE TAPE")
-    # TODO rsync to tape
 
-    # TODO subprocess this and print dots...
-    # TODO make a note everywhere that printing dots is simply for UI output
-
-    logger.info(f"‼️rsync begin: {datetime.now()}")
+    # rsync LOSSLESS_PRESERVATION_FILES to tape
     with open(stream_path, "a") as stream:
         stream.write("🎬 begin copying files to tape\n")
-    rsync_to_tape(stream_path)  # TODO handle failure
+    rsync_to_tape(variables)  # TODO handle failure
     with open(stream_path, "a") as stream:
         stream.write("copying files to tape complete\n")
-    logger.info(f"‼️rsync end: {datetime.now()}")
+
     # TODO create UI for adding top containers in bulk to ArchivesSpace records
 
     with open(stream_path, "a") as stream:
         stream.write("✅ end tape process\n")
 
 
-def rsync_to_tape(stream_path):
+def rsync_to_tape(variables):
     """Ensure NAS is mounted and copy collection directory tree to tape."""
 
     def process_output(line):
-        with open(stream_path, "a") as f:
+        with open(variables["stream_path"], "a") as f:
             if line.strip():
                 f.write(line)
 
     def perform_rsync():
         # NOTE LTFS will not save group, permission, or time attributes
-        output = tape_server(
+        # NOTE running with `_bg=True` and `_out` to process each line of output
+        rsync_process = tape_server(
             config("TAPE_RSYNC_CMD"),
             "-rv",
             "--exclude=.DS_Store",
@@ -181,7 +180,7 @@ def rsync_to_tape(stream_path):
             _out=process_output,
             _bg=True,
         )
-        print(f"‼️{output.exit_code}‼️")
+        rsync_process.wait()
         return
 
     if nas_is_mounted():
@@ -265,29 +264,21 @@ def mount_tape():
 
 
 def mount_nas():
+    """Runs a script to mount the NAS on the TAPE server."""
     # TODO make platform indpendent; macOS and Linux have different mount options
-    # NOTE using urllib.parse.quote() to URL-encode special characters
-    # tape_server("source", config("TAPE_NAS_SECRETS"))
-    # tape_server(
-    #     config("TAPE_NAS_MOUNT_CMD"),
-    #     f'//"$TAPE_NAS_USER":"$TAPE_NAS_PASS"@{config("NAS_IP_ADDRESS")}/{config("NAS_SHARE")}',
-    #     config("TAPE_NAS_ARCHIVES_MOUNTPOINT"),
-    #     _env={"TAPE_NAS_USER": config("TAPE_NAS_USER"), "TAPE_NAS_PASS": urllib.parse.quote(config("TAPE_NAS_PASS"))},
-    # )
-    # TODO create local tmpdir
+    # create a temporary directory on the WORK server
     work_mount_nas_tmpdir = tempfile.mkdtemp()
-    # TODO loosen WORK tmpdir permissions
-    # os.chmod(work_mount_nas_tmpdir, 0o777)
-    # TODO create local tmp script file
+    # create a local script file inside the WORK server temporary directory
+    # NOTE using urllib.parse.quote() to URL-encode special characters
     with open(f"{work_mount_nas_tmpdir}/distillery_tape_mount_nas.sh", "w") as f:
         f.write("#!/bin/bash\n")
         f.write(
             f'{config("TAPE_NAS_MOUNT_CMD")} //{config("TAPE_NAS_USER")}:{urllib.parse.quote(config("TAPE_NAS_PASS"))}@{config("NAS_IP_ADDRESS")}/{config("NAS_SHARE")} {config("TAPE_NAS_ARCHIVES_MOUNTPOINT")}\n'
         )
-    # TODO create tmpdir on TAPE server
-    # tape_mount_nas_tmpdir = tape_server("mktemp", "-d", "${TMPDIR:-/tmp}/tmp.XXXXXXXXX")
+    # create a temporary directory on TAPE server
     tape_mount_nas_tmpdir = tape_server("mktemp", "-d").strip()  # macOS
-    # TODO rsync local tmp script file to tmpdir on TAPE server
+    # rsync WORK server script file to temporary directory on TAPE server
+    # TODO use sh instead of subprocess.run()
     rsync_output = subprocess.run(
         [
             config("WORK_RSYNC_CMD"),
@@ -295,14 +286,8 @@ def mount_nas():
             f"{config('TAPE_SSH_USER')}@{config('TAPE_SSH_HOST')}:{tape_mount_nas_tmpdir}/distillery_tape_mount_nas.sh",
         ]
     )
-    # rsync_output = tape_server(
-    #     config("TAPE_RSYNC_CMD"),
-    #     "-r",
-    #     f"{work_mount_nas_tmpdir}/distillery_tape_mount_nas.sh",
-    #     f"{tape_mount_nas_tmpdir}/distillery_tape_mount_nas.sh",
-    # )
-    # print(f"‼️{rsync_output.exit_code}‼️")
-    # TODO run script with tape_server() sh wrapper
+    # run script on TAPE server via sh
+    # TODO create TAPE_BASH_CMD in settings.ini
     try:
         tape_server(
             "/bin/bash", f"{tape_mount_nas_tmpdir}/distillery_tape_mount_nas.sh"
