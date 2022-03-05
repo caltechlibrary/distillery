@@ -2,11 +2,9 @@
 
 import logging
 import os
-import shutil
 import tempfile
-import time
 import urllib
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 import sh
