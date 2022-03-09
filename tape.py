@@ -99,8 +99,9 @@ def main(
     # - process_during_subdirectories_loop()
     # - distill.loop_over_digital_files()
     # - process_during_files_loop()
-    # in the end we have our preservation directory structure with
-    # files and JSON metadata
+    # in the end we have our preservation directory structure containing files
+    # and JSON metadata
+    variables["step"] = "prepare_preservation_files"
     distill.loop_over_collection_subdirectories(variables)
 
     # NOTE the tape-specific steps are
@@ -297,19 +298,21 @@ def mount_nas():
 
 def process_during_files_loop(variables):
     # Save Preservation Image in local filesystem structure.
-    distill.save_preservation_file(
-        variables["preservation_image_data"]["filepath"],
-        f'{variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/{variables["preservation_image_data"]["s3key"]}',
-    )
+    if variables["step"] == "prepare_preservation_files":
+        distill.save_preservation_file(
+            variables["preservation_image_data"]["filepath"],
+            f'{variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/{variables["preservation_image_data"]["s3key"]}',
+        )
 
 
 def process_during_subdirectories_loop(variables):
     """Called inside loop_over_collection_subdirectories function."""
-    distill.save_folder_data(
-        variables["folder_arrangement"],
-        variables["folder_data"],
-        variables["WORK_LOSSLESS_PRESERVATION_FILES"],
-    )
+    if variables["step"] == "prepare_preservation_files":
+        distill.save_folder_data(
+            variables["folder_arrangement"],
+            variables["folder_data"],
+            variables["WORK_LOSSLESS_PRESERVATION_FILES"],
+        )
 
 
 def validate_settings():
