@@ -276,8 +276,8 @@ def mount_nas():
     tape_mount_nas_tmpdir = tape_server("mktemp", "-d").strip()  # macOS
     # rsync WORK server script file to temporary directory on TAPE server
     try:
-        sh(
-            config("WORK_RSYNC_CMD"),
+        rsync_cmd = sh.Command(config("WORK_RSYNC_CMD"))
+        rsync_cmd(
             f"{work_mount_nas_tmpdir}/distillery_tape_mount_nas.sh",
             f"{config('TAPE_SSH_USER')}@{config('TAPE_SSH_HOST')}:{tape_mount_nas_tmpdir}/distillery_tape_mount_nas.sh",
         )
