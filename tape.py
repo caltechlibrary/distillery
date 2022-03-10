@@ -117,9 +117,9 @@ def main(
         stream.write(f"collection_directory_bytes: {str(collection_directory_bytes)}\n")
 
     # get the indicator and available capacity of current tape
-    tape_indicator = get_tape_indicator()
+    variables["tape_indicator"] = get_tape_indicator()
     with open(stream_path, "a") as stream:
-        stream.write(f"tape_indicator: {tape_indicator}\n")
+        stream.write(f'tape_indicator: {variables["tape_indicator"]}\n')
 
     # NOTE output from tape_server connection is a string formatted like:
     # `5732142415872 5690046283776`
@@ -135,7 +135,7 @@ def main(
         stream.write(f"tape_free_bytes: {tape_free_bytes}\n")
 
     # calculate whether collection directory will fit on current tape
-    tape_capacity_buffer = tape_total_bytes * 0.01  # 1% for tape index
+    tape_capacity_buffer = tape_total_bytes * 0.01  # reserve 1% for tape index
     if not tape_free_bytes - collection_directory_bytes > tape_capacity_buffer:
         # TODO unmount tape
         # TODO send mail to LIT
@@ -153,6 +153,13 @@ def main(
         stream.write("copying files to tape complete\n")
 
     # TODO create UI for adding top containers in bulk to ArchivesSpace records
+
+    # run `distill.loop_over_collection_subdirectories(variables)` again and
+    # pass a `step` variable that tells the loop function which conditional code
+    # to execute; this step will add a top container instance to the archival
+    # object and add file versions for each digital object component
+    variables["step"] = "save_tape_info_to_archivesspace"
+    distill.loop_over_collection_subdirectories(variables)
 
     with open(stream_path, "a") as stream:
         stream.write("✅ end tape process\n")
@@ -226,6 +233,7 @@ def read_tape_indicator():
 def write_tape_indicator():
     """Write INDICATOR file to tape with contents of: YYYYMMDD_01"""
     tape_indicator = f'{date.today().strftime("%Y%m%d")}_01'
+    # ASSUMPTION no other indicator with same date exists
     # TODO check if indicator value already exists
     # (unlikely, as it would require filling up an entire 6 TB tape in a day)
     tape_server(
@@ -297,8 +305,9 @@ def mount_nas():
 
 
 def process_during_files_loop(variables):
-    # Save Preservation Image in local filesystem structure.
+    """Called inside loop_over_digital_files function."""
     if variables["step"] == "prepare_preservation_files":
+        # Save Preservation Image in local filesystem structure.
         distill.save_preservation_file(
             variables["preservation_image_data"]["filepath"],
             f'{variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/{variables["preservation_image_data"]["s3key"]}',
@@ -313,6 +322,49 @@ def process_during_subdirectories_loop(variables):
             variables["folder_data"],
             variables["WORK_LOSSLESS_PRESERVATION_FILES"],
         )
+    if variables["step"] == "save_tape_info_to_archivesspace":
+        # Ignore identical existing top container.
+        if tape_container_attached(
+            variables["folder_data"], variables["tape_indicator"]
+        ):
+            return
+
+        # Add container instance.
+        top_container = {}
+        # indicator is required
+        top_container["indicator"] = variables["tape_indicator"]
+        # /container_profiles/5 is LTO-7 tape
+        top_container["container_profile"] = {"ref": "/container_profiles/5"}
+        top_container["type"] = "Tape"
+        # create via post
+        top_containers_post_response = distill.archivessnake_post(
+            "/repositories/2/top_containers", json=top_container
+        )
+        top_container_uri = top_containers_post_response.json()["uri"]
+        # set up a container instance to add to the archival object
+        container_instance = {
+            "instance_type": "mixed_materials",  # per policy
+            "sub_container": {"top_container": {"ref": top_container_uri}},
+        }
+        # add container instance to archival object
+        variables["folder_data"]["instances"].append(container_instance)
+        # post updated archival object
+        archival_object_post_response = distill.archivessnake_post(
+            variables["folder_data"]["uri"], json=variables["folder_data"]
+        )
+
+
+def tape_container_attached(archival_object, top_container_indicator):
+    """Returns True when top_container type is Tape and indicator matches."""
+    for instance in archival_object["instances"]:
+        if "sub_container" in instance.keys():
+            if (
+                instance["sub_container"]["top_container"]["_resolved"]["type"]
+                == "Tape"
+                and instance["sub_container"]["top_container"]["_resolved"]["indicator"]
+                == top_container_indicator
+            ):
+                return True
 
 
 def validate_settings():
