@@ -536,6 +536,13 @@ def distill(
     # logging.info(f"🥃 finished distilling in {datetime.now() - time_start}\n")
 
 
+def archivessnake_post(uri, object):
+    response = asnake_client.post(uri, json=object)
+    response.raise_for_status()
+    archivesspace_logger.info(response.json()["uri"])
+    return response
+
+
 def calculate_pixel_signature(filepath):
     return sh.cut(
         sh.sha512sum(
@@ -1382,11 +1389,10 @@ def loop_over_collection_subdirectories(variables):
         if not variables["filepaths"]:
             continue
 
-        if variables["step"] == "prepare_preservation_files":
-            (
-                variables["folder_arrangement"],
-                variables["folder_data"],
-            ) = process_folder_metadata(variables["folderpath"])
+        (
+            variables["folder_arrangement"],
+            variables["folder_data"],
+        ) = process_folder_metadata(variables["folderpath"])
 
         if variables["onsite"] and config("ONSITE_MEDIUM"):
             # Import a module named the same as the ONSITE_MEDIUM setting.
