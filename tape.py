@@ -338,7 +338,7 @@ def process_during_subdirectories_loop(variables):
         top_container["type"] = "Tape"
         # create via post
         top_containers_post_response = distill.archivessnake_post(
-            "/repositories/2/top_containers", json=top_container
+            "/repositories/2/top_containers", top_container
         )
         top_container_uri = top_containers_post_response.json()["uri"]
         # set up a container instance to add to the archival object
@@ -349,8 +349,8 @@ def process_during_subdirectories_loop(variables):
         # add container instance to archival object
         variables["folder_data"]["instances"].append(container_instance)
         # post updated archival object
-        archival_object_post_response = distill.archivessnake_post(
-            variables["folder_data"]["uri"], json=variables["folder_data"]
+        distill.archivessnake_post(
+            variables["folder_data"]["uri"], variables["folder_data"]
         )
 
 
