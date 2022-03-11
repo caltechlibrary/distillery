@@ -80,6 +80,10 @@ def main(
             stream.write("🤖  WE ARE GOING TO TRY TO MOUNT THE TAPE\n")
         mount_tape()
 
+    # Get the indicator and available capacity of current tape.
+    # TODO rewrite so a missing tape indicator throws an exception
+    variables["tape_indicator"] = get_tape_indicator()
+
     # TODO CHECK RUN_ID
     # IDEA when alchemist moves files to WORKING_ORIGINAL_FILES it also saves a
     # unique *.id file in the collection_id directory and passes its name to the
@@ -88,7 +92,7 @@ def main(
     # and not left over from a previous process or a conflicting directory that
     # may have been made when two people pressed the button at the same time
 
-    # TODO FIRST LOOP: WORKING_ORIGINAL_FILES
+    # FIRST LOOP: WORKING_ORIGINAL_FILES
     # create preservation files and structure
     distill.create_preservation_files_structure(variables)
 
@@ -96,48 +100,12 @@ def main(
     # run this in between loops in case something goes wrong; there would be no
     # records in ArchivesSpace to undo
 
-    # TODO SECOND LOOP: LOSSLESS_PRESERVATION_FILES
-    # calculate file properties and save records to ArchivesSpace
-
-    # TODO possibly rename; "collection_directory" is becoming ambiguous
-    #      "original_files_working_directory" maybe
-    # variables["collection_directory"] = distill.get_collection_directory(
-    #     WORKING_ORIGINAL_FILES, collection_id
-    # )
-    # variables["collection_data"] = distill.get_collection_data(collection_id)
-
-    # NOTE this script is running on WORK and this metadata is being saved
-    # to the NAS mounted on WORK
-    # distill.save_collection_metadata(
-    #     variables["collection_data"], WORK_LOSSLESS_PRESERVATION_FILES
-    # )
-
-    # NOTE this loop contains the following sequence:
-    # - process_during_subdirectories_loop()
-    # - distill.loop_over_digital_files()
-    # - process_during_files_loop()
-    # in the end we have our preservation directory structure containing files
-    # and JSON metadata
-    # variables["step"] = "prepare_preservation_files"
-    # distill.loop_over_collection_subdirectories(variables)
-
-    # NOTE the tape-specific steps are
-    # - make sure the mounted tape has capacity for the current files
-    # - copy the current files to the tape
-    # - save container information in ArchivesSpace
-
-    # get the (approximate) size of the collection directory in LOSSLESS_PRESERVATION_FILES
-    collection_directory_bytes = get_directory_bytes(
-        f'{variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/{variables["collection_id"]}'
+    # Calculate whether the collection_id directory will fit on the current tape.
+    collection_id_directory_bytes = get_directory_bytes(
+        Path(variables["WORK_LOSSLESS_PRESERVATION_FILES"]).joinpath(
+            variables["collection_id"]
+        )
     )
-    with open(stream_path, "a") as stream:
-        stream.write(f"collection_directory_bytes: {str(collection_directory_bytes)}\n")
-
-    # get the indicator and available capacity of current tape
-    variables["tape_indicator"] = get_tape_indicator()
-    with open(stream_path, "a") as stream:
-        stream.write(f'tape_indicator: {variables["tape_indicator"]}\n')
-
     # NOTE output from tape_server connection is a string formatted like:
     # `5732142415872 5690046283776`
     tape_bytes = tape_server(
@@ -146,37 +114,24 @@ def main(
     # convert the string to a tuple and get the parts
     tape_total_bytes = tuple(map(int, tape_bytes.split(" ")))[0]
     tape_free_bytes = tuple(map(int, tape_bytes.split(" ")))[1]
-    with open(stream_path, "a") as stream:
-        stream.write(f"tape_total_bytes: {tape_total_bytes}\n")
-    with open(stream_path, "a") as stream:
-        stream.write(f"tape_free_bytes: {tape_free_bytes}\n")
-
-    # calculate whether collection directory will fit on current tape
     tape_capacity_buffer = tape_total_bytes * 0.01  # reserve 1% for tape index
-    if not tape_free_bytes - collection_directory_bytes > tape_capacity_buffer:
+    if not tape_free_bytes - collection_id_directory_bytes > tape_capacity_buffer:
         # TODO unmount tape
         # TODO send mail to LIT
         # TODO send mail to Archives
         # TODO create mechanism to start this up after new tape inserted
         #   OR reset original files so the whole process gets redone
+        message = "❌ the set of preservation files will not fit on the current tape"
+        logger.error(message)
         with open(stream_path, "a") as stream:
-            stream.write("THIS DOES NOT FIT ON THE TAPE")
+            stream.write(message)
+        raise RuntimeError(message)
 
-    # rsync LOSSLESS_PRESERVATION_FILES to tape
-    with open(stream_path, "a") as stream:
-        stream.write("🎬 begin copying files to tape\n")
+    # Copy LOSSLESS_PRESERVATION_FILES to tape using rsync.
     rsync_to_tape(variables)  # TODO handle failure
-    with open(stream_path, "a") as stream:
-        stream.write("copying files to tape complete\n")
 
-    # TODO create UI for adding top containers in bulk to ArchivesSpace records
-
-    # run `distill.loop_over_collection_subdirectories(variables)` again and
-    # pass a `step` variable that tells the loop function which conditional code
-    # to execute; this step will add a top container instance to the archival
-    # object and add file versions for each digital object component
-    # variables["step"] = "save_tape_info_to_archivesspace"
-    # distill.loop_over_collection_subdirectories(variables)
+    # TODO SECOND LOOP: LOSSLESS_PRESERVATION_FILES
+    # calculate file properties and save records to ArchivesSpace
 
     # TODO end result needed:
     # archival object needs top container of tape
