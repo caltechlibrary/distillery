@@ -1,6 +1,8 @@
 # CALTECH ARCHIVES AND SPECIAL COLLECTIONS
 # digital object preservation workflow
 
+# TODO rename this file to distillery.py and rename distillery.py to web.py
+
 # processing functionality; see distillery.py for bottlepy web application
 
 import base64
@@ -1156,7 +1158,116 @@ def prepare_folder_list(collection_directory):
     return folders, filecount
 
 
+def create_lossless_jpeg2000_image(variables):
+    """Convert original image and ensure matching image signatures."""
+    cut_cmd = sh.Command(config("WORK_CUT_CMD"))
+    sha512sum_cmd = sh.Command(config("WORK_SHA512SUM_CMD"))
+    magick_cmd = sh.Command(config("WORK_MAGICK_CMD"))
+    # Get checksum characters only by using `cut` (in the background).
+    original_image_signature = cut_cmd(
+        sha512sum_cmd(
+            magick_cmd.stream(
+                "-quiet",
+                "-map",
+                "rgb",
+                "-storage-type",
+                "short",
+                variables["original_image_path"],
+                "-",
+                _piped=True,
+                _bg=True,
+            ),
+            _bg=True,
+        ),
+        "-d",
+        " ",
+        "-f",
+        "1",
+        _bg=True,
+    )
+    # Compile filepath components.
+    filepath_components = get_file_parts(
+        variables["original_image_path"]
+    )  # TODO rename function
+    # Set up preservation structure.
+    preservation_image_key = get_s3_aip_image_key(
+        get_s3_aip_folder_prefix(
+            variables["folder_arrangement"], variables["folder_data"]
+        ),
+        filepath_components,
+    )  # TODO rename functions
+    preservation_image_path = (
+        Path(variables["WORK_LOSSLESS_PRESERVATION_FILES"])
+        .joinpath(preservation_image_key)
+        .as_posix()
+    )
+    Path(Path(preservation_image_path).parent).mkdir(parents=True, exist_ok=True)
+    # Convert the image (in the background).
+    image_conversion = magick_cmd.convert(
+        "-quiet",
+        variables["original_image_path"],
+        "-quality",
+        "0",
+        preservation_image_path,
+        _bg=True,
+    )
+    # Gather metadata for embedding into the JPEG 2000.
+    xmp_dc = get_xmp_dc_metadata(
+        variables["folder_arrangement"],
+        filepath_components,
+        variables["folder_data"],
+        variables["collection_data"],
+    )
+    # Catch any conversion errors in order to skip file and continue.
+    # TODO needs testing
+    try:
+        image_conversion.wait()
+    except Exception as e:
+        # TODO log unfriendly `str(e)` instead of sending it along
+        # EXAMPLE:
+        # RAN: /usr/local/bin/magick convert -quiet /path/to/HBF/HBF_001_02/HBF_001_02_00.tif -quality 0 /path/to/HBF/HBF_001_02/HBF_001_02_00-LOSSLESS.jp2
+        # STDOUT:
+        # STDERR:
+        # convert: Cannot read TIFF header. `/path/to/HBF/HBF_001_02/HBF_001_02_00.tif' @ error/tiff.c/TIFFErrors/595.
+        # convert: no images defined `/path/to/HBF/HBF_001_02/HBF_001_02_00-LOSSLESS.jp2' @ error/convert.c/ConvertImageCommand/3304.
+        raise RuntimeError(str(e))
+    # Embed metadata into the JPEG 2000.
+    write_xmp_metadata(preservation_image_path, xmp_dc)
+    # Get checksum characters only by using `cut` (in the background).
+    preservation_image_signature = cut_cmd(
+        sha512sum_cmd(
+            magick_cmd.stream(
+                "-quiet",
+                "-map",
+                "rgb",
+                "-storage-type",
+                "short",
+                preservation_image_path,
+                "-",
+                _piped=True,
+                _bg=True,
+            ),
+            _bg=True,
+        ),
+        "-d",
+        " ",
+        "-f",
+        "1",
+        _bg=True,
+    )
+    # Wait for image signatures.
+    original_image_signature.wait()
+    preservation_image_signature.wait()
+    # Verify that image signatures match.
+    if original_image_signature != preservation_image_signature:
+        raise RuntimeError(
+            f'❌ image signatures did not match: {filepath_components["filestem"]}'
+        )
+
+
 def process_aip_image(filepath, collection_data, folder_arrangement, folder_data):
+    # TODO REMOVE; DEPRECATED IN FAVOR OF create_lossless_jpeg2000_image()
+
     # cut out only the checksum string for the pixel stream
     # NOTE running this process in the background saves time because
     # the conversion starts soon after in a different subprocess
@@ -1244,6 +1355,22 @@ def process_aip_image(filepath, collection_data, folder_arrangement, folder_data
     aip_image_data["sequence"] = file_parts["sequence"]
     # TODO change `s3key` to something more generic; also use for tape filepath
     aip_image_data["s3key"] = aip_image_s3key
+    from pprint import pprint
+
+    pprint(aip_image_data)
+    """
+    {'component_id': 'y38m_hmsk',
+    'filepath': '/path/to/WORKING_ORIGINAL_FILES/HBF/HBF_01_05/HBF_01_05_01-LOSSLESS.jp2',
+    'filesize': '29775552',
+    'height': '6538',
+    'md5': <md5 HASH object @ 0x7f85fe823a10>,
+    'quantization': 'no quantization',
+    's3key': 'HBF/HBF-s01-Organizational-Records/HBF_001_05-Annual-Meetings--1943/HBF_01_05_0001/y38m_hmsk.jp2',
+    'sequence': '0001',
+    'standard': 'ISO/IEC 15444-1',
+    'transformation': '5-3 reversible',
+    'width': '5054'}
+    """
     return aip_image_data
 
 
@@ -1357,7 +1484,21 @@ def write_xmp_metadata(filepath, metadata):
     )
 
 
-def loop_over_collection_subdirectories(variables):
+def create_preservation_files_structure(variables):
+    variables["collection_directory"] = get_collection_directory(
+        variables["WORKING_ORIGINAL_FILES"], variables["collection_id"]
+    )  # TODO pass only variables
+    variables["collection_data"] = get_collection_data(
+        variables["collection_id"]
+    )  # TODO pass only variables
+    save_collection_metadata(
+        variables["collection_data"], variables["WORK_LOSSLESS_PRESERVATION_FILES"]
+    )  # TODO pass only variables
+    variables["step"] = "create_preservation_files_structure"  # TODO no more steps?
+    loop_over_original_structure(variables)
+
+
+def loop_over_original_structure(variables):
     """Loop over subdirectories in `collection_directory`.
 
     Example:
@@ -1373,7 +1514,7 @@ def loop_over_collection_subdirectories(variables):
 
     variables["folders"], variables["filecount"] = prepare_folder_list(
         variables["collection_directory"]
-    )
+    )  # TODO pass only variables
 
     variables["folders"].sort(reverse=True)
     for _ in range(len(variables["folders"])):
@@ -1397,22 +1538,22 @@ def loop_over_collection_subdirectories(variables):
         if variables["onsite"] and config("ONSITE_MEDIUM"):
             # Import a module named the same as the ONSITE_MEDIUM setting.
             onsite_medium = __import__(config("ONSITE_MEDIUM"))
-            onsite_medium.process_during_subdirectories_loop(variables)
+            onsite_medium.process_during_original_structure_loop(variables)
 
         if variables["cloud"] and config("CLOUD_PLATFORM"):
             # Import a module named the same as the CLOUD_PLATFORM setting.
             cloud_platform = __import__(config("CLOUD_PLATFORM"))
-            cloud_platform.process_during_subdirectories_loop(variables)
+            cloud_platform.process_during_original_structure_loop(variables)
 
         if variables["access"] and config("ACCESS_PLATFORM"):
             # Import a module named the same as the ACCESS_PLATFORM setting.
             access_platform = __import__(config("ACCESS_PLATFORM"))
-            access_platform.process_during_subdirectories_loop(variables)
+            access_platform.process_during_original_structure_loop(variables)
 
-        loop_over_digital_files(variables)
+        loop_over_original_files(variables)
 
 
-def loop_over_digital_files(variables):
+def loop_over_original_files(variables):
     """Loop over files in `collection_directory` subdirectory.
 
     Example:
@@ -1431,67 +1572,55 @@ def loop_over_digital_files(variables):
     filepaths = variables["filepaths"]
     filepaths.sort(reverse=True)
     for f in range(len(filepaths)):
-        filepath = filepaths.pop()
+        variables["original_image_path"] = filepaths.pop()
 
-        if variables["step"] == "prepare_preservation_files":
-            # generate lossless JPEG 2000 files
-            try:
-                # start this in the background
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(
-                        process_aip_image,
-                        filepath,
-                        variables["collection_data"],
-                        variables["folder_arrangement"],
-                        variables["folder_data"],
-                    )
-                    # run a loop checking for it to be done
-                    # indicate processing by printing a dot every second to the web
-                    iteration = 0
-                    while "state=running" in str(future):
-                        time.sleep(1)
-                        with open(variables["stream_path"], "a", newline="") as f:
-                            f.write(".")
-                        iteration += 1
-                    variables["preservation_image_data"] = future.result()
-                with open(variables["stream_path"], "a") as f:
-                    f.write(
-                        f"\n✅ Successfully converted {os.path.basename(filepath)} to JPEG 2000.\n"
-                    )
-            except RuntimeError as e:
-                message = (
-                    f"\n⚠️ There was a problem converting {os.path.basename(filepath)} to JPEG 2000.\n"
-                    f"↩️ Skipping {os.path.basename(filepath)} file.\n"
+        # TODO import mimetypes; mimetypes.guess_type(filepath)
+        # Create lossless JPEG 2000 image from original.
+        # TODO this should be in a separate function for use by both tape and s3
+        try:
+            # start this in the background
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    create_lossless_jpeg2000_image,
+                    variables,
                 )
-                with open(variables["stream_path"], "a") as f:
-                    f.write(message)
-                # logging.warning(message, exc_info=True)
-                continue
+                # run a loop checking for it to be done
+                # indicate processing by printing a dot every second to the web
+                iteration = 0
+                while "state=running" in str(future):
+                    time.sleep(1)
+                    with open(variables["stream_path"], "a", newline="") as f:
+                        f.write(".")
+                    iteration += 1
+                # variables["preservation_image_data"] = future.result()  # TODO REMOVE
+            with open(variables["stream_path"], "a") as f:
+                f.write(
+                    f'\n✅ Successfully converted {os.path.basename(variables["original_image_path"])} to JPEG 2000.\n'
+                )
+        except RuntimeError as e:
+            message = (
+                f'\n⚠️ There was a problem converting {os.path.basename(variables["original_image_path"])} to JPEG 2000.\n'
+                f'↩️ Skipping {os.path.basename(variables["original_image_path"])} file.\n'
+            )
+            with open(variables["stream_path"], "a") as f:
+                f.write(message)
+            # logging.warning(message, exc_info=True)
+            continue
 
         if variables["onsite"] and config("ONSITE_MEDIUM"):
             # Import a module named the same as the ONSITE_MEDIUM setting.
             onsite_medium = __import__(config("ONSITE_MEDIUM"))
-            onsite_medium.process_during_files_loop(variables)
+            onsite_medium.process_during_original_files_loop(variables)
 
         if variables["cloud"] and config("CLOUD_PLATFORM"):
             # Import a module named the same as the CLOUD_PLATFORM setting.
             cloud_platform = __import__(config("CLOUD_PLATFORM"))
-            cloud_platform.process_during_files_loop(variables)
+            cloud_platform.process_during_original_files_loop(variables)
 
         if variables["access"] and config("ACCESS_PLATFORM"):
             # Import a module named the same as the ACCESS_PLATFORM setting.
             access_platform = __import__(config("ACCESS_PLATFORM"))
-            access_platform.process_during_files_loop(variables)
-
-        if variables["step"] == "prepare_preservation_files":
-            # Remove generated `*-LOSSLESS.jp2` file.
-            # TODO review use of intermediate `*-LOSSLESS.jp2` file
-            try:
-                os.remove(variables["preservation_image_data"]["filepath"])
-            except OSError as e:
-                message = f'⚠️ Unable to remove {variables["preservation_image_data"]["filepath"]} file.\n'
-                # logging.warning(message, exc_info=True)
-                continue
+            access_platform.process_during_original_files_loop(variables)
 
 
 if __name__ == "__main__":

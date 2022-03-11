@@ -80,20 +80,37 @@ def main(
             stream.write("🤖  WE ARE GOING TO TRY TO MOUNT THE TAPE\n")
         mount_tape()
 
-    # TODO distill.create_preservation_structure()
+    # TODO CHECK RUN_ID
+    # IDEA when alchemist moves files to WORKING_ORIGINAL_FILES it also saves a
+    # unique *.id file in the collection_id directory and passes its name to the
+    # process so that it can be verified here; this can be used to be sure that
+    # the collection_id directory found in this process is the intended target
+    # and not left over from a previous process or a conflicting directory that
+    # may have been made when two people pressed the button at the same time
+
+    # TODO FIRST LOOP: WORKING_ORIGINAL_FILES
+    # create preservation files and structure
+    distill.create_preservation_files_structure(variables)
+
+    # TODO STEP: SAVE STRUCTURE TO TAPE
+    # run this in between loops in case something goes wrong; there would be no
+    # records in ArchivesSpace to undo
+
+    # TODO SECOND LOOP: LOSSLESS_PRESERVATION_FILES
+    # calculate file properties and save records to ArchivesSpace
 
     # TODO possibly rename; "collection_directory" is becoming ambiguous
     #      "original_files_working_directory" maybe
-    variables["collection_directory"] = distill.get_collection_directory(
-        WORKING_ORIGINAL_FILES, collection_id
-    )
-    variables["collection_data"] = distill.get_collection_data(collection_id)
+    # variables["collection_directory"] = distill.get_collection_directory(
+    #     WORKING_ORIGINAL_FILES, collection_id
+    # )
+    # variables["collection_data"] = distill.get_collection_data(collection_id)
 
     # NOTE this script is running on WORK and this metadata is being saved
     # to the NAS mounted on WORK
-    distill.save_collection_metadata(
-        variables["collection_data"], WORK_LOSSLESS_PRESERVATION_FILES
-    )
+    # distill.save_collection_metadata(
+    #     variables["collection_data"], WORK_LOSSLESS_PRESERVATION_FILES
+    # )
 
     # NOTE this loop contains the following sequence:
     # - process_during_subdirectories_loop()
@@ -101,8 +118,8 @@ def main(
     # - process_during_files_loop()
     # in the end we have our preservation directory structure containing files
     # and JSON metadata
-    variables["step"] = "prepare_preservation_files"
-    distill.loop_over_collection_subdirectories(variables)
+    # variables["step"] = "prepare_preservation_files"
+    # distill.loop_over_collection_subdirectories(variables)
 
     # NOTE the tape-specific steps are
     # - make sure the mounted tape has capacity for the current files
@@ -158,8 +175,22 @@ def main(
     # pass a `step` variable that tells the loop function which conditional code
     # to execute; this step will add a top container instance to the archival
     # object and add file versions for each digital object component
-    variables["step"] = "save_tape_info_to_archivesspace"
-    distill.loop_over_collection_subdirectories(variables)
+    # variables["step"] = "save_tape_info_to_archivesspace"
+    # distill.loop_over_collection_subdirectories(variables)
+
+    # TODO end result needed:
+    # archival object needs top container of tape
+    # digital object components need file versions with tape URI
+
+    # TODO check for existing tape top container on archival object
+
+    # TODO search for existing tape indicator string
+    # NOTE relying on API search may be troublesome as indexing is not instant
+    # ASSUMPTION indicator string will not return more than one search result
+
+    # TODO create a tape top container
+
+    # TODO store found or created top container URI
 
     with open(stream_path, "a") as stream:
         stream.write("✅ end tape process\n")
@@ -196,7 +227,7 @@ def rsync_to_tape(variables):
 
 
 def get_directory_bytes(directory):
-    """Returns the total bytes of all files under a given directory."""
+    """Return the total bytes of all files under the given directory."""
     return sum(f.stat().st_size for f in Path(directory).glob("**/*") if f.is_file())
 
 
@@ -304,24 +335,25 @@ def mount_nas():
         raise e
 
 
-def process_during_files_loop(variables):
-    """Called inside loop_over_digital_files function."""
-    if variables["step"] == "prepare_preservation_files":
-        # Save Preservation Image in local filesystem structure.
-        distill.save_preservation_file(
-            variables["preservation_image_data"]["filepath"],
-            f'{variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/{variables["preservation_image_data"]["s3key"]}',
-        )
+def process_during_original_files_loop(variables):
+    """Called inside loop_over_original_files function."""
+    # # Save Preservation Image in local filesystem structure.
+    # distill.save_preservation_file(
+    #     variables["preservation_image_data"]["filepath"],
+    #     f'{variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/{variables["preservation_image_data"]["s3key"]}',
+    # ) # TODO pass only variables
+    if variables["step"] == "save_tape_info_to_archivesspace":
+        # Add file versions.
+        pass
 
 
-def process_during_subdirectories_loop(variables):
-    """Called inside loop_over_collection_subdirectories function."""
-    if variables["step"] == "prepare_preservation_files":
-        distill.save_folder_data(
-            variables["folder_arrangement"],
-            variables["folder_data"],
-            variables["WORK_LOSSLESS_PRESERVATION_FILES"],
-        )
+def process_during_original_structure_loop(variables):
+    """Called inside loop_over_original_structure function."""
+    distill.save_folder_data(
+        variables["folder_arrangement"],
+        variables["folder_data"],
+        variables["WORK_LOSSLESS_PRESERVATION_FILES"],
+    )  # TODO pass only variables
     if variables["step"] == "save_tape_info_to_archivesspace":
         # Ignore identical existing top container.
         if tape_container_attached(
