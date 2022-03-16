@@ -794,12 +794,18 @@ def get_crockford_id():
 
 
 def get_file_parts(filepath):
+    # ASSUMPTION: path is like
+    # /path/to/WORKING_ORIGINAL_FILES/HBF/HBF_01_05/HBF_01_05_02.tif
+    # or
+    # /path/to/WORKING_ORIGINAL_FILES/HBF/HBF_001_05/HBF_001_05_0002.tif
     file_parts = {}
     file_parts["filepath"] = filepath
     file_parts["filename"] = file_parts["filepath"].split("/")[-1]
     file_parts["filestem"] = file_parts["filename"].split(".")[0]
     file_parts["extension"] = file_parts["filename"].split(".")[-1]
-    file_parts["folder_id"] = file_parts["filestem"].rsplit("_", 1)[0]
+    # TODO this should probably be called component_id everywhere, it’s confusing when not
+    # format like HBF_001_01
+    file_parts["folder_id"] = "_".join([file_parts["filestem"].split("_")[0], file_parts["filestem"].split("_")[1].zfill(3), file_parts["filestem"].split("_")[2].zfill(2)])
     # TODO rename 'sequence' because it is not always numeric
     file_parts["sequence"] = file_parts["filestem"].split("_")[-1].zfill(4)
     file_parts["crockford_id"] = get_crockford_id()
