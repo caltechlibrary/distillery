@@ -813,7 +813,19 @@ def get_file_parts(filepath):
 
 
 def get_folder_arrangement(folder_data):
-    # returns names and identifers of the arragement levels for a folder
+    """Return names and identifers of the arragement levels for a folder.
+
+    # folder_arrangement["repository_name"]
+    # folder_arrangement["repository_code"]
+    # folder_arrangement["folder_display"]
+    # folder_arrangement["folder_title"]
+    # folder_arrangement["collection_display"]
+    # folder_arrangement["collection_id"]
+    # folder_arrangement["series_display"]
+    # folder_arrangement["series_id"]
+    # folder_arrangement["subseries_display"]
+    # folder_arrangement["subseries_id"]
+    """
     folder_arrangement = {}
     folder_arrangement["repository_name"] = folder_data["repository"]["_resolved"][
         "name"
