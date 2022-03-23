@@ -1,6 +1,8 @@
 # CALTECH ARCHIVES AND SPECIAL COLLECTIONS
 # digital object preservation workflow
 
+# TODO rename this file to web.py and distill.py to distillery.py
+
 # bottlepy web application; see distill.py for processing functionality
 
 # bottle requires gevent.monkey.patch_all()
