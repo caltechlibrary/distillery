@@ -12,6 +12,7 @@ import json
 import logging
 import logging.config
 import logging.handlers
+import mimetypes
 import os
 import random
 import shutil
@@ -33,7 +34,7 @@ from requests import HTTPError
 logging.config.fileConfig(
     # set the logging configuration in the settings.ini file
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.ini"),
-    disable_existing_loggers=False,
+    # disable_existing_loggers=False,
 )
 logger = logging.getLogger("distill")
 archivesspace_logger = logging.getLogger("archivesspace")
@@ -47,11 +48,61 @@ asnake_client = ASnakeClient(
 )
 asnake_client.authorize()
 
-# s3_client = boto3.client(
-#     "s3",
-#     aws_access_key_id=config("AWS_ACCESS_KEY"),
-#     aws_secret_access_key=config("AWS_SECRET_KEY"),
-# )
+
+def main(
+    cloud: ("sending to cloud storage", "flag", "c"),  # type: ignore
+    onsite: ("preparing for onsite storage", "flag", "o"),  # type: ignore
+    access: ("publishing access copies", "flag", "a"),  # type: ignore
+    collection_id: "the Collection ID from ArchivesSpace",  # type: ignore
+):
+    variables = {}
+    if onsite and config("ONSITE_MEDIUM"):
+        # Import a module named the same as the ONSITE_MEDIUM setting.
+        variables["onsite_medium"] = __import__(config("ONSITE_MEDIUM"))
+        variables["onsite"] = onsite
+        # TODO create init function that confirms everything is set to continue
+    if cloud and config("CLOUD_PLATFORM"):
+        # Import a module named the same as the CLOUD_PLATFORM setting.
+        # variables["cloud_platform"] = __import__(config("CLOUD_PLATFORM"))
+        variables["cloud"] = cloud
+        # TODO create init function that confirms everything is set to continue
+    if access and config("ACCESS_PLATFORM"):
+        # Import a module named the same as the ACCESS_PLATFORM setting.
+        # variables["access_platform"] = __import__(config("ACCESS_PLATFORM"))
+        variables["access"] = access
+        # TODO create init function that confirms everything is set to continue
+    variables["collection_id"] = collection_id
+    variables["WORKING_ORIGINAL_FILES"] = config("WORKING_ORIGINAL_FILES")
+    variables["collection_directory"] = get_collection_directory(
+        variables["WORKING_ORIGINAL_FILES"], variables["collection_id"]
+    )  # TODO pass only variables
+    variables["collection_data"] = get_collection_data(variables["collection_id"])
+    if variables["onsite"] or variables["cloud"]:
+        variables["WORK_LOSSLESS_PRESERVATION_FILES"] = (
+            Path(config("WORK_NAS_ARCHIVES_MOUNTPOINT"))
+            .joinpath(config("NAS_LOSSLESS_PRESERVATION_FILES_RELATIVE_PATH"))
+            .resolve(strict=True)
+        )
+        variables["preservation"] = True
+    if variables["preservation"]:
+        save_collection_metadata(
+            variables["collection_data"], variables["WORK_LOSSLESS_PRESERVATION_FILES"]
+        )  # TODO pass only variables
+    # if variables["onsite"]:
+    #     variables["onsite_medium"].collection_level_preprocessing(variables)
+    # if variables["cloud"]:
+    #     variables["cloud_platform"].collection_level_preprocessing(variables)
+    # if variables["access"]:
+    #     variables["access_platform"].collection_level_preprocessing(variables)
+    loop_over_original_structure(variables)
+    if variables["onsite"]:
+        variables["onsite_medium"].collection_level_postprocessing(variables)
+    # if variables["cloud"]:
+    #     variables["cloud_platform"].collection_level_postprocessing(variables)
+    # if variables["access"]:
+    #     variables["access_platform"].collection_level_postprocessing(variables)
+    if variables["preservation"]:
+        loop_over_preservation_structure(variables)
 
 
 def distill(
@@ -73,6 +124,8 @@ def distill(
     stream_path = Path(
         f'{config("WORK_NAS_APPS_MOUNTPOINT")}/{config("NAS_STATUS_FILES_RELATIVE_PATH")}'
     ).joinpath(f"{collection_id}-processing")
+    # stream_path = Path(
+    #     config("WORK_NAS_APPS_MOUNTPOINT")).joinpath(config("NAS_STATUS_FILES_RELATIVE_PATH"), f"{collection_id}-processing")
 
     if not cloud:
         message = "❌ distill.py script was initiated without cloud being selected"
@@ -793,6 +846,25 @@ def get_crockford_id():
     return get_crockford_characters() + "_" + get_crockford_characters()
 
 
+def get_digital_object_component(digital_object_component_component_id):
+    """Return digital_object_component metadata using the digital_object_component_component_id."""
+    find_by_id_response = asnake_client.get(
+        f"/repositories/2/find_by_id/digital_object_components?component_id[]={digital_object_component_component_id}"
+    )
+    find_by_id_response.raise_for_status()
+    if len(find_by_id_response.json()["digital_object_components"]) < 1:
+        return None
+    if len(find_by_id_response.json()["digital_object_components"]) > 1:
+        raise ValueError(
+            f"Multiple digital_object_components found with digital_object_component_component_id: {digital_object_component_component_id}"
+        )
+    digital_object_component_get_response = asnake_client.get(
+        f"{find_by_id_response.json()['digital_object_components'][0]['ref']}"
+    )
+    digital_object_component_get_response.raise_for_status()
+    return digital_object_component_get_response.json()
+
+
 def get_file_parts(filepath):
     # ASSUMPTION: path is like
     # /path/to/WORKING_ORIGINAL_FILES/HBF/HBF_01_05/HBF_01_05_02.tif
@@ -805,7 +877,13 @@ def get_file_parts(filepath):
     file_parts["extension"] = file_parts["filename"].split(".")[-1]
     # TODO this should probably be called component_id everywhere, it’s confusing when not
     # format like HBF_001_01
-    file_parts["folder_id"] = "_".join([file_parts["filestem"].split("_")[0], file_parts["filestem"].split("_")[1].zfill(3), file_parts["filestem"].split("_")[2].zfill(2)])
+    file_parts["folder_id"] = "_".join(
+        [
+            file_parts["filestem"].split("_")[0],
+            file_parts["filestem"].split("_")[1].zfill(3),
+            file_parts["filestem"].split("_")[2].zfill(2),
+        ]
+    )
     # TODO rename 'sequence' because it is not always numeric
     file_parts["sequence"] = file_parts["filestem"].split("_")[-1].zfill(4)
     file_parts["crockford_id"] = get_crockford_id()
@@ -1059,6 +1137,127 @@ def post_digital_object_component(json_data):
     return post_response
 
 
+def find_digital_object(digital_object_digital_object_id):
+    """Return digital_object URI using the digital_object_id."""
+    find_by_id_response = asnake_client.get(
+        f"/repositories/2/find_by_id/digital_objects?digital_object_id[]={digital_object_digital_object_id}"
+    )
+    find_by_id_response.raise_for_status()
+    if len(find_by_id_response.json()["digital_objects"]) < 1:
+        return None
+    if len(find_by_id_response.json()["digital_objects"]) > 1:
+        raise ValueError(
+            f"Multiple digital_objects found with digital_object_id: {digital_object_digital_object_id}"
+        )
+    return find_by_id_response.json()["digital_objects"][0]["ref"]
+
+
+def get_digital_object(digital_object_component_id):
+    """Return digital_object metadata using the digital_object_component_id."""
+    find_by_id_response = asnake_client.get(
+        f"/repositories/2/find_by_id/digital_object_components?digital_object_id[]={digital_object_component_id}"
+    )
+    find_by_id_response.raise_for_status()
+    if len(find_by_id_response.json()["digital_objects"]) < 1:
+        return None
+    if len(find_by_id_response.json()["digital_objects"]) > 1:
+        raise ValueError(
+            f"Multiple digital_objects found with digital_object_component_id: {digital_object_component_id}"
+        )
+    digital_object_get_response = asnake_client.get(
+        f"{find_by_id_response.json()['digital_objects'][0]['ref']}"
+    )
+    digital_object_get_response.raise_for_status()
+    return digital_object_get_response.json()
+
+
+def construct_digital_object_component(variables):
+    digital_object_component = {}
+    digital_object_component["component_id"] = Path(
+        variables["preservation_file_data"]["filepath"]
+    ).stem
+    digital_object_component["label"] = Path(
+        Path(variables["preservation_file_data"]["filepath"]).parent
+    ).name
+    digital_object_digital_object_id = Path(
+        Path(variables["preservation_file_data"]["filepath"]).parent
+    ).name.rsplit("_", maxsplit=1)[0]
+    digital_object_uri = find_digital_object(digital_object_digital_object_id)
+    if digital_object_uri:
+        digital_object_component["digital_object"] = {"ref": digital_object_uri}
+    else:
+        variables["folder_data"] = confirm_digital_object(variables["folder_data"])
+    digital_object_component["file_versions"] = [construct_file_version(variables)]
+    return digital_object_component
+
+
+def create_digital_object_component(variables):
+    digital_object = construct_digital_object_component(variables)
+    archivessnake_post("/repositories/2/digital_object_components", digital_object)
+
+
+def construct_file_version(variables):
+    """
+    file_version["file_uri"]
+    file_version["publish"]  # defaults to false
+    file_version["use_statement"]
+    file_version["file_format_name"]
+    file_version["file_format_version"]
+    file_version["file_size_bytes"]
+    file_version["checksum"]
+    file_version["checksum_method"]
+    file_version["caption"]
+    """
+    file_version = {}
+    file_version["checksum_method"] = "md5"
+    file_version["checksum"] = variables["preservation_file_data"]["md5"].hexdigest()
+    file_version["file_size_bytes"] = int(
+        variables["preservation_file_data"]["filesize"]
+    )
+    file_key = str(variables["preservation_file_data"]["filepath"])[
+        len(f'{str(variables["WORK_LOSSLESS_PRESERVATION_FILES"])}/') :
+    ]
+    # TODO finalize tape_indicator format; prefix with LTO7?
+    file_version["file_uri"] = f'file:///LTO/{variables["tape_indicator"]}/{file_key}'
+    # NOTE additional mimetypes TBD
+    if variables["preservation_file_data"]["mimetype"] == "image/jp2":
+        file_version["file_format_name"] = "JPEG 2000"
+        file_version["use_statement"] = "image-master"
+        if (
+            variables["preservation_file_data"]["transformation"] == "5-3 reversible"
+            and variables["preservation_file_data"]["quantization"] == "no quantization"
+        ):
+            file_version[
+                "caption"
+            ] = f'width: {variables["preservation_file_data"]["width"]}; height: {variables["preservation_file_data"]["height"]}; compression: lossless'
+            file_version[
+                "file_format_version"
+            ] = f'{variables["preservation_file_data"]["standard"]}; lossless (wavelet transformation: 5/3 reversible with no quantization)'
+        elif (
+            variables["preservation_file_data"]["transformation"] == "9-7 irreversible"
+            and variables["preservation_file_data"]["quantization"]
+            == "scalar expounded"
+        ):
+            file_version[
+                "caption"
+            ] = f'width: {variables["preservation_file_data"]["width"]}; height: {variables["preservation_file_data"]["height"]}; compression: lossy'
+            file_version[
+                "file_format_version"
+            ] = f'{variables["preservation_file_data"]["standard"]}; lossy (wavelet transformation: 9/7 irreversible with scalar expounded quantization)'
+        else:
+            file_version[
+                "caption"
+            ] = f'width: {variables["preservation_file_data"]["width"]}; height: {variables["preservation_file_data"]["height"]}'
+            file_version["file_format_version"] = variables["preservation_file_data"][
+                "standard"
+            ]
+    return file_version
+
+
+def add_file_version(variables):
+    variables = construct_file_version(variables)
+
+
 def prepare_digital_object_component(folder_data, PRESERVATION_BUCKET, aip_image_data):
     # MINIMAL REQUIREMENTS: digital_object and one of label, title, or date
     # FILE VERSIONS MINIMAL REQUIREMENTS: file_uri
@@ -1078,7 +1277,7 @@ def prepare_digital_object_component(folder_data, PRESERVATION_BUCKET, aip_image
             digital_object_component["digital_object"] = {}
             digital_object_component["digital_object"]["ref"] = instance[
                 "digital_object"
-            ]["_resolved"]["uri"]
+            ]["ref"]
     if digital_object_component["digital_object"]["ref"]:
         pass
     # else:
@@ -1373,9 +1572,6 @@ def process_aip_image(filepath, collection_data, folder_arrangement, folder_data
     aip_image_data["sequence"] = file_parts["sequence"]
     # TODO change `s3key` to something more generic; also use for tape filepath
     aip_image_data["s3key"] = aip_image_s3key
-    from pprint import pprint
-
-    pprint(aip_image_data)
     """
     {'component_id': 'y38m_hmsk',
     'filepath': '/path/to/WORKING_ORIGINAL_FILES/HBF/HBF_01_05/HBF_01_05_01-LOSSLESS.jp2',
@@ -1502,6 +1698,105 @@ def write_xmp_metadata(filepath, metadata):
     )
 
 
+def loop_over_preservation_structure(variables):
+    """
+    /path/to/LOSSLESS_PRESERVATION_FILES/HBF/
+    ├── HBF.json
+    └── HBF-s01-Organizational-Records
+        └── HBF_001_05-Annual-Meetings--1943  <-- list at this level
+            ├── HBF_001_05_0001
+            │   └── ek7b_sk6n.jp2
+            ├── HBF_001_05_0002
+            │   └── 34at_tzc3.jp2
+            └── HBF_001_05.json
+    """
+    preservation_collection_id_path = Path(
+        variables["WORK_LOSSLESS_PRESERVATION_FILES"]
+    ).joinpath(variables["collection_id"])
+    # identify preservation_folders by JSON files
+    variables["preservation_folders"] = []
+    for jsonfile in preservation_collection_id_path.rglob(
+        f'{variables["collection_id"]}_*.json'
+    ):
+        variables["preservation_folders"].append(jsonfile.parent)
+
+        variables["folder_data"] = get_folder_data(Path(jsonfile).stem)
+        # confirm existing or create digital_object with component_id
+        variables["folder_data"] = confirm_digital_object(variables["folder_data"])
+
+        if variables["onsite"]:
+            variables["onsite_medium"].folder_level_processing(variables)
+        # if variables["cloud"]:
+        #     variables["cloud_platform"].folder_level_processing(variables)
+
+    loop_over_preservation_files(variables)
+
+
+def loop_over_preservation_files(variables):
+    """
+    /path/to/LOSSLESS_PRESERVATION_FILES/HBF/
+    ├── HBF.json
+    └── HBF-s01-Organizational-Records
+        └── HBF_001_05-Annual-Meetings--1943  <-- preservation_folder
+            ├── HBF_001_05_0001               <-- dirname
+            │   └── ek7b_sk6n.jp2             <-- filename
+            ├── HBF_001_05_0002
+            │   └── 34at_tzc3.jp2
+            └── HBF_001_05.json
+    """
+    # TODO loop over items in preservation_folders
+    for preservation_folder in variables["preservation_folders"]:
+        # TODO find files
+        for dirpath, dirnames, filenames in os.walk(preservation_folder):
+            preservation_foldername = Path(dirpath).name
+            for filename in filenames:
+                if Path(
+                    filename
+                ).suffix == ".json" and preservation_foldername.startswith(
+                    Path(filename).stem
+                ):
+                    # do not analyze preservation_folder JSON metadata
+                    continue
+                # TODO get file info
+                type, encoding = mimetypes.guess_type(Path(dirpath).joinpath(filename))
+                # NOTE additional mimetypes TBD
+                if type == "image/jp2":
+                    variables["preservation_file_data"] = get_preservation_image_data(
+                        Path(dirpath).joinpath(filename)
+                    )
+                    variables["preservation_file_data"]["mimetype"] = type
+                # TODO pass to module functions
+                if variables["onsite"]:
+                    variables["onsite_medium"].file_level_processing(variables)
+
+
+def get_preservation_image_data(filepath):
+    preservation_image_data = {}
+    preservation_image_data["filepath"] = filepath
+    jpylyzer_xml = jpylyzer.checkOneFile(preservation_image_data["filepath"])
+    preservation_image_data["filesize"] = jpylyzer_xml.findtext(
+        "./fileInfo/fileSizeInBytes"
+    )
+    preservation_image_data["width"] = jpylyzer_xml.findtext(
+        "./properties/jp2HeaderBox/imageHeaderBox/width"
+    )
+    preservation_image_data["height"] = jpylyzer_xml.findtext(
+        "./properties/jp2HeaderBox/imageHeaderBox/height"
+    )
+    preservation_image_data["standard"] = jpylyzer_xml.findtext(
+        "./properties/contiguousCodestreamBox/siz/rsiz"
+    )
+    preservation_image_data["transformation"] = jpylyzer_xml.findtext(
+        "./properties/contiguousCodestreamBox/cod/transformation"
+    )
+    preservation_image_data["quantization"] = jpylyzer_xml.findtext(
+        "./properties/contiguousCodestreamBox/qcd/qStyle"
+    )
+    with open(preservation_image_data["filepath"], "rb") as f:
+        preservation_image_data["md5"] = hashlib.md5(f.read())
+    return preservation_image_data
+
+
 def create_preservation_files_structure(variables):
     variables["collection_directory"] = get_collection_directory(
         variables["WORKING_ORIGINAL_FILES"], variables["collection_id"]
@@ -1533,13 +1828,13 @@ def loop_over_original_structure(variables):
     variables["folders"], variables["filecount"] = prepare_folder_list(
         variables["collection_directory"]
     )  # TODO pass only variables
-
-    variables["folders"].sort(reverse=True)
-    for _ in range(len(variables["folders"])):
+    folders = variables["folders"][:]
+    folders.sort(reverse=True)
+    for _ in range(len(folders)):
         # Using pop() (and/or range(len()) above) maybe helps to be sure that
         # if folder metadata fails to process properly, it and its images are
         # skipped completely and the script moves on to the next folder.
-        variables["folderpath"] = variables["folders"].pop()
+        variables["folderpath"] = folders.pop()
 
         # Set up list of file paths for the current folder.
         variables["filepaths"] = prepare_filepaths_list(variables["folderpath"])
@@ -1548,25 +1843,36 @@ def loop_over_original_structure(variables):
         if not variables["filepaths"]:
             continue
 
-        (
-            variables["folder_arrangement"],
-            variables["folder_data"],
-        ) = process_folder_metadata(variables["folderpath"])
+        # process_folder_metadata obfuscates too much
+        # (
+        #     variables["folder_arrangement"],
+        #     variables["folder_data"],
+        # ) = process_folder_metadata(variables["folderpath"])
 
-        if variables["onsite"] and config("ONSITE_MEDIUM"):
-            # Import a module named the same as the ONSITE_MEDIUM setting.
-            onsite_medium = __import__(config("ONSITE_MEDIUM"))
-            onsite_medium.process_during_original_structure_loop(variables)
+        # extract component_id from folderpath and get archival_object data
+        variables["folder_data"] = get_folder_data(
+            normalize_directory_component_id(variables["folderpath"])
+        )
+        variables["folder_arrangement"] = get_folder_arrangement(
+            variables["folder_data"]
+        )
 
-        if variables["cloud"] and config("CLOUD_PLATFORM"):
-            # Import a module named the same as the CLOUD_PLATFORM setting.
-            cloud_platform = __import__(config("CLOUD_PLATFORM"))
-            cloud_platform.process_during_original_structure_loop(variables)
+        if variables["preservation"]:
+            save_folder_data(
+                variables["folder_arrangement"],
+                variables["folder_data"],
+                variables["WORK_LOSSLESS_PRESERVATION_FILES"],
+            )  # TODO pass only variables
 
-        if variables["access"] and config("ACCESS_PLATFORM"):
-            # Import a module named the same as the ACCESS_PLATFORM setting.
-            access_platform = __import__(config("ACCESS_PLATFORM"))
-            access_platform.process_during_original_structure_loop(variables)
+        # TODO what do we need to exist in variables?
+        # TAPE: variables["folder_data"], variables["tape_indicator"]
+        # variables["onsite_medium"].process_during_original_structure_loop(variables)
+        # variables["cloud_platform"].process_during_original_structure_loop(variables)
+
+        # if variables["access"] and config("ACCESS_PLATFORM"):
+        #     # Import a module named the same as the ACCESS_PLATFORM setting.
+        #     access_platform = __import__(config("ACCESS_PLATFORM"))
+        #     access_platform.process_during_original_structure_loop(variables)
 
         loop_over_original_files(variables)
 
@@ -1592,54 +1898,62 @@ def loop_over_original_files(variables):
     for f in range(len(filepaths)):
         variables["original_image_path"] = filepaths.pop()
 
-        # TODO import mimetypes; mimetypes.guess_type(filepath)
-        # Create lossless JPEG 2000 image from original.
-        # TODO this should be in a separate function for use by both tape and s3
-        try:
-            # start this in the background
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(
-                    create_lossless_jpeg2000_image,
-                    variables,
-                )
-                # run a loop checking for it to be done
-                # indicate processing by printing a dot every second to the web
-                iteration = 0
-                while "state=running" in str(future):
-                    time.sleep(1)
-                    with open(variables["stream_path"], "a", newline="") as f:
-                        f.write(".")
-                    iteration += 1
-                # variables["preservation_image_data"] = future.result()  # TODO REMOVE
-            with open(variables["stream_path"], "a") as f:
-                f.write(
-                    f'\n✅ Successfully converted {os.path.basename(variables["original_image_path"])} to JPEG 2000.\n'
-                )
-        except RuntimeError as e:
-            message = (
-                f'\n⚠️ There was a problem converting {os.path.basename(variables["original_image_path"])} to JPEG 2000.\n'
-                f'↩️ Skipping {os.path.basename(variables["original_image_path"])} file.\n'
-            )
-            with open(variables["stream_path"], "a") as f:
-                f.write(message)
-            # logging.warning(message, exc_info=True)
-            continue
+        # TODO check for existing preservation structure
+        if variables["preservation"]:
+            # TODO import mimetypes; mimetypes.guess_type(filepath)
+            # Create lossless JPEG 2000 image from original.
+            # TODO this should be in a separate function for use by both tape and s3
+            create_lossless_jpeg2000_image(variables)
+            # try:
+            #     # start this in the background
+            #     with concurrent.futures.ThreadPoolExecutor() as executor:
+            #         future = executor.submit(
+            #             create_lossless_jpeg2000_image,
+            #             variables,
+            #         )
+            #         # run a loop checking for it to be done
+            #         # indicate processing by printing a dot every second to the web
+            #         iteration = 0
+            #         while "state=running" in str(future):
+            #             time.sleep(1)
+            #             with open(variables["stream_path"], "a", newline="") as f:
+            #                 f.write(".")
+            #             iteration += 1
+            #         # variables["preservation_image_data"] = future.result()  # TODO REMOVE
+            #     with open(variables["stream_path"], "a") as f:
+            #         f.write(
+            #             f'\n✅ Successfully converted {os.path.basename(variables["original_image_path"])} to JPEG 2000.\n'
+            #         )
+            # except RuntimeError as e:
+            #     message = (
+            #         f'\n⚠️ There was a problem converting {os.path.basename(variables["original_image_path"])} to JPEG 2000.\n'
+            #         f'↩️ Skipping {os.path.basename(variables["original_image_path"])} file.\n'
+            #     )
+            #     with open(variables["stream_path"], "a") as f:
+            #         f.write(message)
+            #     # logging.warning(message, exc_info=True)
+            #     continue
 
-        if variables["onsite"] and config("ONSITE_MEDIUM"):
-            # Import a module named the same as the ONSITE_MEDIUM setting.
-            onsite_medium = __import__(config("ONSITE_MEDIUM"))
-            onsite_medium.process_during_original_files_loop(variables)
+            # TODO create digital_object_component
+            # TODO refactor based on mimetype
+            # TODO refactor and send to module for extra parameters
+            # digital_object_component = prepare_digital_object_component()
 
-        if variables["cloud"] and config("CLOUD_PLATFORM"):
-            # Import a module named the same as the CLOUD_PLATFORM setting.
-            cloud_platform = __import__(config("CLOUD_PLATFORM"))
-            cloud_platform.process_during_original_files_loop(variables)
+        # if variables["onsite"] and config("ONSITE_MEDIUM"):
+        #     # Import a module named the same as the ONSITE_MEDIUM setting.
+        #     onsite_medium = __import__(config("ONSITE_MEDIUM"))
+        #     onsite_medium.process_during_original_files_loop(variables)
 
-        if variables["access"] and config("ACCESS_PLATFORM"):
-            # Import a module named the same as the ACCESS_PLATFORM setting.
-            access_platform = __import__(config("ACCESS_PLATFORM"))
-            access_platform.process_during_original_files_loop(variables)
+        # if variables["cloud"] and config("CLOUD_PLATFORM"):
+        #     # Import a module named the same as the CLOUD_PLATFORM setting.
+        #     cloud_platform = __import__(config("CLOUD_PLATFORM"))
+        #     cloud_platform.process_during_original_files_loop(variables)
+
+        # if variables["access"] and config("ACCESS_PLATFORM"):
+        #     # Import a module named the same as the ACCESS_PLATFORM setting.
+        #     access_platform = __import__(config("ACCESS_PLATFORM"))
+        #     access_platform.process_during_original_files_loop(variables)
 
 
 if __name__ == "__main__":
-    plac.call(distill)
+    plac.call(main)

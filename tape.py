@@ -96,7 +96,7 @@ def main(
     # create preservation files and structure
     distill.create_preservation_files_structure(variables)
 
-    # TODO STEP: SAVE STRUCTURE TO TAPE
+    # STEP: SAVE STRUCTURE TO TAPE
     # run this in between loops in case something goes wrong; there would be no
     # records in ArchivesSpace to undo
 
@@ -132,6 +132,7 @@ def main(
 
     # TODO SECOND LOOP: LOSSLESS_PRESERVATION_FILES
     # calculate file properties and save records to ArchivesSpace
+    create_archivesspace_tape_records(variables)
 
     # TODO end result needed:
     # archival object needs top container of tape
@@ -151,13 +152,128 @@ def main(
         stream.write("✅ end tape process\n")
 
 
+def create_archivesspace_tape_records(variables):
+    distill.loop_over_preservation_structure(variables)
+
+
+def collection_level_preprocessing(variables):
+    pass
+
+
+def collection_level_postprocessing(variables):
+    """Run processes after LOSSLESS_PRESERVATION_FILES have been created.
+
+    If something goes wrong with in copying the files to tape there will
+    be no ArchivesSpace records to clean up.
+    """
+    # Calculate whether the collection_id directory will fit on the current tape.
+    collection_id_directory_bytes = get_directory_bytes(
+        Path(variables["WORK_LOSSLESS_PRESERVATION_FILES"]).joinpath(
+            variables["collection_id"]
+        )
+    )
+    # NOTE output from tape_server connection is a string formatted like:
+    # `5732142415872 5690046283776`
+    tape_bytes = tape_server(
+        f'{config("TAPE_PYTHON3_CMD")} -c \'import shutil; total, used, free = shutil.disk_usage("{config("TAPE_LTO_MOUNTPOINT")}"); print(total, free)\'',
+    ).strip()
+    # convert the string to a tuple and get the parts
+    tape_total_bytes = tuple(map(int, tape_bytes.split(" ")))[0]
+    tape_free_bytes = tuple(map(int, tape_bytes.split(" ")))[1]
+    tape_capacity_buffer = tape_total_bytes * 0.01  # reserve 1% for tape index
+    if not tape_free_bytes - collection_id_directory_bytes > tape_capacity_buffer:
+        # TODO unmount tape
+        # TODO send mail to LIT
+        # TODO send mail to Archives
+        # TODO create mechanism to start this up after new tape inserted
+        #   OR reset original files so the whole process gets redone
+        message = "❌ the set of preservation files will not fit on the current tape"
+        logger.error(message)
+        # with open(stream_path, "a") as stream:
+        #     stream.write(message)
+        raise RuntimeError(message)
+
+    # Copy LOSSLESS_PRESERVATION_FILES to tape using rsync.
+    rsync_to_tape(variables)  # TODO handle failure
+
+
+def folder_level_processing(variables):
+    """Process for each folder inside LOSSLESS_PRESERVATION_FILES."""
+
+    # TODO move this to init function
+    # Read from the INDICATOR file on the mounted tape.
+    variables["tape_indicator"] = get_tape_indicator()
+
+    # Check ArchivesSpace archival_object and ignore an existing top_container
+    # with the same type and indicator values.
+    # TODO pass only variables
+    if tape_container_attached(variables["folder_data"], variables["tape_indicator"]):
+        return
+
+    # Set up and add a container instance to the ArchivesSpace archival_object.
+    top_container = {}
+    # indicator is required
+    top_container["indicator"] = variables["tape_indicator"]
+    # /container_profiles/5 is LTO-7 tape
+    top_container["container_profile"] = {"ref": "/container_profiles/5"}
+    top_container["type"] = "Tape"
+    # create via post
+    top_containers_post_response = distill.archivessnake_post(
+        "/repositories/2/top_containers", top_container
+    )
+    top_container_uri = top_containers_post_response.json()["uri"]
+    # set up a container instance to add to the archival_object
+    container_instance = {
+        "instance_type": "mixed_materials",  # per policy # TODO set up new type
+        "sub_container": {"top_container": {"ref": top_container_uri}},
+    }
+    # add container instance to archival_object
+    variables["folder_data"]["instances"].append(container_instance)
+    # post updated archival_object
+    distill.archivessnake_post(
+        variables["folder_data"]["uri"], variables["folder_data"]
+    )
+
+
+def file_level_processing(variables):
+    # NOTE called from distill.loop_over_preservation_files()
+    # confirm/create digital_object_component & file_versions
+    digital_object_component_component_id = Path(
+        variables["preservation_file_data"]["filepath"]
+    ).stem
+    digital_object_component = distill.get_digital_object_component(
+        digital_object_component_component_id
+    )
+    if digital_object_component:
+        # TODO check if file_version with file:/// URI exists
+        file_uri_values = []
+        for file_version in digital_object_component["file_versions"]:
+            file_uri_values.append(file_version["file_uri"])
+        # TODO set the `LTO` string in settings.ini
+        existing_file_versions = [
+            x for x in file_uri_values if x.startswith("file:///LTO")
+        ]
+        if existing_file_versions:
+            raise RuntimeError(
+                f"❌ existing file_uri found for digital_object_component: {digital_object_component_component_id}"
+            )
+        else:
+            file_version = distill.construct_file_version(variables)
+            digital_object_component["file_versions"].append(file_version)
+            distill.archivessnake_post(
+                digital_object_component["uri"], digital_object_component
+            )
+    else:
+        distill.create_digital_object_component(variables)
+
+
 def rsync_to_tape(variables):
     """Ensure NAS is mounted and copy collection directory tree to tape."""
 
-    def process_output(line):
-        with open(variables["stream_path"], "a") as f:
-            if line.strip():
-                f.write(line)
+    # def process_output(line):
+    #     with open(variables["stream_path"], "a") as f:
+    #         if line.strip():
+    #             f.write(line)
 
     def perform_rsync():
         # NOTE LTFS will not save group, permission, or time attributes
@@ -168,7 +284,7 @@ def rsync_to_tape(variables):
             "--exclude=.DS_Store",
             f'{config("TAPE_NAS_ARCHIVES_MOUNTPOINT")}/{config("NAS_LOSSLESS_PRESERVATION_FILES_RELATIVE_PATH")}/',
             config("TAPE_LTO_MOUNTPOINT"),
-            _out=process_output,
+            # _out=process_output,
             _bg=True,
         )
         rsync_process.wait()
@@ -304,41 +420,7 @@ def process_during_original_files_loop(variables):
 
 def process_during_original_structure_loop(variables):
     """Called inside loop_over_original_structure function."""
-    distill.save_folder_data(
-        variables["folder_arrangement"],
-        variables["folder_data"],
-        variables["WORK_LOSSLESS_PRESERVATION_FILES"],
-    )  # TODO pass only variables
-    if variables["step"] == "save_tape_info_to_archivesspace":
-        # Ignore identical existing top container.
-        if tape_container_attached(
-            variables["folder_data"], variables["tape_indicator"]
-        ):
-            return
-
-        # Add container instance.
-        top_container = {}
-        # indicator is required
-        top_container["indicator"] = variables["tape_indicator"]
-        # /container_profiles/5 is LTO-7 tape
-        top_container["container_profile"] = {"ref": "/container_profiles/5"}
-        top_container["type"] = "Tape"
-        # create via post
-        top_containers_post_response = distill.archivessnake_post(
-            "/repositories/2/top_containers", top_container
-        )
-        top_container_uri = top_containers_post_response.json()["uri"]
-        # set up a container instance to add to the archival object
-        container_instance = {
-            "instance_type": "mixed_materials",  # per policy
-            "sub_container": {"top_container": {"ref": top_container_uri}},
-        }
-        # add container instance to archival object
-        variables["folder_data"]["instances"].append(container_instance)
-        # post updated archival object
-        distill.archivessnake_post(
-            variables["folder_data"]["uri"], variables["folder_data"]
-        )
+    pass
 
 
 def tape_container_attached(archival_object, top_container_indicator):

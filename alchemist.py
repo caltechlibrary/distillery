@@ -1,7 +1,5 @@
 # file: alchemist.py
 # NOTE: this file is intended to be run every minute (via cron/launchd)
-# * * * * * /path/to/distillery/.venv/bin/python /path/to/distillery/alchemist.py >> /path/to/logs/alchemist.log 2>&1
-
 
 import logging
 import logging.config
@@ -22,7 +20,7 @@ from decouple import config, UndefinedValueError
 logging.config.fileConfig(
     # set the logging configuration in the settings.ini file
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.ini"),
-    disable_existing_loggers=False,
+    # disable_existing_loggers=False,
 )
 logger = logging.getLogger("alchemist")
 
@@ -83,18 +81,9 @@ for f in glob(
         # check that collection_id case matches directory name
         if collection_id in entries:
             # NOTE using copy+rm in order to not destroy an existing destination structure
-            # BUG 🐛 copying the wrong directory into WORKING_ORIGINAL_FILES (HBF_05_01 instead of HBF)
-            logger.debug(
-                f'copytree src: {str(os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id))}'
-            )
-            logger.debug(f'copytree dst: {str(config("WORKING_ORIGINAL_FILES"))}')
-            logger.debug(
-                f'copytree new dst: {str(os.path.join(config("WORKING_ORIGINAL_FILES"), collection_id))}'
-            )
             shutil.copytree(
                 str(os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id)),
                 str(os.path.join(config("WORKING_ORIGINAL_FILES"), collection_id)),
-                # str(config("WORKING_ORIGINAL_FILES")),
                 dirs_exist_ok=True,
             )
             shutil.rmtree(
@@ -180,7 +169,8 @@ for f in glob(
                 sys.executable,
                 os.path.join(
                     os.path.dirname(os.path.abspath(__file__)),
-                    f"{config('ONSITE_MEDIUM')}.py",
+                    # f"{config('ONSITE_MEDIUM')}.py",
+                    "distill.py",
                 ),
                 collection_id,
             ]
