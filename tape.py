@@ -15,7 +15,7 @@ import distillery
 logging.config.fileConfig(
     # set the logging configuration in the settings.ini file
     Path(__file__).resolve().parent.joinpath("settings.ini"),
-    disable_existing_loggers=False,
+    disable_existing_loggers=True,
 )
 logger = logging.getLogger("tape")
 
@@ -157,7 +157,11 @@ def create_archivesspace_tape_records(variables):
 
 
 def collection_level_preprocessing(variables):
-    pass
+    """Run before any files are moved or records are created."""
+    # TODO ensure errors will output a message to the web
+    message = f'✅ Tape Indicator found: {get_tape_indicator()}\n'
+    with open(variables["stream_path"], "a") as stream:
+        stream.write(message)
 
 
 def collection_level_postprocessing(variables):
@@ -317,6 +321,8 @@ def try_tape_indicator():
         tape_indicator = read_tape_indicator()
         return tape_indicator
     except sh.ErrorReturnCode_1:
+        # TODO do not write tape indicator; we may not know what tape is in the drive;
+        # TODO writing tape indicator must be a manual process
         write_tape_indicator()
         tape_indicator = read_tape_indicator()
         return tape_indicator
