@@ -10,7 +10,7 @@ from pathlib import Path
 import sh
 from decouple import config
 
-import distill
+import distillery
 
 logging.config.fileConfig(
     # set the logging configuration in the settings.ini file
@@ -94,7 +94,7 @@ def main(
 
     # FIRST LOOP: WORKING_ORIGINAL_FILES
     # create preservation files and structure
-    distill.create_preservation_files_structure(variables)
+    distillery.create_preservation_files_structure(variables)
 
     # STEP: SAVE STRUCTURE TO TAPE
     # run this in between loops in case something goes wrong; there would be no
@@ -153,7 +153,7 @@ def main(
 
 
 def create_archivesspace_tape_records(variables):
-    distill.loop_over_preservation_structure(variables)
+    distillery.loop_over_preservation_structure(variables)
 
 
 def collection_level_preprocessing(variables):
@@ -218,7 +218,7 @@ def folder_level_processing(variables):
     top_container["container_profile"] = {"ref": "/container_profiles/5"}
     top_container["type"] = "Tape"
     # create via post
-    top_containers_post_response = distill.archivessnake_post(
+    top_containers_post_response = distillery.archivessnake_post(
         "/repositories/2/top_containers", top_container
     )
     top_container_uri = top_containers_post_response.json()["uri"]
@@ -230,18 +230,18 @@ def folder_level_processing(variables):
     # add container instance to archival_object
     variables["folder_data"]["instances"].append(container_instance)
     # post updated archival_object
-    distill.archivessnake_post(
+    distillery.archivessnake_post(
         variables["folder_data"]["uri"], variables["folder_data"]
     )
 
 
 def file_level_processing(variables):
-    # NOTE called from distill.loop_over_preservation_files()
+    # NOTE called from distillery.loop_over_preservation_files()
     # confirm/create digital_object_component & file_versions
     digital_object_component_component_id = Path(
         variables["preservation_file_data"]["filepath"]
     ).stem
-    digital_object_component = distill.get_digital_object_component(
+    digital_object_component = distillery.get_digital_object_component(
         digital_object_component_component_id
     )
     if digital_object_component:
@@ -258,13 +258,13 @@ def file_level_processing(variables):
                 f"❌ existing file_uri found for digital_object_component: {digital_object_component_component_id}"
             )
         else:
-            file_version = distill.construct_file_version(variables)
+            file_version = distillery.construct_file_version(variables)
             digital_object_component["file_versions"].append(file_version)
-            distill.archivessnake_post(
+            distillery.archivessnake_post(
                 digital_object_component["uri"], digital_object_component
             )
     else:
-        distill.create_digital_object_component(variables)
+        distillery.create_digital_object_component(variables)
 
 
 def rsync_to_tape(variables):
@@ -409,7 +409,7 @@ def mount_nas():
 def process_during_original_files_loop(variables):
     """Called inside loop_over_original_files function."""
     # # Save Preservation Image in local filesystem structure.
-    # distill.save_preservation_file(
+    # distillery.save_preservation_file(
     #     variables["preservation_image_data"]["filepath"],
     #     f'{variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/{variables["preservation_image_data"]["s3key"]}',
     # ) # TODO pass only variables
@@ -442,7 +442,7 @@ def validate_settings():
     ).resolve(
         strict=True
     )  # NOTE do not create missing `WORKING_ORIGINAL_FILES`
-    WORK_LOSSLESS_PRESERVATION_FILES = distill.directory_setup(
+    WORK_LOSSLESS_PRESERVATION_FILES = distillery.directory_setup(
         os.path.expanduser(
             f'{config("WORK_NAS_ARCHIVES_MOUNTPOINT")}/{config("NAS_LOSSLESS_PRESERVATION_FILES_RELATIVE_PATH")}'
         )

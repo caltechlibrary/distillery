@@ -170,7 +170,7 @@ for f in glob(
                 os.path.join(
                     os.path.dirname(os.path.abspath(__file__)),
                     # f"{config('ONSITE_MEDIUM')}.py",
-                    "distill.py",
+                    "distillery.py",
                 ),
                 collection_id,
             ]

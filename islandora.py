@@ -9,10 +9,10 @@
 # Islandora 7
 # steps:
 # - MODS XML, folder level
-# -- distill:get_folder_arrangement()
-# -- distill:get_folder_data()
+# -- distillery:get_folder_arrangement()
+# -- distillery:get_folder_data()
 # - MODS XML, page level
-# -- distill:get_folder_data()
+# -- distillery:get_folder_data()
 # - Lossy JPEG 2000 as OBJ datastream
 # - Lossy JPEG 2000 as JP2 datastream
 # - JPG
@@ -36,7 +36,7 @@ from lxml import etree
 from lxml.builder import ElementMaker
 from requests import HTTPError
 
-import distill
+import distillery
 
 logging.config.fileConfig(
     # set the logging configuration in the settings.ini file
@@ -92,7 +92,7 @@ def main(
         stream.write(f"📅 {datetime.now()}\n🦕 islandora processing\n🗄 {collection_id}\n")
 
     try:
-        collection_directory = distill.get_collection_directory(
+        collection_directory = distillery.get_collection_directory(
             WORKING_ORIGINAL_FILES, collection_id
         )
         if collection_directory:
@@ -109,7 +109,7 @@ def main(
         raise
 
     try:
-        collection_data = distill.get_collection_data(collection_id)
+        collection_data = distillery.get_collection_data(collection_id)
         if collection_data:
             with open(stream_path, "a") as stream:
                 stream.write(
@@ -172,7 +172,7 @@ def main(
             f"✅ Created the COLLECTION_POLICY.xml file for the {collection_id} collection.\n"
         )
 
-    folders, filecount = distill.prepare_folder_list(collection_directory)
+    folders, filecount = distillery.prepare_folder_list(collection_directory)
     filecounter = 0
 
     # Loop over folders list.
@@ -193,7 +193,7 @@ def main(
         folderpath = folders.pop()
 
         # Avoid processing folder when there are no files.
-        filepaths = distill.prepare_filepaths_list(folderpath)
+        filepaths = distillery.prepare_filepaths_list(folderpath)
         if not filepaths:
             continue
 
@@ -369,9 +369,9 @@ def main(
             },
         ]
         # 1. get existing single digital object id from archival_object record
-        # - distill.py:confirm_digital_object() will return folder_data that includes a single digital object id
+        # - distillery.py:confirm_digital_object() will return folder_data that includes a single digital object id
         try:
-            folder_data = distill.confirm_digital_object(folder_data)
+            folder_data = distillery.confirm_digital_object(folder_data)
         except ValueError as e:
             raise RuntimeError(str(e))
         # 1. check for existing file_versions data on _resolved digital_object record
@@ -386,7 +386,7 @@ def main(
         # 1. add prepared file_versions data to digital_object record
         digital_object["file_versions"] = file_versions
         # 1. post updated digital_object to ArchivesSpace
-        digital_object_post_response = distill.update_digital_object(
+        digital_object_post_response = distillery.update_digital_object(
             digital_object["uri"], digital_object
         ).json()
         with open(stream_path, "a") as stream:
@@ -651,8 +651,8 @@ def generate_islandora_page_datastreams(
         _bg=True,
     )
 
-    file_parts = distill.get_file_parts(filepath)
-    xmp_dc = distill.get_xmp_dc_metadata(
+    file_parts = distillery.get_file_parts(filepath)
+    xmp_dc = distillery.get_xmp_dc_metadata(
         folder_arrangement, file_parts, folder_data, collection_data
     )
     modsxml = create_page_mods_xml(xmp_dc)
@@ -660,16 +660,16 @@ def generate_islandora_page_datastreams(
     save_xml_file(mods_path, modsxml)
 
     obj_conversion.wait()
-    distill.write_xmp_metadata(obj_path, xmp_dc)
+    distillery.write_xmp_metadata(obj_path, xmp_dc)
 
     jp2_path = os.path.join(page_datastreams_directory, "JP2.jp2")
     copyfile(obj_path, jp2_path)
 
     tn_conversion.wait()
-    distill.write_xmp_metadata(tn_path, xmp_dc)
+    distillery.write_xmp_metadata(tn_path, xmp_dc)
 
     jpg_conversion.wait()
-    distill.write_xmp_metadata(jpg_path, xmp_dc)
+    distillery.write_xmp_metadata(jpg_path, xmp_dc)
 
     try:
         ocr_generation.wait(timeout=10)
@@ -691,14 +691,14 @@ def generate_islandora_page_datastreams(
 
 def process_folder_metadata(folderpath):
     try:
-        folder_data = distill.get_folder_data(
-            distill.normalize_directory_component_id(folderpath)
+        folder_data = distillery.get_folder_data(
+            distillery.normalize_directory_component_id(folderpath)
         )
     except ValueError as e:
         raise RuntimeError(str(e))
 
     try:
-        folder_arrangement = distill.get_folder_arrangement(folder_data)
+        folder_arrangement = distillery.get_folder_arrangement(folder_data)
     except HTTPError as e:
         raise RuntimeError(str(e))
 
