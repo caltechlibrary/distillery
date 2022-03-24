@@ -25,7 +25,7 @@ logging.config.fileConfig(
 logger = logging.getLogger("alchemist")
 
 # the main loop which checks for init files in the STATUS_FILES directory
-# NOTE: init files are created in distillery.py
+# NOTE: init files are created in web.py
 for f in glob(
     os.path.join(
         f'{config("WORK_NAS_APPS_MOUNTPOINT")}/{config("NAS_STATUS_FILES_RELATIVE_PATH")}',
@@ -65,7 +65,7 @@ for f in glob(
 
     with open(stream_path, "a") as stream:
         # NOTE specific emoji used to indicate start of script for event listener
-        # SEE distillery.py:stream()
+        # SEE web.py:stream()
         stream.write(f"🟢\n")
 
     logger.info(f"📅 {datetime.now()} begin")
@@ -242,7 +242,7 @@ for f in glob(
         raise
 
     with open(stream_path, "a") as stream:
-        # NOTE specific emoji used for event listener in distillery.py:stream()
+        # NOTE specific emoji used for event listener in web.py:stream()
         stream.write("🔴")
 
     logger.info(f"📆 {datetime.now()} end")

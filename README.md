@@ -4,7 +4,7 @@ Caltech Archives & Special Collections automated system for preparing and sendin
 
 ## Architecture
 
-- `distillery.py` checks user authorization, runs the web form, triggers the status files, and displays status
+- `web.py` checks user authorization, runs the web form, triggers the status files, and displays status
 - `alchemist.py` should be scheduled every minute to check for status files, and upon finding one, initiates processing for local copies (default: `tape.py`), cloud copies (default: `s3.py`), and/or access copies (default: `islandora.py`)
 - `distill.py` contains shared code that retrieves metadata, converts images, writes metadata, uploads to S3, and creates ArchivesSpace records
 - `tape.py`
@@ -13,7 +13,7 @@ Caltech Archives & Special Collections automated system for preparing and sendin
 
 ## Server Explanation
 
-`distillery.py` is a [Bottle](https://bottlepy.org/) application and can be run on localhost or a web server such as Apache with mod_wsgi.
+`web.py` is a [Bottle](https://bottlepy.org/) application and can be run on localhost or a web server such as Apache with mod_wsgi.
 
 We have separated the web interface and the file processing on different servers. `alchemist.py` runs on a different server, checking a shared filesystem for the status files to initiate file processing.
 
@@ -27,7 +27,7 @@ For copying to the cloud we are using and assuming AWS S3. For publishing access
 1. Create a virtual environment for the project on each server.
 1. Install the required packages in the virtual environment on each server.
 1. Copy the `example-settings.ini` to `settings.ini` and set appropriate values.
-    - the web server handling `distillery.py` needs the `WEB_NAS_APPS_MOUNTPOINT` and `NAS_STATUS_FILES_RELATIVE_PATH` values set
+    - the web server handling `web.py` needs the `WEB_NAS_APPS_MOUNTPOINT` and `NAS_STATUS_FILES_RELATIVE_PATH` values set
     - the processing server handling `alchemist.py` and its triggered modules needs all the values set
 1. On the web server, copy the `example-users.csv` to `users.csv` and add authorized users.
 1. On the processing server, set up a cron job to run `alchemist.py` every minute.
