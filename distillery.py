@@ -34,7 +34,7 @@ logging.config.fileConfig(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.ini"),
     # disable_existing_loggers=False,
 )
-logger = logging.getLogger("distill")
+logger = logging.getLogger("distillery")
 archivesspace_logger = logging.getLogger("archivesspace")
 
 # TODO do we need a class? https://stackoverflow.com/a/16502408/4100024
@@ -126,7 +126,7 @@ def distill(
     #     config("WORK_NAS_APPS_MOUNTPOINT")).joinpath(config("NAS_STATUS_FILES_RELATIVE_PATH"), f"{collection_id}-processing")
 
     if not cloud:
-        message = "❌ distill.py script was initiated without cloud being selected"
+        message = "❌ distillery.py script was initiated without cloud being selected"
         logger.error(message)
         with open(stream_path, "a") as stream:
             stream.write(message)

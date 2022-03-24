@@ -1,7 +1,7 @@
 # CALTECH ARCHIVES AND SPECIAL COLLECTIONS
 # digital object preservation workflow
 
-# bottlepy web application; see distill.py for processing functionality
+# bottlepy web application; see distillery.py for processing functionality
 
 # bottle requires gevent.monkey.patch_all()
 # fmt: off
@@ -39,7 +39,7 @@ logging.config.fileConfig(
     Path(__file__).resolve().parent.joinpath("settings.ini"),
     disable_existing_loggers=False,
 )
-logger = logging.getLogger("distill")
+logger = logging.getLogger("distillery")
 
 
 @error(403)

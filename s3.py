@@ -12,7 +12,7 @@ from pathlib import Path
 import boto3
 from decouple import config
 
-import distill
+import distillery
 
 logging.config.fileConfig(
     # set the logging configuration in the settings.ini file
@@ -79,12 +79,12 @@ def main(
         "WORK_LOSSLESS_PRESERVATION_FILES"
     ] = WORK_LOSSLESS_PRESERVATION_FILES.as_posix()
 
-    variables["collection_directory"] = distill.get_collection_directory(
+    variables["collection_directory"] = distillery.get_collection_directory(
         IN_PROCESS_ORIGINAL_FILES, collection_id
     )
-    variables["collection_data"] = distill.get_collection_data(collection_id)
+    variables["collection_data"] = distillery.get_collection_data(collection_id)
 
-    distill.save_collection_metadata(
+    distillery.save_collection_metadata(
         variables["collection_data"], WORK_LOSSLESS_PRESERVATION_FILES
     )
     with open(stream_path, "a") as f:
@@ -102,7 +102,7 @@ def main(
             f"✅ https://{PRESERVATION_BUCKET}.s3-us-west-2.amazonaws.com/{collection_id}/{collection_id}.json\n"
         )
 
-    distill.loop_over_collection_subdirectories(variables)
+    distillery.loop_over_collection_subdirectories(variables)
 
     with open(stream_path, "a") as f:
         f.write(f"🗄 Finished processing {collection_id}.\n📆 {datetime.now()}\n")
@@ -110,7 +110,7 @@ def main(
 
 def process_during_files_loop(variables):
     # Save Preservation Image in local filesystem structure.
-    distill.save_preservation_file(
+    distillery.save_preservation_file(
         variables["preservation_image_data"]["filepath"],
         f'{variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/{variables["preservation_image_data"]["s3key"]}',
     )
@@ -167,13 +167,13 @@ def process_during_files_loop(variables):
         with open(variables["stream_path"], "a") as f:
             f.write(message)
     # Set up ArchivesSpace record.
-    digital_object_component = distill.prepare_digital_object_component(
+    digital_object_component = distillery.prepare_digital_object_component(
         variables["folder_data"],
         variables["PRESERVATION_BUCKET"],
         variables["preservation_image_data"],
     )
     # Post Digital Object Component to ArchivesSpace.
-    digital_object_component_post_response = distill.post_digital_object_component(
+    digital_object_component_post_response = distillery.post_digital_object_component(
         digital_object_component
     ).json()
     with open(variables["stream_path"], "a") as f:
@@ -184,13 +184,13 @@ def process_during_files_loop(variables):
 
 def process_during_subdirectories_loop(variables):
     """Called inside loop_over_collection_subdirectories function."""
-    distill.save_folder_data(
+    distillery.save_folder_data(
         variables["folder_arrangement"],
         variables["folder_data"],
         variables["WORK_LOSSLESS_PRESERVATION_FILES"],
     )
-    folder_data_key = distill.get_s3_aip_folder_key(
-        distill.get_s3_aip_folder_prefix(
+    folder_data_key = distillery.get_s3_aip_folder_key(
+        distillery.get_s3_aip_folder_prefix(
             variables["folder_arrangement"], variables["folder_data"]
         ),
         variables["folder_data"],
@@ -213,13 +213,13 @@ def validate_settings():
     ).resolve(
         strict=True
     )  # NOTE do not create missing `IN_PROCESS_ORIGINAL_FILES`
-    STAGE_3_ORIGINAL_FILES = distill.directory_setup(
+    STAGE_3_ORIGINAL_FILES = distillery.directory_setup(
         os.path.expanduser(config("STAGE_3_ORIGINAL_FILES"))
     ).resolve(strict=True)
     PRESERVATION_BUCKET = config(
         "PRESERVATION_BUCKET"
     )  # TODO validate access to bucket
-    WORK_LOSSLESS_PRESERVATION_FILES = distill.directory_setup(
+    WORK_LOSSLESS_PRESERVATION_FILES = distillery.directory_setup(
         os.path.expanduser(
             f'{config("WORK_NAS_ARCHIVES_MOUNTPOINT")}/{config("NAS_LOSSLESS_PRESERVATION_FILES_RELATIVE_PATH")}'
         )

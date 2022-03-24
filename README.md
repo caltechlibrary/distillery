@@ -6,7 +6,7 @@ Caltech Archives & Special Collections automated system for preparing and sendin
 
 - `web.py` checks user authorization, runs the web form, triggers the status files, and displays status
 - `alchemist.py` should be scheduled every minute to check for status files, and upon finding one, initiates processing for local copies (default: `tape.py`), cloud copies (default: `s3.py`), and/or access copies (default: `islandora.py`)
-- `distill.py` contains shared code that retrieves metadata, converts images, writes metadata, uploads to S3, and creates ArchivesSpace records
+- `distillery.py` contains shared code that retrieves metadata, converts images, writes metadata, uploads to S3, and creates ArchivesSpace records
 - `tape.py`
 - `s3.py`
 - `islandora.py` converts metadata and TIFFs to formats for Islandora, uploads and ingests the archival object folders as “book” items, records the proper digital object URLs in ArchivesSpace
