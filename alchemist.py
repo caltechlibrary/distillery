@@ -20,7 +20,7 @@ from decouple import config, UndefinedValueError
 logging.config.fileConfig(
     # set the logging configuration in the settings.ini file
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.ini"),
-    # disable_existing_loggers=False,
+    disable_existing_loggers=True,
 )
 logger = logging.getLogger("alchemist")
 
@@ -71,150 +71,26 @@ for f in glob(
     logger.info(f"📅 {datetime.now()} begin")
     logger.info(f"🗄  {collection_id}")
 
-    # move the `collection_id` directory into `WORKING_ORIGINAL_FILES`
     try:
-        # make a list of directory names to check against
-        entries = []
-        for entry in os.scandir(config("INITIAL_ORIGINAL_FILES")):
-            if entry.is_dir:
-                entries.append(entry.name)
-        # check that collection_id case matches directory name
-        if collection_id in entries:
-            # NOTE using copy+rm in order to not destroy an existing destination structure
-            shutil.copytree(
-                str(os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id)),
-                str(os.path.join(config("WORKING_ORIGINAL_FILES"), collection_id)),
-                dirs_exist_ok=True,
-            )
-            shutil.rmtree(
-                str(os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id))
-            )
-        else:
-            message = f"❌ no directory name matching {collection_id} in {config('INITIAL_ORIGINAL_FILES')}\n"
-            with open(stream_path, "a") as stream:
-                stream.write(message)
-            raise NotADirectoryError(message)
-    except FileNotFoundError as e:
-        message = f"❌ {collection_id} directory not found in {config('INITIAL_ORIGINAL_FILES')}\n"
-        with open(stream_path, "a") as stream:
-            stream.write(message)
-        logger.error(f"❌ {e}")
-        # remove the stream file because it only contains one error message
-        os.remove(stream_path)
-        # we re-raise the exception because we cannot continue without the files
-        raise
+        command = [
+            sys.executable,
+            os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                "distillery.py",
+            ),
+            collection_id,
+        ]
+        command.extend(flags)
+        # TODO get errors and output from the subprocess somewhere
+        subprocess.run(
+            command,
+            # stdout=subprocess.PIPE,
+            # stderr=subprocess.STDOUT,
+            check=True,
+        )
     except BaseException as e:
-        message = "❌ unable to move the source files for processing\n"
-        with open(stream_path, "a") as stream:
-            stream.write(message)
         logger.error(f"❌ {e}")
-        # remove the stream file because it only contains one error message
-        os.remove(stream_path)
-        # we re-raise the exception because we cannot continue without the files
         raise
-
-    # check independently for each flag option; the different processing scripts
-    # are each responsible for checking the list of flag options that were
-    # passed in order to know what other processes will have run
-    # TODO NOT SURE THIS IS THE BEST WAY; MAYBE ALL LOGIC ABOUT WHAT TO RUN IN
-    # WHAT ORDER SHOULD ALL HAPPEN IN THIS FILE
-
-    # NOTE the order of these conditions matters for certain processing scripts
-    if "--report" in flags:
-        logger.info("⚗️  processing report")
-        pass
-    if "--cloud" in flags:
-        logger.info("⚗️  processing cloud preservation files")
-        # validate CLOUD_PLATFORM
-        try:
-            config("CLOUD_PLATFORM")
-        except UndefinedValueError as e:
-            message = "❌ CLOUD_PLATFORM not defined in settings file\n"
-            with open(stream_path, "a") as stream:
-                stream.write(message)
-            logger.error(f"❌ {e}")
-            raise
-        try:
-            command = [
-                sys.executable,
-                os.path.join(
-                    os.path.dirname(os.path.abspath(__file__)),
-                    f'{config("CLOUD_PLATFORM")}.py',
-                ),
-                collection_id,
-            ]
-            command.extend(flags)
-            subprocess.run(
-                command,
-                # stdout=subprocess.PIPE,
-                # stderr=subprocess.STDOUT,
-                check=True,
-            )
-        except BaseException as e:
-            logger.error(f"❌ {e}")
-            raise
-    if "--onsite" in flags:
-        logger.info("⚗️  processing onsite preservation files")
-        # validate ONSITE_MEDIUM
-        try:
-            config("ONSITE_MEDIUM")
-        except UndefinedValueError as e:
-            message = "❌ ONSITE_MEDIUM not defined in settings file\n"
-            with open(stream_path, "a") as stream:
-                stream.write(message)
-            logger.error(f"❌ {e}")
-            raise
-        try:
-            command = [
-                sys.executable,
-                os.path.join(
-                    os.path.dirname(os.path.abspath(__file__)),
-                    # f"{config('ONSITE_MEDIUM')}.py",
-                    "distillery.py",
-                ),
-                collection_id,
-            ]
-            command.extend(flags)
-            # TODO get errors and output from the subprocess somewhere
-            subprocess.run(
-                command,
-                # stdout=subprocess.PIPE,
-                # stderr=subprocess.STDOUT,
-                check=True,
-            )
-        except BaseException as e:
-            logger.error(f"❌ {e}")
-            raise
-    if "--access" in flags:
-        logger.info("⚗️  processing access files")
-        # validate ACCESS_PLATFORM
-        try:
-            config("ACCESS_PLATFORM")
-        except UndefinedValueError as e:
-            message = "❌ ACCESS_PLATFORM not defined in settings file\n"
-            with open(stream_path, "a") as stream:
-                stream.write(message)
-            logger.error(f"❌ {e}")
-            raise
-        try:
-            command = [
-                sys.executable,
-                os.path.join(
-                    os.path.dirname(os.path.abspath(__file__)),
-                    f"{config('ACCESS_PLATFORM')}.py",
-                ),
-                collection_id,
-            ]
-            command.extend(flags)
-            subprocess.run(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                check=True,
-            )
-        except BaseException as e:
-            logger.error(f"❌ {e}")
-            raise
 
     # move the `collection_id` directory into `STAGE_3_ORIGINAL_FILES`
     # NOTE shutil.move() in Python < 3.9 needs strings as arguments
