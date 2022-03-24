@@ -1,8 +1,6 @@
 # CALTECH ARCHIVES AND SPECIAL COLLECTIONS
 # digital object preservation workflow
 
-# TODO rename this file to web.py and distill.py to distillery.py
-
 # bottlepy web application; see distill.py for processing functionality
 
 # bottle requires gevent.monkey.patch_all()
@@ -99,22 +97,13 @@ def stream(collection_id):
     response.content_type = "text/event-stream"
     response.cache_control = "no-cache"
 
-    logger.info(
-        Path(
-            f'><((((> {config("WEB_NAS_APPS_MOUNTPOINT")}/{config("NAS_STATUS_FILES_RELATIVE_PATH")}'
-        )
-        .joinpath(f"{collection_id}-processing")
-        .as_posix()
-    )
     with open(
         Path(
             f'{config("WEB_NAS_APPS_MOUNTPOINT")}/{config("NAS_STATUS_FILES_RELATIVE_PATH")}'
         ).joinpath(f"{collection_id}-processing"),
         encoding="utf-8",
     ) as f:
-        logger.info("><((((> inside with open(...)")
         for line in tailer.follow(f):
-            logger.info("><((((> inside for line in tailer.follow(f)")
             # the event stream format starts with "data: " and ends with "\n\n"
             # https://web.archive.org/web/20210701185847/https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format
             if line.startswith("🟢"):
@@ -124,22 +113,6 @@ def stream(collection_id):
                 yield f"data: it seems we’re done 😀\n\n"
             else:
                 yield f"data: {line}\n\n"
-
-
-@get("/stream")
-def stream():
-    response.content_type = "text/event-stream"
-    response.cache_control = "no-cache"
-    yield "data: START\n\n"
-    sleep(3)
-    yield "data: MIDDLE\n\n"
-    sleep(5)
-    yield "data: END\n\n"
-
-
-@get("/sse")
-def sse():
-    return template("sse")
 
 
 def authorize_user():

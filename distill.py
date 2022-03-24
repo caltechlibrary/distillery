@@ -1,9 +1,7 @@
 # CALTECH ARCHIVES AND SPECIAL COLLECTIONS
 # digital object preservation workflow
 
-# TODO rename this file to distillery.py and rename distillery.py to web.py
-
-# processing functionality; see distillery.py for bottlepy web application
+# processing functionality; see web.py for bottlepy web application
 
 import base64
 import concurrent.futures
