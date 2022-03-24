@@ -71,9 +71,9 @@ def main(
         # TODO create init function that confirms everything is set to continue
     variables["collection_id"] = collection_id
 
-    variables["stream_path"] = stream_path = Path(config("WORK_NAS_APPS_MOUNTPOINT")).joinpath(
-        config("NAS_STATUS_FILES_RELATIVE_PATH"), f"{collection_id}-processing"
-    )
+    variables["stream_path"] = stream_path = Path(
+        config("WORK_NAS_APPS_MOUNTPOINT")
+    ).joinpath(config("NAS_STATUS_FILES_RELATIVE_PATH"), f"{collection_id}-processing")
 
     # Report on directories found.
     try:
@@ -103,7 +103,9 @@ def main(
     # Report on subdirectories found and filecount.
     initial_original_subdirectorycount = 0
     initial_original_filecount = 0
-    for dirpath, dirnames, filenames in os.walk(os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id)):
+    for dirpath, dirnames, filenames in os.walk(
+        os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id)
+    ):
         if dirnames:
             for dirname in dirnames:
                 initial_original_subdirectorycount += 1
@@ -122,7 +124,9 @@ def main(
         raise FileNotFoundError(message)
     if initial_original_filecount:
         with open(stream_path, "a") as stream:
-            stream.write(f"🔢 Number of files to be processed: {initial_original_filecount}\n")
+            stream.write(
+                f"🔢 Number of files to be processed: {initial_original_filecount}\n"
+            )
     else:
         message = f"❌ No files found for {collection_id} that can be processed by Distillery\n"
         with open(stream_path, "a") as stream:
