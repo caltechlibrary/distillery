@@ -15,7 +15,7 @@ import shutil
 from csv import DictReader
 from pathlib import Path
 
-import tailer
+import sh
 from time import sleep
 from bottle import (
     abort,
@@ -55,13 +55,15 @@ def form_collection_id():
     )
 
 
-@post("/distilling")
-def begin_processing():
+@post("/preview")
+def preview():
+    # strip any invisibles
     collection_id = request.forms.get("collection_id").strip()
+    # NOTE from form as multiple values
     processes = "_".join(request.forms.getall("processes"))
-    # write the init file for alchemist.py to find
+    # write the preview file for alchemist.py to find
     Path(config("WEB_NAS_APPS_MOUNTPOINT")).joinpath(
-        config("NAS_STATUS_FILES_RELATIVE_PATH"), f"{collection_id}-init-{processes}"
+        config("NAS_STATUS_FILES_RELATIVE_PATH"), f"{collection_id}-preview-{processes}"
     ).touch()
     # set stream file path
     stream_path = Path(config("WEB_NAS_APPS_MOUNTPOINT")).joinpath(
@@ -85,6 +87,22 @@ def begin_processing():
     # because nothing shows up in the stream when the file is created there
     stream_path.touch()
     return template(
+        "preview",
+        base_url=config("BASE_URL").rstrip("/"),
+        collection_id=collection_id,
+        processes=processes,
+    )
+
+
+@post("/distilling")
+def begin_processing():
+    collection_id = request.forms.get("collection_id")
+    processes = request.forms.get("processes")
+    # write the process file for alchemist.py to find
+    Path(config("WEB_NAS_APPS_MOUNTPOINT")).joinpath(
+        config("NAS_STATUS_FILES_RELATIVE_PATH"), f"{collection_id}-process-{processes}"
+    ).touch()
+    return template(
         "distilling",
         base_url=config("BASE_URL").rstrip("/"),
         collection_id=collection_id,
@@ -93,26 +111,27 @@ def begin_processing():
 
 @get("/distill/<collection_id>")
 def stream(collection_id):
-    # using server-sent events that work with javascript in distilling.tpl
+    # using server-sent events that work with javascript in preview.tpl
     response.content_type = "text/event-stream"
     response.cache_control = "no-cache"
 
-    with open(
+    # TODO set tail command path in settings
+    for line in sh.tail(
+        "-f",
         Path(
             f'{config("WEB_NAS_APPS_MOUNTPOINT")}/{config("NAS_STATUS_FILES_RELATIVE_PATH")}'
         ).joinpath(f"{collection_id}-processing"),
-        encoding="utf-8",
-    ) as f:
-        for line in tailer.follow(f):
-            # the event stream format starts with "data: " and ends with "\n\n"
-            # https://web.archive.org/web/20210701185847/https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format
-            if line.startswith("🟢"):
-                # we send an event field targeting a specific listener without data
-                yield f"event: init\n"
-            elif line.startswith("🔴"):
-                yield f"data: it seems we’re done 😀\n\n"
-            else:
-                yield f"data: {line}\n\n"
+        _iter=True,
+    ):
+        # the event stream format starts with "data: " and ends with "\n\n"
+        # https://web.archive.org/web/20210701185847/https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format
+        if "🟢" in line:
+            # we send an event field targeting a specific listener without data
+            yield f"event: init\n"
+        elif "🟡" in line:
+            yield f"event: done\n"
+        else:
+            yield f"data: {line}\n\n"
 
 
 def authorize_user():
