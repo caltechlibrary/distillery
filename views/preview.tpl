@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <title>Processing {{collection_id}} | Distillery</title>
+    <title>Preview {{collection_id}} | Distillery</title>
     <script>
       function linkify(inputText) {
           var replacedText, replacePattern;
@@ -16,14 +16,19 @@
         const sse = new EventSource("distill/{{collection_id}}");
         const eventList = document.querySelector("#log");
         sse.addEventListener("init", function(e) {
-          // #return and #anchor are moved at first event
-          document.body.appendChild(document.querySelector("#return"))
+          // #cancel and #anchor are moved at first event
+          document.body.appendChild(document.querySelector("#init"))
+          document.body.appendChild(document.querySelector("#cancel"))
           document.body.appendChild(document.querySelector("#anchor"))
           // #waiting is removed at first event
           document.querySelector("#waiting").remove()
           var newElement = document.createElement("p");
           newElement.textContent = e.data;
           eventList.appendChild(newElement);
+        })
+        sse.addEventListener("done", function(e) {
+          document.getElementById("init").removeAttribute("hidden")
+          document.getElementById("init").appendChild(document.getElementById("cancel"))
         })
         sse.addEventListener("message", function(e) {
           // certain messages are displayed inline with span elements
@@ -40,6 +45,7 @@
       });
     </script>
     <style type="text/css">
+      /* Alignment & Spacing */
       * {
         box-sizing: border-box;
       }
@@ -47,6 +53,8 @@
         margin: 0;
         padding: 0;
       }
+      button,
+      #cancel,
       #log {
         margin: 1em;
       }
@@ -62,6 +70,16 @@
       }
     </style>
     <style type="text/css">
+      /* Text Effects */
+      #cancel {
+        font-family: sans-serif;
+      }
+      #log {
+        font-family: monospace;
+      }
+    </style>
+    <style type="text/css">
+      /* Please Wait Throbber */
       .spinner {
         width: 40px;
         height: 40px;
@@ -119,15 +137,20 @@
     </style>
   </head>
   <body>
-    <div id="log" style="font-family: monospace;">
+    <div id="log">
       <div id="waiting">
-        <div>starting process for {{collection_id}}</em>, please wait (up to a minute)</div>
+        <div>preparing preliminary report for {{collection_id}}</em>, please wait (up to a minute)</div>
         <div class="spinner">
           <div class="double-bounce1"></div>
           <div class="double-bounce2"></div>
         </div>
-        <!-- document why #return and #anchor must be within #waiting initially -->
-        <div id="return"><a href="{{base_url}}">return to form</a></div>
+        <!-- document why the following must be within #waiting initially -->
+        <form id="init" action="{{base_url}}/distilling" method="post" hidden>
+          <input type="hidden" id="collection_id" name="collection_id" value="{{collection_id}}">
+          <input type="hidden" id="processes" name="processes" value="{{processes}}">
+          <button>Initiate Processing 🚀</button>
+        </form>
+        <span id="cancel"><a href="{{base_url}}">Cancel</a></span>
         <div id="anchor"></div>
       </div>
     </div>

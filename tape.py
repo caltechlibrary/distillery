@@ -156,12 +156,17 @@ def create_archivesspace_tape_records(variables):
     distillery.loop_over_preservation_structure(variables)
 
 
-def collection_level_preprocessing(variables):
+def preview(variables):
     """Run before any files are moved or records are created."""
     # TODO ensure errors will output a message to the web
     message = f"✅ Tape Indicator found: {get_tape_indicator()}\n"
     with open(variables["stream_path"], "a") as stream:
         stream.write(message)
+
+
+def collection_level_preprocessing(variables):
+    """Run before any files are moved or records are created."""
+    pass
 
 
 def collection_level_postprocessing(variables):
