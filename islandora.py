@@ -92,7 +92,7 @@ def main(
         stream.write(f"📅 {datetime.now()}\n🦕 islandora processing\n🗄 {collection_id}\n")
 
     try:
-        collection_directory = distillery.get_collection_directory(
+        collection_directory = distillery.confirm_collection_directory(
             WORKING_ORIGINAL_FILES, collection_id
         )
         if collection_directory:

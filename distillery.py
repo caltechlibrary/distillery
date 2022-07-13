@@ -186,7 +186,7 @@ def main(
 
     variables["WORKING_ORIGINAL_FILES"] = config("WORKING_ORIGINAL_FILES")
 
-    variables["collection_directory"] = get_collection_directory(
+    variables["collection_directory"] = confirm_collection_directory(
         variables["WORKING_ORIGINAL_FILES"], variables["collection_id"]
     )  # TODO pass only variables
 
@@ -256,7 +256,7 @@ def distill(
     # points of failure are messed up right away
 
     try:
-        collection_directory = get_collection_directory(
+        collection_directory = confirm_collection_directory(
             WORKING_ORIGINAL_FILES, collection_id
         )
         if collection_directory:
@@ -904,18 +904,21 @@ def get_collection_data(collection_id):
         )
 
 
-def get_collection_directory(WORKING_ORIGINAL_FILES, collection_id):
+def confirm_collection_directory(parent_directory, collection_id):
     # make a list of directory names to check against
     entries = []
-    for entry in os.scandir(WORKING_ORIGINAL_FILES):
+    for entry in os.scandir(parent_directory):
         if entry.is_dir:
             entries.append(entry.name)
     # check that collection_id case matches directory name
     if collection_id in entries:
-        return os.path.join(WORKING_ORIGINAL_FILES, collection_id)
+        logger.info(
+            f"✅ DIRECTORY FOUND: {os.path.join(parent_directory, collection_id)}"
+        )
+        return os.path.join(parent_directory, collection_id)
     else:
         raise NotADirectoryError(
-            f"Missing or invalid collection directory: {os.path.join(WORKING_ORIGINAL_FILES, collection_id)}\n"
+            f"Missing or invalid collection directory: {os.path.join(parent_directory, collection_id)}\n"
         )
 
 
@@ -1903,7 +1906,7 @@ def get_preservation_image_data(filepath):
 
 
 def create_preservation_files_structure(variables):
-    variables["collection_directory"] = get_collection_directory(
+    variables["collection_directory"] = confirm_collection_directory(
         variables["WORKING_ORIGINAL_FILES"], variables["collection_id"]
     )  # TODO pass only variables
     variables["collection_data"] = get_collection_data(
