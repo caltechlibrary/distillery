@@ -756,7 +756,7 @@ def create_digital_object(folder_data):
                     f" ⚠️\t non-unique digital_object_id: {folder_data['component_id']}"
                 )
     logger.info(
-        f'✳️ DIGITAL OBJECT CREATED: {digital_object_post_response.json()["uri"]}'
+        f'✳️  DIGITAL OBJECT CREATED: {digital_object_post_response.json()["uri"]}'
     )
 
     # set up a digital object instance to add to the archival object
@@ -1260,7 +1260,7 @@ def create_digital_object_component(variables):
         "/repositories/2/digital_object_components", digital_object_component
     )
     logger.info(
-        f'✳️ DIGITAL OBJECT COMPONENT CREATED: {digital_object_component_post_response.json()["uri"]}'
+        f'✳️  DIGITAL OBJECT COMPONENT CREATED: {digital_object_component_post_response.json()["uri"]}'
     )
 
 
