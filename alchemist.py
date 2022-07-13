@@ -32,6 +32,14 @@ for f in glob(
         "*-*-*",
     )
 ):
+    # logger.debug("🟣")
+    # logger.info("🔵")
+    # logger.warning("🟡")
+    # logger.error("🔴")
+    # logger.critical("🆘")
+
+    logger.info(f"⚗️  FILE DETECTED: {f}")
+
     # NOTE using rsplit() in case collection_id contains a - (hyphen)
     collection_id = os.path.basename(f).rsplit("-", 2)[0]
     step = os.path.basename(f).rsplit("-", 2)[1]
@@ -43,6 +51,7 @@ for f in glob(
 
     # delete the init file to stop future initiation with the same file
     os.remove(f)
+    logger.info(f"🗑  FILE REMOVED: {f}")
 
     if step == "preview":
         module = "preview"
@@ -76,9 +85,6 @@ for f in glob(
         # SEE web.py:stream()
         stream.write(f"🟢\n")
 
-    logger.info(f"📅 {datetime.now()} begin")
-    logger.info(f"🗄  {collection_id}")
-
     try:
         command = [
             sys.executable,
@@ -89,15 +95,28 @@ for f in glob(
             collection_id,
         ]
         command.extend(flags)
+        logger.info(f'🚰 RUNNING COMMAND: {" ".join(command)}')
         # TODO get errors and output from the subprocess somewhere
         result = subprocess.run(
             command,
             # stdout=subprocess.PIPE,
             # stderr=subprocess.STDOUT,
             capture_output=True,
-            # check=True,
+            check=True,
         )
         # from pprint import pprint; pprint(result)  # DEBUG
+    except subprocess.CalledProcessError as e:
+        # If check is true, and the process exits with a non-zero exit code, a
+        # CalledProcessError exception will be raised. Attributes of that
+        # exception hold the arguments, the exit code, and stdout and stderr if
+        # they were captured.
+        logger.error(f"❌ {e}")
+        logger.error(f"❌ {e.returncode}")
+        logger.error(f"❌ {e.cmd}")
+        logger.error(f"❌ {e.output}")
+        logger.error(f"❌ {e.stdout}")
+        logger.error(f"❌ {e.stderr}")
+        raise
     except BaseException as e:
         logger.error(f"❌ {e}")
         raise
@@ -123,6 +142,7 @@ for f in glob(
                     str(os.path.join(config("WORKING_ORIGINAL_FILES"), collection_id)),
                     str(config("STAGE_3_ORIGINAL_FILES")),
                 )
+            logger.info(f'📂 FILES MOVED TO: {config("STAGE_3_ORIGINAL_FILES")}')
         except BaseException as e:
             message = (
                 "❌ unable to move the processed files from the processing directory\n"
@@ -132,9 +152,40 @@ for f in glob(
             logger.error(f"❌ {e}")
             raise
 
+        try:
+            command = [
+                sys.executable,
+                os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)),
+                    "validate.py",
+                ),
+            ]
+            logger.info(
+                f'🧾 VALIDATING: {Path(config("WORK_NAS_APPS_MOUNTPOINT")).joinpath(config("NAS_LOG_FILES_RELATIVE_PATH"), "validation.log")}'
+            )
+            subprocess.run(
+                command,
+                capture_output=True,
+                check=True,
+            )
+        except subprocess.CalledProcessError as e:
+            logger.error(f"❌ {e}")
+            logger.error(f"❌ {e.returncode}")
+            logger.error(f"❌ {e.cmd}")
+            logger.error(f"❌ {e.output}")
+            logger.error(f"❌ {e.stdout}")
+            logger.error(f"❌ {e.stderr}")
+            raise
+        except BaseException as e:
+            logger.error(f"❌ {e}")
+            raise
+
     with open(stream_path, "a") as stream:
         # NOTE specific emoji used for event listener in web.py:stream()
         # NOTE extra line feed required for tail to see the change
         stream.write("🟡\n\n")
 
-    logger.info(f"📆 {datetime.now()} end")
+    if step == "preview":
+        logger.info(f"⏸  FINISHED: {collection_id} {step.upper()}")
+    elif step == "process":
+        logger.info(f"🥃 FINISHED: {collection_id} {step.upper()}")
