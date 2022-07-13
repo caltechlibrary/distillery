@@ -210,7 +210,6 @@ def collection_level_postprocessing(variables):
 def folder_level_processing(variables):
     """Process for each folder inside LOSSLESS_PRESERVATION_FILES."""
 
-    # TODO move this to init function
     # Read from the INDICATOR file on the mounted tape.
     variables["tape_indicator"] = get_tape_indicator()
 
@@ -377,7 +376,7 @@ def tape_is_mounted():
         f'{config("TAPE_PYTHON3_CMD")} -c \'import os; print(os.path.ismount("{config("TAPE_LTO_MOUNTPOINT")}"))\''
     ).strip()
     if is_mounted == "True":
-        logger.info(f'✅ TAPE IS MOUNTED: {config("TAPE_LTO_MOUNTPOINT")}')
+        logger.info(f'☑️ TAPE IS MOUNTED: {config("TAPE_LTO_MOUNTPOINT")}')
         return True
     else:
         return False
