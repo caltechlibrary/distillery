@@ -1906,8 +1906,8 @@ def loop_over_original_structure(variables):
     variables["folders"], variables["filecount"] = prepare_folder_list(
         variables["collection_directory"]
     )  # TODO pass only variables
-    folders = variables["folders"][:]
-    folders.sort(reverse=True)
+    # NOTE [::-1] makes a reverse copy of the list for use with pop() below
+    folders = variables["folders"][::-1]
     for _ in range(len(folders)):
         # Using pop() (and/or range(len()) above) maybe helps to be sure that
         # if folder metadata fails to process properly, it and its images are
@@ -1971,10 +1971,9 @@ def loop_over_original_files(variables):
     └── HBF_007_08
     """
 
-    # NOTE: We reverse the sort for use with pop() and so the components
+    # NOTE We reverse the list with [::-1] and use with pop() so the components
     # will be ingested in the correct order for the digital object tree.
-    filepaths = variables["filepaths"]
-    filepaths.sort(reverse=True)
+    filepaths = variables["filepaths"][::-1]
     for f in range(len(filepaths)):
         variables["original_image_path"] = filepaths.pop()
         logger.info(
