@@ -233,7 +233,7 @@ def folder_level_processing(variables):
         "/repositories/2/top_containers", top_container
     )
     top_container_uri = top_containers_post_response.json()["uri"]
-    logger.info(f"✳️ TOP CONTAINER CREATED: {top_container_uri}")
+    logger.info(f"✳️  TOP CONTAINER CREATED: {top_container_uri}")
     # set up a container instance to add to the archival_object
     container_instance = {
         "instance_type": "mixed_materials",  # per policy # TODO set up new type
@@ -245,7 +245,7 @@ def folder_level_processing(variables):
     distillery.archivessnake_post(
         variables["folder_data"]["uri"], variables["folder_data"]
     )
-    logger.info(f'☑️ ARCHIVAL OBJECT UPDATED: {variables["folder_data"]["uri"]}')
+    logger.info(f'☑️  ARCHIVAL OBJECT UPDATED: {variables["folder_data"]["uri"]}')
 
 
 def file_level_processing(variables):
@@ -372,7 +372,7 @@ def nas_is_mounted():
         f'{config("TAPE_PYTHON3_CMD")} -c \'import os; print(os.path.ismount("{config("TAPE_NAS_ARCHIVES_MOUNTPOINT")}"))\''
     ).strip()
     if is_mounted == "True":
-        logger.info(f'☑️ NAS IS MOUNTED: {config("TAPE_NAS_ARCHIVES_MOUNTPOINT")}')
+        logger.info(f'☑️  NAS IS MOUNTED: {config("TAPE_NAS_ARCHIVES_MOUNTPOINT")}')
         return True
     else:
         return False
@@ -459,7 +459,7 @@ def tape_container_attached(archival_object, top_container_indicator):
                 == top_container_indicator
             ):
                 logger.info(
-                    f'☑️ TAPE TOP CONTAINER EXISTS: {instance["sub_container"]["top_container"]["ref"]}'
+                    f'☑️  TAPE TOP CONTAINER EXISTS: {instance["sub_container"]["top_container"]["ref"]}'
                 )
                 return True
 
