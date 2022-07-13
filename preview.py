@@ -61,24 +61,9 @@ def main(
 
     # Report on directories found.
     try:
-        # make a list of directory names to check against
-        entries = []
-        for entry in os.scandir(config("INITIAL_ORIGINAL_FILES")):
-            if entry.is_dir:
-                entries.append(entry.name)
-        # check that collection_id case matches directory name
-        if collection_id in entries:
-            logger.info(
-                f'✅ DIRECTORY FOUND: {config("INITIAL_ORIGINAL_FILES")}/{collection_id}'
-            )
-            message = f"✅ Directory found on file system: {collection_id}\n"
-            with open(stream_path, "a") as stream:
-                stream.write(message)
-        else:
-            message = f"❌ no directory name matching {collection_id} in {config('INITIAL_ORIGINAL_FILES')}\n"
-            with open(stream_path, "a") as stream:
-                stream.write(message)
-            raise NotADirectoryError(message)
+        distillery.confirm_collection_directory(
+            config("INITIAL_ORIGINAL_FILES"), collection_id
+        )
     except FileNotFoundError as e:
         message = f"❌ {collection_id} directory not found in {config('INITIAL_ORIGINAL_FILES')}\n"
         with open(stream_path, "a") as stream:

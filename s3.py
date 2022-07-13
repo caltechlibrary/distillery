@@ -79,7 +79,7 @@ def main(
         "WORK_LOSSLESS_PRESERVATION_FILES"
     ] = WORK_LOSSLESS_PRESERVATION_FILES.as_posix()
 
-    variables["collection_directory"] = distillery.get_collection_directory(
+    variables["collection_directory"] = distillery.confirm_collection_directory(
         IN_PROCESS_ORIGINAL_FILES, collection_id
     )
     variables["collection_data"] = distillery.get_collection_data(collection_id)
