@@ -668,6 +668,7 @@ def confirm_digital_object(folder_data):
     digital_object_count = 0
     for instance in folder_data["instances"]:
         if "digital_object" in instance.keys():
+            digital_object_ref = instance["digital_object"]["ref"]
             digital_object_count += 1
     if digital_object_count > 1:
         raise ValueError(
@@ -676,6 +677,8 @@ def confirm_digital_object(folder_data):
     if digital_object_count < 1:
         # returns new folder_data with digital object info included
         folder_data = create_digital_object(folder_data)
+        folder_data = confirm_digital_object(folder_data)
+    logger.info(f"☑️  DIGITAL OBJECT FOUND: {digital_object_ref}")
     return folder_data
 
 
@@ -1178,8 +1181,14 @@ def normalize_directory_component_id(folderpath):
             f"The directory name does not correspond to the collection_id: {os.path.basename(folderpath)}"
         )
     box_number = component_id_parts[1].lstrip("0")
+    normalized_component_id = "_".join(
+        [collection_id, box_number.zfill(3), component_id_parts[2]]
+    )
+    logger.info(
+        f"⚙️ NORMALIZED: {os.path.basename(folderpath)} to {normalized_component_id}"
+    )
     # TODO parse non-numeric folder identifiers, like: 03b
-    return "_".join([collection_id, box_number.zfill(3), component_id_parts[2]])
+    return normalized_component_id
 
 
 def post_digital_object_component(json_data):
@@ -1246,8 +1255,13 @@ def construct_digital_object_component(variables):
 
 
 def create_digital_object_component(variables):
-    digital_object = construct_digital_object_component(variables)
-    archivessnake_post("/repositories/2/digital_object_components", digital_object)
+    digital_object_component = construct_digital_object_component(variables)
+    digital_object_component_post_response = archivessnake_post(
+        "/repositories/2/digital_object_components", digital_object_component
+    )
+    logger.info(
+        f'✳️ DIGITAL OBJECT COMPONENT CREATED: {digital_object_component_post_response.json()["uri"]}'
+    )
 
 
 def construct_file_version(variables):
