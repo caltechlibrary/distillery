@@ -59,7 +59,6 @@ def main(
     # logger.warning("🟡")
     # logger.error("🔴")
     # logger.critical("🆘")
-    logger.info("🛁 distilling")
     validation_logger.info(f"🔮 {datetime.now()}")
     variables = {}
     if onsite and config("ONSITE_MEDIUM"):
@@ -82,64 +81,6 @@ def main(
     variables["stream_path"] = stream_path = Path(
         config("WORK_NAS_APPS_MOUNTPOINT")
     ).joinpath(config("NAS_STATUS_FILES_RELATIVE_PATH"), f"{collection_id}-processing")
-
-    # Report on directories found.
-    try:
-        # make a list of directory names to check against
-        entries = []
-        for entry in os.scandir(config("INITIAL_ORIGINAL_FILES")):
-            if entry.is_dir:
-                entries.append(entry.name)
-        # check that collection_id case matches directory name
-        if collection_id in entries:
-            message = f"✅ Directory found on file system: {collection_id}\n"
-            with open(stream_path, "a") as stream:
-                stream.write(message)
-        else:
-            message = f"❌ no directory name matching {collection_id} in {config('INITIAL_ORIGINAL_FILES')}\n"
-            with open(stream_path, "a") as stream:
-                stream.write(message)
-            raise NotADirectoryError(message)
-    except FileNotFoundError as e:
-        message = f"❌ {collection_id} directory not found in {config('INITIAL_ORIGINAL_FILES')}\n"
-        with open(stream_path, "a") as stream:
-            stream.write(message)
-        logger.error(f"❌ {e}")
-        # re-raise the exception because we cannot continue without the files
-        raise
-
-    # Report on subdirectories found and filecount.
-    initial_original_subdirectorycount = 0
-    initial_original_filecount = 0
-    for dirpath, dirnames, filenames in os.walk(
-        os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id)
-    ):
-        if dirnames:
-            for dirname in dirnames:
-                initial_original_subdirectorycount += 1
-                with open(stream_path, "a") as stream:
-                    stream.write(f"{collection_id}/{dirname}\n")
-        if filenames:
-            for filename in filenames:
-                type, encoding = mimetypes.guess_type(Path(dirpath).joinpath(filename))
-                # NOTE additional mimetypes TBD
-                if type == "image/tiff":
-                    initial_original_filecount += 1
-    if not initial_original_subdirectorycount:
-        message = f"❌ No subdirectories found under {collection_id} directory in {config('INITIAL_ORIGINAL_FILES')}\n"
-        with open(stream_path, "a") as stream:
-            stream.write(message)
-        raise FileNotFoundError(message)
-    if initial_original_filecount:
-        with open(stream_path, "a") as stream:
-            stream.write(
-                f"🔢 Number of files to be processed: {initial_original_filecount}\n"
-            )
-    else:
-        message = f"❌ No files found for {collection_id} that can be processed by Distillery\n"
-        with open(stream_path, "a") as stream:
-            stream.write(message)
-        raise FileNotFoundError(message)
 
     variables["collection_data"] = get_collection_data(variables["collection_id"])
 
@@ -839,9 +780,6 @@ def create_digital_object(folder_data):
     # call get_folder_data() again to include digital object instance
     folder_data = get_folder_data(folder_data["component_id"])
 
-    # logging.info(
-    #     f"✳️ created digital object {digital_object['digital_object_id']} {digital_object_post_response.json()['uri']}"
-    # )
     return folder_data
 
 
@@ -895,7 +833,7 @@ def get_collection_data(collection_id):
         collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
         if collection_data["tree"]["_resolved"]:
             logger.info(
-                f'✅ ARCHIVESSPACE COLLECTION DATA RETRIEVED: {collection_data["uri"]}'
+                f'☑️ ARCHIVESSPACE COLLECTION DATA RETRIEVED: {collection_data["uri"]}'
             )
             return collection_data
     else:
@@ -1001,17 +939,19 @@ def get_file_parts(filepath):
 def get_folder_arrangement(folder_data):
     """Return names and identifers of the arragement levels for a folder.
 
-    # folder_arrangement["repository_name"]
-    # folder_arrangement["repository_code"]
-    # folder_arrangement["folder_display"]
-    # folder_arrangement["folder_title"]
-    # folder_arrangement["collection_display"]
-    # folder_arrangement["collection_id"]
-    # folder_arrangement["series_display"]
-    # folder_arrangement["series_id"]
-    # folder_arrangement["subseries_display"]
-    # folder_arrangement["subseries_id"]
+    EXAMPLES:
+    folder_arrangement["repository_name"]
+    folder_arrangement["repository_code"]
+    folder_arrangement["folder_display"]
+    folder_arrangement["folder_title"]
+    folder_arrangement["collection_display"]
+    folder_arrangement["collection_id"]
+    folder_arrangement["series_display"]
+    folder_arrangement["series_id"]
+    folder_arrangement["subseries_display"]
+    folder_arrangement["subseries_id"]
     """
+    # TODO document assumptions about arrangement
     folder_arrangement = {}
     folder_arrangement["repository_name"] = folder_data["repository"]["_resolved"][
         "name"
@@ -1068,6 +1008,7 @@ def get_folder_arrangement(folder_data):
 
 
 def get_folder_data(component_id):
+    # TODO rename to get_archival_object()
     # returns archival object metadata using the component_id; two API calls
     find_by_id_response = asnake_client.get(
         f"/repositories/2/find_by_id/archival_objects?component_id[]={component_id}"
@@ -1480,6 +1421,7 @@ def prepare_folder_list(collection_directory):
                 if os.path.splitext(f)[1] in [".tif", ".tiff"]:
                     filecounter += 1
     filecount = filecounter
+    # TODO remove unused filecount
     return folders, filecount
 
 
@@ -2014,38 +1956,9 @@ def loop_over_original_files(variables):
         # TODO check for existing preservation structure
         if variables["preservation"]:
             # TODO import mimetypes; mimetypes.guess_type(filepath)
+
             # Create lossless JPEG 2000 image from original.
-            # TODO this should be in a separate function for use by both tape and s3
             create_lossless_jpeg2000_image(variables)
-            # try:
-            #     # start this in the background
-            #     with concurrent.futures.ThreadPoolExecutor() as executor:
-            #         future = executor.submit(
-            #             create_lossless_jpeg2000_image,
-            #             variables,
-            #         )
-            #         # run a loop checking for it to be done
-            #         # indicate processing by printing a dot every second to the web
-            #         iteration = 0
-            #         while "state=running" in str(future):
-            #             time.sleep(1)
-            #             with open(variables["stream_path"], "a", newline="") as f:
-            #                 f.write(".")
-            #             iteration += 1
-            #         # variables["preservation_image_data"] = future.result()  # TODO REMOVE
-            #     with open(variables["stream_path"], "a") as f:
-            #         f.write(
-            #             f'\n✅ Successfully converted {os.path.basename(variables["original_image_path"])} to JPEG 2000.\n'
-            #         )
-            # except RuntimeError as e:
-            #     message = (
-            #         f'\n⚠️ There was a problem converting {os.path.basename(variables["original_image_path"])} to JPEG 2000.\n'
-            #         f'↩️ Skipping {os.path.basename(variables["original_image_path"])} file.\n'
-            #     )
-            #     with open(variables["stream_path"], "a") as f:
-            #         f.write(message)
-            #     # logging.warning(message, exc_info=True)
-            #     continue
 
             # TODO create digital_object_component
             # TODO refactor based on mimetype

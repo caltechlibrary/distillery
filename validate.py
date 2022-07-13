@@ -42,6 +42,7 @@ def main():
     mounted_tape_indicator = tape.get_tape_indicator()
     for archivesspace_uri in archivesspace_log:
         record = asnake_client.get(archivesspace_uri).json()
+        # TODO additional jsonmodel_types
         if record["jsonmodel_type"] == "digital_object_component":
             for file_version in record["file_versions"]:
                 file_uri = file_version["file_uri"]
