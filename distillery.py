@@ -775,7 +775,7 @@ def create_digital_object(folder_data):
     )
     archival_object_post_response.raise_for_status()
     logger.info(
-        f'☑️ ARCHIVAL OBJECT UPDATED: {archival_object_post_response.json()["uri"]}'
+        f'☑️  ARCHIVAL OBJECT UPDATED: {archival_object_post_response.json()["uri"]}'
     )
 
     # TODO investigate how to roll back adding digital object to archival object
@@ -836,7 +836,7 @@ def get_collection_data(collection_id):
         collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
         if collection_data["tree"]["_resolved"]:
             logger.info(
-                f'☑️ ARCHIVESSPACE COLLECTION DATA RETRIEVED: {collection_data["uri"]}'
+                f'☑️  ARCHIVESSPACE COLLECTION DATA RETRIEVED: {collection_data["uri"]}'
             )
             return collection_data
     else:
@@ -854,7 +854,7 @@ def confirm_collection_directory(parent_directory, collection_id):
     # check that collection_id case matches directory name
     if collection_id in entries:
         logger.info(
-            f"✅ DIRECTORY FOUND: {os.path.join(parent_directory, collection_id)}"
+            f"☑️  DIRECTORY FOUND: {os.path.join(parent_directory, collection_id)}"
         )
         return os.path.join(parent_directory, collection_id)
     else:
@@ -912,7 +912,7 @@ def get_digital_object_component(digital_object_component_component_id):
     )
     digital_object_component_get_response.raise_for_status()
     logger.info(
-        f'☑️ DIGITAL OBJECT COMPONENT RETRIEVED: {digital_object_component_get_response["uri"]}'
+        f'☑️  DIGITAL OBJECT COMPONENT RETRIEVED: {digital_object_component_get_response["uri"]}'
     )
     return digital_object_component_get_response.json()
 
@@ -1010,7 +1010,7 @@ def get_folder_arrangement(folder_data):
                 raise ValueError(
                     f"Missing series data for: {folder_data['component_id']}"
                 )
-    logger.info("☑️ ARRANGEMENT LEVELS AGGREGATED")
+    logger.info("☑️  ARRANGEMENT LEVELS AGGREGATED")
     return folder_arrangement
 
 
@@ -1030,7 +1030,7 @@ def get_folder_data(component_id):
         f"{find_by_id_response.json()['archival_objects'][0]['ref']}?resolve[]=digital_object&resolve[]=repository&resolve[]=top_container"
     )
     archival_object_get_response.raise_for_status()
-    logger.info(f"☑️ ARCHIVAL OBJECT FOUND: {component_id}")
+    logger.info(f"☑️  ARCHIVAL OBJECT FOUND: {component_id}")
     return archival_object_get_response.json()
 
 
@@ -1439,7 +1439,7 @@ def create_lossless_jpeg2000_image(variables):
     sha512sum_cmd = sh.Command(config("WORK_SHA512SUM_CMD"))
     magick_cmd = sh.Command(config("WORK_MAGICK_CMD"))
     # Get checksum characters only by using `cut` (in the background).
-    logger.info("🧮  CALCULATING ORIGINAL IMAGE SIGNATURE...")
+    logger.info("🧮 CALCULATING ORIGINAL IMAGE SIGNATURE...")
     original_image_signature = cut_cmd(
         sha512sum_cmd(
             magick_cmd.stream(
@@ -1479,7 +1479,7 @@ def create_lossless_jpeg2000_image(variables):
     )
     Path(Path(preservation_image_path).parent).mkdir(parents=True, exist_ok=True)
     # Convert the image (in the background).
-    logger.info("⏳  CONVERTING IMAGE...")
+    logger.info("⏳ CONVERTING IMAGE...")
     image_conversion = magick_cmd.convert(
         "-quiet",
         variables["original_image_path"],
@@ -1511,7 +1511,7 @@ def create_lossless_jpeg2000_image(variables):
     # Embed metadata into the JPEG 2000.
     write_xmp_metadata(preservation_image_path, xmp_dc)
     # Get checksum characters only by using `cut` (in the background).
-    logger.info("🧮  CALCULATING PRESERVATION IMAGE SIGNATURE...")
+    logger.info("🧮 CALCULATING PRESERVATION IMAGE SIGNATURE...")
     preservation_image_signature = cut_cmd(
         sha512sum_cmd(
             magick_cmd.stream(
@@ -1685,7 +1685,7 @@ def save_collection_metadata(collection_data, directory):
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, "w") as f:
         f.write(json.dumps(collection_data, indent=4))
-    logger.info(f"☑️ COLLECTION DATA SAVED: {filename}")
+    logger.info(f"☑️  COLLECTION DATA SAVED: {filename}")
 
 
 def save_folder_data(folder_arrangement, folder_data, directory):
@@ -1700,7 +1700,7 @@ def save_folder_data(folder_arrangement, folder_data, directory):
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, "w") as f:
         f.write(json.dumps(folder_data, indent=4))
-    logger.info(f"☑️ ARCHIVAL OBJECT DATA SAVED: {filename}")
+    logger.info(f"☑️  ARCHIVAL OBJECT DATA SAVED: {filename}")
 
 
 def save_preservation_file(source, destination):
