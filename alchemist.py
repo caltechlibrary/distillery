@@ -186,6 +186,6 @@ for f in glob(
         stream.write("🟡\n\n")
 
     if step == "preview":
-        logger.info(f"⏸  FINISHED: {collection_id} {step.upper()}")
+        logger.info(f"⏯  FINISHED: {collection_id} {step.upper()}")
     elif step == "process":
         logger.info(f"🥃 FINISHED: {collection_id} {step.upper()}")

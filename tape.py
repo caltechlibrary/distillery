@@ -182,7 +182,7 @@ def collection_level_postprocessing(variables):
             variables["collection_id"]
         )
     )
-    logger.info(f"🔢  BYTECOUNT OF PRESERVATION FILES: {collection_id_directory_bytes}")
+    logger.info(f"🔢 BYTECOUNT OF PRESERVATION FILES: {collection_id_directory_bytes}")
     # NOTE output from tape_server connection is a string formatted like:
     # `5732142415872 5690046283776`
     tape_bytes = tape_server(
@@ -191,7 +191,7 @@ def collection_level_postprocessing(variables):
     # convert the string to a tuple and get the parts
     tape_total_bytes = tuple(map(int, tape_bytes.split(" ")))[0]
     tape_free_bytes = tuple(map(int, tape_bytes.split(" ")))[1]
-    logger.info(f"🔢  FREE BYTES ON TAPE: {tape_free_bytes}")
+    logger.info(f"🔢 FREE BYTES ON TAPE: {tape_free_bytes}")
     tape_capacity_buffer = tape_total_bytes * 0.01  # reserve 1% for tape index
     if not tape_free_bytes - collection_id_directory_bytes > tape_capacity_buffer:
         # TODO unmount tape
@@ -277,7 +277,7 @@ def file_level_processing(variables):
                 digital_object_component["uri"], digital_object_component
             )
             logger.info(
-                f'☑️ DIGITAL OBJECT COMPONENT UPDATED: {digital_object_component["uri"]}'
+                f'☑️  DIGITAL OBJECT COMPONENT UPDATED: {digital_object_component["uri"]}'
             )
     else:
         distillery.create_digital_object_component(variables)
@@ -296,7 +296,7 @@ def rsync_to_tape(variables):
     def perform_rsync():
         # NOTE LTFS will not save group, permission, or time attributes
         # NOTE running with `_bg=True` and `_out` to process each line of output
-        logger.info("⏳  PERFORMING RSYNC TO TAPE...")
+        logger.info("⏳ PERFORMING RSYNC TO TAPE...")
         rsync_process = tape_server(
             config("TAPE_RSYNC_CMD"),
             "-rv",
@@ -350,7 +350,7 @@ def read_tape_indicator():
     tape_indicator = tape_server(
         f'{config("TAPE_PYTHON3_CMD")} -c \'with open("{config("TAPE_LTO_MOUNTPOINT")}/INDICATOR") as f: print(f.read())\''
     ).strip()
-    logger.info(f"✅ TAPE INDICATOR: {tape_indicator}")
+    logger.info(f"☑️  TAPE INDICATOR FOUND: {tape_indicator}")
     return tape_indicator
 
 
@@ -385,7 +385,7 @@ def tape_is_mounted():
         f'{config("TAPE_PYTHON3_CMD")} -c \'import os; print(os.path.ismount("{config("TAPE_LTO_MOUNTPOINT")}"))\''
     ).strip()
     if is_mounted == "True":
-        logger.info(f'☑️ TAPE IS MOUNTED: {config("TAPE_LTO_MOUNTPOINT")}')
+        logger.info(f'☑️  TAPE IS MOUNTED: {config("TAPE_LTO_MOUNTPOINT")}')
         return True
     else:
         return False
