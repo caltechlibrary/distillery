@@ -17,9 +17,9 @@ import distillery
 logging.config.fileConfig(
     # set the logging configuration in the settings.ini file
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.ini"),
-    disable_existing_loggers=False,
+    disable_existing_loggers=True,
 )
-logger = logging.getLogger("distillery")
+logger = logging.getLogger("preview")
 
 # TODO do we need a class? https://stackoverflow.com/a/16502408/4100024
 asnake_client = ASnakeClient(
@@ -36,6 +36,7 @@ def main(
     access: ("publishing access copies", "flag", "a"),  # type: ignore
     collection_id: "the Collection ID from ArchivesSpace",  # type: ignore
 ):
+    logger.info(f"☑️ RUNNING PREVIEW CHECKS FOR: {collection_id}")
     variables = {}
     if onsite and config("ONSITE_MEDIUM"):
         # Import a module named the same as the ONSITE_MEDIUM setting.
@@ -67,6 +68,9 @@ def main(
                 entries.append(entry.name)
         # check that collection_id case matches directory name
         if collection_id in entries:
+            logger.info(
+                f'✅ DIRECTORY FOUND: {config("INITIAL_ORIGINAL_FILES")}/{collection_id}'
+            )
             message = f"✅ Directory found on file system: {collection_id}\n"
             with open(stream_path, "a") as stream:
                 stream.write(message)
@@ -105,6 +109,7 @@ def main(
             stream.write(message)
         raise FileNotFoundError(message)
     if initial_original_filecount:
+        logger.info(f"✅ FILE COUNT: {initial_original_filecount}")
         with open(stream_path, "a") as stream:
             stream.write(
                 f"📄 Number of files to be processed: {initial_original_filecount}\n"

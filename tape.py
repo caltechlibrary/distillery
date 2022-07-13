@@ -18,6 +18,7 @@ logging.config.fileConfig(
     disable_existing_loggers=True,
 )
 logger = logging.getLogger("tape")
+validation_logger = logging.getLogger("validation")
 
 tape_server = sh.ssh.bake(
     f"{config('TAPE_SSH_USER')}@{config('TAPE_SSH_HOST')}",
@@ -279,10 +280,12 @@ def file_level_processing(variables):
 def rsync_to_tape(variables):
     """Ensure NAS is mounted and copy collection directory tree to tape."""
 
-    # def process_output(line):
-    #     with open(variables["stream_path"], "a") as f:
-    #         if line.strip():
-    #             f.write(line)
+    def process_output(line):
+        if line.strip().startswith(variables["collection_id"]):
+            validation_logger.info(f"TAPE: {line.strip()}")
+        # with open(variables["stream_path"], "a") as f:
+        #     if line.strip():
+        #         f.write(line)
 
     def perform_rsync():
         # NOTE LTFS will not save group, permission, or time attributes
@@ -293,7 +296,7 @@ def rsync_to_tape(variables):
             "--exclude=.DS_Store",
             f'{config("TAPE_NAS_ARCHIVES_MOUNTPOINT")}/{config("NAS_LOSSLESS_PRESERVATION_FILES_RELATIVE_PATH")}/',
             config("TAPE_LTO_MOUNTPOINT"),
-            # _out=process_output,
+            _out=process_output,
             _bg=True,
         )
         rsync_process.wait()
@@ -340,6 +343,7 @@ def read_tape_indicator():
     tape_indicator = tape_server(
         f'{config("TAPE_PYTHON3_CMD")} -c \'with open("{config("TAPE_LTO_MOUNTPOINT")}/INDICATOR") as f: print(f.read())\''
     ).strip()
+    logger.info(f"✅ TAPE INDICATOR: {tape_indicator}")
     return tape_indicator
 
 
@@ -373,12 +377,14 @@ def tape_is_mounted():
         f'{config("TAPE_PYTHON3_CMD")} -c \'import os; print(os.path.ismount("{config("TAPE_LTO_MOUNTPOINT")}"))\''
     ).strip()
     if is_mounted == "True":
+        logger.info(f'✅ TAPE IS MOUNTED: {config("TAPE_LTO_MOUNTPOINT")}')
         return True
     else:
         return False
 
 
 def mount_tape():
+    logger.info(f'✅ MOUNTING TAPE: {config("TAPE_LTO_MOUNTPOINT")}')
     tape_server(config("TAPE_LTFS_CMD"), config("TAPE_LTO_MOUNTPOINT"))
 
 

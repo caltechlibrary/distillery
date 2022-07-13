@@ -36,6 +36,7 @@ logging.config.fileConfig(
 )
 logger = logging.getLogger("distillery")
 archivesspace_logger = logging.getLogger("archivesspace")
+validation_logger = logging.getLogger("validation")
 
 # TODO do we need a class? https://stackoverflow.com/a/16502408/4100024
 # we have 8 functions that need an authorized connection to ArchivesSpace
@@ -53,6 +54,13 @@ def main(
     access: ("publishing access copies", "flag", "a"),  # type: ignore
     collection_id: "the Collection ID from ArchivesSpace",  # type: ignore
 ):
+    # logger.debug("🟣")
+    # logger.info("🔵")
+    # logger.warning("🟡")
+    # logger.error("🔴")
+    # logger.critical("🆘")
+    logger.info("🛁 distilling")
+    validation_logger.info(f"🔮 {datetime.now()}")
     variables = {}
     if onsite and config("ONSITE_MEDIUM"):
         # Import a module named the same as the ONSITE_MEDIUM setting.
@@ -182,7 +190,9 @@ def main(
         variables["WORKING_ORIGINAL_FILES"], variables["collection_id"]
     )  # TODO pass only variables
 
+    # Create LOSSLESS_PRESERVATION_FILES.
     loop_over_original_structure(variables)
+
     if variables["onsite"]:
         variables["onsite_medium"].collection_level_postprocessing(variables)
     # if variables["cloud"]:
@@ -682,7 +692,7 @@ def distill(
 def archivessnake_post(uri, object):
     response = asnake_client.post(uri, json=object)
     response.raise_for_status()
-    archivesspace_logger.info(response.json()["uri"])
+    validation_logger.info(f'ARCHIVESSPACE: {response.json()["uri"]}')
     return response
 
 
@@ -803,7 +813,9 @@ def create_digital_object(folder_data):
                 )
     digital_object_post_response.raise_for_status()
 
-    archivesspace_logger.info(digital_object_post_response.json()["uri"])
+    validation_logger.info(
+        f'ARCHIVESSPACE: {digital_object_post_response.json()["uri"]}'
+    )
 
     # set up a digital object instance to add to the archival object
     digital_object_instance = {
@@ -821,6 +833,8 @@ def create_digital_object(folder_data):
         folder_data["uri"], json=archival_object
     )
     archival_object_post_response.raise_for_status()
+
+    # TODO investigate how to roll back adding digital object to archival object
 
     # call get_folder_data() again to include digital object instance
     folder_data = get_folder_data(folder_data["component_id"])
@@ -880,6 +894,9 @@ def get_collection_data(collection_id):
     if collection_data:
         collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
         if collection_data["tree"]["_resolved"]:
+            logger.info(
+                f'✅ ARCHIVESSPACE COLLECTION DATA RETRIEVED: {collection_data["uri"]}'
+            )
             return collection_data
     else:
         raise RuntimeError(
@@ -1793,9 +1810,9 @@ def loop_over_preservation_structure(variables):
     └── EXAMPLE-s01-Example-Series
         └── EXAMPLE_001_05-Example-Folder--1900  <-- list at this level
             ├── EXAMPLE_001_05_0001
-            │   └── ek7b_sk6n.jp2
+            │   └── ek7b_sk6n.jp2
             ├── EXAMPLE_001_05_0002
-            │   └── 34at_tzc3.jp2
+            │   └── 34at_tzc3.jp2
             └── EXAMPLE_001_05.json
     """
     preservation_collection_id_path = Path(
@@ -1985,6 +2002,11 @@ def loop_over_original_files(variables):
     filepaths.sort(reverse=True)
     for f in range(len(filepaths)):
         variables["original_image_path"] = filepaths.pop()
+
+        # slicing to get only the relative path of current file
+        validation_logger.info(
+            f'WORKING_ORIGINAL_FILES: {variables["original_image_path"][len(config("WORKING_ORIGINAL_FILES")) + 1:]}'
+        )
 
         # TODO check for existing preservation structure
         if variables["preservation"]:
