@@ -754,8 +754,8 @@ def create_digital_object(folder_data):
                 )
     digital_object_post_response.raise_for_status()
 
-    validation_logger.info(
-        f'ARCHIVESSPACE: {digital_object_post_response.json()["uri"]}'
+    logger.info(
+        f'✳️ DIGITAL OBJECT CREATED: {digital_object_post_response.json()["uri"]}'
     )
 
     # set up a digital object instance to add to the archival object
@@ -774,6 +774,9 @@ def create_digital_object(folder_data):
         folder_data["uri"], json=archival_object
     )
     archival_object_post_response.raise_for_status()
+    logger.info(
+        f'☑️ ARCHIVAL OBJECT UPDATED: {archival_object_post_response.json()["uri"]}'
+    )
 
     # TODO investigate how to roll back adding digital object to archival object
 
@@ -908,6 +911,9 @@ def get_digital_object_component(digital_object_component_component_id):
         f"{find_by_id_response.json()['digital_object_components'][0]['ref']}"
     )
     digital_object_component_get_response.raise_for_status()
+    logger.info(
+        f'☑️ DIGITAL OBJECT COMPONENT RETRIEVED: {digital_object_component_get_response["uri"]}'
+    )
     return digital_object_component_get_response.json()
 
 
@@ -1004,6 +1010,7 @@ def get_folder_arrangement(folder_data):
                 raise ValueError(
                     f"Missing series data for: {folder_data['component_id']}"
                 )
+    logger.info("☑️ ARRANGEMENT LEVELS AGGREGATED")
     return folder_arrangement
 
 
@@ -1023,6 +1030,7 @@ def get_folder_data(component_id):
         f"{find_by_id_response.json()['archival_objects'][0]['ref']}?resolve[]=digital_object&resolve[]=repository&resolve[]=top_container"
     )
     archival_object_get_response.raise_for_status()
+    logger.info(f"☑️ ARCHIVAL OBJECT FOUND: {component_id}")
     return archival_object_get_response.json()
 
 
@@ -1431,6 +1439,7 @@ def create_lossless_jpeg2000_image(variables):
     sha512sum_cmd = sh.Command(config("WORK_SHA512SUM_CMD"))
     magick_cmd = sh.Command(config("WORK_MAGICK_CMD"))
     # Get checksum characters only by using `cut` (in the background).
+    logger.info("🧮  CALCULATING ORIGINAL IMAGE SIGNATURE...")
     original_image_signature = cut_cmd(
         sha512sum_cmd(
             magick_cmd.stream(
@@ -1470,6 +1479,7 @@ def create_lossless_jpeg2000_image(variables):
     )
     Path(Path(preservation_image_path).parent).mkdir(parents=True, exist_ok=True)
     # Convert the image (in the background).
+    logger.info("⏳  CONVERTING IMAGE...")
     image_conversion = magick_cmd.convert(
         "-quiet",
         variables["original_image_path"],
@@ -1501,6 +1511,7 @@ def create_lossless_jpeg2000_image(variables):
     # Embed metadata into the JPEG 2000.
     write_xmp_metadata(preservation_image_path, xmp_dc)
     # Get checksum characters only by using `cut` (in the background).
+    logger.info("🧮  CALCULATING PRESERVATION IMAGE SIGNATURE...")
     preservation_image_signature = cut_cmd(
         sha512sum_cmd(
             magick_cmd.stream(
@@ -1530,6 +1541,9 @@ def create_lossless_jpeg2000_image(variables):
         raise RuntimeError(
             f'❌ image signatures did not match: {filepath_components["filestem"]}'
         )
+    logger.info(
+        f"☑️  IMAGE SIGNATURES MATCH: {original_image_signature}:{preservation_image_signature}"
+    )
 
 
 def process_aip_image(filepath, collection_data, folder_arrangement, folder_data):
@@ -1671,6 +1685,7 @@ def save_collection_metadata(collection_data, directory):
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, "w") as f:
         f.write(json.dumps(collection_data, indent=4))
+    logger.info(f"☑️ COLLECTION DATA SAVED: {filename}")
 
 
 def save_folder_data(folder_arrangement, folder_data, directory):
@@ -1685,6 +1700,7 @@ def save_folder_data(folder_arrangement, folder_data, directory):
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, "w") as f:
         f.write(json.dumps(folder_data, indent=4))
+    logger.info(f"☑️ ARCHIVAL OBJECT DATA SAVED: {filename}")
 
 
 def save_preservation_file(source, destination):
@@ -1807,6 +1823,7 @@ def loop_over_preservation_files(variables):
                 ):
                     # do not analyze preservation_folder JSON metadata
                     continue
+                logger.info(f"▶️  PROCESSING FILE: {filename}")
                 # TODO get file info
                 type, encoding = mimetypes.guess_type(Path(dirpath).joinpath(filename))
                 # NOTE additional mimetypes TBD
@@ -1885,12 +1902,14 @@ def loop_over_original_structure(variables):
         # if folder metadata fails to process properly, it and its images are
         # skipped completely and the script moves on to the next folder.
         variables["folderpath"] = folders.pop()
+        logger.info(f'▶️  PROCESSING FOLDER: {variables["folderpath"]}')
 
         # Set up list of file paths for the current folder.
         variables["filepaths"] = prepare_filepaths_list(variables["folderpath"])
 
         # Avoid processing folder when there are no files.
         if not variables["filepaths"]:
+            logger.warning(f'⚠️  NO FILES IN FOLDER: {variables["folderpath"]}')
             continue
 
         # process_folder_metadata obfuscates too much
@@ -1947,10 +1966,8 @@ def loop_over_original_files(variables):
     filepaths.sort(reverse=True)
     for f in range(len(filepaths)):
         variables["original_image_path"] = filepaths.pop()
-
-        # slicing to get only the relative path of current file
-        validation_logger.info(
-            f'WORKING_ORIGINAL_FILES: {variables["original_image_path"][len(config("WORKING_ORIGINAL_FILES")) + 1:]}'
+        logger.info(
+            f'▶️  PROCESSING ITEM: {variables["original_image_path"][len(config("WORKING_ORIGINAL_FILES")) + 1:]}'
         )
 
         # TODO check for existing preservation structure

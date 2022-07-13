@@ -55,11 +55,15 @@ def main():
                             if tape.tape_server(
                                 f'find {config("TAPE_LTO_MOUNTPOINT")} -type f -name {file_uri.split("/")[-1]}',
                             ):
-                                logger.info(f"✅ ON TAPE: {file_uri}")
+                                logger.info(f"✅ FOUND ON TAPE: {file_uri}")
                                 tape_log.remove(file_uri.split("/", 5)[-1])
+                    else:
+                        logger.warning(f"‼️  NOT FOUND IN TAPE_LOG: {file_uri}")
+        else:
+            logger.info(f'🈳 JSONMODEL_TYPE: {record["jsonmodel_type"]}')
     for tape_uri in tape_log:
         if not tape_uri.endswith(".json"):
-            logger.info(f"‼️  NOT FOUND IN ARCHIVESSPACE: {tape_uri}")
+            logger.warning(f"‼️  NOT FOUND IN ARCHIVESSPACE: {tape_uri}")
 
 
 if __name__ == "__main__":
