@@ -722,8 +722,8 @@ def create_digital_object(folder_data):
     # NOTE leaving created digital objects unpublished
     # digital_object['publish'] = True
 
-    digital_object_post_response = asnake_client.post(
-        "/repositories/2/digital_objects", json=digital_object
+    digital_object_post_response = archivessnake_post(
+        "/repositories/2/digital_objects", digital_object
     )
     # example success response:
     # {
@@ -752,8 +752,6 @@ def create_digital_object(folder_data):
                 raise ValueError(
                     f" ⚠️\t non-unique digital_object_id: {folder_data['component_id']}"
                 )
-    digital_object_post_response.raise_for_status()
-
     logger.info(
         f'✳️ DIGITAL OBJECT CREATED: {digital_object_post_response.json()["uri"]}'
     )
@@ -770,10 +768,9 @@ def create_digital_object(folder_data):
     # add digital object instance to archival object
     archival_object["instances"].append(digital_object_instance)
     # post updated archival object
-    archival_object_post_response = asnake_client.post(
-        folder_data["uri"], json=archival_object
+    archival_object_post_response = archivessnake_post(
+        folder_data["uri"], archival_object
     )
-    archival_object_post_response.raise_for_status()
     logger.info(
         f'☑️  ARCHIVAL OBJECT UPDATED: {archival_object_post_response.json()["uri"]}'
     )
