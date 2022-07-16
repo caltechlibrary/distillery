@@ -29,6 +29,9 @@ tape_server = sh.ssh.bake(
     "-i",
     f'{config("TAPE_SSH_KEY")}',
 )
+tape_server_connection = tape_server()
+if tape_server_connection.exit_code == 0:
+    logger.info(f"📼 TAPE SERVER CONNECTION SUCCESSFUL: {tape_server}")
 
 
 def main(
@@ -154,7 +157,7 @@ def main(
 
 
 def create_archivesspace_tape_records(variables):
-    distillery.loop_over_preservation_structure(variables)
+    pass
 
 
 def preview(variables):
@@ -170,12 +173,8 @@ def collection_level_preprocessing(variables):
     pass
 
 
-def collection_level_postprocessing(variables):
-    """Run processes after LOSSLESS_PRESERVATION_FILES have been created.
-
-    If something goes wrong with in copying the files to tape there will
-    be no ArchivesSpace records to clean up.
-    """
+def transfer_derivative_collection(variables):
+    """Transfer PRESERVATION_FILES/CollectionID directory as a whole to tape."""
     # Calculate whether the collection_id directory will fit on the current tape.
     collection_id_directory_bytes = get_directory_bytes(
         Path(variables["WORK_LOSSLESS_PRESERVATION_FILES"]).joinpath(
@@ -209,15 +208,17 @@ def collection_level_postprocessing(variables):
     rsync_to_tape(variables)  # TODO handle failure
 
 
-def folder_level_processing(variables):
-    """Process for each folder inside LOSSLESS_PRESERVATION_FILES."""
+def process_archival_object_datafile(variables):
+    ensure_top_container(variables)
 
+
+def ensure_top_container(variables):
+    """Create or confirm existence of 'Tape' Top Container for Archival Object."""
     # Read from the INDICATOR file on the mounted tape.
     variables["tape_indicator"] = get_tape_indicator()
 
-    # Check ArchivesSpace archival_object and ignore an existing top_container
-    # with the same type and indicator values.
-    # TODO pass only variables
+    # Check ArchivesSpace archival_object for an existing top_container with the
+    # same type and indicator values.
     if tape_container_attached(variables["folder_data"], variables["tape_indicator"]):
         return
 
@@ -248,39 +249,14 @@ def folder_level_processing(variables):
     logger.info(f'☑️  ARCHIVAL OBJECT UPDATED: {variables["folder_data"]["uri"]}')
 
 
-def file_level_processing(variables):
-    # NOTE called from distillery.loop_over_preservation_files()
-    # confirm/create digital_object_component & file_versions
-    digital_object_component_component_id = Path(
-        variables["preservation_file_data"]["filepath"]
-    ).stem
-    digital_object_component = distillery.get_digital_object_component(
-        digital_object_component_component_id
-    )
-    if digital_object_component:
-        # TODO check if file_version with file:/// URI exists
-        file_uri_values = []
-        for file_version in digital_object_component["file_versions"]:
-            file_uri_values.append(file_version["file_uri"])
-        # TODO set the `LTO` string in settings.ini
-        existing_file_versions = [
-            x for x in file_uri_values if x.startswith("file:///LTO")
-        ]
-        if existing_file_versions:
-            raise RuntimeError(
-                f"❌ existing file_uri found for digital_object_component: {digital_object_component_component_id}"
-            )
-        else:
-            file_version = distillery.construct_file_version(variables)
-            digital_object_component["file_versions"].append(file_version)
-            distillery.archivessnake_post(
-                digital_object_component["uri"], digital_object_component
-            )
-            logger.info(
-                f'☑️  DIGITAL OBJECT COMPONENT UPDATED: {digital_object_component["uri"]}'
-            )
-    else:
-        distillery.create_digital_object_component(variables)
+def process_digital_object_component_file(variables):
+    """create ArchivesSpace record"""
+    logger.info(f"🐞 str(__name__): {str(__name__)}")
+    variables["file_uri_scheme"] = "tape"
+    variables["file_uri_host"] = variables["tape_indicator"]
+    if not distillery.save_digital_object_component_record(variables):
+        logger.warning()
+        return
 
 
 def rsync_to_tape(variables):
@@ -432,11 +408,11 @@ def mount_nas():
 
 
 def process_during_original_files_loop(variables):
-    """Called inside loop_over_original_files function."""
+    """Called inside create_derivative_files function."""
     # # Save Preservation Image in local filesystem structure.
     # distillery.save_preservation_file(
-    #     variables["preservation_image_data"]["filepath"],
-    #     f'{variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/{variables["preservation_image_data"]["s3key"]}',
+    #     variables["preservation_file_info"]["filepath"],
+    #     f'{variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/{variables["preservation_file_info"]["s3key"]}',
     # ) # TODO pass only variables
     if variables["step"] == "save_tape_info_to_archivesspace":
         # Add file versions.
@@ -444,7 +420,7 @@ def process_during_original_files_loop(variables):
 
 
 def process_during_original_structure_loop(variables):
-    """Called inside loop_over_original_structure function."""
+    """Called inside create_derivative_structure function."""
     pass
 
 
@@ -484,4 +460,3 @@ def validate_settings():
 if __name__ == "__main__":
     # fmt: off
     import plac; plac.call(main)
-    # fmt: on

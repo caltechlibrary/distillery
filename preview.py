@@ -1,13 +1,12 @@
 # NOTE separate code that generates a preview report on the web from
 # the main processing code
 
+import importlib
 import logging
 import logging.config
 import mimetypes
 import os
 from pathlib import Path
-
-import plac
 
 from asnake.client import ASnakeClient
 from decouple import config
@@ -36,7 +35,7 @@ def main(
     access: ("publishing access copies", "flag", "a"),  # type: ignore
     collection_id: "the Collection ID from ArchivesSpace",  # type: ignore
 ):
-    logger.info(f"☑️ RUNNING PREVIEW CHECKS FOR: {collection_id}")
+    logger.info(f"☑️  RUNNING PREVIEW CHECKS FOR: {collection_id}")
     variables = {}
     if onsite and config("ONSITE_MEDIUM"):
         # Import a module named the same as the ONSITE_MEDIUM setting.
@@ -45,7 +44,7 @@ def main(
         # TODO create init function that confirms everything is set to continue
     if cloud and config("CLOUD_PLATFORM"):
         # Import a module named the same as the CLOUD_PLATFORM setting.
-        # variables["cloud_platform"] = __import__(config("CLOUD_PLATFORM"))
+        variables["cloud_platform"] = importlib.import_module(config("CLOUD_PLATFORM"))
         variables["cloud"] = cloud
         # TODO create init function that confirms everything is set to continue
     if access and config("ACCESS_PLATFORM"):
@@ -94,7 +93,7 @@ def main(
             stream.write(message)
         raise FileNotFoundError(message)
     if initial_original_filecount:
-        logger.info(f"✅ FILE COUNT: {initial_original_filecount}")
+        logger.info(f"☑️  FILE COUNT: {initial_original_filecount}")
         with open(stream_path, "a") as stream:
             stream.write(
                 f"📄 Number of files to be processed: {initial_original_filecount}\n"
@@ -115,7 +114,17 @@ def main(
 
     if variables["onsite"]:
         variables["onsite_medium"].preview(variables)
+    if variables.get("cloud"):
+        if variables["cloud_platform"].is_bucket_writable(
+            config("PRESERVATION_BUCKET")
+        ):
+            message = (
+                f'✅ S3 Bucket connection successful: {config("PRESERVATION_BUCKET")}\n'
+            )
+            with open(variables["stream_path"], "a") as stream:
+                stream.write(message)
 
 
 if __name__ == "__main__":
-    plac.call(main)
+    # fmt: off
+    import plac; plac.call(main)

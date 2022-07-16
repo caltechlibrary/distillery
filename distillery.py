@@ -6,6 +6,7 @@
 import base64
 import concurrent.futures
 import hashlib
+import importlib
 import json
 import logging
 import logging.config
@@ -63,17 +64,18 @@ def main(
     variables = {}
     if onsite and config("ONSITE_MEDIUM"):
         # Import a module named the same as the ONSITE_MEDIUM setting.
-        variables["onsite_medium"] = __import__(config("ONSITE_MEDIUM"))
+        variables["onsite_medium"] = importlib.import_module(config("ONSITE_MEDIUM"))
         variables["onsite"] = onsite
+        variables["tape_indicator"] = variables["onsite_medium"].get_tape_indicator()
         # TODO create init function that confirms everything is set to continue
     if cloud and config("CLOUD_PLATFORM"):
         # Import a module named the same as the CLOUD_PLATFORM setting.
-        # variables["cloud_platform"] = __import__(config("CLOUD_PLATFORM"))
+        variables["cloud_platform"] = importlib.import_module(config("CLOUD_PLATFORM"))
         variables["cloud"] = cloud
         # TODO create init function that confirms everything is set to continue
     if access and config("ACCESS_PLATFORM"):
         # Import a module named the same as the ACCESS_PLATFORM setting.
-        # variables["access_platform"] = __import__(config("ACCESS_PLATFORM"))
+        # variables["access_platform"] = importlib.import_module(config("ACCESS_PLATFORM"))
         variables["access"] = access
         # TODO create init function that confirms everything is set to continue
     variables["collection_id"] = collection_id
@@ -88,21 +90,20 @@ def main(
     with open(stream_path, "a") as stream:
         stream.write(message)
 
-    if variables["onsite"] or variables["cloud"]:
+    if variables.get("onsite") or variables.get("cloud"):
         variables["WORK_LOSSLESS_PRESERVATION_FILES"] = (
             Path(config("WORK_NAS_ARCHIVES_MOUNTPOINT"))
             .joinpath(config("NAS_LOSSLESS_PRESERVATION_FILES_RELATIVE_PATH"))
             .resolve(strict=True)
         )
-        variables["preservation"] = True
-    if variables["preservation"]:
         save_collection_metadata(
             variables["collection_data"], variables["WORK_LOSSLESS_PRESERVATION_FILES"]
         )  # TODO pass only variables
-    if variables["onsite"]:
-        variables["onsite_medium"].collection_level_preprocessing(variables)
-    # if variables["cloud"]:
-    #     variables["cloud_platform"].collection_level_preprocessing(variables)
+
+    # if variables["onsite"]:
+    #     variables["onsite_medium"].collection_level_preprocessing(variables)
+    if variables.get("cloud"):
+        variables["cloud_platform"].collection_level_preprocessing(variables)
     # if variables["access"]:
     #     variables["access_platform"].collection_level_preprocessing(variables)
 
@@ -132,16 +133,15 @@ def main(
     )  # TODO pass only variables
 
     # Create LOSSLESS_PRESERVATION_FILES.
-    loop_over_original_structure(variables)
+    create_derivative_structure(variables)
 
-    if variables["onsite"]:
-        variables["onsite_medium"].collection_level_postprocessing(variables)
-    # if variables["cloud"]:
-    #     variables["cloud_platform"].collection_level_postprocessing(variables)
-    # if variables["access"]:
-    #     variables["access_platform"].collection_level_postprocessing(variables)
-    if variables["preservation"]:
-        loop_over_preservation_structure(variables)
+    if variables.get("onsite"):
+        # TODO run in the background but wait for it before writing records to ArchivesSpace
+        # transfer PRESERVATION_FILES/CollectionID directory as a whole to tape
+        variables["onsite_medium"].transfer_derivative_collection(variables)
+
+    if variables.get("onsite") or variables.get("cloud"):
+        loop_over_archival_object_datafiles(variables)
 
 
 def distill(
@@ -665,6 +665,7 @@ def collection_identifiers_match(collection_id, collection_data):
 
 
 def confirm_digital_object(folder_data):
+    # TODO rename to load_digital_object(folder_data, create=True)
     digital_object_count = 0
     for instance in folder_data["instances"]:
         if "digital_object" in instance.keys():
@@ -912,7 +913,7 @@ def get_digital_object_component(digital_object_component_component_id):
     )
     digital_object_component_get_response.raise_for_status()
     logger.info(
-        f'☑️  DIGITAL OBJECT COMPONENT RETRIEVED: {digital_object_component_get_response["uri"]}'
+        f'☑️  DIGITAL OBJECT COMPONENT RETRIEVED: {digital_object_component_get_response.json()["uri"]}'
     )
     return digital_object_component_get_response.json()
 
@@ -1185,7 +1186,7 @@ def normalize_directory_component_id(folderpath):
         [collection_id, box_number.zfill(3), component_id_parts[2]]
     )
     logger.info(
-        f"⚙️ NORMALIZED: {os.path.basename(folderpath)} to {normalized_component_id}"
+        f"⚙️  NORMALIZED: {os.path.basename(folderpath)} to {normalized_component_id}"
     )
     # TODO parse non-numeric folder identifiers, like: 03b
     return normalized_component_id
@@ -1234,16 +1235,54 @@ def get_digital_object(digital_object_component_id):
     return digital_object_get_response.json()
 
 
+def save_digital_object_component_record(variables):
+    if variables.get("file_uri_scheme") == None:
+        logger.warning('⚠️  MISSING variables["file_uri_scheme"]')
+        return
+    digital_object_component_component_id = Path(
+        variables["preservation_file_info"]["filepath"]
+    ).stem
+    digital_object_component = get_digital_object_component(
+        digital_object_component_component_id
+    )
+    if digital_object_component:
+        # TODO check if file_version with specified URI scheme exists
+        file_uri_values = []
+        for file_version in digital_object_component["file_versions"]:
+            file_uri_values.append(file_version["file_uri"])
+        existing_file_versions = [
+            x
+            for x in file_uri_values
+            if x.startswith(f'{variables["file_uri_scheme"]}://')
+        ]
+        if existing_file_versions:
+            raise RuntimeError(
+                f"❌ existing file_uri found for digital_object_component: {digital_object_component_component_id}"
+            )
+        else:
+            file_version = construct_file_version(variables)
+            digital_object_component["file_versions"].append(file_version)
+            archivessnake_post(
+                digital_object_component["uri"], digital_object_component
+            )
+            logger.info(
+                f'☑️  DIGITAL OBJECT COMPONENT UPDATED: {digital_object_component["uri"]}'
+            )
+            return digital_object_component["uri"]
+    else:
+        return create_digital_object_component(variables)
+
+
 def construct_digital_object_component(variables):
     digital_object_component = {}
     digital_object_component["component_id"] = Path(
-        variables["preservation_file_data"]["filepath"]
+        variables["preservation_file_info"]["filepath"]
     ).stem
     digital_object_component["label"] = Path(
-        Path(variables["preservation_file_data"]["filepath"]).parent
+        Path(variables["preservation_file_info"]["filepath"]).parent
     ).name
     digital_object_digital_object_id = Path(
-        Path(variables["preservation_file_data"]["filepath"]).parent
+        Path(variables["preservation_file_info"]["filepath"]).parent
     ).name.rsplit("_", maxsplit=1)[0]
     digital_object_uri = find_digital_object(digital_object_digital_object_id)
     if digital_object_uri:
@@ -1262,6 +1301,7 @@ def create_digital_object_component(variables):
     logger.info(
         f'✳️  DIGITAL OBJECT COMPONENT CREATED: {digital_object_component_post_response.json()["uri"]}'
     )
+    return digital_object_component_post_response.json()["uri"]
 
 
 def construct_file_version(variables):
@@ -1278,45 +1318,46 @@ def construct_file_version(variables):
     """
     file_version = {}
     file_version["checksum_method"] = "md5"
-    file_version["checksum"] = variables["preservation_file_data"]["md5"].hexdigest()
+    file_version["checksum"] = variables["preservation_file_info"]["md5"].hexdigest()
     file_version["file_size_bytes"] = int(
-        variables["preservation_file_data"]["filesize"]
+        variables["preservation_file_info"]["filesize"]
     )
-    file_key = str(variables["preservation_file_data"]["filepath"])[
+    file_key = str(variables["preservation_file_info"]["filepath"])[
         len(f'{str(variables["WORK_LOSSLESS_PRESERVATION_FILES"])}/') :
     ]
-    # TODO finalize tape_indicator format; prefix with LTO7?
-    file_version["file_uri"] = f'file:///LTO/{variables["tape_indicator"]}/{file_key}'
+    file_version[
+        "file_uri"
+    ] = f'{variables["file_uri_scheme"]}://{variables["file_uri_host"]}/{file_key}'
     # NOTE additional mimetypes TBD
-    if variables["preservation_file_data"]["mimetype"] == "image/jp2":
+    if variables["preservation_file_info"]["mimetype"] == "image/jp2":
         file_version["file_format_name"] = "JPEG 2000"
         file_version["use_statement"] = "image-master"
         if (
-            variables["preservation_file_data"]["transformation"] == "5-3 reversible"
-            and variables["preservation_file_data"]["quantization"] == "no quantization"
+            variables["preservation_file_info"]["transformation"] == "5-3 reversible"
+            and variables["preservation_file_info"]["quantization"] == "no quantization"
         ):
             file_version[
                 "caption"
-            ] = f'width: {variables["preservation_file_data"]["width"]}; height: {variables["preservation_file_data"]["height"]}; compression: lossless'
+            ] = f'width: {variables["preservation_file_info"]["width"]}; height: {variables["preservation_file_info"]["height"]}; compression: lossless'
             file_version[
                 "file_format_version"
-            ] = f'{variables["preservation_file_data"]["standard"]}; lossless (wavelet transformation: 5/3 reversible with no quantization)'
+            ] = f'{variables["preservation_file_info"]["standard"]}; lossless (wavelet transformation: 5/3 reversible with no quantization)'
         elif (
-            variables["preservation_file_data"]["transformation"] == "9-7 irreversible"
-            and variables["preservation_file_data"]["quantization"]
+            variables["preservation_file_info"]["transformation"] == "9-7 irreversible"
+            and variables["preservation_file_info"]["quantization"]
             == "scalar expounded"
         ):
             file_version[
                 "caption"
-            ] = f'width: {variables["preservation_file_data"]["width"]}; height: {variables["preservation_file_data"]["height"]}; compression: lossy'
+            ] = f'width: {variables["preservation_file_info"]["width"]}; height: {variables["preservation_file_info"]["height"]}; compression: lossy'
             file_version[
                 "file_format_version"
-            ] = f'{variables["preservation_file_data"]["standard"]}; lossy (wavelet transformation: 9/7 irreversible with scalar expounded quantization)'
+            ] = f'{variables["preservation_file_info"]["standard"]}; lossy (wavelet transformation: 9/7 irreversible with scalar expounded quantization)'
         else:
             file_version[
                 "caption"
-            ] = f'width: {variables["preservation_file_data"]["width"]}; height: {variables["preservation_file_data"]["height"]}'
-            file_version["file_format_version"] = variables["preservation_file_data"][
+            ] = f'width: {variables["preservation_file_info"]["width"]}; height: {variables["preservation_file_info"]["height"]}'
+            file_version["file_format_version"] = variables["preservation_file_info"][
                 "standard"
             ]
     return file_version
@@ -1553,7 +1594,7 @@ def create_lossless_jpeg2000_image(variables):
             f'❌ image signatures did not match: {filepath_components["filestem"]}'
         )
     logger.info(
-        f"☑️  IMAGE SIGNATURES MATCH: {original_image_signature}:{preservation_image_signature}"
+        f'☑️  IMAGE SIGNATURES MATCH:\n{original_image_signature.strip()} {variables["original_image_path"].split("/")[-1]}\n{preservation_image_signature.strip()} {preservation_image_path.split("/")[-1]}'
     )
 
 
@@ -1775,61 +1816,89 @@ def write_xmp_metadata(filepath, metadata):
     )
 
 
-def loop_over_preservation_structure(variables):
+def loop_over_archival_object_datafiles(variables):
     """
-    /path/to/LOSSLESS_PRESERVATION_FILES/HBF/
-    ├── HBF.json
-    └── HBF-s01-Organizational-Records
-        └── HBF_001_05-Annual-Meetings--1943  <-- list at this level
-            ├── HBF_001_05_0001
+    {PRESERVATION_FILES}/CollectionID
+    ├── CollectionID.json
+    └── CollectionID-s01-Organizational-Records
+        └── CollectionID_001_05-Annual-Meetings--1943  <-- list at this level
+            ├── CollectionID_001_05_0001
             │   └── ek7b_sk6n.jp2
-            ├── HBF_001_05_0002
+            ├── CollectionID_001_05_0002
             │   └── 34at_tzc3.jp2
-            └── HBF_001_05.json
+            └── CollectionID_001_05.json
     """
-    preservation_collection_id_path = Path(
+    preservation_collection_path = Path(
         variables["WORK_LOSSLESS_PRESERVATION_FILES"]
     ).joinpath(variables["collection_id"])
-    # identify preservation_folders by JSON files
+
+    # identify preservation_folders by JSON files like CollectionID_001_05.json
+    # {PRESERVATION_FILES}/HBF/HBF-s01-Organizational-Records/HBF_001_05-Annual-Meetings--1943
     variables["preservation_folders"] = []
-    for jsonfile in preservation_collection_id_path.rglob(
+
+    for archival_object_datafile in preservation_collection_path.rglob(
         f'{variables["collection_id"]}_*.json'
     ):
-        variables["preservation_folders"].append(jsonfile.parent)
+        variables["current_archival_object_datafile"] = archival_object_datafile
+        variables["preservation_folders"].append(archival_object_datafile.parent)
 
-        variables["folder_data"] = get_folder_data(Path(jsonfile).stem)
+        variables["folder_data"] = get_folder_data(Path(archival_object_datafile).stem)
         # confirm existing or create digital_object with component_id
         variables["folder_data"] = confirm_digital_object(variables["folder_data"])
 
-        if variables["onsite"]:
-            variables["onsite_medium"].folder_level_processing(variables)
-        # if variables["cloud"]:
-        #     variables["cloud_platform"].folder_level_processing(variables)
+        # logger.info(" ".join(variables.keys()))
+        # onsite_medium
+        # onsite
+        # cloud_platform
+        # cloud
+        # collection_id
+        # stream_path
+        # collection_data
+        # WORK_LOSSLESS_PRESERVATION_FILES
+        # WORKING_ORIGINAL_FILES
+        # collection_directory
+        # folders
+        # filecount
+        # folderpath
+        # filepaths
+        # folder_data
+        # folder_arrangement
+        # original_image_path
+        # preservation_folders
+        # current_archival_object_datafile
+        if variables.get("onsite"):
+            variables["onsite_medium"].process_archival_object_datafile(variables)
+        if variables.get("cloud"):
+            variables["cloud_platform"].process_archival_object_datafile(variables)
 
+    # TODO this loop does not need to be initiated from within this function
+    # as long as variables has the right data
+    # TODO check contents of folder_data if files are looped over independently
     loop_over_preservation_files(variables)
 
 
 def loop_over_preservation_files(variables):
     """
-    /path/to/LOSSLESS_PRESERVATION_FILES/HBF/
-    ├── HBF.json
-    └── HBF-s01-Organizational-Records
-        └── HBF_001_05-Annual-Meetings--1943  <-- preservation_folder
-            ├── HBF_001_05_0001               <-- dirname
-            │   └── ek7b_sk6n.jp2             <-- filename
-            ├── HBF_001_05_0002
-            │   └── 34at_tzc3.jp2
-            └── HBF_001_05.json
+    {PRESERVATION_FILES}/CollectionID
+    ├── CollectionID.json
+    └── CollectionID-s01-Organizational-Records
+        └── CollectionID_001_05-Annual-Meetings--1943  <-- preservation_folder
+            ├── CollectionID_001_05_0001               <-- dirname
+            │   └── ek7b_sk6n.jp2                      <-- filename
+            ├── CollectionID_001_05_0002
+            │   └── 34at_tzc3.jp2
+            └── CollectionID_001_05.json
     """
-    # TODO loop over items in preservation_folders
     for preservation_folder in variables["preservation_folders"]:
-        # TODO find files
+        # see https://stackoverflow.com/a/54790514 for os.walk explainer
         for dirpath, dirnames, filenames in os.walk(preservation_folder):
-            preservation_foldername = Path(dirpath).name
+            # preservation_foldername = Path(dirpath).name
             for filename in filenames:
-                if Path(
-                    filename
-                ).suffix == ".json" and preservation_foldername.startswith(
+                # logger.info(f'🐞 str(dirpath): {str(dirpath)}')
+                # logger.info(f'🐞 str(Path(dirpath).name): {str(Path(dirpath).name)}')
+                # logger.info(f'🐞 str(filename): {str(filename)}')
+                # logger.info(f'🐞 str(Path(filename).parent): {str(Path(filename).parent)}')
+                if Path(filename).suffix == ".json" and Path(dirpath).name.startswith(
                     Path(filename).stem
                 ):
                     # do not analyze preservation_folder JSON metadata
@@ -1839,13 +1908,19 @@ def loop_over_preservation_files(variables):
                 type, encoding = mimetypes.guess_type(Path(dirpath).joinpath(filename))
                 # NOTE additional mimetypes TBD
                 if type == "image/jp2":
-                    variables["preservation_file_data"] = get_preservation_image_data(
+                    variables["preservation_file_info"] = get_preservation_image_data(
                         Path(dirpath).joinpath(filename)
                     )
-                    variables["preservation_file_data"]["mimetype"] = type
-                # TODO pass to module functions
-                if variables["onsite"]:
-                    variables["onsite_medium"].file_level_processing(variables)
+                    variables["preservation_file_info"]["mimetype"] = type
+
+                if variables.get("onsite"):
+                    variables["onsite_medium"].process_digital_object_component_file(
+                        variables
+                    )
+                if variables.get("cloud"):
+                    variables["cloud_platform"].process_digital_object_component_file(
+                        variables
+                    )
 
 
 def get_preservation_image_data(filepath):
@@ -1886,21 +1961,21 @@ def create_preservation_files_structure(variables):
         variables["collection_data"], variables["WORK_LOSSLESS_PRESERVATION_FILES"]
     )  # TODO pass only variables
     variables["step"] = "create_preservation_files_structure"  # TODO no more steps?
-    loop_over_original_structure(variables)
+    create_derivative_structure(variables)
 
 
-def loop_over_original_structure(variables):
-    """Loop over subdirectories in `collection_directory`.
+def create_derivative_structure(variables):
+    """Loop over subdirectories inside ORIGINAL_FILES/CollectionID directory.
 
     Example:
-    _data/HBF <-- looping over folders under here
-    ├── HBF_000_XX
-    ├── HBF_001_02
-    │   ├── HBF_001_02_01.tif
-    │   ├── HBF_001_02_02.tif
-    │   ├── HBF_001_02_03.tif
-    │   └── HBF_001_02_04.tif
-    └── HBF_007_08
+    ORIGINAL_FILES/CollectionID <-- looping over directories under here
+    ├── CollectionID_000_XX
+    ├── CollectionID_001_02
+    │   ├── CollectionID_001_02_01.tif
+    │   ├── CollectionID_001_02_02.tif
+    │   ├── CollectionID_001_02_03.tif
+    │   └── CollectionID_001_02_04.tif
+    └── CollectionID_007_08
     """
 
     variables["folders"], variables["filecount"] = prepare_folder_list(
@@ -1911,16 +1986,16 @@ def loop_over_original_structure(variables):
     for _ in range(len(folders)):
         # Using pop() (and/or range(len()) above) maybe helps to be sure that
         # if folder metadata fails to process properly, it and its images are
-        # skipped completely and the script moves on to the next folder.
+        # skipped completely and the script moves on to the next directory.
         variables["folderpath"] = folders.pop()
-        logger.info(f'▶️  PROCESSING FOLDER: {variables["folderpath"]}')
+        logger.info(f'▶️  PROCESSING DIRECTORY: {variables["folderpath"]}')
 
-        # Set up list of file paths for the current folder.
+        # Set up list of file paths for the current directory.
         variables["filepaths"] = prepare_filepaths_list(variables["folderpath"])
 
-        # Avoid processing folder when there are no files.
+        # Avoid processing directory when there are no files.
         if not variables["filepaths"]:
-            logger.warning(f'⚠️  NO FILES IN FOLDER: {variables["folderpath"]}')
+            logger.warning(f'⚠️  NO FILES IN DIRECTORY: {variables["folderpath"]}')
             continue
 
         # process_folder_metadata obfuscates too much
@@ -1937,38 +2012,28 @@ def loop_over_original_structure(variables):
             variables["folder_data"]
         )
 
-        if variables["preservation"]:
+        if variables.get("onsite") or variables.get("cloud"):
             save_folder_data(
                 variables["folder_arrangement"],
                 variables["folder_data"],
                 variables["WORK_LOSSLESS_PRESERVATION_FILES"],
             )  # TODO pass only variables
 
-        # TODO what do we need to exist in variables?
-        # TAPE: variables["folder_data"], variables["tape_indicator"]
-        # variables["onsite_medium"].process_during_original_structure_loop(variables)
-        # variables["cloud_platform"].process_during_original_structure_loop(variables)
-
-        # if variables["access"] and config("ACCESS_PLATFORM"):
-        #     # Import a module named the same as the ACCESS_PLATFORM setting.
-        #     access_platform = __import__(config("ACCESS_PLATFORM"))
-        #     access_platform.process_during_original_structure_loop(variables)
-
-        loop_over_original_files(variables)
+        create_derivative_files(variables)
 
 
-def loop_over_original_files(variables):
-    """Loop over files in `collection_directory` subdirectory.
+def create_derivative_files(variables):
+    """Loop over files in subdirectories of ORIGINAL_FILES/CollectionID directory.
 
     Example:
-    _data/HBF
-    ├── HBF_000_XX
-    ├── HBF_001_02 <-- looping over files under here
-    │   ├── HBF_001_02_01.tif
-    │   ├── HBF_001_02_02.tif
-    │   ├── HBF_001_02_03.tif
-    │   └── HBF_001_02_04.tif
-    └── HBF_007_08
+    ORIGINAL_FILES/CollectionID
+    ├── CollectionID_000_XX
+    ├── CollectionID_001_02 <-- looping over files under here
+    │   ├── CollectionID_001_02_01.tif
+    │   ├── CollectionID_001_02_02.tif
+    │   ├── CollectionID_001_02_03.tif
+    │   └── CollectionID_001_02_04.tif
+    └── CollectionID_007_08
     """
 
     # NOTE We reverse the list with [::-1] and use with pop() so the components
@@ -1980,8 +2045,8 @@ def loop_over_original_files(variables):
             f'▶️  PROCESSING ITEM: {variables["original_image_path"][len(config("WORKING_ORIGINAL_FILES")) + 1:]}'
         )
 
-        # TODO check for existing preservation structure
-        if variables["preservation"]:
+        # TODO check for existing derivative structure
+        if variables.get("onsite") or variables.get("cloud"):
             # TODO import mimetypes; mimetypes.guess_type(filepath)
 
             # Create lossless JPEG 2000 image from original.
@@ -1991,21 +2056,6 @@ def loop_over_original_files(variables):
             # TODO refactor based on mimetype
             # TODO refactor and send to module for extra parameters
             # digital_object_component = prepare_digital_object_component()
-
-        # if variables["onsite"] and config("ONSITE_MEDIUM"):
-        #     # Import a module named the same as the ONSITE_MEDIUM setting.
-        #     onsite_medium = __import__(config("ONSITE_MEDIUM"))
-        #     onsite_medium.process_during_original_files_loop(variables)
-
-        # if variables["cloud"] and config("CLOUD_PLATFORM"):
-        #     # Import a module named the same as the CLOUD_PLATFORM setting.
-        #     cloud_platform = __import__(config("CLOUD_PLATFORM"))
-        #     cloud_platform.process_during_original_files_loop(variables)
-
-        # if variables["access"] and config("ACCESS_PLATFORM"):
-        #     # Import a module named the same as the ACCESS_PLATFORM setting.
-        #     access_platform = __import__(config("ACCESS_PLATFORM"))
-        #     access_platform.process_during_original_files_loop(variables)
 
 
 if __name__ == "__main__":

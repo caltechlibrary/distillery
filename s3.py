@@ -1,4 +1,4 @@
-# PREPARE FILES AND METADATA FOR COPYING TO TAPE STORAGE
+# PREPARE FILES AND METADATA FOR COPYING TO S3 STORAGE
 
 import base64
 import concurrent.futures
@@ -20,6 +20,7 @@ logging.config.fileConfig(
     disable_existing_loggers=False,
 )
 logger = logging.getLogger("s3")
+validation_logger = logging.getLogger("validation")
 
 s3_client = boto3.client(
     "s3",
@@ -34,9 +35,6 @@ def main(
     access: ("publishing access copies", "flag", "a"),  # type: ignore
     collection_id: "the Collection ID from ArchivesSpace",  # type: ignore
 ):
-
-    logger.info("☁️ s3")
-
     variables = {}
 
     variables["cloud"] = cloud
@@ -108,11 +106,142 @@ def main(
         f.write(f"🗄 Finished processing {collection_id}.\n📆 {datetime.now()}\n")
 
 
+def collection_level_preprocessing(variables):
+    """Run before any files are moved or records are created."""
+    # logger.info("🐞 INSIDE s3.collection_level_preprocessing()")
+    transfer_collection_datafile(variables)
+
+
+def transfer_collection_datafile(variables):
+    """POST collection data to S3 bucket as a JSON file."""
+    # logger.info("🐞 INSIDE s3.transfer_collection_datafile()")
+    # logger.info(f'🐞 type(variables["WORK_LOSSLESS_PRESERVATION_FILES"]): {type(variables["WORK_LOSSLESS_PRESERVATION_FILES"])}')
+    collection_datafile_key = Path(variables["collection_id"]).joinpath(
+        f'{variables["collection_id"]}.json'
+    )
+    # logger.info(f'🐞 collection_datafile_key: {str(collection_datafile_key)}')
+    collection_datafile_path = (
+        Path(variables["WORK_LOSSLESS_PRESERVATION_FILES"])
+        .joinpath(collection_datafile_key)
+        .resolve()
+    )
+    # logger.info(f"🐞 collection_datafile_path: {str(collection_datafile_path)}")
+    s3_client.put_object(
+        Bucket=config("PRESERVATION_BUCKET"),
+        Key=str(collection_datafile_key),
+        Body=str(collection_datafile_path),
+    )
+    logger.info(
+        f'☑️  S3 OBJECT UPLOADED: {config("PRESERVATION_BUCKET")}/{str(collection_datafile_key)}'
+    )
+
+
+def transfer_derivative_structure(variables):
+    """Transfer PRESERVATION_FILES/CollectionID to S3 bucket.
+
+    If something goes wrong with in copying the files to S3 there will
+    be no ArchivesSpace records to clean up.
+
+    VARIABLES USED:
+
+    """
+
+
+def transfer_archival_object_datafile(variables):
+    """POST archival object data to S3 bucket as a JSON file."""
+    # logger.info(f'🐞 str(variables["current_archival_object_datafile"]): {str(variables["current_archival_object_datafile"])}')
+    archival_object_datafile_key = str(
+        variables["current_archival_object_datafile"]
+    ).split(f'{variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/')[-1]
+    # logger.info(f'🐞 archival_object_datafile_key: {archival_object_datafile_key}')
+    s3_client.put_object(
+        Bucket=config("PRESERVATION_BUCKET"),
+        Key=archival_object_datafile_key,
+        Body=str(variables["current_archival_object_datafile"]),
+    )
+    logger.info(
+        f'☑️  S3 OBJECT UPLOADED: {config("PRESERVATION_BUCKET")}/{str(archival_object_datafile_key)}'
+    )
+
+
+def transfer_digital_object_component_file(variables):
+    """POST digital object component file to S3 bucket.
+
+    EXAMPLE SUCCESS RESPONSE: {
+        "ResponseMetadata": {
+            "RequestId": "6BBE41DE8A1CABCE",
+            "HostId": "c473fwfRMo+soCkOUwMsNZwR5fw0RIw2qcDVIXQOXVm1aGLV5clcL8JgBXojEJL99Umo4HYEzng=",
+            "HTTPStatusCode": 200,
+            "HTTPHeaders": {
+                "x-amz-id-2": "c473fwfRMo+soCkOUwMsNZwR5fw0RIw2qcDVIXQOXVm1aGLV5clcL8JgBXojEJL99Umo4HYEzng=",
+                "x-amz-request-id": "6BBE41DE8A1CABCE",
+                "date": "Mon, 30 Nov 2020 22:58:33 GMT",
+                "etag": "\"614bccea2760f37f41be65c62c41d66e\"",
+                "content-length": "0",
+                "server": "AmazonS3"
+            },
+            "RetryAttempts": 0
+        },
+        "ETag": "\"614bccea2760f37f41be65c62c41d66e\""
+    }"""
+    preservation_file_key = str(variables["preservation_file_info"]["filepath"])[
+        len(f'{str(variables["WORK_LOSSLESS_PRESERVATION_FILES"])}/') :
+    ]
+    with open(variables["preservation_file_info"]["filepath"], "rb") as body:
+        response = s3_client.put_object(
+            Bucket=config("PRESERVATION_BUCKET"),
+            Key=preservation_file_key,
+            Body=body,
+            ContentMD5=base64.b64encode(
+                variables["preservation_file_info"]["md5"].digest()
+            ).decode(),
+        )
+    if (
+        response["ETag"].strip('"')
+        != variables["preservation_file_info"]["md5"].hexdigest()
+    ):
+        logger.warning(f"⚠️  S3 ETag DID NOT MATCH: {preservation_file_key}")
+        return
+    else:
+        logger.info(
+            f'☑️  S3 OBJECT UPLOADED: {config("PRESERVATION_BUCKET")}/{preservation_file_key}'
+        )
+        return response["ETag"].strip('"')
+
+
+def process_archival_object_datafile(variables):
+    transfer_archival_object_datafile(variables)
+
+
+def process_digital_object_component_file(variables):
+    """transfer file to S3; create ArchivesSpace record"""
+    if not transfer_digital_object_component_file(variables):
+        logger.warning()
+        return
+    logger.info(f"🐞 str(__name__): {str(__name__)}")
+    variables["file_uri_scheme"] = "s3"
+    variables["file_uri_host"] = config("PRESERVATION_BUCKET")
+    if not distillery.save_digital_object_component_record(variables):
+        logger.warning()
+        return
+
+
+def is_bucket_writable(bucket):
+    if (
+        s3_client.put_object(Bucket=bucket, Key=".distillery")["ResponseMetadata"][
+            "HTTPStatusCode"
+        ]
+        == 200
+    ):
+        logger.info(f"☁️  S3 BUCKET WRITABLE: {bucket}")
+        return True
+
+
 def process_during_files_loop(variables):
     # Save Preservation Image in local filesystem structure.
     distillery.save_preservation_file(
-        variables["preservation_image_data"]["filepath"],
-        f'{variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/{variables["preservation_image_data"]["s3key"]}',
+        variables["preservation_file_info"]["filepath"],
+        f'{variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/{variables["preservation_file_info"]["s3key"]}',
     )
     # Send Preservation File to S3.
     """example success response:
@@ -133,16 +262,16 @@ def process_during_files_loop(variables):
         },
         "ETag": "\"614bccea2760f37f41be65c62c41d66e\""
     }"""
-    with open(variables["preservation_image_data"]["filepath"], "rb") as body:
+    with open(variables["preservation_file_info"]["filepath"], "rb") as body:
         # start this in the background
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(
                 s3_client.put_object,
                 Bucket=variables["PRESERVATION_BUCKET"],
-                Key=variables["preservation_image_data"]["s3key"],
+                Key=variables["preservation_file_info"]["s3key"],
                 Body=body,
                 ContentMD5=base64.b64encode(
-                    variables["preservation_image_data"]["md5"].digest()
+                    variables["preservation_file_info"]["md5"].digest()
                 ).decode(),
             )
             # run a loop checking for background process to be done
@@ -156,21 +285,21 @@ def process_during_files_loop(variables):
             s3_put_response = future.result()
     with open(variables["stream_path"], "a") as f:
         f.write(
-            f'\n✅ https://{variables["PRESERVATION_BUCKET"]}.s3-us-west-2.amazonaws.com/{variables["preservation_image_data"]["s3key"]}\n'
+            f'\n✅ https://{variables["PRESERVATION_BUCKET"]}.s3-us-west-2.amazonaws.com/{variables["preservation_file_info"]["s3key"]}\n'
         )
     # Verify S3 ETag.
     if (
         s3_put_response["ETag"].strip('"')
-        != variables["preservation_image_data"]["md5"].hexdigest()
+        != variables["preservation_file_info"]["md5"].hexdigest()
     ):
-        message = f'⚠️ the S3 ETag did not match for {variables["preservation_image_data"]["filepath"]}'
+        message = f'⚠️ the S3 ETag did not match for {variables["preservation_file_info"]["filepath"]}'
         with open(variables["stream_path"], "a") as f:
             f.write(message)
     # Set up ArchivesSpace record.
     digital_object_component = distillery.prepare_digital_object_component(
         variables["folder_data"],
         variables["PRESERVATION_BUCKET"],
-        variables["preservation_image_data"],
+        variables["preservation_file_info"],
     )
     # Post Digital Object Component to ArchivesSpace.
     digital_object_component_post_response = distillery.post_digital_object_component(
@@ -235,4 +364,3 @@ def validate_settings():
 if __name__ == "__main__":
     # fmt: off
     import plac; plac.call(main)
-    # fmt: on
