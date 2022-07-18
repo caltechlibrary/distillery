@@ -86,7 +86,7 @@ def main():
                                 == 200
                             ):
                                 logger.info(f"✅ FOUND IN S3 BUCKET: {file_uri}")
-                                s3_log.remove(file_uri.split("/", 3)[-1])
+                                s3_log.remove(file_uri.split("/", 2)[-1])
                     else:
                         logger.warning(f"‼️  NOT FOUND IN S3_LOG: {file_uri}")
         else:
