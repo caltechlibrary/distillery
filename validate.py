@@ -33,12 +33,13 @@ def main():
     else:
         logger.warning("🔮 INDICATOR NOT FOUND")
         return
-    archivesspace_log = []
+    # NOTE avoid storing duplcate ARCHIVESSPACE entries with set()
+    archivesspace_log = set()
     tape_log = []
     s3_log = []
     for line in last_run.splitlines():
         if "ARCHIVESSPACE" in line:
-            archivesspace_log.append(line.strip().split()[-1])
+            archivesspace_log.add(line.strip().split()[-1])
         elif "TAPE" in line:
             tape_log.append(line.strip().split()[-1])
         elif "S3" in line:
@@ -69,7 +70,7 @@ def main():
                                 tape_log.remove(file_uri.split("/", 3)[-1])
                     else:
                         logger.warning(f"‼️  NOT FOUND IN TAPE_LOG: {file_uri}")
-                if file_uri.startswith("s3://"):
+                elif file_uri.startswith("s3://"):
                     # EXAMPLE S3 URI:
                     # s3://bucket-name/CollectionID/CollectionID-Series/CollectionID_001_05-File/CollectionID_001_05_0002/1bqp_5my7.jp2
                     # EXAMPLE S3_LOG ENTRY:
@@ -92,6 +93,7 @@ def main():
         else:
             logger.info(f'🈳 JSONMODEL_TYPE: {record["jsonmodel_type"]}')
 
+    # NOTE records for .json files are not stored in ArchivesSpace
     for tape_uri in tape_log:
         if not tape_uri.endswith(".json"):
             logger.warning(
