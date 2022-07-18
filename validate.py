@@ -53,9 +53,11 @@ def main():
             for file_version in record["file_versions"]:
                 file_uri = file_version["file_uri"]
                 if file_uri.startswith("tape://"):
-                    # NOTE example tape uri:
+                    # EXAMPLE TAPE URI:
                     # tape://20220131_01/CollectionID/CollectionID-Series/CollectionID_001_05-File/CollectionID_001_05_0002/1bqp_5my7.jp2
-                    if file_uri.split("/")[-1] in tape_log:
+                    # EXAMPLE TAPE_LOG ENTRY:
+                    # CollectionID/CollectionID-Series/CollectionID_001_05-File/CollectionID_001_05_0002/1bqp_5my7.jp2
+                    if file_uri.split("/", 3)[-1] in tape_log:
                         if (
                             file_uri.split("tape://")[-1].split("/")[0]
                             == mounted_tape_indicator
@@ -68,9 +70,11 @@ def main():
                     else:
                         logger.warning(f"‼️  NOT FOUND IN TAPE_LOG: {file_uri}")
                 if file_uri.startswith("s3://"):
-                    # NOTE example s3 uri:
+                    # EXAMPLE S3 URI:
                     # s3://bucket-name/CollectionID/CollectionID-Series/CollectionID_001_05-File/CollectionID_001_05_0002/1bqp_5my7.jp2
-                    if file_uri.split("/")[-1] in s3_log:
+                    # EXAMPLE S3_LOG ENTRY:
+                    # bucket-name/CollectionID/CollectionID-Series/CollectionID_001_05-File/CollectionID_001_05_0002/1bqp_5my7.jp2
+                    if file_uri.split("/", 2)[-1] in s3_log:
                         if file_uri.split("s3://")[-1].split("/")[0] == config(
                             "PRESERVATION_BUCKET"
                         ):
