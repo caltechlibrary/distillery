@@ -251,7 +251,6 @@ def ensure_top_container(variables):
 
 def process_digital_object_component_file(variables):
     """create ArchivesSpace record"""
-    logger.info(f"🐞 str(__name__): {str(__name__)}")
     variables["file_uri_scheme"] = "tape"
     variables["file_uri_host"] = variables["tape_indicator"]
     if not distillery.save_digital_object_component_record(variables):

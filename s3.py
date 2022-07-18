@@ -134,6 +134,7 @@ def transfer_collection_datafile(variables):
     logger.info(
         f'☑️  S3 OBJECT UPLOADED: {config("PRESERVATION_BUCKET")}/{str(collection_datafile_key)}'
     )
+    validation_logger.info(f'S3: {config("PRESERVATION_BUCKET")}/{str(collection_datafile_key)}')
 
 
 def transfer_derivative_structure(variables):
@@ -162,6 +163,7 @@ def transfer_archival_object_datafile(variables):
     logger.info(
         f'☑️  S3 OBJECT UPLOADED: {config("PRESERVATION_BUCKET")}/{str(archival_object_datafile_key)}'
     )
+    validation_logger.info(f'S3: {config("PRESERVATION_BUCKET")}/{str(archival_object_datafile_key)}')
 
 
 def transfer_digital_object_component_file(variables):
@@ -206,6 +208,7 @@ def transfer_digital_object_component_file(variables):
         logger.info(
             f'☑️  S3 OBJECT UPLOADED: {config("PRESERVATION_BUCKET")}/{preservation_file_key}'
         )
+        validation_logger.info(f'S3: {config("PRESERVATION_BUCKET")}/{preservation_file_key}')
         return response["ETag"].strip('"')
 
 
@@ -218,7 +221,6 @@ def process_digital_object_component_file(variables):
     if not transfer_digital_object_component_file(variables):
         logger.warning()
         return
-    logger.info(f"🐞 str(__name__): {str(__name__)}")
     variables["file_uri_scheme"] = "s3"
     variables["file_uri_host"] = config("PRESERVATION_BUCKET")
     if not distillery.save_digital_object_component_record(variables):
