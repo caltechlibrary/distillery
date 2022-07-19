@@ -29,7 +29,6 @@ from datetime import datetime
 from pathlib import Path
 from shutil import copyfile
 
-import plac
 import sh
 from decouple import config
 from lxml import etree
@@ -390,20 +389,19 @@ def archival_object_level_processing(variables):
     logger.debug("\n".join(["🐞 variables.keys():", *variables.keys()]))
 
     # Construct the MODS XML for the book.
-    # book_mods_xml = construct_book_mods_xml(
-    #     collection_data, folder_arrangement, folder_data, filepaths
-    # )
+    book_mods_xml = construct_book_mods_xml(variables)
 
     # Save the MODS.xml file for the book.
-    # book_mods_xml_path = save_xml_file(
-    #     os.path.join(
-    #         config("COMPRESSED_ACCESS_FILES"),
-    #         "books",
-    #         f'{variables["collection_id"]}+{variables["folder_data"]["component_id"]}',
-    #         "MODS.xml",
-    #     ),
-    #     book_mods_xml,
-    # )
+    book_mods_xml_path = save_xml_file(
+        os.path.join(
+            config("COMPRESSED_ACCESS_FILES"),
+            "books",
+            f'{variables["collection_id"]}+{variables["folder_data"]["component_id"]}',
+            "MODS.xml",
+        ),
+        book_mods_xml,
+    )
+    logger.info(f"☑️  ISLANDORA BOOK MODS SAVED: {book_mods_xml_path}")
 
 
 def create_access_files(variables):
@@ -449,20 +447,20 @@ def add_books_to_islandora_collection(
     # TODO what should return?
 
 
-def create_book_mods_xml(collection_data, folder_arrangement, folder_data, filepaths):
+def construct_book_mods_xml(variables):
     ns = "http://www.loc.gov/mods/v3"
     xsi = "http://www.w3.org/2001/XMLSchema-instance"
     xsd = "http://www.loc.gov/standards/mods/v3/mods-3-7.xsd"
     E = ElementMaker(nsmap={None: ns, "xsi": xsi})
-    modsxml = E.mods()
+    book_mods_xml = E.mods()
     # https://stackoverflow.com/questions/48970040/lxml-elementmaker-attribute-formatting
-    modsxml.attrib["{{{pre}}}schemaLocation".format(pre=xsi)] = f"{ns} {xsd}"
+    book_mods_xml.attrib["{{{pre}}}schemaLocation".format(pre=xsi)] = f"{ns} {xsd}"
     titleInfo = E.titleInfo()
-    modsxml.append(titleInfo)
-    titleInfo.append(E.title(folder_arrangement["folder_title"]))
+    book_mods_xml.append(titleInfo)
+    titleInfo.append(E.title(variables["folder_arrangement"]["folder_title"]))
     originInfo = E.originInfo()
-    modsxml.append(originInfo)
-    for date in folder_data["dates"]:
+    book_mods_xml.append(originInfo)
+    for date in variables["folder_data"]["dates"]:
         if date["label"] == "creation":
             if date["date_type"] == "single":
                 originInfo.append(E.dateCreated(date["begin"], encoding="w3cdtf"))
@@ -476,37 +474,47 @@ def create_book_mods_xml(collection_data, folder_arrangement, folder_data, filep
             if date["date_type"] == "bulk":
                 pass
     physicalDescription = E.physicalDescription()
-    modsxml.append(physicalDescription)
-    physicalDescription.append(E.extent(str(len(filepaths)), unit="images"))
+    book_mods_xml.append(physicalDescription)
+    physicalDescription.append(
+        E.extent(str(len(variables["filepaths"])), unit="images")
+    )
     relatedItem = E.relatedItem(type="host")
-    modsxml.append(relatedItem)
+    book_mods_xml.append(relatedItem)
     relatedItem_titleInfo = E.titleInfo()
-    relatedItem_titleInfo.append(E.title(folder_arrangement["collection_display"]))
-    if "series_id" in folder_arrangement:
+    relatedItem_titleInfo.append(
+        E.title(variables["folder_arrangement"]["collection_display"])
+    )
+    if "series_id" in variables["folder_arrangement"]:
         relatedItem_titleInfo.append(
-            E.partNumber(f"Series {folder_arrangement['series_id']}")
-        )
-        relatedItem_titleInfo.append(E.partName(folder_arrangement["series_display"]))
-    if "subseries_id" in folder_arrangement:
-        relatedItem_titleInfo.append(
-            E.partNumber(f"Subseries {folder_arrangement['subseries_id']}")
+            E.partNumber(f'Series {variables["folder_arrangement"]["series_id"]}')
         )
         relatedItem_titleInfo.append(
-            E.partName(folder_arrangement["subseries_display"])
+            E.partName(variables["folder_arrangement"]["series_display"])
+        )
+    if "subseries_id" in variables["folder_arrangement"]:
+        relatedItem_titleInfo.append(
+            E.partNumber(f'Subseries {variables["folder_arrangement"]["subseries_id"]}')
+        )
+        relatedItem_titleInfo.append(
+            E.partName(variables["folder_arrangement"]["subseries_display"])
         )
     relatedItem.append(relatedItem_titleInfo)
-    modsxml.append(
-        E.relatedItem(f"https://collections.archives.caltech.edu{folder_data['uri']}")
+    book_mods_xml.append(
+        E.relatedItem(
+            f'https://collections.archives.caltech.edu{variables["folder_data"]["uri"]}'
+        )
     )
-    modsxml.append(E.identifier(folder_data["component_id"], type="local"))
-    for note in collection_data["notes"]:
+    book_mods_xml.append(
+        E.identifier(variables["folder_data"]["component_id"], type="local")
+    )
+    for note in variables["collection_data"]["notes"]:
         if note["type"] == "userestrict":
-            modsxml.append(
+            book_mods_xml.append(
                 E.accessCondition(
                     note["subnotes"][0]["content"], type="use and reproduction"
                 )
             )
-    return modsxml
+    return book_mods_xml
 
 
 def create_islandora_collection(islandora_staging_files):
@@ -756,4 +764,5 @@ def validate_settings():
 
 
 if __name__ == "__main__":
-    plac.call(main)
+    # fmt: off
+    import plac; plac.call(main)
