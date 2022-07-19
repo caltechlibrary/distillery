@@ -44,11 +44,15 @@ logging.config.fileConfig(
     disable_existing_loggers=False,
 )
 logger = logging.getLogger("islandora")
+validation_logger = logging.getLogger("validation")
 
 islandora_server = sh.ssh.bake(
     f"{config('ISLANDORA_SSH_USER')}@{config('ISLANDORA_SSH_HOST')}",
     f"-p{config('ISLANDORA_SSH_PORT')}",
 )
+islandora_server_connection = islandora_server()
+if islandora_server_connection.exit_code == 0:
+    logger.info(f"🦕 ISLANDORA SERVER CONNECTION SUCCESSFUL: {islandora_server}")
 
 # TODO normalize collection_id (limit to allowed characters)
 # function islandora_is_valid_pid($pid) {
@@ -131,47 +135,6 @@ def main(
         # logger.error(message, exc_info=True)
         raise
 
-    # Set the directory for the Islandora collection files.
-    # NOTE: The parent directory name is formatted for use as a PID:
-    # https://github.com/mjordan/islandora_batch_with_derivs#preserving-existing-pids-and-relationships
-    islandora_collection_metadata_directory = os.path.join(
-        COMPRESSED_ACCESS_FILES,
-        "collections",
-        f"caltech+{collection_id}",  # NOTE hardcoded namespace
-    )
-
-    # Set up the MODS XML for the collection.
-    collection_mods_xml = create_collection_mods_xml(collection_data)
-
-    # Save the MODS.xml file for the collection.
-    save_xml_file(
-        os.path.join(
-            islandora_collection_metadata_directory,
-            "MODS.xml",
-        ),
-        collection_mods_xml,
-    )
-    with open(stream_path, "a") as stream:
-        stream.write(
-            f"✅ Created the MODS.xml file for the {collection_id} collection.\n"
-        )
-
-    # Set up the COLLECTION_POLICY XML for the collection.
-    collection_policy_xml = create_collection_policy_xml(collection_data)
-
-    # Save a COLLECTION_POLICY.xml file for the collection.
-    save_xml_file(
-        os.path.join(
-            islandora_collection_metadata_directory,
-            "COLLECTION_POLICY.xml",
-        ),
-        collection_policy_xml,
-    )
-    with open(stream_path, "a") as stream:
-        stream.write(
-            f"✅ Created the COLLECTION_POLICY.xml file for the {collection_id} collection.\n"
-        )
-
     folders, filecount = distillery.prepare_folder_list(collection_directory)
     filecounter = 0
 
@@ -220,21 +183,6 @@ def main(
             # TODO increment file counter by the count of files in this folder
             continue
 
-        # Set up the MODS XML for the book.
-        modsxml = create_book_mods_xml(
-            collection_data, folder_arrangement, folder_data, filepaths
-        )
-
-        # Save the MODS.xml file for the book.
-        save_xml_file(
-            os.path.join(
-                COMPRESSED_ACCESS_FILES,
-                "books",
-                f"{collection_id}+{folder_data['component_id']}",
-                "MODS.xml",
-            ),
-            modsxml,
-        )
         with open(stream_path, "a") as stream:
             stream.write(
                 f"✅ Created the MODS.xml file for the {folder_data['component_id']} [{folder_data['display_string']}] folder.\n"
@@ -395,6 +343,74 @@ def main(
             )
 
 
+def collection_level_preprocessing(variables):
+    logger.debug("🦕 collection_level_preprocessing()")
+    # logger.debug("\n".join(["🐞 variables.keys():", *variables.keys()]))
+    logger.debug(f"🐞 variables.keys():\n{chr(10).join(variables.keys())}")
+    # Set the directory for the Islandora collection files.
+    # NOTE: The parent directory name is formatted for use as a PID:
+    # https://github.com/mjordan/islandora_batch_with_derivs#preserving-existing-pids-and-relationships
+    islandora_collection_metadata_directory = os.path.join(
+        config("COMPRESSED_ACCESS_FILES"),
+        "collections",
+        f'caltech+{variables["collection_id"]}',  # NOTE hardcoded namespace
+    )
+
+    # Construct the MODS XML for the collection.
+    collection_mods_xml = construct_collection_mods_xml(variables["collection_data"])
+
+    # Save the MODS.xml file for the collection.
+    collection_mods_xml_path = save_xml_file(
+        os.path.join(
+            islandora_collection_metadata_directory,
+            "MODS.xml",
+        ),
+        collection_mods_xml,
+    )
+    logger.info(f"☑️  ISLANDORA COLLECTION MODS SAVED: {collection_mods_xml_path}")
+
+    # Construct the COLLECTION_POLICY XML for the collection.
+    collection_policy_xml = construct_collection_policy_xml(
+        variables["collection_data"]
+    )
+
+    # Save a COLLECTION_POLICY.xml file for the collection.
+    collection_policy_xml_path = save_xml_file(
+        os.path.join(
+            islandora_collection_metadata_directory,
+            "COLLECTION_POLICY.xml",
+        ),
+        collection_policy_xml,
+    )
+    logger.info(f"☑️  ISLANDORA COLLECTION POLICY SAVED: {collection_policy_xml_path}")
+
+
+def archival_object_level_processing(variables):
+    logger.debug("🦕 archival_object_level_processing()")
+    logger.debug("\n".join(["🐞 variables.keys():", *variables.keys()]))
+
+    # Construct the MODS XML for the book.
+    # book_mods_xml = construct_book_mods_xml(
+    #     collection_data, folder_arrangement, folder_data, filepaths
+    # )
+
+    # Save the MODS.xml file for the book.
+    # book_mods_xml_path = save_xml_file(
+    #     os.path.join(
+    #         config("COMPRESSED_ACCESS_FILES"),
+    #         "books",
+    #         f'{variables["collection_id"]}+{variables["folder_data"]["component_id"]}',
+    #         "MODS.xml",
+    #     ),
+    #     book_mods_xml,
+    # )
+
+
+def create_access_files(variables):
+    logger.debug("🦕 create_access_files()")
+    logger.debug("\n".join(["🐞 variables.keys():", *variables.keys()]))
+
+
 def add_books_to_islandora_collection(
     islandora_collection_pid, islandora_staging_files
 ):
@@ -529,7 +545,7 @@ def create_islandora_collection(islandora_staging_files):
     return collection_pid
 
 
-def create_collection_mods_xml(collection_data):
+def construct_collection_mods_xml(collection_data):
     ns = "http://www.loc.gov/mods/v3"
     xsi = "http://www.w3.org/2001/XMLSchema-instance"
     xsd = "http://www.loc.gov/standards/mods/v3/mods-3-7.xsd"
@@ -544,7 +560,7 @@ def create_collection_mods_xml(collection_data):
     return modsxml
 
 
-def create_collection_policy_xml(collection_data):
+def construct_collection_policy_xml(collection_data):
     ns = "http://www.islandora.ca"
     xsi = "http://www.w3.org/2001/XMLSchema-instance"
     xsd = "http://syn.lib.umanitoba.ca/collection_policy.xsd"
@@ -709,6 +725,7 @@ def save_xml_file(destination_filepath, xml):
     os.makedirs(os.path.dirname(destination_filepath), exist_ok=True)
     with open(destination_filepath, "w") as f:
         f.write(etree.tostring(xml, encoding="unicode", pretty_print=True))
+    return destination_filepath
 
 
 def upload_to_islandora_server():

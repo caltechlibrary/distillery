@@ -75,7 +75,9 @@ def main(
         # TODO create init function that confirms everything is set to continue
     if access and config("ACCESS_PLATFORM"):
         # Import a module named the same as the ACCESS_PLATFORM setting.
-        # variables["access_platform"] = importlib.import_module(config("ACCESS_PLATFORM"))
+        variables["access_platform"] = importlib.import_module(
+            config("ACCESS_PLATFORM")
+        )
         variables["access"] = access
         # TODO create init function that confirms everything is set to continue
     variables["collection_id"] = collection_id
@@ -100,12 +102,13 @@ def main(
             variables["collection_data"], variables["WORK_LOSSLESS_PRESERVATION_FILES"]
         )  # TODO pass only variables
 
+    logger.debug(f"🐞 variables.keys():\n{chr(10).join(variables.keys())}")
     # if variables["onsite"]:
     #     variables["onsite_medium"].collection_level_preprocessing(variables)
     if variables.get("cloud"):
         variables["cloud_platform"].collection_level_preprocessing(variables)
-    # if variables["access"]:
-    #     variables["access_platform"].collection_level_preprocessing(variables)
+    if variables["access"]:
+        variables["access_platform"].collection_level_preprocessing(variables)
 
     # Move the `collection_id` directory into `WORKING_ORIGINAL_FILES`.
     try:
@@ -2019,6 +2022,9 @@ def create_derivative_structure(variables):
                 variables["WORK_LOSSLESS_PRESERVATION_FILES"],
             )  # TODO pass only variables
 
+        if variables.get("access"):
+            variables["access_platform"].archival_object_level_processing(variables)
+
         create_derivative_files(variables)
 
 
@@ -2056,6 +2062,9 @@ def create_derivative_files(variables):
             # TODO refactor based on mimetype
             # TODO refactor and send to module for extra parameters
             # digital_object_component = prepare_digital_object_component()
+
+        if variables.get("access"):
+            variables["access_platform"].create_access_files(variables)
 
 
 if __name__ == "__main__":
