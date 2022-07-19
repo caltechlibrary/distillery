@@ -39,7 +39,7 @@ def main(
     variables = {}
     if onsite and config("ONSITE_MEDIUM"):
         # Import a module named the same as the ONSITE_MEDIUM setting.
-        variables["onsite_medium"] = __import__(config("ONSITE_MEDIUM"))
+        variables["onsite_medium"] = importlib.import_module(config("ONSITE_MEDIUM"))
         variables["onsite"] = onsite
         # TODO create init function that confirms everything is set to continue
     if cloud and config("CLOUD_PLATFORM"):
@@ -49,7 +49,9 @@ def main(
         # TODO create init function that confirms everything is set to continue
     if access and config("ACCESS_PLATFORM"):
         # Import a module named the same as the ACCESS_PLATFORM setting.
-        # variables["access_platform"] = __import__(config("ACCESS_PLATFORM"))
+        variables["access_platform"] = importlib.import_module(
+            config("ACCESS_PLATFORM")
+        )
         variables["access"] = access
         # TODO create init function that confirms everything is set to continue
     variables["collection_id"] = collection_id
@@ -121,6 +123,11 @@ def main(
             message = (
                 f'✅ S3 Bucket connection successful: {config("PRESERVATION_BUCKET")}\n'
             )
+            with open(variables["stream_path"], "a") as stream:
+                stream.write(message)
+    if variables.get("access"):
+        if variables["access_platform"].islandora_server_connection.exit_code == 0:
+            message = f'✅ Islandora server connection successful: {config("ISLANDORA_SSH_HOST")}\n'
             with open(variables["stream_path"], "a") as stream:
                 stream.write(message)
 
