@@ -142,6 +142,10 @@ def main(
         # TODO run in the background but wait for it before writing records to ArchivesSpace
         # transfer PRESERVATION_FILES/CollectionID directory as a whole to tape
         variables["onsite_medium"].transfer_derivative_collection(variables)
+    if variables.get("access"):
+        # TODO run in the background but wait for it before writing records to ArchivesSpace
+        # transfer ACCESS_FILES/CollectionID directory to Islandora server
+        variables["access_platform"].transfer_derivative_collection(variables)
 
     if variables.get("onsite") or variables.get("cloud"):
         loop_over_archival_object_datafiles(variables)
@@ -1238,6 +1242,11 @@ def get_digital_object(digital_object_component_id):
     return digital_object_get_response.json()
 
 
+def get_directory_bytes(directory):
+    """Return the total bytes of all files under the given directory."""
+    return sum(f.stat().st_size for f in Path(directory).glob("**/*") if f.is_file())
+
+
 def save_digital_object_component_record(variables):
     if variables.get("file_uri_scheme") == None:
         logger.warning('⚠️  MISSING variables["file_uri_scheme"]')
@@ -2072,7 +2081,7 @@ def create_derivative_files(variables):
             # digital_object_component = prepare_digital_object_component()
 
         if variables.get("access"):
-            variables["access_platform"].create_access_file(variables)
+            variables["access_platform"].create_access_files(variables)
 
 
 if __name__ == "__main__":

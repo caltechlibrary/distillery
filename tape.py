@@ -105,7 +105,7 @@ def main(
     # records in ArchivesSpace to undo
 
     # Calculate whether the collection_id directory will fit on the current tape.
-    collection_id_directory_bytes = get_directory_bytes(
+    collection_id_directory_bytes = distillery.get_directory_bytes(
         Path(variables["WORK_LOSSLESS_PRESERVATION_FILES"]).joinpath(
             variables["collection_id"]
         )
@@ -176,7 +176,7 @@ def collection_level_preprocessing(variables):
 def transfer_derivative_collection(variables):
     """Transfer PRESERVATION_FILES/CollectionID directory as a whole to tape."""
     # Calculate whether the collection_id directory will fit on the current tape.
-    collection_id_directory_bytes = get_directory_bytes(
+    collection_id_directory_bytes = distillery.get_directory_bytes(
         Path(variables["WORK_LOSSLESS_PRESERVATION_FILES"]).joinpath(
             variables["collection_id"]
         )
@@ -289,11 +289,6 @@ def rsync_to_tape(variables):
     else:
         mount_nas()
         perform_rsync()
-
-
-def get_directory_bytes(directory):
-    """Return the total bytes of all files under the given directory."""
-    return sum(f.stat().st_size for f in Path(directory).glob("**/*") if f.is_file())
 
 
 def get_tape_indicator():
