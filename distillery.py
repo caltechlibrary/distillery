@@ -2042,13 +2042,21 @@ def create_derivative_files(variables):
     └── CollectionID_007_08
     """
 
-    # NOTE We reverse the list with [::-1] and use with pop() so the components
-    # will be ingested in the correct order for the digital object tree.
-    filepaths = variables["filepaths"][::-1]
-    for f in range(len(filepaths)):
-        variables["original_image_path"] = filepaths.pop()
+    # NOTE We use a reversed list so the components will be ingested in
+    # the correct order for the digital object tree and use it with pop() so the
+    # count of remaining items is accurate during the loop.
+    variables["filepaths_popped"] = sorted(variables["filepaths"], reverse=True)
+    variables["filepaths_count_initial"] = len(variables["filepaths"])
+    for f in range(variables["filepaths_count_initial"]):
+        logger.debug(
+            f'🐞 len(variables["filepaths_popped"]): {len(variables["filepaths_popped"])}'
+        )
+        variables["original_image_path"] = variables["filepaths_popped"].pop()
         logger.info(
             f'▶️  PROCESSING ITEM: {variables["original_image_path"][len(config("WORKING_ORIGINAL_FILES")) + 1:]}'
+        )
+        logger.debug(
+            f'🐞 len(variables["filepaths_popped"]): {len(variables["filepaths_popped"])}'
         )
 
         # TODO check for existing derivative structure
@@ -2064,7 +2072,7 @@ def create_derivative_files(variables):
             # digital_object_component = prepare_digital_object_component()
 
         if variables.get("access"):
-            variables["access_platform"].create_access_files(variables)
+            variables["access_platform"].create_access_file(variables)
 
 
 if __name__ == "__main__":

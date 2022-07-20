@@ -24,10 +24,12 @@
 
 import json
 import logging
+import mimetypes
 import os
+import shutil
+
 from datetime import datetime
 from pathlib import Path
-from shutil import copyfile
 
 import sh
 from decouple import config
@@ -197,53 +199,6 @@ def main(
                 print(
                     f" ▶️\t {os.path.basename(filepath)} [image {filecounter}/{filecount}]"
                 )
-            page_sequence = str(filecount_folder - len(filepaths)).zfill(4)
-            # TODO run this in the background in order to get a status indicator
-            try:
-                (
-                    hocr_path,
-                    jp2_path,
-                    jpg_path,
-                    mods_path,
-                    obj_path,
-                    ocr_path,
-                    tn_path,
-                ) = generate_islandora_page_datastreams(
-                    filepath,
-                    page_sequence,
-                    COMPRESSED_ACCESS_FILES,
-                    collection_data,
-                    folder_arrangement,
-                    folder_data,
-                )
-                with open(stream_path, "a") as stream:
-                    stream.write(
-                        f"✅ Generated datastreams for: {os.path.basename(filepath)} [image {filecounter}/{filecount}]\n"
-                    )
-                # copy first page thumbnail to book-level thumbnail
-                if filecounter == 1:
-                    copyfile(
-                        tn_path,
-                        os.path.join(
-                            COMPRESSED_ACCESS_FILES,
-                            "books",
-                            f"{collection_id}+{folder_data['component_id']}",
-                            "TN.jpg",
-                        ),
-                    )
-                    with open(stream_path, "a") as stream:
-                        stream.write(
-                            f"✅ Copied image {page_sequence} TN datastream to {folder_data['component_id']} [{folder_data['display_string']}] book-level TN datastream.\n"
-                        )
-            except sh.ErrorReturnCode as e:
-                # TODO message that there was a problem
-                # with open(stream_path, "a") as stream:
-                #     stream.write(f"✅ Generated datastreams for: {os.path.basename(filepath)} [image {filecounter}/{filecount}]\n")
-                print(str(e))
-                continue
-            except RuntimeError as e:
-                print(str(e))
-                continue
 
         # upload book staging files to Islandora server
         try:
@@ -404,9 +359,47 @@ def archival_object_level_processing(variables):
     logger.info(f"☑️  ISLANDORA BOOK MODS SAVED: {book_mods_xml_path}")
 
 
-def create_access_files(variables):
-    logger.debug("🦕 create_access_files()")
+def create_access_file(variables):
+    logger.debug("🦕 create_access_file()")
     logger.debug("\n".join(["🐞 variables.keys():", *variables.keys()]))
+    if variables["filepaths_count_initial"] > 1:
+        # we have some kind of multi-file compound object
+        sequence = str(
+            variables["filepaths_count_initial"] - len(variables["filepaths_popped"])
+        ).zfill(4)
+        type, encoding = mimetypes.guess_type(variables["original_image_path"])
+        if type == "image/tiff":
+            (
+                hocr_path,
+                jp2_path,
+                jpg_path,
+                mods_path,
+                obj_path,
+                ocr_path,
+                tn_path,
+            ) = generate_islandora_page_datastreams(
+                variables["original_image_path"],
+                sequence,
+                config("COMPRESSED_ACCESS_FILES"),
+                variables["collection_data"],
+                variables["folder_arrangement"],
+                variables["folder_data"],
+            )
+            # copy first page thumbnail to book-level thumbnail
+            if sequence == "0001":
+                shutil.copyfile(
+                    tn_path,
+                    os.path.join(
+                        config("COMPRESSED_ACCESS_FILES"),
+                        "books",
+                        f'{variables["collection_id"]}+{variables["folder_data"]["component_id"]}',
+                        "TN.jpg",
+                    ),
+                )
+        else:
+            logger.debug(f"🐞 MIMETYPE NOT ACCOUNTED FOR: {type}")
+    else:
+        logger.debug(f'🐞 SINGLE FILE IN DIRECTORY: {variables["original_image_path"]}')
 
 
 def add_books_to_islandora_collection(
@@ -625,8 +618,6 @@ def generate_islandora_page_datastreams(
     folder_arrangement,
     folder_data,
 ):
-    page_start = datetime.now()
-
     magick_cmd = sh.Command(config("WORK_MAGICK_CMD"))
     magick_cmd.convert(
         "-quiet", filepath, "-compress", "None", "/tmp/uncompressed.tiff"
@@ -687,7 +678,7 @@ def generate_islandora_page_datastreams(
     distillery.write_xmp_metadata(obj_path, xmp_dc)
 
     jp2_path = os.path.join(page_datastreams_directory, "JP2.jp2")
-    copyfile(obj_path, jp2_path)
+    shutil.copyfile(obj_path, jp2_path)
 
     tn_conversion.wait()
     distillery.write_xmp_metadata(tn_path, xmp_dc)
@@ -698,18 +689,17 @@ def generate_islandora_page_datastreams(
     try:
         ocr_generation.wait(timeout=10)
         ocr_path = os.path.join(page_datastreams_directory, "OCR.txt")
-        os.rename("/tmp/tesseract.txt", ocr_path)
+        shutil.move("/tmp/tesseract.txt", ocr_path)
         hocr_path = os.path.join(page_datastreams_directory, "HOCR.html")
-        os.rename("/tmp/tesseract.hocr", hocr_path)
+        shutil.move("/tmp/tesseract.hocr", hocr_path)
     except sh.TimeoutException:
         print(f" 🕑\t Tesseract timeout: {os.path.basename(filepath)}")
 
     os.remove("/tmp/uncompressed.tiff")
 
-    print(
-        f" ⏳\t {os.path.basename(filepath)} processing time: {datetime.now() - page_start}"
+    logger.info(
+        f"☑️  ISLANDORA PAGE DATASTREAMS GENERATED: {page_datastreams_directory}"
     )
-
     return (hocr_path, jp2_path, jpg_path, mods_path, obj_path, ocr_path, tn_path)
 
 
