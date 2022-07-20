@@ -359,8 +359,8 @@ def archival_object_level_processing(variables):
     logger.info(f"☑️  ISLANDORA BOOK MODS SAVED: {book_mods_xml_path}")
 
 
-def create_access_file(variables):
-    logger.debug("🦕 create_access_file()")
+def create_access_files(variables):
+    logger.debug("🦕 create_access_files()")
     logger.debug("\n".join(["🐞 variables.keys():", *variables.keys()]))
     if variables["filepaths_count_initial"] > 1:
         # we have some kind of multi-file compound object
@@ -726,17 +726,44 @@ def save_xml_file(destination_filepath, xml):
     return destination_filepath
 
 
-def upload_to_islandora_server():
-    # TODO try/except?
-    islandora_staging_files = islandora_server("mktemp", "-d")
-    sh.rsync(
+def transfer_derivative_collection(variables):
+    """Transfer ISLANDORA_ACCESS_FILES directory to Islandora server."""
+    # Calculate whether the directory will fit on the server.
+    access_files_bytes = distillery.get_directory_bytes(
+        config("COMPRESSED_ACCESS_FILES")
+    )
+    logger.info(f"🔢 BYTECOUNT OF ISLANDORA ACCESS FILES: {access_files_bytes}")
+    islandora_staging_files = islandora_server.mktemp("--directory").strip()
+    # NOTE output from islandora_server connection is a string formatted like:
+    # `52701552640 3822366720`
+    server_bytes = islandora_server(
+        f'{config("ISLANDORA_PYTHON3_CMD")} -c \'import shutil; total, used, free = shutil.disk_usage("{islandora_staging_files}"); print(total, free)\'',
+    ).strip()
+    # convert the string to a tuple and get the parts
+    server_total_bytes = tuple(map(int, server_bytes.split(" ")))[0]
+    server_free_bytes = tuple(map(int, server_bytes.split(" ")))[1]
+    logger.info(f"🔢 FREE BYTES ON ISLANDORA SERVER: {server_free_bytes}")
+    server_capacity_buffer = server_total_bytes * 0.01  # reserve 1% for tape index
+    if not server_free_bytes - access_files_bytes > server_capacity_buffer:
+        message = f"❌ the islandora server does not have capacity for staging this set of access files: {islandora_staging_files}"
+        logger.error(message)
+        raise RuntimeError(message)
+    # Copy ISLANDORA_ACCESS_FILES to Islandora server using rsync.
+    # NOTE this is only for staging files prior to ingest
+    upload_to_islandora_server(islandora_staging_files)
+
+
+def upload_to_islandora_server(islandora_staging_files):
+    """Copy files via rsync for staging."""
+    rsync_cmd = sh.Command(config("WORK_RSYNC_CMD"))
+    rsync_cmd(
         "-az",
         "-e",
         f"ssh -p{config('ISLANDORA_SSH_PORT')}",
         f"{config('COMPRESSED_ACCESS_FILES')}/",
         f"{config('ISLANDORA_SSH_USER')}@{config('ISLANDORA_SSH_HOST')}:{islandora_staging_files}",
     )
-    return islandora_staging_files
+    logger.info(f"☑️  ISLANDORA ACCESS FILES UPLOADED: {islandora_staging_files}")
 
 
 def validate_settings():
