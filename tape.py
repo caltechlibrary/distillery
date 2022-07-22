@@ -29,9 +29,6 @@ tape_server = sh.ssh.bake(
     "-i",
     f'{config("TAPE_SSH_KEY")}',
 )
-tape_server_connection = tape_server()
-if tape_server_connection.exit_code == 0:
-    logger.info(f"📼 TAPE SERVER CONNECTION SUCCESSFUL: {tape_server}")
 
 
 def main(
@@ -162,6 +159,9 @@ def create_archivesspace_tape_records(variables):
 
 def preview(variables):
     """Run before any files are moved or records are created."""
+    tape_server_connection = tape_server()
+    if tape_server_connection.exit_code == 0:
+        logger.info(f"📼 TAPE SERVER CONNECTION SUCCESSFUL: {tape_server}")
     # TODO ensure errors will output a message to the web
     message = f"✅ Tape Indicator found: {get_tape_indicator()}\n"
     with open(variables["stream_path"], "a") as stream:

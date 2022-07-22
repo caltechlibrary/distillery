@@ -51,9 +51,6 @@ islandora_server = sh.ssh.bake(
     f"{config('ISLANDORA_SSH_USER')}@{config('ISLANDORA_SSH_HOST')}",
     f"-p{config('ISLANDORA_SSH_PORT')}",
 )
-islandora_server_connection = islandora_server()
-if islandora_server_connection.exit_code == 0:
-    logger.info(f"🦕 ISLANDORA SERVER CONNECTION SUCCESSFUL: {islandora_server}")
 
 # TODO normalize collection_id (limit to allowed characters)
 # function islandora_is_valid_pid($pid) {
@@ -209,39 +206,6 @@ def main(
             # TODO log something
             raise e
 
-        # retrieve a collection pid from Islandora (existing or new)
-        try:
-            # run a solr query via drush for the expected collection pid
-            # NOTE: using dc fields for simpler syntax; a solr query string example using
-            # fedora fields would be:
-            # f"--solr_query='PID:caltech\:{collection_id} AND RELS_EXT_hasModel_uri_s:info\:fedora\/islandora\:collectionCModel'",
-            idcrudfp = islandora_server(
-                "drush",
-                f"--root={config('ISLANDORA_WEBROOT')}",
-                "islandora_datastream_crud_fetch_pids",
-                f"--solr_query='dc.identifier:caltech\:{collection_id} AND dc.type:Collection'",
-            )
-            islandora_collection_pid = idcrudfp.strip()
-            with open(stream_path, "a") as stream:
-                stream.write(
-                    f"✅ Existing Islandora collection found: {config('ISLANDORA_URL').rstrip('/')}/islandora/object/{islandora_collection_pid}\n"
-                )
-        except sh.ErrorReturnCode as e:
-            # drush exits with a non-zero status when no PIDs are found,
-            # which is interpreted as an error
-            # TODO how to structure this condition? it seems wrong to call a function inside here
-            if "Sorry, no PIDS were found." in str(e.stderr, "utf-8"):
-                # create a new collection because the identifier was not found
-                islandora_collection_pid = create_islandora_collection(
-                    islandora_staging_files
-                )
-                with open(stream_path, "a") as stream:
-                    stream.write(
-                        f"✅ Created new Islandora collection. [{config('ISLANDORA_URL').rstrip('/')}/islandora/object/{islandora_collection_pid}]\n"
-                    )
-            else:
-                raise e
-
         # add “book” to Islandora collection
         book_url = f"{config('ISLANDORA_URL').rstrip('/')}/islandora/object/{collection_id}:{folder_data['component_id']}"
 
@@ -337,6 +301,44 @@ def collection_level_preprocessing(variables):
         collection_policy_xml,
     )
     logger.info(f"☑️  ISLANDORA COLLECTION POLICY SAVED: {collection_policy_xml_path}")
+
+    # Create the temporary staging directory.
+    variables["islandora_staging_files"] = islandora_server.mktemp(
+        "--directory"
+    ).strip()
+    validation_logger.info(f'ISLANDORA: {variables["islandora_staging_files"]}')
+    # Upload the collections directory.
+    upload_to_islandora_server(
+        os.path.join(config("COMPRESSED_ACCESS_FILES"), "collections"), variables
+    )
+
+    # Retrieve an existing or new collection PID from Islandora.
+    try:
+        # Run a Solr query via drush for the expected collection PID.
+        # NOTE: Using DC fields for simpler syntax; a Solr query string example
+        # using fedora fields would be:
+        # f"--solr_query='PID:caltech\:{collection_id} AND RELS_EXT_hasModel_uri_s:info\:fedora\/islandora\:collectionCModel'",
+        idcrudfp = islandora_server(
+            "drush",
+            f"--root={config('ISLANDORA_WEBROOT')}",
+            "islandora_datastream_crud_fetch_pids",
+            f'--solr_query="dc.identifier:caltech\:{variables["collection_id"]} AND dc.type:Collection"',
+        )
+        islandora_collection_pid = idcrudfp.strip()
+        logger.info(
+            f'☑️  EXISTING ISLANDORA COLLECTION FOUND: {config("ISLANDORA_URL").rstrip("/")}/islandora/object/{islandora_collection_pid}'
+        )
+    except sh.ErrorReturnCode as e:
+        # Drush exits with a non-zero status when no PIDs are found, which is
+        # interpreted as an error by sh.
+        if "Sorry, no PIDS were found." in str(e.stderr, "utf-8"):
+            # Create a new collection because the identifier was not found.
+            islandora_collection_pid = create_islandora_collection(
+                variables["islandora_staging_files"]
+            )
+        else:
+            raise
+    return variables
 
 
 def archival_object_level_processing(variables):
@@ -521,7 +523,7 @@ def create_islandora_collection(islandora_staging_files):
         "--content_models=islandora:collectionCModel",
         "--key_datastream=MODS",
         "--namespace=caltech",  # TODO setting?
-        "--parent=islandora:root",  # TODO setting?
+        "--parent=caltech:archives",  # TODO setting?
         f"--scan_target={islandora_staging_files}/collections",
         "--use_pids=TRUE",
     )
@@ -543,6 +545,10 @@ def create_islandora_collection(islandora_staging_files):
     # \n'
     # we capture just the namespace:id portion (caltech:ABC)
     collection_pid = str(ibi.stderr, "utf-8").split()[1].strip(".")
+    logger.info(f"☑️  ISLANDORA COLLECTION CREATED: {collection_pid}")
+    validation_logger.info(
+        f'ISLANDORA: {config("ISLANDORA_URL").rstrip("/")}/islandora/object/{collection_pid}'
+    )
     return collection_pid
 
 
@@ -733,11 +739,10 @@ def transfer_derivative_collection(variables):
         config("COMPRESSED_ACCESS_FILES")
     )
     logger.info(f"🔢 BYTECOUNT OF ISLANDORA ACCESS FILES: {access_files_bytes}")
-    islandora_staging_files = islandora_server.mktemp("--directory").strip()
     # NOTE output from islandora_server connection is a string formatted like:
     # `52701552640 3822366720`
     server_bytes = islandora_server(
-        f'{config("ISLANDORA_PYTHON3_CMD")} -c \'import shutil; total, used, free = shutil.disk_usage("{islandora_staging_files}"); print(total, free)\'',
+        f'{config("ISLANDORA_PYTHON3_CMD")} -c \'import shutil; total, used, free = shutil.disk_usage("{variables["islandora_staging_files"]}"); print(total, free)\'',
     ).strip()
     # convert the string to a tuple and get the parts
     server_total_bytes = tuple(map(int, server_bytes.split(" ")))[0]
@@ -745,25 +750,36 @@ def transfer_derivative_collection(variables):
     logger.info(f"🔢 FREE BYTES ON ISLANDORA SERVER: {server_free_bytes}")
     server_capacity_buffer = server_total_bytes * 0.01  # reserve 1% for tape index
     if not server_free_bytes - access_files_bytes > server_capacity_buffer:
-        message = f"❌ the islandora server does not have capacity for staging this set of access files: {islandora_staging_files}"
+        message = f'❌ the islandora server does not have capacity for staging this set of access files: {variables["islandora_staging_files"]}'
         logger.error(message)
         raise RuntimeError(message)
     # Copy ISLANDORA_ACCESS_FILES to Islandora server using rsync.
     # NOTE this is only for staging files prior to ingest
-    upload_to_islandora_server(islandora_staging_files)
+    upload_to_islandora_server(
+        os.path.join(config("COMPRESSED_ACCESS_FILES"), "books"), variables
+    )
 
 
-def upload_to_islandora_server(islandora_staging_files):
+def upload_to_islandora_server(source_directory, variables):
     """Copy files via rsync for staging."""
     rsync_cmd = sh.Command(config("WORK_RSYNC_CMD"))
     rsync_cmd(
         "-az",
         "-e",
         f"ssh -p{config('ISLANDORA_SSH_PORT')}",
-        f"{config('COMPRESSED_ACCESS_FILES')}/",
-        f"{config('ISLANDORA_SSH_USER')}@{config('ISLANDORA_SSH_HOST')}:{islandora_staging_files}",
+        source_directory,
+        f'{config("ISLANDORA_SSH_USER")}@{config("ISLANDORA_SSH_HOST")}:{variables["islandora_staging_files"]}',
     )
-    logger.info(f"☑️  ISLANDORA ACCESS FILES UPLOADED: {islandora_staging_files}")
+    logger.info(
+        f'☑️  ISLANDORA STAGING FILES UPLOADED: {variables["islandora_staging_files"]}'
+    )
+
+
+def islandora_server_connection_is_successful():
+    islandora_server_connection = islandora_server()
+    if islandora_server_connection.exit_code == 0:
+        logger.info(f"🦕 ISLANDORA SERVER CONNECTION SUCCESSFUL: {islandora_server}")
+        return True
 
 
 def validate_settings():
