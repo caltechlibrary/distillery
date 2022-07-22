@@ -108,7 +108,9 @@ def main(
     if variables.get("cloud"):
         variables["cloud_platform"].collection_level_preprocessing(variables)
     if variables["access"]:
-        variables["access_platform"].collection_level_preprocessing(variables)
+        variables = variables["access_platform"].collection_level_preprocessing(
+            variables
+        )
 
     # Move the `collection_id` directory into `WORKING_ORIGINAL_FILES`.
     try:
@@ -144,7 +146,7 @@ def main(
         variables["onsite_medium"].transfer_derivative_collection(variables)
     if variables.get("access"):
         # TODO run in the background but wait for it before writing records to ArchivesSpace
-        # transfer ACCESS_FILES/CollectionID directory to Islandora server
+        # transfer ISLANDORA_ACCESS_FILES to Islandora server
         variables["access_platform"].transfer_derivative_collection(variables)
 
     if variables.get("onsite") or variables.get("cloud"):

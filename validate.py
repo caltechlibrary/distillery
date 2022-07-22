@@ -6,7 +6,6 @@ from asnake.client import ASnakeClient
 from decouple import config
 from pathlib import Path
 
-import tape
 import s3
 
 logging.config.fileConfig(
@@ -37,6 +36,7 @@ def main():
     archivesspace_log = set()
     tape_log = []
     s3_log = []
+    islandora_log = []
     for line in last_run.splitlines():
         if "ARCHIVESSPACE" in line:
             archivesspace_log.add(line.strip().split()[-1])
@@ -44,8 +44,13 @@ def main():
             tape_log.append(line.strip().split()[-1])
         elif "S3" in line:
             s3_log.append(line.strip().split()[-1])
+        elif "ISLANDORA" in line:
+            islandora_log.append(line.strip().split()[-1])
 
-    mounted_tape_indicator = tape.get_tape_indicator()
+    if tape_log:
+        import tape
+
+        mounted_tape_indicator = tape.get_tape_indicator()
 
     for archivesspace_uri in archivesspace_log:
         record = asnake_client.get(archivesspace_uri).json()
