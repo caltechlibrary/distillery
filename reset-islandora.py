@@ -109,13 +109,14 @@ def main(
     print("✅ cleaned-up Islandora Batch processed sets")
 
     # find and remove temporary staging files
-    islandora_staging_files = (
-        islandora_server.find("/tmp", "-name", f"caltech+{collection_id}")
-        .strip()
-        .rsplit("/", 2)[0]
-    )
-    print(f"🔥 deleting islandora_staging_files: {islandora_staging_files}")
-    os.remove(islandora_staging_files)
+    # NOTE finding like /tmp/tmp.uD6mbBZhzG/collections/caltech+CollectionID
+    found_tmp = islandora_server.find(
+        "/tmp", "-name", f"caltech+{collection_id}"
+    ).split()
+    for islandora_staging_files in found_tmp:
+        islandora_staging_files.rsplit("/", 2)[0]
+        print(f"🔥 deleting islandora_staging_files: {islandora_staging_files}")
+        os.remove(islandora_staging_files)
 
 
 if __name__ == "__main__":
