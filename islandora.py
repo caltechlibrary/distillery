@@ -148,73 +148,9 @@ def main(
     # └── HBF_007_08
     folders.sort(reverse=True)
     for _ in range(len(folders)):
-        # Using pop() (and/or range(len()) above) maybe helps to be sure that
-        # if folder metadata fails to process properly, it and its images are
-        # skipped completely and the script moves on to the next folder.
-        folderpath = folders.pop()
-
-        # Avoid processing folder when there are no files.
-        filepaths = distillery.prepare_filepaths_list(folderpath)
-        if not filepaths:
-            continue
-
-        try:
-            folder_arrangement, folder_data = process_folder_metadata(folderpath)
-            with open(stream_path, "a") as stream:
-                stream.write(
-                    f"✅ Folder data for {folder_data['component_id']} [{folder_data['display_string']}] retrieved from ArchivesSpace.\n"
-                )
-        except RuntimeError as e:
-            # NOTE possible error strings include:
-            # f"The component_id cannot be determined from the directory name: {os.path.basename(folderpath)}"
-            # f"The directory name does not correspond to the collection_id: {os.path.basename(folderpath)}"
-            # f"No records found with component_id: {component_id}"
-            # f"Multiple records found with component_id: {component_id}"
-            # f"The ArchivesSpace record for {folder_data['component_id']} contains multiple digital objects."
-            # f"Missing collection data for: {folder_data['component_id']}"
-            # f"Sub-Series record is missing component_id: {subseries['display_string']} {ancestor['ref']}"
-            # f"Missing series data for: {folder_data['component_id']}"
-            message = f"⚠️ Unable to retrieve metadata for: {folderpath}\n↩️ Skipping {folderpath} folder.\n"
-            with open(stream_path, "a") as stream:
-                stream.write(message)
-            # logging.warning(message, exc_info=True)
-            # TODO increment file counter by the count of files in this folder
-            continue
-
-        with open(stream_path, "a") as stream:
-            stream.write(
-                f"✅ Created the MODS.xml file for the {folder_data['component_id']} [{folder_data['display_string']}] folder.\n"
-            )
-
-        # Loop over filepaths list inside this folder.
-        filepaths.sort(reverse=True)
-        filecount_folder = len(filepaths)
-        for f in range(filecount_folder):
-            filepath = filepaths.pop()
-            filecounter += 1
-            if __debug__:
-                print(
-                    f" ▶️\t {os.path.basename(filepath)} [image {filecounter}/{filecount}]"
-                )
-
-        # upload book staging files to Islandora server
-        try:
-            islandora_staging_files = upload_to_islandora_server().strip()
-            with open(stream_path, "a") as stream:
-                stream.write("✅ Uploaded files to Islandora server.\n")
-        except Exception as e:
-            # TODO log something
-            raise e
 
         # add “book” to Islandora collection
         book_url = f"{config('ISLANDORA_URL').rstrip('/')}/islandora/object/{collection_id}:{folder_data['component_id']}"
-
-        # TODO return something?
-        add_books_to_islandora_collection(
-            islandora_collection_pid, islandora_staging_files
-        )
-        with open(stream_path, "a") as stream:
-            stream.write(f"✅ Ingested Islandora book. [{book_url}]\n")
 
         # update ArchivesSpace digital object
         # NOTE: the file_uri value used below relies on a patched islandora_batch module
@@ -261,8 +197,8 @@ def main(
             )
 
 
-def collection_level_preprocessing(variables):
-    logger.debug("🦕 collection_level_preprocessing()")
+def collection_structure_processing(variables):
+    logger.debug("🦕 collection_structure_processing()")
     # logger.debug("\n".join(["🐞 variables.keys():", *variables.keys()]))
     logger.debug(f"🐞 variables.keys():\n{chr(10).join(variables.keys())}")
     # Set the directory for the Islandora collection files.
@@ -324,18 +260,19 @@ def collection_level_preprocessing(variables):
             "islandora_datastream_crud_fetch_pids",
             f'--solr_query="dc.identifier:caltech\:{variables["collection_id"]} AND dc.type:Collection"',
         )
-        islandora_collection_pid = idcrudfp.strip()
+        variables["islandora_collection_pid"] = idcrudfp.strip()
         logger.info(
-            f'☑️  EXISTING ISLANDORA COLLECTION FOUND: {config("ISLANDORA_URL").rstrip("/")}/islandora/object/{islandora_collection_pid}'
+            f'☑️  EXISTING ISLANDORA COLLECTION FOUND: {config("ISLANDORA_URL").rstrip("/")}/islandora/object/{variables["islandora_collection_pid"]}'
         )
     except sh.ErrorReturnCode as e:
         # Drush exits with a non-zero status when no PIDs are found, which is
         # interpreted as an error by sh.
         if "Sorry, no PIDS were found." in str(e.stderr, "utf-8"):
             # Create a new collection because the identifier was not found.
-            islandora_collection_pid = create_islandora_collection(
+            variables["islandora_collection_pid"] = create_islandora_collection(
                 variables["islandora_staging_files"]
             )
+            return variables
         else:
             raise
     return variables
@@ -404,9 +341,13 @@ def create_access_files(variables):
         logger.debug(f'🐞 SINGLE FILE IN DIRECTORY: {variables["original_image_path"]}')
 
 
-def add_books_to_islandora_collection(
-    islandora_collection_pid, islandora_staging_files
-):
+def ingest_derivative_files(variables):
+    # TODO determine object types
+    # TODO check for existing book PIDs; script crashes if book PID exists
+    add_books_to_islandora_collection(variables)
+
+
+def add_books_to_islandora_collection(variables):
     # NOTE: be sure that the islandora_batch module is patched on the Islandora server;
     # publishing the correct file_uri in ArchivesSpace for digital objects relies on a
     # patched islandora_batch module so PIDs can be specified for bookCModel objects
@@ -417,8 +358,8 @@ def add_books_to_islandora_collection(
         f"--root={config('ISLANDORA_WEBROOT')}",
         "islandora_book_batch_preprocess",
         "--output_set_id=TRUE",
-        f"--parent={islandora_collection_pid}",
-        f"--scan_target={islandora_staging_files}/books",
+        f'--parent={variables["islandora_collection_pid"]}',
+        f'--scan_target={variables["islandora_staging_files"]}/books',
         "--type=directory",
     )
     # ibbp contains a trailing newline
@@ -431,15 +372,21 @@ def add_books_to_islandora_collection(
         f"--ingest_set={ingest_set}",
     )
     # ibi is formatted like (actual newlines inserted here for readability):
-    # b'Ingested HBF:302.                                                           [ok]
-    # \nIngested HBF:303.                                                           [ok]
-    # \nIngested HBF:304.                                                           [ok]
-    # \nIngested HBF:301.                                                           [ok]
+    # b'Ingested CollectionID:302.                                                  [ok]
+    # \nIngested CollectionID:303.                                                  [ok]
+    # \nIngested CollectionID:304.                                                  [ok]
+    # \nIngested CollectionID:301.                                                  [ok]
     # \nProcessing complete; review the queue for some additional               [status]
     # \ninformation.
     # \n'
-    print(str(ibi.stderr, "utf-8"))  # TODO log this
-    # TODO what should return?
+    logger.debug(
+        "\n".join(["OUTPUT: drush islandora_batch_ingest", ibi.stderr.decode().strip()])
+    )
+    for line in ibi.stderr.decode().splitlines():
+        if line.split(":")[0].split()[-1] == variables["collection_id"]:
+            validation_logger.info(
+                f'ISLANDORA: {config("ISLANDORA_URL").rstrip("/")}/islandora/object/{line.split(".")[0].split()[-1]}'
+            )
 
 
 def construct_book_mods_xml(variables):
@@ -732,7 +679,7 @@ def save_xml_file(destination_filepath, xml):
     return destination_filepath
 
 
-def transfer_derivative_collection(variables):
+def transfer_derivative_files(variables):
     """Transfer ISLANDORA_ACCESS_FILES directory to Islandora server."""
     # Calculate whether the directory will fit on the server.
     access_files_bytes = distillery.get_directory_bytes(

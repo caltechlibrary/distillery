@@ -103,12 +103,13 @@ def main(
         )  # TODO pass only variables
 
     logger.debug(f"🐞 variables.keys():\n{chr(10).join(variables.keys())}")
+    # COLLECTION STRUCTURE PROCESSING
     # if variables["onsite"]:
     #     variables["onsite_medium"].collection_level_preprocessing(variables)
     if variables.get("cloud"):
         variables["cloud_platform"].collection_level_preprocessing(variables)
     if variables["access"]:
-        variables = variables["access_platform"].collection_level_preprocessing(
+        variables = variables["access_platform"].collection_structure_processing(
             variables
         )
 
@@ -146,9 +147,12 @@ def main(
         variables["onsite_medium"].transfer_derivative_collection(variables)
     if variables.get("access"):
         # TODO run in the background but wait for it before writing records to ArchivesSpace
-        # transfer ISLANDORA_ACCESS_FILES to Islandora server
-        variables["access_platform"].transfer_derivative_collection(variables)
+        # stage ISLANDORA_ACCESS_FILES on islandora_server before ingest
+        variables["access_platform"].transfer_derivative_files(variables)
+        variables["access_platform"].ingest_derivative_files(variables)
 
+    # PROCESS PRESERVATION STRUCTURE
+    # create an ArchivesSpace Digital Object Component for each preservation file
     if variables.get("onsite") or variables.get("cloud"):
         loop_over_archival_object_datafiles(variables)
 
