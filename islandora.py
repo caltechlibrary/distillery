@@ -248,7 +248,14 @@ def add_books_to_islandora_collection(variables):
 
 
 def loop_over_derivative_structure(variables):
-    for book_directory in f'{config("COMPRESSED_ACCESS_FILES").rstrip("/")}/books':
+    for book_directory in Path(
+        f'{config("COMPRESSED_ACCESS_FILES").rstrip("/")}/books'
+    ).iterdir():
+        if not book_directory.is_dir():
+            continue
+
+        book_pid = book_directory.name.replace("+", ":")
+
         # update ArchivesSpace digital object
 
         # NOTE: the file_uri value used below relies on a patched islandora_batch module
@@ -257,21 +264,19 @@ def loop_over_derivative_structure(variables):
 
         file_versions = [
             {
-                "file_uri": f'{config("ISLANDORA_URL").rstrip("/")}/islandora/object/{book_directory.replace("+", ":")}',
+                "file_uri": f'{config("ISLANDORA_URL").rstrip("/")}/islandora/object/{book_pid}',
                 "jsonmodel_type": "file_version",
                 "publish": True,
             },
             {
-                "file_uri": f'{config("ISLANDORA_URL").rstrip("/")}/islandora/object/{book_directory.replace("+", ":")}/datastream/TN/view',
+                "file_uri": f'{config("ISLANDORA_URL").rstrip("/")}/islandora/object/{book_pid}/datastream/TN/view',
                 "jsonmodel_type": "file_version",
                 "publish": True,
                 "xlink_show_attribute": "embed",
             },
         ]
 
-        variables["folder_data"] = distillery.get_folder_data(
-            book_directory.split("+")[-1]
-        )
+        variables["folder_data"] = distillery.get_folder_data(book_pid.split(":")[-1])
         # confirm existing or create digital_object with component_id
         variables["folder_data"] = distillery.confirm_digital_object(
             variables["folder_data"]
