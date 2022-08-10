@@ -685,6 +685,7 @@ def confirm_digital_object(folder_data):
         if "digital_object" in instance.keys():
             digital_object_ref = instance["digital_object"]["ref"]
             digital_object_count += 1
+            logger.info(f"☑️  DIGITAL OBJECT FOUND: {digital_object_ref}")
     if digital_object_count > 1:
         raise ValueError(
             f"The ArchivesSpace record for {folder_data['component_id']} contains multiple digital objects."
@@ -693,7 +694,6 @@ def confirm_digital_object(folder_data):
         # returns new folder_data with digital object info included
         folder_data = create_digital_object(folder_data)
         folder_data = confirm_digital_object(folder_data)
-    logger.info(f"☑️  DIGITAL OBJECT FOUND: {digital_object_ref}")
     return folder_data
 
 

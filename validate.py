@@ -6,6 +6,7 @@ from asnake.client import ASnakeClient
 from decouple import config
 from pathlib import Path
 
+import requests
 import s3
 
 logging.config.fileConfig(
@@ -55,9 +56,21 @@ def main():
     for archivesspace_uri in archivesspace_log:
         record = asnake_client.get(archivesspace_uri).json()
         # TODO additional jsonmodel_types
-        if record["jsonmodel_type"] == "digital_object_component":
+        if (
+            record["jsonmodel_type"] == "digital_object"
+            or record["jsonmodel_type"] == "digital_object_component"
+        ):
             for file_version in record["file_versions"]:
                 file_uri = file_version["file_uri"]
+                if file_uri.startswith("http://") or file_uri.startswith("https://"):
+                    if file_uri in islandora_log:
+                        response = requests.get(file_uri)
+                        response.raise_for_status()
+                        if response.status_code == 200:
+                            logger.info(f"✅ FOUND IN ISLANDORA: {file_uri}")
+                            islandora_log.remove(file_uri)
+                    else:
+                        logger.warning(f"‼️  NOT FOUND IN ISLANDORA_LOG: {file_uri}")
                 if file_uri.startswith("tape://"):
                     # EXAMPLE TAPE URI:
                     # tape://20220131_01/CollectionID/CollectionID-Series/CollectionID_001_05-File/CollectionID_001_05_0002/1bqp_5my7.jp2
@@ -107,6 +120,10 @@ def main():
     for s3_uri in s3_log:
         if not s3_uri.endswith(".json"):
             logger.warning(f"‼️  LOGGED S3 URI NOT FOUND IN ARCHIVESSPACE: {s3_uri}")
+    for islandora_uri in islandora_log:
+        logger.warning(
+            f"‼️  LOGGED ISLANDORA URI NOT FOUND IN ARCHIVESSPACE: {islandora_uri}"
+        )
 
 
 if __name__ == "__main__":
