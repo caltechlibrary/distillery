@@ -150,6 +150,7 @@ def main(
         # stage ISLANDORA_ACCESS_FILES on islandora_server before ingest
         variables["access_platform"].transfer_derivative_files(variables)
         variables["access_platform"].ingest_derivative_files(variables)
+        variables["access_platform"].loop_over_derivative_structure(variables)
 
     # PROCESS PRESERVATION STRUCTURE
     # create an ArchivesSpace Digital Object Component for each preservation file

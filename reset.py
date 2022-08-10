@@ -205,18 +205,20 @@ islandora_server(
 )
 print("✅ cleaned-up Islandora Batch processed sets")
 
-# # reset ArchivesSpace db
-# print("🔄 resetting ArchivesSpace database")
-# archivesspace_server = sh.ssh.bake(
-#     f"-A",  # enable agent forwarding
-#     f"-i",
-#     f"{config('ARCHIVESSPACE_SSH_KEY')}",
-#     f"{config('ARCHIVESSPACE_SSH_USER')}@{config('ARCHIVESSPACE_SSH_HOST')}",
-#     f"-p{config('ARCHIVESSPACE_SSH_PORT')}",
-# )
-# archivesspace_server(
-#     "/bin/bash",
-#     "/home/vagrant/shared/stop-load_db-start.sh",
-#     backup_file_date,
-#     _fg=True,
-# )
+# reset ArchivesSpace db
+print("🔄 resetting ArchivesSpace database")
+archivesspace_server = sh.ssh.bake(
+    f"-A",  # enable agent forwarding
+    f"-t",  # allow sudo commands
+    f"-i",
+    f"{config('ARCHIVESSPACE_SSH_KEY')}",
+    f"{config('ARCHIVESSPACE_SSH_USER')}@{config('ARCHIVESSPACE_SSH_HOST')}",
+    f"-p{config('ARCHIVESSPACE_SSH_PORT')}",
+)
+# ASSUMPTION command is like `sudo /bin/bash /path/to/script`
+archivesspace_server(
+    f'{config("ENV_ARCHIVESSPACE_RESET_CMD").split()[0]}',
+    f'{config("ENV_ARCHIVESSPACE_RESET_CMD").split()[1]}',
+    f'{config("ENV_ARCHIVESSPACE_RESET_CMD").split()[2]}',
+    _fg=True,
+)

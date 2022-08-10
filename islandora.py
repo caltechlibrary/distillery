@@ -6,21 +6,6 @@
 # patched islandora_batch module so PIDs can be specified for bookCModel objects
 # SEE https://github.com/caltechlibrary/islandora_batch/commit/9968d30e68f3a12b03a071b45ada4d20a6c6b04b
 
-# Islandora 7
-# steps:
-# - MODS XML, folder level
-# -- distillery:get_folder_arrangement()
-# -- distillery:get_folder_data()
-# - MODS XML, page level
-# -- distillery:get_folder_data()
-# - Lossy JPEG 2000 as OBJ datastream
-# - Lossy JPEG 2000 as JP2 datastream
-# - JPG
-# - TN
-# - OCR?
-# - HOCR?
-# - PDF?
-# - RELS-INT
 
 import json
 import logging
@@ -65,136 +50,6 @@ def main(
 ):
 
     logger.info("🦕 islandora")
-
-    # NOTE we have to assume that STATUS_FILES is set correctly
-    stream_path = Path(
-        f'{config("WORK_NAS_APPS_MOUNTPOINT")}/{config("NAS_STATUS_FILES_RELATIVE_PATH")}'
-    ).joinpath(f"{collection_id}-processing")
-
-    if not access:
-        message = "❌ islandora.py script was initiated without access being selected"
-        logger.error(message)
-        with open(stream_path, "a") as stream:
-            stream.write(message)
-        raise RuntimeError(message)
-
-    try:
-        (
-            WORKING_ORIGINAL_FILES,
-            COMPRESSED_ACCESS_FILES,
-        ) = validate_settings()
-    except Exception as e:
-        message = "❌ There was a problem with the settings for the processing script.\n"
-        with open(stream_path, "a") as stream:
-            stream.write(message)
-        # logger.error(message, exc_info=True)
-        raise
-
-    with open(stream_path, "a") as stream:
-        stream.write(f"📅 {datetime.now()}\n🦕 islandora processing\n🗄 {collection_id}\n")
-
-    try:
-        collection_directory = distillery.confirm_collection_directory(
-            WORKING_ORIGINAL_FILES, collection_id
-        )
-        if collection_directory:
-            with open(stream_path, "a") as stream:
-                stream.write(
-                    f"✅ Collection directory for {collection_id} found on filesystem: {collection_directory}\n"
-                )
-        # TODO report on contents of collection_directory
-    except NotADirectoryError as e:
-        message = f"❌ No valid directory for {collection_id} was found on filesystem: {os.path.join(WORKING_ORIGINAL_FILES, collection_id)}\n"
-        with open(stream_path, "a") as stream:
-            stream.write(message)
-        # logger.error(message, exc_info=True)
-        raise
-
-    try:
-        collection_data = distillery.get_collection_data(collection_id)
-        if collection_data:
-            with open(stream_path, "a") as stream:
-                stream.write(
-                    f"✅ Collection data for {collection_id} retrieved from ArchivesSpace.\n"
-                )
-        # TODO report on contents of collection_data
-    except RuntimeError as e:
-        message = (
-            f"❌ No collection data for {collection_id} retrieved from ArchivesSpace.\n"
-        )
-        with open(stream_path, "a") as stream:
-            stream.write(message)
-        # logger.error(message, exc_info=True)
-        raise
-    except HTTPError as e:
-        message = f"❌ There was a problem with the connection to ArchivesSpace.\n"
-        with open(stream_path, "a") as stream:
-            stream.write(message)
-        # logger.error(message, exc_info=True)
-        raise
-
-    folders, filecount = distillery.prepare_folder_list(collection_directory)
-    filecounter = 0
-
-    # Loop over folders list.
-    # The folders here will end up as Islandora Books.
-    # _data/HBF <-- looping over folders under here
-    # ├── HBF_000_XX
-    # ├── HBF_001_02
-    # │   ├── HBF_001_02_01.tif
-    # │   ├── HBF_001_02_02.tif
-    # │   ├── HBF_001_02_03.tif
-    # │   └── HBF_001_02_04.tif
-    # └── HBF_007_08
-    folders.sort(reverse=True)
-    for _ in range(len(folders)):
-
-        # add “book” to Islandora collection
-        book_url = f"{config('ISLANDORA_URL').rstrip('/')}/islandora/object/{collection_id}:{folder_data['component_id']}"
-
-        # update ArchivesSpace digital object
-        # NOTE: the file_uri value used below relies on a patched islandora_batch module
-        # which allows PIDs to be specified for bookCModel objects
-        # SEE https://github.com/caltechlibrary/islandora_batch/commit/9968d30e68f3a12b03a071b45ada4d20a6c6b04b
-        # 1. prepare file_versions
-        file_versions = [
-            {
-                "file_uri": book_url,
-                "jsonmodel_type": "file_version",
-                "publish": True,
-            },
-            {
-                "file_uri": f"{book_url}/datastream/TN/view",
-                "jsonmodel_type": "file_version",
-                "publish": True,
-                "xlink_show_attribute": "embed",
-            },
-        ]
-        # 1. get existing single digital object id from archival_object record
-        # - distillery.py:confirm_digital_object() will return folder_data that includes a single digital object id
-        try:
-            folder_data = distillery.confirm_digital_object(folder_data)
-        except ValueError as e:
-            raise RuntimeError(str(e))
-        # 1. check for existing file_versions data on _resolved digital_object record
-        for instance in folder_data["instances"]:
-            if "digital_object" in instance.keys():
-                if instance["digital_object"]["_resolved"]["file_versions"]:
-                    raise RuntimeError(
-                        f"⚠️ uh oh, digital_object file_versions for {folder_data['component_id']} has data: {instance['digital_object']['ref']}"
-                    )
-                else:
-                    digital_object = instance["digital_object"]["_resolved"]
-        # 1. add prepared file_versions data to digital_object record
-        digital_object["file_versions"] = file_versions
-        # 1. post updated digital_object to ArchivesSpace
-        digital_object_post_response = distillery.update_digital_object(
-            digital_object["uri"], digital_object
-        ).json()
-        with open(stream_path, "a") as stream:
-            stream.write(
-                f"✅ Updated Digital Object for {folder_data['component_id']} in ArchivesSpace. [{config('ASPACE_STAFF_URL')}/resolve/readonly?uri={digital_object_post_response['uri']}]\n"
-            )
 
 
 def collection_structure_processing(variables):
@@ -387,6 +242,55 @@ def add_books_to_islandora_collection(variables):
             validation_logger.info(
                 f'ISLANDORA: {config("ISLANDORA_URL").rstrip("/")}/islandora/object/{line.split(".")[0].split()[-1]}'
             )
+    logger.info(
+        f'☑️  ISLANDORA BATCH INGEST COMPLETE: {config("ISLANDORA_URL").rstrip("/")}/admin/reports/islandora_batch_queue/{ingest_set}'
+    )
+
+
+def loop_over_derivative_structure(variables):
+    for book_directory in f'{config("COMPRESSED_ACCESS_FILES").rstrip("/")}/books':
+        # update ArchivesSpace digital object
+
+        # NOTE: the file_uri value used below relies on a patched islandora_batch module
+        # which allows PIDs to be specified for bookCModel objects
+        # SEE https://github.com/caltechlibrary/islandora_batch/commit/9968d30e68f3a12b03a071b45ada4d20a6c6b04b
+
+        file_versions = [
+            {
+                "file_uri": f'{config("ISLANDORA_URL").rstrip("/")}/islandora/object/{book_directory.replace("+", ":")}',
+                "jsonmodel_type": "file_version",
+                "publish": True,
+            },
+            {
+                "file_uri": f'{config("ISLANDORA_URL").rstrip("/")}/islandora/object/{book_directory.replace("+", ":")}/datastream/TN/view',
+                "jsonmodel_type": "file_version",
+                "publish": True,
+                "xlink_show_attribute": "embed",
+            },
+        ]
+
+        variables["folder_data"] = distillery.get_folder_data(
+            book_directory.split("+")[-1]
+        )
+        # confirm existing or create digital_object with component_id
+        variables["folder_data"] = distillery.confirm_digital_object(
+            variables["folder_data"]
+        )
+
+        for instance in variables["folder_data"]["instances"]:
+            if "digital_object" in instance.keys():
+                if instance["digital_object"]["_resolved"]["file_versions"]:
+                    raise RuntimeError(
+                        f"⚠️ uh oh, digital_object file_versions for {variables['folder_data']['component_id']} has data: {instance['digital_object']['ref']}"
+                    )
+                else:
+                    digital_object = instance["digital_object"]["_resolved"]
+
+        digital_object["file_versions"] = file_versions
+
+        digital_object_post_response = distillery.update_digital_object(
+            digital_object["uri"], digital_object
+        ).json()
 
 
 def construct_book_mods_xml(variables):
