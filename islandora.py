@@ -163,15 +163,7 @@ def create_access_files(variables):
         ).zfill(4)
         type, encoding = mimetypes.guess_type(variables["original_image_path"])
         if type == "image/tiff":
-            (
-                hocr_path,
-                jp2_path,
-                jpg_path,
-                mods_path,
-                obj_path,
-                ocr_path,
-                tn_path,
-            ) = generate_islandora_page_datastreams(
+            datastream_paths = generate_islandora_page_datastreams(
                 variables["original_image_path"],
                 sequence,
                 config("COMPRESSED_ACCESS_FILES"),
@@ -182,7 +174,7 @@ def create_access_files(variables):
             # copy first page thumbnail to book-level thumbnail
             if sequence == "0001":
                 shutil.copyfile(
-                    tn_path,
+                    datastream_paths["tn_path"],
                     os.path.join(
                         config("COMPRESSED_ACCESS_FILES"),
                         "books",
@@ -548,21 +540,23 @@ def generate_islandora_page_datastreams(
     jpg_conversion.wait()
     distillery.write_xmp_metadata(jpg_path, xmp_dc)
 
+    datastream_paths = {"jp2_path": jp2_path, "jpg_path": jpg_path, "mods_path": mods_path, "obj_path": obj_path, "tn_path": tn_path}
+
     try:
         ocr_generation.wait(timeout=10)
-        ocr_path = os.path.join(page_datastreams_directory, "OCR.txt")
-        shutil.move("/tmp/tesseract.txt", ocr_path)
-        hocr_path = os.path.join(page_datastreams_directory, "HOCR.html")
-        shutil.move("/tmp/tesseract.hocr", hocr_path)
+        datastream_paths["ocr_path"] = os.path.join(page_datastreams_directory, "OCR.txt")
+        shutil.move("/tmp/tesseract.txt", datastream_paths["ocr_path"])
+        datastream_paths["hocr_path"] = os.path.join(page_datastreams_directory, "HOCR.html")
+        shutil.move("/tmp/tesseract.hocr", datastream_paths["hocr_path"])
     except sh.TimeoutException:
-        print(f" 🕑\t Tesseract timeout: {os.path.basename(filepath)}")
+        logger.warning(f" 🕑\t Tesseract timeout: {os.path.basename(filepath)}")
 
     os.remove("/tmp/uncompressed.tiff")
 
     logger.info(
         f"☑️  ISLANDORA PAGE DATASTREAMS GENERATED: {page_datastreams_directory}"
     )
-    return (hocr_path, jp2_path, jpg_path, mods_path, obj_path, ocr_path, tn_path)
+    return datastream_paths
 
 
 def process_folder_metadata(folderpath):
