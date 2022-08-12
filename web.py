@@ -15,8 +15,7 @@ import shutil
 from csv import DictReader
 from pathlib import Path
 
-import sh
-from time import sleep
+import tailer
 from bottle import (
     abort,
     default_app,
@@ -37,9 +36,9 @@ bottle.TEMPLATES.clear()
 logging.config.fileConfig(
     # set the logging configuration in the settings.ini file
     Path(__file__).resolve().parent.joinpath("settings.ini"),
-    disable_existing_loggers=False,
+    disable_existing_loggers=True,
 )
-logger = logging.getLogger("distillery")
+logger = logging.getLogger("web")
 
 
 @error(403)
@@ -115,23 +114,22 @@ def stream(collection_id):
     response.content_type = "text/event-stream"
     response.cache_control = "no-cache"
 
-    # TODO set tail command path in settings
-    for line in sh.tail(
-        "-f",
+    with open(
         Path(
             f'{config("WEB_NAS_APPS_MOUNTPOINT")}/{config("NAS_STATUS_FILES_RELATIVE_PATH")}'
         ).joinpath(f"{collection_id}-processing"),
-        _iter=True,
-    ):
-        # the event stream format starts with "data: " and ends with "\n\n"
-        # https://web.archive.org/web/20210701185847/https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format
-        if "🟢" in line:
-            # we send an event field targeting a specific listener without data
-            yield f"event: init\n"
-        elif "🟡" in line:
-            yield f"event: done\n"
-        else:
-            yield f"data: {line}\n\n"
+        encoding="utf-8",
+    ) as f:
+        for line in tailer.follow(f):
+            # the event stream format starts with "data: " and ends with "\n\n"
+            # https://web.archive.org/web/20210701185847/https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format
+            if line.startswith("🟢"):
+                # we send an event field targeting a specific listener without data
+                yield f"event: init\n"
+            elif line.startswith("🟡"):
+                yield f"event: done\n"
+            else:
+                yield f"data: {line}\n\n"
 
 
 def authorize_user():

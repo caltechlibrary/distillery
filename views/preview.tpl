@@ -13,7 +13,7 @@
       }
       document.addEventListener("DOMContentLoaded", function() {
         // https://web.archive.org/web/20210602172836/https://developer.mozilla.org/en-US/docs/Web/API/EventSource
-        const sse = new EventSource("distill/{{collection_id}}");
+        const sse = new EventSource("{{base_url}}/distill/{{collection_id}}");
         const eventList = document.querySelector("#log");
         sse.addEventListener("init", function(e) {
           // #cancel and #anchor are moved at first event
