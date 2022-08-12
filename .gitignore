@@ -3,11 +3,4 @@ settings.ini
 
 # DEVELOPMENT
 __pycache__
-_data
 .vscode
-
-# VIRTUAL ENVIRONMENTS
-.env
-env
-.venv
-venv
