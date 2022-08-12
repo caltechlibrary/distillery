@@ -53,9 +53,9 @@ def main(
 
 
 def collection_structure_processing(variables):
-    logger.debug("🦕 collection_structure_processing()")
+    # logger.debug("🦕 collection_structure_processing()")
     # logger.debug("\n".join(["🐞 variables.keys():", *variables.keys()]))
-    logger.debug(f"🐞 variables.keys():\n{chr(10).join(variables.keys())}")
+    # logger.debug(f"🐞 variables.keys():\n{chr(10).join(variables.keys())}")
     # Set the directory for the Islandora collection files.
     # NOTE: The parent directory name is formatted for use as a PID:
     # https://github.com/mjordan/islandora_batch_with_derivs#preserving-existing-pids-and-relationships
@@ -134,8 +134,8 @@ def collection_structure_processing(variables):
 
 
 def archival_object_level_processing(variables):
-    logger.debug("🦕 archival_object_level_processing()")
-    logger.debug("\n".join(["🐞 variables.keys():", *variables.keys()]))
+    # logger.debug("🦕 archival_object_level_processing()")
+    # logger.debug("\n".join(["🐞 variables.keys():", *variables.keys()]))
 
     # Construct the MODS XML for the book.
     book_mods_xml = construct_book_mods_xml(variables)
@@ -154,8 +154,8 @@ def archival_object_level_processing(variables):
 
 
 def create_access_files(variables):
-    logger.debug("🦕 create_access_files()")
-    logger.debug("\n".join(["🐞 variables.keys():", *variables.keys()]))
+    # logger.debug("🦕 create_access_files()")
+    # logger.debug("\n".join(["🐞 variables.keys():", *variables.keys()]))
     if variables["filepaths_count_initial"] > 1:
         # we have some kind of multi-file compound object
         sequence = str(
@@ -163,25 +163,32 @@ def create_access_files(variables):
         ).zfill(4)
         type, encoding = mimetypes.guess_type(variables["original_image_path"])
         if type == "image/tiff":
-            datastream_paths = generate_islandora_page_datastreams(
-                variables["original_image_path"],
-                sequence,
-                config("COMPRESSED_ACCESS_FILES"),
-                variables["collection_data"],
-                variables["folder_arrangement"],
-                variables["folder_data"],
-            )
-            # copy first page thumbnail to book-level thumbnail
-            if sequence == "0001":
-                shutil.copyfile(
-                    datastream_paths["tn_path"],
-                    os.path.join(
-                        config("COMPRESSED_ACCESS_FILES"),
-                        "books",
-                        f'{variables["collection_id"]}+{variables["folder_data"]["component_id"]}',
-                        "TN.jpg",
-                    ),
+            try:
+                datastream_paths = generate_islandora_page_datastreams(
+                    variables["original_image_path"],
+                    sequence,
+                    config("COMPRESSED_ACCESS_FILES"),
+                    variables["collection_data"],
+                    variables["folder_arrangement"],
+                    variables["folder_data"],
                 )
+                # copy first page thumbnail to book-level thumbnail
+                if sequence == "0001":
+                    shutil.copyfile(
+                        datastream_paths["tn_path"],
+                        os.path.join(
+                            config("COMPRESSED_ACCESS_FILES"),
+                            "books",
+                            f'{variables["collection_id"]}+{variables["folder_data"]["component_id"]}',
+                            "TN.jpg",
+                        ),
+                    )
+            except sh.ErrorReturnCode as e:
+                logger.warning(
+                    f'⚠️  DATASTREAM GENERATION FAILED: {Path(variables["original_image_path"]).name}'
+                )
+                logger.debug(f"🐞 EXCEPTION:\n{str(e)}")
+                return
         else:
             logger.debug(f"🐞 MIMETYPE NOT ACCOUNTED FOR: {type}")
     else:
@@ -540,13 +547,23 @@ def generate_islandora_page_datastreams(
     jpg_conversion.wait()
     distillery.write_xmp_metadata(jpg_path, xmp_dc)
 
-    datastream_paths = {"jp2_path": jp2_path, "jpg_path": jpg_path, "mods_path": mods_path, "obj_path": obj_path, "tn_path": tn_path}
+    datastream_paths = {
+        "jp2_path": jp2_path,
+        "jpg_path": jpg_path,
+        "mods_path": mods_path,
+        "obj_path": obj_path,
+        "tn_path": tn_path,
+    }
 
     try:
         ocr_generation.wait(timeout=10)
-        datastream_paths["ocr_path"] = os.path.join(page_datastreams_directory, "OCR.txt")
+        datastream_paths["ocr_path"] = os.path.join(
+            page_datastreams_directory, "OCR.txt"
+        )
         shutil.move("/tmp/tesseract.txt", datastream_paths["ocr_path"])
-        datastream_paths["hocr_path"] = os.path.join(page_datastreams_directory, "HOCR.html")
+        datastream_paths["hocr_path"] = os.path.join(
+            page_datastreams_directory, "HOCR.html"
+        )
         shutil.move("/tmp/tesseract.hocr", datastream_paths["hocr_path"])
     except sh.TimeoutException:
         logger.warning(f" 🕑\t Tesseract timeout: {os.path.basename(filepath)}")
