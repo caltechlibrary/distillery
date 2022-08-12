@@ -33,6 +33,8 @@ logger = logging.getLogger("islandora")
 validation_logger = logging.getLogger("validation")
 
 islandora_server = sh.ssh.bake(
+    f"-i",
+    f"{config('ISLANDORA_SSH_KEY')}",
     f"{config('ISLANDORA_SSH_USER')}@{config('ISLANDORA_SSH_HOST')}",
     f"-p{config('ISLANDORA_SSH_PORT')}",
 )
@@ -633,7 +635,7 @@ def upload_to_islandora_server(source_directory, variables):
     rsync_cmd(
         "-az",
         "-e",
-        f"ssh -p{config('ISLANDORA_SSH_PORT')}",
+        f"ssh -i {config('ISLANDORA_SSH_KEY')} -p{config('ISLANDORA_SSH_PORT')}",
         source_directory,
         f'{config("ISLANDORA_SSH_USER")}@{config("ISLANDORA_SSH_HOST")}:{variables["islandora_staging_files"]}',
     )
