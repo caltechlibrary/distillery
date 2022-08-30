@@ -50,3 +50,7 @@ For copying to the cloud we are using and assuming AWS S3. For publishing access
 1. Copy the `example-settings.ini` file to `settings.ini` and set appropriate values.
     - most values need to be set
 1. Set up a cron job to run `alchemist.py` every minute.
+
+## [`oralhistories.py`](caltechlibrary/distillery/blob/main/oralhistories.py)
+
+Used for converting initial transcripts of oral history interviews Microsoft Word to Markdown with a table of contents. It also will commit and push the markdown file to GitHub.
