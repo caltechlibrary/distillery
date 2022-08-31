@@ -53,4 +53,4 @@ For copying to the cloud we are using and assuming AWS S3. For publishing access
 
 ## [`oralhistories.py`](caltechlibrary/distillery/blob/main/oralhistories.py)
 
-Used for converting initial transcripts of oral history interviews Microsoft Word to Markdown with a table of contents. It also will commit and push the markdown file to GitHub.
+Used for converting an initial transcript of an oral history interview from Microsoft Word to Markdown with a table of contents. A YAML metadata block is included at the top of the markdown file populated with keys and values from the corresponding ArchivesSpace record. The script also pushes the markdown file to GitHub.

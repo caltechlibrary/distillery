@@ -644,6 +644,12 @@ def distill(
     # logging.info(f"🥃 finished distilling in {datetime.now() - time_start}\n")
 
 
+def archivessnake_get(uri):
+    response = asnake_client.get(uri)
+    response.raise_for_status()
+    return response
+
+
 def archivessnake_post(uri, object):
     response = asnake_client.post(uri, json=object)
     response.raise_for_status()
