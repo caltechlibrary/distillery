@@ -13,7 +13,9 @@ import distillery
 
 logging.config.fileConfig(
     # set the logging configuration in the settings.ini file
-    Path(__file__).resolve().parent.joinpath("settings.ini"),
+    Path(__file__)
+    .resolve()
+    .parent.joinpath("settings.ini"),
 )
 logger = logging.getLogger("oralhistories")
 
@@ -29,7 +31,7 @@ def main(
         convert_word_to_markdown(docxfile, repodir)
         push_markdown_file(component_id, repodir)
         # cleanup
-        # shutil.rmtree(repodir)
+        shutil.rmtree(repodir)
 
 
 def clone_git_repository():
@@ -42,12 +44,14 @@ def clone_git_repository():
         "1",
         repodir,
     )
+    logger.info(f"☑️  GIT REPOSITORY CLONED TO TEMPORARY DIRECTORY: {repodir}")
     return repodir
 
 
 def get_component_id_from_filename(filepath):
     # TODO account for _closed versions
     component_id = Path(filepath).stem
+    logger.info(f"☑️  COMPONENT_ID EXTRACTED FROM FILENAME: {component_id}")
     return component_id
 
 
@@ -116,6 +120,9 @@ def create_metadata_file(component_id, repodir):
         f'--output={Path(repodir).joinpath(component_id, "metadata.txt")}',
         Path(repodir).joinpath(component_id, "touch.txt"),
     )
+    logger.info(
+        f'☑️  METADATA HEADER CONSTRUCTED: {Path(repodir).joinpath(component_id, "metadata.txt")}'
+    )
 
 
 def convert_word_to_markdown(docxfile, repodir):
@@ -128,6 +135,9 @@ def convert_word_to_markdown(docxfile, repodir):
         f'--output={Path(repodir).joinpath(component_id, "docx.md")}',
         docxfile,
     )
+    logger.info(
+        f'☑️  WORD FILE CONVERTED TO MARKDOWN: {Path(repodir).joinpath(component_id, "docx.md")}'
+    )
     # NOTE we concatenate the interstitial metadata and transcript
     with open(
         f'{Path(repodir).joinpath(component_id, f"{component_id}.md")}', "w"
@@ -139,6 +149,9 @@ def convert_word_to_markdown(docxfile, repodir):
             outfile.write("\n")
         with open(Path(repodir).joinpath(component_id, "docx.md"), "r") as markdown:
             shutil.copyfileobj(markdown, outfile)
+    logger.info(
+        f'☑️  METADATA & TRANSCRIPT CONCATENATED: {Path(repodir).joinpath(component_id, f"{component_id}.md")}'
+    )
 
 
 def push_markdown_file(component_id, repodir):
@@ -161,6 +174,11 @@ def push_markdown_file(component_id, repodir):
             "-C", repodir, "commit", "-m", f"add {component_id}.md converted from docx"
         )
         git_cmd("-C", repodir, "push", "origin", "main")
+        logger.info(
+            f'☑️  TRANSCRIPT PUSHED TO GITHUB: https://github.com/{config("OH_REPO")}/blob/main/{component_id}/{component_id}.md'
+        )
+    else:
+        logger.warning(f"⚠️  NO TRANSCRIPT CHANGES DETECTED: {component_id}.md")
 
 
 if __name__ == "__main__":
