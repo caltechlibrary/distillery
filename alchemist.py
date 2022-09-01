@@ -7,10 +7,11 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
+
 from datetime import datetime
 from glob import glob
 from pathlib import Path
-from time import sleep
 
 from decouple import config, UndefinedValueError
 
@@ -25,7 +26,11 @@ logging.config.fileConfig(
 logger = logging.getLogger("alchemist")
 
 # the main loop which checks for files in the STATUS_FILES directory
-# NOTE: preview and process files are created in web.py
+# NOTE: files are created in web.py with names like
+# - CollectionID-preview-cloud_onsite_access
+# - AnotherID-process-onsite
+# - NameID-OH-1999.docx (Oral Histories IDs happen to fit the *-*-* scheme)
+# TODO confirm Oral Histories ID scheme and/or make glob more robust
 for f in glob(
     os.path.join(
         f'{config("WORK_NAS_APPS_MOUNTPOINT")}/{config("NAS_STATUS_FILES_RELATIVE_PATH")}',
@@ -39,6 +44,42 @@ for f in glob(
     # logger.critical("🆘")
 
     logger.info(f"⚗️  FILE DETECTED: {f}")
+
+    if Path(f).suffix in [".docx"]:
+        # move the file to stop future initiation with the same file
+        docxfile = shutil.move(f, tempfile.mkdtemp())
+        logger.info(f"➡️  FILE MOVED: {docxfile}")
+        try:
+            command = [
+                sys.executable,
+                str(Path(__file__).parent.resolve().joinpath("oralhistories.py")),
+                "--docxfile",
+                docxfile,
+            ]
+            logger.info(f'🚰 RUNNING COMMAND: {" ".join(command)}')
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                check=True,
+            )
+        except subprocess.CalledProcessError as e:
+            # If check is true, and the process exits with a non-zero exit code,
+            # a CalledProcessError exception will be raised. Attributes of that
+            # exception hold the arguments, the exit code, and stdout and stderr
+            # if they were captured.
+            logger.error(f"❌ {e}")
+            logger.error(f"❌ {e.returncode}")
+            logger.error(f"❌ {e.cmd}")
+            logger.error(f"❌ {e.output}")
+            logger.error(f"❌ {e.stdout}")
+            logger.error(f"❌ {e.stderr}")
+            raise
+        except BaseException as e:
+            logger.error(f"❌ {e}")
+            raise
+        # cleanup
+        os.remove(str(Path(docxfile).parent))
+        continue
 
     # NOTE using rsplit() in case collection_id contains a - (hyphen)
     collection_id = os.path.basename(f).rsplit("-", 2)[0]
