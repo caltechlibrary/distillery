@@ -134,24 +134,24 @@ def stream(collection_id):
 
 @route("/oralhistories")
 def oralhistories_form():
-    return """
-        <form action="/oralhistories" method="post" enctype="multipart/form-data">
-        <p><label for="file">Select a <b>docx</b> file to upload:</label></p>
-        <p><input type="file" name="upload"></p>
-        <p><input type="submit" value="Submit"></p>
-        </form>
-    """
+    return (
+        f'<form action="{config("BASE_URL").rstrip("/")}/oralhistories" method="post" enctype="multipart/form-data">'
+        f'<p><label for="file">Select a <b>docx</b> file to upload:</label></p>'
+        f'<p><input type="file" name="upload"></p>'
+        f'<p><input type="submit" value="Submit"></p>'
+        f'</form>'
+    )
 
 
 @route("/oralhistories", method="POST")
 def oralhistories_upload():
     upload = request.files.get("upload")
     if Path(upload.filename).suffix not in [".docx"]:
-        return '<p>Only <b>docx</b> files are allowed at this time.</p><p><a href="/oralhistories">Go back to the form.</a></p>'
+        return f'<p>Only <b>docx</b> files are allowed at this time.</p><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
     # save the file for alchemist.py to find
     # TODO avoid nasty Error: 500 by checking for existing file
     upload.save(config("WEB_STATUS_FILES"))  # appends upload.filename automatically
-    return '<h1>OK</h1><p><a href="/oralhistories">Go back to the form.</a></p>'
+    return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
 
 
 def authorize_user():
