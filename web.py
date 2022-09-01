@@ -132,26 +132,25 @@ def stream(collection_id):
                 yield f"data: {line}\n\n"
 
 
-@route('/oralhistories')
+@route("/oralhistories")
 def oralhistories_form():
-    return '''
+    return """
         <form action="/oralhistories" method="post" enctype="multipart/form-data">
         <p><label for="file">Select a <b>docx</b> file to upload:</label></p>
         <p><input type="file" name="upload"></p>
         <p><input type="submit" value="Submit"></p>
         </form>
-    '''
+    """
 
 
-@route('/oralhistories', method='POST')
+@route("/oralhistories", method="POST")
 def oralhistories_upload():
-    upload     = request.files.get('upload')
-    name, ext = os.path.splitext(upload.filename)
-    if ext not in ('.docx'):
+    upload = request.files.get("upload")
+    if Path(upload.filename).suffix not in [".docx"]:
         return '<p>Only <b>docx</b> files are allowed at this time.</p><p><a href="/oralhistories">Go back to the form.</a></p>'
     # save the file for alchemist.py to find
     # TODO avoid nasty Error: 500 by checking for existing file
-    upload.save(config("WEB_STATUS_FILES")) # appends upload.filename automatically
+    upload.save(config("WEB_STATUS_FILES"))  # appends upload.filename automatically
     return '<h1>OK</h1><p><a href="/oralhistories">Go back to the form.</a></p>'
 
 
