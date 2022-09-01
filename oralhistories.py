@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import sh
 import shutil
@@ -9,6 +10,12 @@ from pathlib import Path
 from decouple import config  # pypi: python-decouple
 
 import distillery
+
+logging.config.fileConfig(
+    # set the logging configuration in the settings.ini file
+    Path(__file__).resolve().parent.joinpath("settings.ini"),
+)
+logger = logging.getLogger("oralhistories")
 
 
 def main(
@@ -22,7 +29,7 @@ def main(
         convert_word_to_markdown(docxfile, repodir)
         push_markdown_file(component_id, repodir)
         # cleanup
-        shutil.rmtree(repodir)
+        # shutil.rmtree(repodir)
 
 
 def clone_git_repository():
