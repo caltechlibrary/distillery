@@ -25,10 +25,9 @@ def main(
 
 
 def clone_git_repository():
-    if not shutil.which("git"):
-        raise RuntimeError("git executable not found")
     repodir = tempfile.mkdtemp()
-    sh.git(
+    git_cmd = sh.Command(config("WORK_GIT_CMD"))
+    git_cmd(
         "clone",
         f'git@github.com:{config("OH_REPO")}.git',
         "--depth",
@@ -104,9 +103,8 @@ def create_metadata_file(component_id, repodir):
         pathlib.Path(repodir).joinpath(component_id, f"{component_id}.json"), "w"
     ) as f:
         f.write(json.dumps(metadata))
-    if not shutil.which("pandoc"):
-        raise RuntimeError("pandoc executable not found")
-    sh.pandoc(
+    pandoc_cmd = sh.Command(config("WORK_PANDOC_CMD"))
+    pandoc_cmd(
         f'--metadata-file={pathlib.Path(repodir).joinpath(component_id, f"{component_id}.json")}',
         f'--template={pathlib.Path(repodir).joinpath(component_id, "metadata.tpl")}',
         f'--output={pathlib.Path(repodir).joinpath(component_id, "metadata.txt")}',
@@ -117,7 +115,8 @@ def create_metadata_file(component_id, repodir):
 def convert_word_to_markdown(docxfile, repodir):
     component_id = get_component_id_from_filename(docxfile)
     # TODO account for _closed versions
-    sh.pandoc(
+    pandoc_cmd = sh.Command(config("WORK_PANDOC_CMD"))
+    pandoc_cmd(
         "--standalone",
         "--table-of-contents",
         f'--output={pathlib.Path(repodir).joinpath(component_id, "docx.md")}',
@@ -139,15 +138,14 @@ def convert_word_to_markdown(docxfile, repodir):
 
 
 def push_markdown_file(component_id, repodir):
-    if not shutil.which("git"):
-        raise RuntimeError("git executable not found")
-    sh.git(
+    git_cmd = sh.Command(config("WORK_GIT_CMD"))
+    git_cmd(
         "-C",
         repodir,
         "add",
         pathlib.Path(repodir).joinpath(component_id, f"{component_id}.md"),
     )
-    diff = sh.git(
+    diff = git_cmd(
         "-C",
         repodir,
         "diff-index",
@@ -155,10 +153,10 @@ def push_markdown_file(component_id, repodir):
         "--",
     )
     if diff:
-        sh.git(
+        git_cmd(
             "-C", repodir, "commit", "-m", f"add {component_id}.md converted from docx"
         )
-        sh.git("-C", repodir, "push", "origin", "main")
+        git_cmd("-C", repodir, "push", "origin", "main")
 
 
 if __name__ == "__main__":
