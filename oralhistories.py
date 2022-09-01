@@ -141,19 +141,20 @@ def convert_word_to_markdown(docxfile, repodir):
 def push_markdown_file(component_id, repodir):
     if not shutil.which("git"):
         raise RuntimeError("git executable not found")
+    sh.git(
+        "-C",
+        repodir,
+        "add",
+        pathlib.Path(repodir).joinpath(component_id, f"{component_id}.md"),
+    )
     diff = sh.git(
         "-C",
         repodir,
-        "diff",
-        _tty_out=False,  # get true empty output when there are no changes
+        "diff-index",
+        "HEAD",
+        "--",
     )
     if diff:
-        sh.git(
-            "-C",
-            repodir,
-            "add",
-            pathlib.Path(repodir).joinpath(component_id, f"{component_id}.md"),
-        )
         sh.git(
             "-C", repodir, "commit", "-m", f"add {component_id}.md converted from docx"
         )
