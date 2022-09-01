@@ -40,7 +40,7 @@ def clone_git_repository():
     # use a specific ssh identity_file when cloning this repository
     ssh_i=f'ssh -i {config("OH_REPO_SSH_KEY")}'
     git_cmd(
-        f"-c core.sshCommand={ssh_i}",
+        f"-c core.sshCommand=\'{ssh_i}\'",
         "clone",
         f'git@github.com:{config("OH_REPO")}.git',
         "--depth",
