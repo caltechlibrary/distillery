@@ -78,7 +78,7 @@ for f in glob(
             logger.error(f"❌ {e}")
             raise
         # cleanup
-        os.remove(str(Path(docxfile).parent))
+        shutil.rmtree(str(Path(docxfile).parent))
         continue
 
     # NOTE using rsplit() in case collection_id contains a - (hyphen)
