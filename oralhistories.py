@@ -38,9 +38,11 @@ def clone_git_repository():
     repodir = tempfile.mkdtemp()
     git_cmd = sh.Command(config("WORK_GIT_CMD"))
     # use a specific ssh identity_file when cloning this repository
-    ssh_i=f'ssh -i {config("OH_REPO_SSH_KEY")}'
+    ssh_i = f'ssh -i {config("OH_REPO_SSH_KEY")}'
+    core_ssh_command = f"core.sshCommand=\'{ssh_i}\'"
     git_cmd(
-        f"-c core.sshCommand=\'{ssh_i}\'",
+        "-c",
+        core_ssh_command,
         "clone",
         f'git@github.com:{config("OH_REPO")}.git',
         "--depth",
