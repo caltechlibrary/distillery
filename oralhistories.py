@@ -1,9 +1,10 @@
 import json
 import os
-import pathlib
 import sh
 import shutil
 import tempfile
+
+from pathlib import Path
 
 from decouple import config  # pypi: python-decouple
 
@@ -16,7 +17,7 @@ def main(
     if docxfile:
         repodir = clone_git_repository()
         component_id = get_component_id_from_filename(docxfile)
-        os.makedirs(pathlib.Path(repodir).joinpath(component_id), exist_ok=True)
+        os.makedirs(Path(repodir).joinpath(component_id), exist_ok=True)
         create_metadata_file(component_id, repodir)
         convert_word_to_markdown(docxfile, repodir)
         push_markdown_file(component_id, repodir)
@@ -39,7 +40,7 @@ def clone_git_repository():
 
 def get_component_id_from_filename(filepath):
     # TODO account for _closed versions
-    component_id = pathlib.Path(filepath).stem
+    component_id = Path(filepath).stem
     return component_id
 
 
@@ -47,7 +48,7 @@ def create_metadata_file(component_id, repodir):
     # NOTE we are creating an interstitial text file containing the YAML
     # metadata block for the final markdown file so we can control the
     # order of the metadata fields
-    pathlib.Path(repodir).joinpath(component_id, "touch.txt").touch()
+    Path(repodir).joinpath(component_id, "touch.txt").touch()
     metadata_template = (
         "---"
         "\n"
@@ -69,7 +70,7 @@ def create_metadata_file(component_id, repodir):
         "---"
         "\n"
     )
-    with open(pathlib.Path(repodir).joinpath(component_id, "metadata.tpl"), "w") as f:
+    with open(Path(repodir).joinpath(component_id, "metadata.tpl"), "w") as f:
         f.write(metadata_template)
     archival_object = distillery.get_folder_data(component_id)
     metadata = {"title": archival_object["title"]}
@@ -99,16 +100,14 @@ def create_metadata_file(component_id, repodir):
             if note["type"] == "abstract":
                 # NOTE only using the first abstract content field
                 metadata["abstract"] = note["content"][0]
-    with open(
-        pathlib.Path(repodir).joinpath(component_id, f"{component_id}.json"), "w"
-    ) as f:
+    with open(Path(repodir).joinpath(component_id, f"{component_id}.json"), "w") as f:
         f.write(json.dumps(metadata))
     pandoc_cmd = sh.Command(config("WORK_PANDOC_CMD"))
     pandoc_cmd(
-        f'--metadata-file={pathlib.Path(repodir).joinpath(component_id, f"{component_id}.json")}',
-        f'--template={pathlib.Path(repodir).joinpath(component_id, "metadata.tpl")}',
-        f'--output={pathlib.Path(repodir).joinpath(component_id, "metadata.txt")}',
-        pathlib.Path(repodir).joinpath(component_id, "touch.txt"),
+        f'--metadata-file={Path(repodir).joinpath(component_id, f"{component_id}.json")}',
+        f'--template={Path(repodir).joinpath(component_id, "metadata.tpl")}',
+        f'--output={Path(repodir).joinpath(component_id, "metadata.txt")}',
+        Path(repodir).joinpath(component_id, "touch.txt"),
     )
 
 
@@ -119,21 +118,19 @@ def convert_word_to_markdown(docxfile, repodir):
     pandoc_cmd(
         "--standalone",
         "--table-of-contents",
-        f'--output={pathlib.Path(repodir).joinpath(component_id, "docx.md")}',
+        f'--output={Path(repodir).joinpath(component_id, "docx.md")}',
         docxfile,
     )
     # NOTE we concatenate the interstitial metadata and transcript
     with open(
-        f'{pathlib.Path(repodir).joinpath(component_id, f"{component_id}.md")}', "w"
+        f'{Path(repodir).joinpath(component_id, f"{component_id}.md")}', "w"
     ) as outfile:
         with open(
-            pathlib.Path(repodir).joinpath(component_id, "metadata.txt"), "r"
+            Path(repodir).joinpath(component_id, "metadata.txt"), "r"
         ) as metadata:
             shutil.copyfileobj(metadata, outfile)
             outfile.write("\n")
-        with open(
-            pathlib.Path(repodir).joinpath(component_id, "docx.md"), "r"
-        ) as markdown:
+        with open(Path(repodir).joinpath(component_id, "docx.md"), "r") as markdown:
             shutil.copyfileobj(markdown, outfile)
 
 
@@ -143,7 +140,7 @@ def push_markdown_file(component_id, repodir):
         "-C",
         repodir,
         "add",
-        pathlib.Path(repodir).joinpath(component_id, f"{component_id}.md"),
+        Path(repodir).joinpath(component_id, f"{component_id}.md"),
     )
     diff = git_cmd(
         "-C",
