@@ -33,7 +33,7 @@ logger = logging.getLogger("alchemist")
 # TODO confirm Oral Histories ID scheme and/or make glob more robust
 for f in glob(
     os.path.join(
-        f'{config("WORK_NAS_APPS_MOUNTPOINT")}/{config("NAS_STATUS_FILES_RELATIVE_PATH")}',
+        f'{config("WORK_STATUS_FILES")}',
         "*-*-*",
     )
 ):
