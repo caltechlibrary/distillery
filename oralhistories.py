@@ -81,7 +81,7 @@ def create_metadata_file(transcript_dir):
         "$endfor$"
         "$endif$"
         "$if(abstract)$"
-        "abstract: |"
+        "abstract: |\n"
         "$abstract$"
         "$endif$"
         "\n"
