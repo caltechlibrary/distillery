@@ -26,9 +26,10 @@ def main(
     if docxfile:
         repodir = clone_git_repository()
         component_id = get_component_id_from_filename(docxfile)
-        os.makedirs(Path(repodir).joinpath(component_id), exist_ok=True)
-        create_metadata_file(component_id, repodir)
-        convert_word_to_markdown(docxfile, repodir)
+        transcript_dir = Path(repodir).joinpath("transcripts", component_id)
+        os.makedirs(transcript_dir, exist_ok=True)
+        create_metadata_file(component_id, transcript_dir)
+        convert_word_to_markdown(docxfile, transcript_dir)
         push_markdown_file(component_id, repodir)
         # cleanup
         shutil.rmtree(repodir)
@@ -65,11 +66,11 @@ def get_component_id_from_filename(filepath):
     return component_id
 
 
-def create_metadata_file(component_id, repodir):
+def create_metadata_file(component_id, transcript_dir):
     # NOTE we are creating an interstitial text file containing the YAML
     # metadata block for the final markdown file so we can control the
     # order of the metadata fields
-    Path(repodir).joinpath(component_id, "touch.txt").touch()
+    transcript_dir.joinpath("touch.txt").touch()
     metadata_template = (
         "---"
         "\n"
@@ -91,7 +92,7 @@ def create_metadata_file(component_id, repodir):
         "---"
         "\n"
     )
-    with open(Path(repodir).joinpath(component_id, "metadata.tpl"), "w") as f:
+    with open(transcript_dir.joinpath("metadata.tpl"), "w") as f:
         f.write(metadata_template)
     archival_object = distillery.get_folder_data(component_id)
     metadata = {"title": archival_object["title"]}
@@ -121,46 +122,46 @@ def create_metadata_file(component_id, repodir):
             if note["type"] == "abstract":
                 # NOTE only using the first abstract content field
                 metadata["abstract"] = note["content"][0]
-    with open(Path(repodir).joinpath(component_id, f"{component_id}.json"), "w") as f:
+    with open(transcript_dir.joinpath(f"{component_id}.json"), "w") as f:
         f.write(json.dumps(metadata))
     pandoc_cmd = sh.Command(config("WORK_PANDOC_CMD"))
     pandoc_cmd(
-        f'--metadata-file={Path(repodir).joinpath(component_id, f"{component_id}.json")}',
-        f'--template={Path(repodir).joinpath(component_id, "metadata.tpl")}',
-        f'--output={Path(repodir).joinpath(component_id, "metadata.txt")}',
-        Path(repodir).joinpath(component_id, "touch.txt"),
+        f'--metadata-file={transcript_dir.joinpath(f"{component_id}.json")}',
+        f'--template={transcript_dir.joinpath("metadata.tpl")}',
+        f'--output={transcript_dir.joinpath("metadata.txt")}',
+        transcript_dir.joinpath("touch.txt"),
     )
     logger.info(
-        f'☑️  METADATA HEADER CONSTRUCTED: {Path(repodir).joinpath(component_id, "metadata.txt")}'
+        f'☑️  METADATA HEADER CONSTRUCTED: {transcript_dir.joinpath("metadata.txt")}'
     )
 
 
-def convert_word_to_markdown(docxfile, repodir):
+def convert_word_to_markdown(docxfile, transcript_dir):
     component_id = get_component_id_from_filename(docxfile)
     # TODO account for _closed versions
     pandoc_cmd = sh.Command(config("WORK_PANDOC_CMD"))
     pandoc_cmd(
         "--standalone",
         "--table-of-contents",
-        f'--output={Path(repodir).joinpath(component_id, "docx.md")}',
+        f'--output={transcript_dir.joinpath("docx.md")}',
         docxfile,
     )
     logger.info(
-        f'☑️  WORD FILE CONVERTED TO MARKDOWN: {Path(repodir).joinpath(component_id, "docx.md")}'
+        f'☑️  WORD FILE CONVERTED TO MARKDOWN: {transcript_dir.joinpath("docx.md")}'
     )
     # NOTE we concatenate the interstitial metadata and transcript
     with open(
-        f'{Path(repodir).joinpath(component_id, f"{component_id}.md")}', "w"
+        f'{transcript_dir.joinpath(f"{component_id}.md")}', "w"
     ) as outfile:
         with open(
-            Path(repodir).joinpath(component_id, "metadata.txt"), "r"
+            transcript_dir.joinpath("metadata.txt"), "r"
         ) as metadata:
             shutil.copyfileobj(metadata, outfile)
             outfile.write("\n")
-        with open(Path(repodir).joinpath(component_id, "docx.md"), "r") as markdown:
+        with open(transcript_dir.joinpath("docx.md"), "r") as markdown:
             shutil.copyfileobj(markdown, outfile)
     logger.info(
-        f'☑️  METADATA & TRANSCRIPT CONCATENATED: {Path(repodir).joinpath(component_id, f"{component_id}.md")}'
+        f'☑️  METADATA & TRANSCRIPT CONCATENATED: {transcript_dir.joinpath(f"{component_id}.md")}'
     )
 
 
