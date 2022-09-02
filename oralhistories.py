@@ -25,12 +25,11 @@ def main(
 ):
     if docxfile:
         repodir = clone_git_repository()
-        component_id = get_component_id_from_filename(docxfile)
-        transcript_dir = Path(repodir).joinpath("transcripts", component_id)
+        transcript_dir = Path(repodir).joinpath("transcripts", Path(docxfile).stem)
         os.makedirs(transcript_dir, exist_ok=True)
-        create_metadata_file(component_id, transcript_dir)
+        create_metadata_file(transcript_dir)
         convert_word_to_markdown(docxfile, transcript_dir)
-        push_markdown_file(component_id, repodir)
+        push_markdown_file(transcript_dir)
         # cleanup
         shutil.rmtree(repodir)
 
@@ -59,18 +58,12 @@ def clone_git_repository():
     return repodir
 
 
-def get_component_id_from_filename(filepath):
-    # TODO account for _closed versions
-    component_id = Path(filepath).stem
-    logger.info(f"☑️  COMPONENT_ID EXTRACTED FROM FILENAME: {component_id}")
-    return component_id
-
-
-def create_metadata_file(component_id, transcript_dir):
+def create_metadata_file(transcript_dir):
     # NOTE we are creating an interstitial text file containing the YAML
     # metadata block for the final markdown file so we can control the
     # order of the metadata fields
-    transcript_dir.joinpath("touch.txt").touch()
+    empty_file = transcript_dir.joinpath("empty.txt")
+    empty_file.touch()
     metadata_template = (
         "---"
         "\n"
@@ -94,7 +87,7 @@ def create_metadata_file(component_id, transcript_dir):
     )
     with open(transcript_dir.joinpath("metadata.tpl"), "w") as f:
         f.write(metadata_template)
-    archival_object = distillery.get_folder_data(component_id)
+    archival_object = distillery.get_folder_data(transcript_dir.stem)
     metadata = {"title": archival_object["title"]}
     if archival_object.get("dates"):
         metadata["dates"] = []
@@ -122,14 +115,14 @@ def create_metadata_file(component_id, transcript_dir):
             if note["type"] == "abstract":
                 # NOTE only using the first abstract content field
                 metadata["abstract"] = note["content"][0]
-    with open(transcript_dir.joinpath(f"{component_id}.json"), "w") as f:
+    with open(transcript_dir.joinpath("metadata.json"), "w") as f:
         f.write(json.dumps(metadata))
     pandoc_cmd = sh.Command(config("WORK_PANDOC_CMD"))
     pandoc_cmd(
-        f'--metadata-file={transcript_dir.joinpath(f"{component_id}.json")}',
+        f'--metadata-file={transcript_dir.joinpath("metadata.json")}',
         f'--template={transcript_dir.joinpath("metadata.tpl")}',
         f'--output={transcript_dir.joinpath("metadata.txt")}',
-        transcript_dir.joinpath("touch.txt"),
+        empty_file,
     )
     logger.info(
         f'☑️  METADATA HEADER CONSTRUCTED: {transcript_dir.joinpath("metadata.txt")}'
@@ -137,7 +130,6 @@ def create_metadata_file(component_id, transcript_dir):
 
 
 def convert_word_to_markdown(docxfile, transcript_dir):
-    component_id = get_component_id_from_filename(docxfile)
     # TODO account for _closed versions
     pandoc_cmd = sh.Command(config("WORK_PANDOC_CMD"))
     pandoc_cmd(
@@ -151,45 +143,47 @@ def convert_word_to_markdown(docxfile, transcript_dir):
     )
     # NOTE we concatenate the interstitial metadata and transcript
     with open(
-        f'{transcript_dir.joinpath(f"{component_id}.md")}', "w"
+        f'{transcript_dir.joinpath(f"{transcript_dir.stem}.md")}', "w"
     ) as outfile:
-        with open(
-            transcript_dir.joinpath("metadata.txt"), "r"
-        ) as metadata:
+        with open(transcript_dir.joinpath("metadata.txt"), "r") as metadata:
             shutil.copyfileobj(metadata, outfile)
             outfile.write("\n")
         with open(transcript_dir.joinpath("docx.md"), "r") as markdown:
             shutil.copyfileobj(markdown, outfile)
     logger.info(
-        f'☑️  METADATA & TRANSCRIPT CONCATENATED: {transcript_dir.joinpath(f"{component_id}.md")}'
+        f'☑️  METADATA & TRANSCRIPT CONCATENATED: {transcript_dir.joinpath(f"{transcript_dir.stem}.md")}'
     )
 
 
-def push_markdown_file(component_id, repodir):
+def push_markdown_file(transcript_dir):
     git_cmd = sh.Command(config("WORK_GIT_CMD"))
     git_cmd(
         "-C",
-        repodir,
+        transcript_dir.parent.parent,
         "add",
-        Path(repodir).joinpath(component_id, f"{component_id}.md"),
+        transcript_dir.joinpath(f"{transcript_dir.stem}.md"),
     )
     diff = git_cmd(
         "-C",
-        repodir,
+        transcript_dir.parent.parent,
         "diff-index",
         "HEAD",
         "--",
     )
     if diff:
         git_cmd(
-            "-C", repodir, "commit", "-m", f"add {component_id}.md converted from docx"
+            "-C",
+            transcript_dir.parent.parent,
+            "commit",
+            "-m",
+            f"add {transcript_dir.stem}.md converted from docx",
         )
-        git_cmd("-C", repodir, "push", "origin", "main")
+        git_cmd("-C", transcript_dir.parent.parent, "push", "origin", "main")
         logger.info(
-            f'☑️  TRANSCRIPT PUSHED TO GITHUB: https://github.com/{config("OH_REPO")}/blob/main/{component_id}/{component_id}.md'
+            f'☑️  TRANSCRIPT PUSHED TO GITHUB: https://github.com/{config("OH_REPO")}/blob/main/{transcript_dir.stem}/{transcript_dir.stem}.md'
         )
     else:
-        logger.warning(f"⚠️  NO TRANSCRIPT CHANGES DETECTED: {component_id}.md")
+        logger.warning(f"⚠️  NO TRANSCRIPT CHANGES DETECTED: {transcript_dir.stem}.md")
 
 
 if __name__ == "__main__":
