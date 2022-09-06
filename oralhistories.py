@@ -100,7 +100,7 @@ def convert_word_to_markdown(docxfile, transcript_dir):
     pandoc_cmd(
         "--standalone",
         "--table-of-contents",
-        f'--metadata-file={transcript_dir.joinpath("metadata.json")}'
+        f'--metadata-file={transcript_dir.joinpath("metadata.json")}',
         f'--output={transcript_dir.joinpath(f"{transcript_dir.stem}.md")}',
         docxfile,
     )
