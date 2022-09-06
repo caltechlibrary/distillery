@@ -59,34 +59,6 @@ def clone_git_repository():
 
 
 def create_metadata_file(transcript_dir):
-    # NOTE we are creating an interstitial text file containing the YAML
-    # metadata block for the final markdown file so we can control the
-    # order of the metadata fields
-    empty_file = transcript_dir.joinpath("empty.txt")
-    empty_file.touch()
-    metadata_template = (
-        "---"
-        "\n"
-        "$if(title)$title: $title$$endif$"
-        "\n"
-        "$if(interviewee)$interviewee: $interviewee$$endif$"
-        "\n"
-        "$if(interviewer)$interviewer: $interviewer$$endif$"
-        "\n"
-        "$if(dates)$dates:"
-        "\n"
-        "$for(dates)$"
-        "  - $dates$"
-        "\n"
-        "$endfor$"
-        "$endif$"
-        "$if(abstract)$abstract: $^$$abstract$$endif$"
-        "\n"
-        "---"
-        "\n"
-    )
-    with open(transcript_dir.joinpath("metadata.tpl"), "w") as f:
-        f.write(metadata_template)
     archival_object = distillery.get_folder_data(transcript_dir.stem)
     metadata = {"title": archival_object["title"]}
     if archival_object.get("dates"):
@@ -117,15 +89,8 @@ def create_metadata_file(transcript_dir):
                 metadata["abstract"] = note["content"][0]
     with open(transcript_dir.joinpath("metadata.json"), "w") as f:
         f.write(json.dumps(metadata))
-    pandoc_cmd = sh.Command(config("WORK_PANDOC_CMD"))
-    pandoc_cmd(
-        f'--metadata-file={transcript_dir.joinpath("metadata.json")}',
-        f'--template={transcript_dir.joinpath("metadata.tpl")}',
-        f'--output={transcript_dir.joinpath("metadata.txt")}',
-        empty_file,
-    )
     logger.info(
-        f'☑️  METADATA HEADER CONSTRUCTED: {transcript_dir.joinpath("metadata.txt")}'
+        f'☑️  METADATA FILE CREATED: {transcript_dir.joinpath("metadata.json")}'
     )
 
 
@@ -135,23 +100,12 @@ def convert_word_to_markdown(docxfile, transcript_dir):
     pandoc_cmd(
         "--standalone",
         "--table-of-contents",
-        f'--output={transcript_dir.joinpath("docx.md")}',
+        f'--metadata-file={transcript_dir.joinpath("metadata.json")}'
+        f'--output={transcript_dir.joinpath(f"{transcript_dir.stem}.md")}',
         docxfile,
     )
     logger.info(
-        f'☑️  WORD FILE CONVERTED TO MARKDOWN: {transcript_dir.joinpath("docx.md")}'
-    )
-    # NOTE we concatenate the interstitial metadata and transcript
-    with open(
-        f'{transcript_dir.joinpath(f"{transcript_dir.stem}.md")}', "w"
-    ) as outfile:
-        with open(transcript_dir.joinpath("metadata.txt"), "r") as metadata:
-            shutil.copyfileobj(metadata, outfile)
-            outfile.write("\n")
-        with open(transcript_dir.joinpath("docx.md"), "r") as markdown:
-            shutil.copyfileobj(markdown, outfile)
-    logger.info(
-        f'☑️  METADATA & TRANSCRIPT CONCATENATED: {transcript_dir.joinpath(f"{transcript_dir.stem}.md")}'
+        f'☑️  WORD FILE CONVERTED TO MARKDOWN: {transcript_dir.joinpath(f"{transcript_dir.stem}.md")}'
     )
 
 
