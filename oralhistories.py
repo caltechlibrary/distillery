@@ -86,7 +86,7 @@ def create_metadata_file(transcript_dir):
         for note in archival_object["notes"]:
             if note["type"] == "abstract":
                 # NOTE only using the first abstract content field
-                metadata["abstract"] = note["content"][0]
+                metadata["abstract"] = note["content"][0].replace(r"\\n", r"\n")
     with open(transcript_dir.joinpath("metadata.json"), "w") as f:
         f.write(json.dumps(metadata))
     logger.info(
