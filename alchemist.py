@@ -81,6 +81,39 @@ for f in glob(
         shutil.rmtree(str(Path(docxfile).parent))
         continue
 
+    if Path(f).name == "publish-oral-histories":
+        # delete the file to stop future initiation
+        os.remove(f)
+        logger.info(f"🗑  FILE REMOVED: {f}")
+        try:
+            command = [
+                sys.executable,
+                str(Path(__file__).parent.resolve().joinpath("oralhistories.py")),
+                "--publish",
+            ]
+            logger.info(f'🚰 RUNNING COMMAND: {" ".join(command)}')
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                check=True,
+            )
+        except subprocess.CalledProcessError as e:
+            # If check is true, and the process exits with a non-zero exit code,
+            # a CalledProcessError exception will be raised. Attributes of that
+            # exception hold the arguments, the exit code, and stdout and stderr
+            # if they were captured.
+            logger.error(f"❌ {e}")
+            logger.error(f"❌ {e.returncode}")
+            logger.error(f"❌ {e.cmd}")
+            logger.error(f"❌ {e.output}")
+            logger.error(f"❌ {e.stdout}")
+            logger.error(f"❌ {e.stderr}")
+            raise
+        except BaseException as e:
+            logger.error(f"❌ {e}")
+            raise
+        continue
+
     # NOTE using rsplit() in case collection_id contains a - (hyphen)
     collection_id = os.path.basename(f).rsplit("-", 2)[0]
     step = os.path.basename(f).rsplit("-", 2)[1]

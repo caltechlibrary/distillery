@@ -139,12 +139,17 @@ def oralhistories_form():
         f'<p><label for="file">Select a <b>docx</b> file to upload:</label></p>'
         f'<p><input type="file" name="upload"></p>'
         f'<p><input type="submit" value="Submit"></p>'
-        f'</form>'
+        f'<p><input type="submit" name="publish" value="Publish Changes"></p>'
+        f"</form>"
     )
 
 
 @route("/oralhistories", method="POST")
-def oralhistories_upload():
+def oralhistories_post():
+    if request.forms.get("publish"):
+        # write a file for alchemist.py to find
+        Path(config("WEB_STATUS_FILES")).joinpath("publish-oral-histories").touch()
+        return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
     upload = request.files.get("upload")
     if Path(upload.filename).suffix not in [".docx"]:
         return f'<p>Only <b>docx</b> files are allowed at this time.</p><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
