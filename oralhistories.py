@@ -43,6 +43,10 @@ def main(
             f's3://{config("OH_S3_BUCKET")}',
             "--exclude",
             "*.md",
+            _env={
+                "AWS_ACCESS_KEY_ID": config("AWS_ACCESS_KEY"),
+                "AWS_SECRET_ACCESS_KEY": config("AWS_SECRET_KEY"),
+            },
         )
 
 
