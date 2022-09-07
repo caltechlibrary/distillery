@@ -125,6 +125,21 @@ def push_markdown_file(transcript_dir):
         "--",
     )
     if diff:
+        if config("OH_REPO_GIT_EMAIL") and config("OH_REPO_GIT_NAME"):
+            git_cmd(
+                "-C",
+                transcript_dir.parent.parent,
+                "config",
+                "user.email",
+                config("OH_REPO_GIT_EMAIL"),
+            )
+            git_cmd(
+                "-C",
+                transcript_dir.parent.parent,
+                "config",
+                "user.name",
+                config("OH_REPO_GIT_NAME"),
+            )
         git_cmd(
             "-C",
             transcript_dir.parent.parent,
