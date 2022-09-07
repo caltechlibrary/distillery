@@ -22,6 +22,7 @@ logger = logging.getLogger("oralhistories")
 
 def main(
     docxfile: ("Word file to convert to Markdown", "option", "w"),  # type: ignore
+    publish: ("Initiate publishing to web", "flag", "p"),  # type: ignore
 ):
     if docxfile:
         repodir = clone_git_repository()
@@ -32,6 +33,17 @@ def main(
         push_markdown_file(transcript_dir)
         # cleanup
         shutil.rmtree(repodir)
+    if publish:
+        repo_dir = clone_git_repository()
+        aws_cmd = sh.Command(config("WORK_AWS_CMD"))
+        aws_cmd(
+            "s3",
+            "sync",
+            f'{Path(repo_dir).joinpath("transcripts")}',
+            f's3://{config("OH_S3_BUCKET")}',
+            "--exclude",
+            "*.md",
+        )
 
 
 def clone_git_repository():
