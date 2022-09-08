@@ -135,12 +135,17 @@ def stream(collection_id):
 @route("/oralhistories")
 def oralhistories_form():
     return (
+        "<h1>Oral Histories</h1>"
         f'<form action="{config("BASE_URL").rstrip("/")}/oralhistories" method="post" enctype="multipart/form-data">'
-        f'<p><label for="file">Select a <b>docx</b> file to upload:</label></p>'
-        f'<p><input type="file" name="upload"></p>'
-        f'<p><input type="submit" value="Submit"></p>'
-        f'<p><input type="submit" name="publish" value="Publish Changes"></p>'
-        f"</form>"
+        "<h2>Add</h2>"
+        '<p><label for="file">Select a Microsoft Word <b>docx</b> file to upload:</label></p>'
+        '<p><input type="file" name="file" id="file"></p>'
+        '<p><input type="submit" value="Upload"></p>'
+        "<hr>"
+        "<h2>Publish</h2>"
+        "<p>Publish recent changes to the web:</p>"
+        '<p><input type="submit" name="publish" value="Publish Changes"></p>'
+        "</form>"
     )
 
 
@@ -150,7 +155,7 @@ def oralhistories_post():
         # write a file for alchemist.py to find
         Path(config("WEB_STATUS_FILES")).joinpath("publish-oral-histories").touch()
         return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
-    upload = request.files.get("upload")
+    upload = request.files.get("file")
     if Path(upload.filename).suffix not in [".docx"]:
         return f'<p>Only <b>docx</b> files are allowed at this time.</p><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
     # save the file for alchemist.py to find
