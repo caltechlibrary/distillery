@@ -168,7 +168,7 @@ def push_markdown_file(transcript_dir):
             f'☑️  TRANSCRIPT PUSHED TO GITHUB: https://github.com/{config("OH_REPO")}/blob/main/{transcript_dir.stem}/{transcript_dir.stem}.md'
         )
     else:
-        logger.warning(f"⚠️  NO TRANSCRIPT CHANGES DETECTED: {transcript_dir.stem}.md")
+        logger.warning(f"⚠️  NO CHANGES DETECTED: {transcript_dir.stem}.md")
 
 
 if __name__ == "__main__":
