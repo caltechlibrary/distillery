@@ -25,14 +25,14 @@ def main(
     publish: ("Initiate publishing to web", "flag", "p"),  # type: ignore
 ):
     if docxfile:
-        repodir = clone_git_repository()
-        transcript_dir = Path(repodir).joinpath("transcripts", Path(docxfile).stem)
+        repo_dir = clone_git_repository()
+        transcript_dir = Path(repo_dir).joinpath("transcripts", Path(docxfile).stem)
         os.makedirs(transcript_dir, exist_ok=True)
         create_metadata_file(transcript_dir)
         convert_word_to_markdown(docxfile, transcript_dir)
         push_markdown_file(transcript_dir)
         # cleanup
-        shutil.rmtree(repodir)
+        shutil.rmtree(repo_dir)
     if publish:
         repo_dir = clone_git_repository()
         aws_cmd = sh.Command(config("WORK_AWS_CMD"))
@@ -51,7 +51,7 @@ def main(
 
 
 def clone_git_repository():
-    repodir = tempfile.mkdtemp()
+    repo_dir = tempfile.mkdtemp()
     git_cmd = sh.Command(config("WORK_GIT_CMD"))
     # use a specific ssh identity_file when cloning this repository
     git_cmd(
@@ -59,19 +59,19 @@ def clone_git_repository():
         f'git@github.com:{config("OH_REPO")}.git',
         "--depth",
         "1",
-        repodir,
+        repo_dir,
         _env={"GIT_SSH_COMMAND": f'ssh -i {config("OH_REPO_SSH_KEY")}'},
     )
-    logger.info(f"☑️  GIT REPOSITORY CLONED TO TEMPORARY DIRECTORY: {repodir}")
+    logger.info(f"☑️  GIT REPOSITORY CLONED TO TEMPORARY DIRECTORY: {repo_dir}")
     # set the ssh identity_file to use with this repository
     git_cmd(
         "-C",
-        repodir,
+        repo_dir,
         "config",
         "core.sshCommand",
         f'ssh -i {config("OH_REPO_SSH_KEY")}',
     )
-    return repodir
+    return repo_dir
 
 
 def create_metadata_file(transcript_dir):
