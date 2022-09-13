@@ -35,7 +35,7 @@ def main(
         create_digital_object_component(
             digital_object_uri,
             "Transcript Markdown",
-            f'{metadata["component_id"]}-TS.md',
+            f'{metadata["component_id"]}.md',
         )
         # cleanup
         shutil.rmtree(repo_dir)
@@ -59,13 +59,13 @@ def main(
         for line in s3sync_output.splitlines():
             logger.info(f"line: {line}")
             if line.split()[0] == "upload:":
-                # look for the digital_object ending in -TS
+                # look for the digital_object
                 digital_object_uri = distillery.find_digital_object(
-                    f'{line.split()[1].split("/")[-2]}-TS'
+                    f'{line.split()[1].split("/")[-2]}'
                 )
                 if not digital_object_uri:
                     logger.warning(
-                        f'⚠️  DIGITAL OBJECT NOT FOUND: {line.split()[1].split("/")[-2]}-TS'
+                        f'⚠️  DIGITAL OBJECT NOT FOUND: {line.split()[1].split("/")[-2]}'
                     )
                     continue
                 digital_object = distillery.archivessnake_get(digital_object_uri).json()
@@ -118,7 +118,7 @@ def find_digital_object_component(digital_object_component_component_id):
 
 def create_digital_object(metadata):
     digital_object = {}
-    digital_object["digital_object_id"] = f'{metadata["component_id"]}-TS'  # required
+    digital_object["digital_object_id"] = f'{metadata["component_id"]}'  # required
     digital_object["title"] = f'{metadata["title"]} Transcript'  # required
     # TODO handle error upstream if digital_object_id already exists
     digital_object_post_response = distillery.archivessnake_post(
@@ -152,7 +152,6 @@ def create_digital_object(metadata):
 def create_digital_object_component(digital_object_uri, label, filename):
     digital_object_component = {"digital_object": {"ref": digital_object_uri}}
     digital_object_component["label"] = label
-    # TODO unsure about -TS in filename; TBD
     digital_object_component["component_id"] = filename
     digital_object_component["file_versions"] = [
         {
@@ -235,11 +234,11 @@ def convert_word_to_markdown(docxfile, transcript_dir):
         "--standalone",
         "--table-of-contents",
         f'--metadata-file={transcript_dir.joinpath("metadata.json")}',
-        f'--output={transcript_dir.joinpath(f"{transcript_dir.stem}-TS.md")}',
+        f'--output={transcript_dir.joinpath(f"{transcript_dir.stem}.md")}',
         docxfile,
     )
     logger.info(
-        f'☑️  WORD FILE CONVERTED TO MARKDOWN: {transcript_dir.joinpath(f"{transcript_dir.stem}-TS.md")}'
+        f'☑️  WORD FILE CONVERTED TO MARKDOWN: {transcript_dir.joinpath(f"{transcript_dir.stem}.md")}'
     )
 
 
@@ -249,7 +248,7 @@ def push_markdown_file(transcript_dir):
         "-C",
         transcript_dir.parent.parent,
         "add",
-        transcript_dir.joinpath(f"{transcript_dir.stem}-TS.md"),
+        transcript_dir.joinpath(f"{transcript_dir.stem}.md"),
     )
     diff = git_cmd(
         "-C",
@@ -281,14 +280,14 @@ def push_markdown_file(transcript_dir):
             transcript_dir.parent.parent,
             "commit",
             "-m",
-            f"add {transcript_dir.stem}-TS.md converted from docx",
+            f"add {transcript_dir.stem}.md converted from docx",
         )
         git_cmd("-C", transcript_dir.parent.parent, "push", "origin", "main")
         logger.info(
-            f'☑️  TRANSCRIPT PUSHED TO GITHUB: https://github.com/{config("OH_REPO")}/blob/main/{transcript_dir.stem}/{transcript_dir.stem}-TS.md'
+            f'☑️  TRANSCRIPT PUSHED TO GITHUB: https://github.com/{config("OH_REPO")}/blob/main/{transcript_dir.stem}/{transcript_dir.stem}.md'
         )
     else:
-        logger.warning(f"⚠️  NO CHANGES DETECTED: {transcript_dir.stem}-TS.md")
+        logger.warning(f"⚠️  NO CHANGES DETECTED: {transcript_dir.stem}.md")
 
 
 if __name__ == "__main__":
