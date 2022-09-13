@@ -653,6 +653,7 @@ def archivessnake_get(uri):
 def archivessnake_post(uri, object):
     response = asnake_client.post(uri, json=object)
     response.raise_for_status()
+    # TODO handle error responses
     validation_logger.info(f'ARCHIVESSPACE: {response.json()["uri"]}')
     return response
 
