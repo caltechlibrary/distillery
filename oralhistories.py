@@ -34,7 +34,7 @@ def main(
         digital_object_uri = create_digital_object(metadata)
         create_digital_object_component(
             digital_object_uri,
-            "Transcript Markdown",
+            "Markdown",
             f'{metadata["component_id"]}.md',
         )
         # cleanup
@@ -70,7 +70,7 @@ def main(
                     continue
                 digital_object = distillery.archivessnake_get(digital_object_uri).json()
                 # add file_version to digital_object
-                if line.split()[-1].split(".")[-1] == "html":
+                if line.split(".")[-1] == "html":
                     file_versions = [
                         file_version["file_uri"]
                         for file_version in digital_object["file_versions"]
@@ -86,7 +86,7 @@ def main(
                 else:
                     # look for an existing digital_object_component
                     digital_object_component_uri = find_digital_object_component(
-                        f'{line.split()[-1].split("/")[-1]}'
+                        f'{line.split("/")[-1]}'
                     )
                     if digital_object_component_uri:
                         logger.info(
@@ -97,8 +97,8 @@ def main(
                     # create new digital_object_component
                     create_digital_object_component(
                         digital_object_uri,
-                        f'Transcript Asset *-{line.split()[-1].split("/")[-1].split("-")[-1]}',
-                        line.split()[-1].split("/")[-1],
+                        f'{line.split(".")[-1].upper()} Asset: {line.split("-")[-1].split(".")[0]}',
+                        line.split("/")[-1],
                     )
 
 
