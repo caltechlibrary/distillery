@@ -658,6 +658,13 @@ def archivessnake_post(uri, object):
     return response
 
 
+def archivessnake_delete(uri):
+    response = asnake_client.delete(uri)
+    response.raise_for_status()
+    # TODO handle error responses
+    return response
+
+
 def calculate_pixel_signature(filepath):
     return sh.cut(
         sh.sha512sum(

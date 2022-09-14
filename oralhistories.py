@@ -58,19 +58,19 @@ def main(
         )
         for line in s3sync_output.splitlines():
             logger.info(f"line: {line}")
-            if line.split()[0] == "upload:":
-                # look for the digital_object
-                digital_object_uri = distillery.find_digital_object(
-                    f'{line.split()[1].split("/")[-2]}'
+            # look for the digital_object
+            digital_object_uri = distillery.find_digital_object(
+                f'{line.split()[-1].split("/")[-2]}'
+            )
+            if not digital_object_uri:
+                logger.warning(
+                    f'⚠️  DIGITAL OBJECT NOT FOUND: {line.split()[-1].split("/")[-2]}'
                 )
-                if not digital_object_uri:
-                    logger.warning(
-                        f'⚠️  DIGITAL OBJECT NOT FOUND: {line.split()[1].split("/")[-2]}'
-                    )
-                    continue
-                digital_object = distillery.archivessnake_get(digital_object_uri).json()
-                # add file_version to digital_object
+                continue
+            digital_object = distillery.archivessnake_get(digital_object_uri).json()
+            if line.split()[0] == "upload:":
                 if line.split(".")[-1] == "html":
+                    # add file_version to digital_object
                     file_versions = [
                         file_version["file_uri"]
                         for file_version in digital_object["file_versions"]
@@ -83,6 +83,12 @@ def main(
                         distillery.archivessnake_post(
                             digital_object_uri, digital_object
                         )
+                        logger.info(
+                            f"☑️  DIGITAL OBJECT FILE VERSION ADDED: {line.split()[-1]}"
+                        )
+                        logger.info(
+                            f'☑️  DIGITAL OBJECT PUBLISHED: {line.split()[-1].split("/")[-2]}'
+                        )
                 else:
                     # look for an existing digital_object_component
                     digital_object_component_uri = find_digital_object_component(
@@ -90,7 +96,7 @@ def main(
                     )
                     if digital_object_component_uri:
                         logger.info(
-                            f'ℹ️  EXISTING DIGITAL OBJECT COMPONENT FOUND: {line.split()[-1].split("/")[-1]}'
+                            f'ℹ️  EXISTING DIGITAL OBJECT COMPONENT FOUND: {line.split("/")[-1]}'
                         )
                         # no updates needed for existing record
                         continue
@@ -100,6 +106,36 @@ def main(
                         f'{line.split(".")[-1].upper()} Asset: {line.split("-")[-1].split(".")[0]}',
                         line.split("/")[-1],
                     )
+            if line.split()[0] == "delete:":
+                if line.split(".")[-1] == "html":
+                    # remove file_version from digital_object
+                    file_versions = [
+                        file_version
+                        for file_version in digital_object["file_versions"]
+                        if not (file_version["file_uri"] == line.split()[-1])
+                    ]
+                    digital_object["publish"] = False
+                    digital_object["file_versions"] = file_versions
+                    distillery.archivessnake_post(digital_object_uri, digital_object)
+                    logger.info(
+                        f'☑️  DIGITAL OBJECT UNPUBLISHED: {line.split()[-1].split("/")[-2]}'
+                    )
+                    logger.info(
+                        f"🔥 DIGITAL OBJECT FILE VERSION DELETED: {line.split()[-1]}"
+                    )
+                else:
+                    # look for an existing digital_object_component
+                    digital_object_component_uri = find_digital_object_component(
+                        f'{line.split("/")[-1]}'
+                    )
+                    if digital_object_component_uri:
+                        # delete the digital_object_component
+                        distillery.archivessnake_delete(digital_object_component_uri)
+                        logger.info(
+                            f'🔥 DIGITAL OBJECT COMPONENT DELETED: {line.split("/")[-1]}'
+                        )
+        # cleanup
+        shutil.rmtree(repo_dir)
 
 
 def find_digital_object_component(digital_object_component_component_id):
