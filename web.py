@@ -141,7 +141,17 @@ def oralhistories_form():
         '<p><label for="file">Select a Microsoft Word <b>docx</b> file to upload:</label></p>'
         '<p><input type="file" name="file" id="file"></p>'
         '<p><input type="submit" value="Upload"></p>'
+        "</form>"
         "<hr>"
+        f'<form action="{config("BASE_URL").rstrip("/")}/oralhistories" method="post" enctype="multipart/form-data">'
+        "<h2>Update Metadata</h2>"
+        '<p><label for="component_id">Optionally enter a Component Unique Identfier for an ArchivesSpace record:</label></p>'
+        '<p><input type="text" name="component_id" id="component_id" aria-describedby="optional_component_id"></p>'
+        '<p id="optional_component_id">If no Component Unique Identifier is entered, all metadata will be updated from ArchivesSpace.</p>'
+        '<p><input type="submit" name="update" value="Update Metadata"></p>'
+        "</form>"
+        "<hr>"
+        f'<form action="{config("BASE_URL").rstrip("/")}/oralhistories" method="post" enctype="multipart/form-data">'
         "<h2>Publish</h2>"
         "<p>Publish recent changes to the web:</p>"
         '<p><input type="submit" name="publish" value="Publish Changes"></p>'
@@ -155,6 +165,16 @@ def oralhistories_post():
         # write a file for alchemist.py to find
         Path(config("WEB_STATUS_FILES")).joinpath("publish-oral-histories").touch()
         return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
+    if request.forms.get("update"):
+        # write a file for alchemist.py to find
+        if request.forms.get("component_id"):
+            Path(config("WEB_STATUS_FILES")).joinpath(
+                request.forms.get("component_id")
+            ).touch()
+            return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
+        else:
+            Path(config("WEB_STATUS_FILES")).joinpath("update-oral-histories").touch()
+            return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
     upload = request.files.get("file")
     if Path(upload.filename).suffix not in [".docx"]:
         return f'<p>Only <b>docx</b> files are allowed at this time.</p><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'

@@ -22,6 +22,8 @@ logger = logging.getLogger("oralhistories")
 
 def main(
     docxfile: ("Word file to convert to Markdown", "option", "w"),  # type: ignore
+    component_id: ("Component Unique Identifier from ArchivesSpace", "option", "i"),  # type: ignore
+    update: ("Update metadata from ArchivesSpace", "flag", "u"),  # type: ignore
     publish: ("Initiate publishing to web", "flag", "p"),  # type: ignore
 ):
     if docxfile:
@@ -30,6 +32,7 @@ def main(
         os.makedirs(transcript_dir, exist_ok=True)
         metadata = create_metadata_file(transcript_dir)
         convert_word_to_markdown(docxfile, transcript_dir)
+        os.remove(transcript_dir.joinpath("metadata.json"))
         push_markdown_file(transcript_dir)
         digital_object_uri = create_digital_object(metadata)
         create_digital_object_component(
@@ -89,6 +92,10 @@ def main(
                         logger.info(
                             f'☑️  DIGITAL OBJECT PUBLISHED: {line.split()[-1].split("/")[-2]}'
                         )
+                    else:
+                        logger.info(
+                            f"ℹ️  EXISTING DIGITAL OBJECT FILE VERSION FOUND: {line.split()[-1]}"
+                        )
                 else:
                     # look for an existing digital_object_component
                     digital_object_component_uri = find_digital_object_component(
@@ -136,6 +143,118 @@ def main(
                         )
         # cleanup
         shutil.rmtree(repo_dir)
+    if update:
+        repo_dir = clone_git_repository()
+        if component_id:
+            # update a single record
+            transcript_dir = Path(repo_dir).joinpath("transcripts", component_id)
+            update_markdown_metadata(transcript_dir)
+        else:
+            # update all records (example case: interviewer name change)
+            transcript_directories = [
+                i
+                for i in Path(repo_dir).joinpath("transcripts").iterdir()
+                if i.is_dir()
+            ]
+            for transcript_dir in transcript_directories:
+                update_markdown_metadata(transcript_dir)
+        add_commit_push(repo_dir, component_id, update)
+        # cleanup
+        shutil.rmtree(repo_dir)
+
+
+def add_commit_push(repo_dir, component_id="", update=False):
+    git_cmd = sh.Command(config("WORK_GIT_CMD"))
+    git_cmd(
+        "-C",
+        repo_dir,
+        "add",
+        "-A",
+    )
+    diff = git_cmd(
+        "-C",
+        repo_dir,
+        "diff-index",
+        "HEAD",
+        "--",
+    )
+    if diff:
+        if config("OH_REPO_GIT_EMAIL", default="") and config(
+            "OH_REPO_GIT_NAME", default=""
+        ):
+            git_cmd(
+                "-C",
+                repo_dir,
+                "config",
+                "user.email",
+                config("OH_REPO_GIT_EMAIL"),
+            )
+            git_cmd(
+                "-C",
+                repo_dir,
+                "config",
+                "user.name",
+                config("OH_REPO_GIT_NAME"),
+            )
+        if component_id:
+            if update:
+                commit_msg = (f"update {component_id}.md metadata",)
+            else:
+                commit_msg = (f"add {component_id}.md converted from docx",)
+        else:
+            commit_msg = "bulk update metadata"
+        git_cmd(
+            "-C",
+            repo_dir,
+            "commit",
+            "-m",
+            commit_msg,
+        )
+        git_cmd("-C", repo_dir, "push", "origin", "main")
+        hash = git_cmd(
+            "-C",
+            repo_dir,
+            "log",
+            "--max-count=1",
+            "--format=format:'%H'",
+            _tty_out=False,
+        ).strip("'")
+        logger.info(
+            f'☑️  CHANGES PUSHED TO GITHUB: https://github.com/{config("OH_REPO")}/commit/{hash}'
+        )
+    else:
+        logger.warning(f"⚠️  NO CHANGES DETECTED")
+
+
+def update_markdown_metadata(transcript_dir):
+    create_metadata_file(transcript_dir)
+    # TODO account for _closed versions
+    pandoc_cmd = sh.Command(config("WORK_PANDOC_CMD"))
+    # create a fragment without metadata but with table of contents
+    pandoc_cmd(
+        "--from",
+        "markdown",
+        "--to",
+        "markdown",
+        f'--output={transcript_dir.joinpath(f"fragment.md")}',
+        transcript_dir.joinpath(f"{transcript_dir.stem}.md"),
+    )
+    # add updated metadata to markdown fragment
+    pandoc_cmd(
+        "--standalone",
+        f'--metadata-file={transcript_dir.joinpath("metadata.json")}',
+        "--from",
+        "markdown",
+        "--to",
+        "markdown",
+        f'--output={transcript_dir.joinpath(f"{transcript_dir.stem}.md")}',
+        transcript_dir.joinpath(f"fragment.md"),
+    )
+    os.remove(transcript_dir.joinpath("metadata.json"))
+    os.remove(transcript_dir.joinpath("fragment.md"))
+    logger.info(
+        f'☑️  MARKDOWN METADATA UPDATED: {transcript_dir.joinpath(f"{transcript_dir.stem}.md")}'
+    )
 
 
 def find_digital_object_component(digital_object_component_component_id):
@@ -238,14 +357,14 @@ def create_metadata_file(transcript_dir):
         for linked_agent in archival_object["linked_agents"]:
             if linked_agent.get("relator") == "ive":
                 agent = distillery.archivessnake_get(linked_agent["ref"]).json()
-                # TODO allow for other than inverted names
+                # TODO [allow for other than inverted names](https://github.com/caltechlibrary/distillery/issues/24)
                 if agent["display_name"]["name_order"] == "inverted":
                     metadata[
                         "interviewee"
                     ] = f'{agent["display_name"]["rest_of_name"]} {agent["display_name"]["primary_name"]}'
             if linked_agent.get("relator") == "ivr":
                 agent = distillery.archivessnake_get(linked_agent["ref"]).json()
-                # TODO allow for other than inverted names
+                # TODO [allow for other than inverted names](https://github.com/caltechlibrary/distillery/issues/24)
                 if agent["display_name"]["name_order"] == "inverted":
                     metadata[
                         "interviewer"
