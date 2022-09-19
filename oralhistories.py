@@ -26,8 +26,21 @@ def main(
     update: ("Update metadata from ArchivesSpace", "flag", "u"),  # type: ignore
     publish: ("Initiate publishing to web", "flag", "p"),  # type: ignore
 ):
+    # update workflow files
+    repo_dir = clone_git_repository()
+    shutil.copytree(
+        Path(__file__).parent.joinpath("oralhistories"),
+        Path(repo_dir).joinpath(".github", "workflows"),
+        dirs_exist_ok=True,
+    )
+    git_cmd = sh.Command(config("WORK_GIT_CMD"))
+    git_cmd(
+        "-C",
+        repo_dir,
+        "add",
+        "-A",
+    )
     if docxfile:
-        repo_dir = clone_git_repository()
         transcript_dir = Path(repo_dir).joinpath("transcripts", Path(docxfile).stem)
         os.makedirs(transcript_dir, exist_ok=True)
         metadata = create_metadata_file(transcript_dir)
@@ -40,10 +53,7 @@ def main(
             "Markdown",
             f'{metadata["component_id"]}.md',
         )
-        # cleanup
-        shutil.rmtree(repo_dir)
     if publish:
-        repo_dir = clone_git_repository()
         aws_cmd = sh.Command(config("WORK_AWS_CMD"))
         s3sync_output = aws_cmd(
             "s3",
@@ -141,10 +151,7 @@ def main(
                         logger.info(
                             f'🔥 DIGITAL OBJECT COMPONENT DELETED: {line.split("/")[-1]}'
                         )
-        # cleanup
-        shutil.rmtree(repo_dir)
     if update:
-        repo_dir = clone_git_repository()
         if component_id:
             # update a single record
             transcript_dir = Path(repo_dir).joinpath("transcripts", component_id)
@@ -159,8 +166,8 @@ def main(
             for transcript_dir in transcript_directories:
                 update_markdown_metadata(transcript_dir)
         add_commit_push(repo_dir, component_id, update)
-        # cleanup
-        shutil.rmtree(repo_dir)
+    # cleanup
+    shutil.rmtree(repo_dir)
 
 
 def add_commit_push(repo_dir, component_id="", update=False):
@@ -198,9 +205,11 @@ def add_commit_push(repo_dir, component_id="", update=False):
             )
         if component_id:
             if update:
-                commit_msg = (f"update {component_id}.md metadata",)
+                commit_msg = f"update {component_id}.md metadata"
             else:
-                commit_msg = (f"add {component_id}.md converted from docx",)
+                commit_msg = f"add {component_id}.md converted from docx"
+        elif ".github/workflows/" in diff and "transcripts/" not in diff:
+            commit_msg = "update workflow files"
         else:
             commit_msg = "bulk update metadata"
         git_cmd(
