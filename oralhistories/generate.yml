@@ -1,0 +1,65 @@
+name: Generate HTML
+on:
+  push:
+    paths:
+      - "**.md"
+  workflow_dispatch:
+jobs:
+  generate-html:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2  # in order to determine changed files
+
+      - name: Set up Python 3.x
+        uses: actions/setup-python@v3
+        with:
+          python-version: 3.x
+
+      - name: Install other packages
+        run: |
+          wget https://github.com/jgm/pandoc/releases/download/2.19.2/pandoc-2.19.2-1-amd64.deb
+          sudo dpkg -i pandoc-2.19.2-1-amd64.deb
+          rm pandoc-2.19.2-1-amd64.deb
+
+      - name: 🐞
+        run: pandoc --version
+
+      - name: Create build directory
+        run: mkdir -p build
+
+      - name: Process changed files
+        run: for file in $(git diff-tree --no-commit-id --name-only -r ${{ github.sha }});
+          do
+            python .github/workflows/generate.py "$file";
+          done
+
+      - name: Integrate generated files
+        run: rsync --remove-source-files -av build/ transcripts/
+
+      - name: Configure Git identity
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+      - name: Commit new files
+        run: if [ -n "$(git ls-files --others)" ];
+          then
+            git ls-files --others | xargs git add --all;
+            git commit -m "🟢 new files";
+          fi
+      - name: Commit modified files
+        run: if [ -n "$(git ls-files --modified)" ];
+          then
+            git ls-files --modified | xargs git add --all;
+            git commit -m "🟡 modified files";
+          fi
+      - name: Commit deleted files
+        run: if [ -n "$(git ls-files --deleted)" ];
+          then
+            git ls-files --deleted | xargs git add --all;
+            git commit -m "🔴 deleted files";
+          fi
+      - name: Push changes
+        run: git push
