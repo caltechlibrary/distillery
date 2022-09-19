@@ -47,19 +47,19 @@ jobs:
         run: if [ -n "$(git ls-files --others)" ];
           then
             git ls-files --others | xargs git add --all;
-            git commit -m "🟢 new files";
-          fi
-      - name: Commit modified files
-        run: if [ -n "$(git ls-files --modified)" ];
-          then
-            git ls-files --modified | xargs git add --all;
-            git commit -m "🟡 modified files";
+            git commit -m "🟢 add HTML";
           fi
       - name: Commit deleted files
         run: if [ -n "$(git ls-files --deleted)" ];
           then
             git ls-files --deleted | xargs git add --all;
-            git commit -m "🔴 deleted files";
+            git commit -m "🔴 remove HTML";
+          fi
+      - name: Commit modified files
+        run: if [ -n "$(git ls-files --modified)" ];
+          then
+            git ls-files --modified | xargs git add --all;
+            git commit -m "🟡 update HTML";
           fi
       - name: Push changes
         run: git push
