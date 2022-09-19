@@ -1,6 +1,8 @@
 name: Generate HTML
 on:
   push:
+    tags-ignore:
+      - "published/*"
     paths:
       - "**.md"
   workflow_dispatch:

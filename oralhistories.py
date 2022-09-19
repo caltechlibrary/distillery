@@ -5,6 +5,7 @@ import sh
 import shutil
 import tempfile
 
+from datetime import datetime
 from pathlib import Path
 
 from decouple import config  # pypi: python-decouple
@@ -54,6 +55,7 @@ def main(
             f'{metadata["component_id"]}.md',
         )
     if publish:
+        # publish web files to S3
         aws_cmd = sh.Command(config("WORK_AWS_CMD"))
         s3sync_output = aws_cmd(
             "s3",
@@ -69,6 +71,16 @@ def main(
                 "AWS_SECRET_ACCESS_KEY": config("AWS_SECRET_KEY"),
             },
         )
+        # tag latest commit as published
+        tagname = f'published/{datetime.now().strftime("%Y-%m-%d.%H%M%S")}'
+        git_cmd(
+            "-C",
+            repo_dir,
+            "tag",
+            tagname,
+        )
+        git_cmd("-C", repo_dir, "push", "origin", tagname)
+        # update ArchivesSpace records
         for line in s3sync_output.splitlines():
             logger.info(f"line: {line}")
             # look for the digital_object
