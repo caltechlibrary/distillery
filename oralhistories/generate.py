@@ -12,6 +12,10 @@ def main(file):
         if os.path.isfile(f"build/{file_segments[1]}/{file_segments[1]}.html"):
             print(f"🐞 file exists: build/{file_segments[1]}/{file_segments[1]}.html")
             return
+        if file.endswith(".md") and not os.path.isfile(file):
+            print(f"🐞 file deleted: {file}")
+            os.remove(f"{os.path.splitext(file)[0]}.html")
+            return
         os.makedirs(f"build/{file_segments[1]}", exist_ok=True)
         subprocess.run(
             [
