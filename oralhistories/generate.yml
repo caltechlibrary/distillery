@@ -1,8 +1,10 @@
 name: Generate HTML
 on:
   push:
+    branches:
+      - "**"
     tags-ignore:
-      - "published/*"
+      - "**"
     paths:
       - "**.md"
   workflow_dispatch:
@@ -20,14 +22,26 @@ jobs:
         with:
           python-version: 3.x
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '14.x'
+
       - name: Install other packages
         run: |
-          wget https://github.com/jgm/pandoc/releases/download/2.19.2/pandoc-2.19.2-1-amd64.deb
+          wget --no-verbose https://github.com/jgm/pandoc/releases/download/2.19.2/pandoc-2.19.2-1-amd64.deb
           sudo dpkg -i pandoc-2.19.2-1-amd64.deb
           rm pandoc-2.19.2-1-amd64.deb
+          npm install -g pagedjs-cli pagedjs
 
-      - name: 🐞
+      - name: 🐞 pandoc --version
         run: pandoc --version
+
+      - name: 🐞 node -v
+        run: node -v
+
+      - name: 🐞 npm list -g pagedjs-cli
+        run: npm list -g pagedjs-cli
 
       - name: Create build directory
         run: mkdir -p build

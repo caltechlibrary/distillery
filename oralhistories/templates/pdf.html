@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="$lang$">
+<head>
+  <meta charset="utf-8">
+  <link href="https://fonts.googleapis.com/css2?family=Cardo&family=Fanwood+Text&family=Linden+Hill&family=Sorts+Mill+Goudy" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Alegreya&family=Alegreya+SC&family=Cormorant&family=Cormorant+SC&family=IM+Fell+French+Canon&family=IM+Fell+French+Canon+SC&family=Marcellus&family=Marcellus+SC" rel="stylesheet">  <style>
+@page {
+  margin: 2in;
+  size: letter;
+  @top-right { content: counter(page); margin-right: -1in; }
+  @bottom-left { content: "https://resolver.caltech.edu/archives/$component_id$"; font-size: small; margin-left: -1in; }
+}
+@page :blank {
+  @top-right { content: none }
+  @bottom-left { content: none }
+}
+@page clean {
+  @top-right { content: none }
+  @bottom-left { content: none }
+}
+
+img { display: none;}
+
+html {
+  /* font-family: 'Cardo', serif; */
+  /* font-family: 'Fanwood Text', serif; */
+  /* font-family: 'Linden Hill', serif; */
+  font-family: 'Sorts Mill Goudy', serif;
+  /* font-family: 'Alegreya', serif; */
+  /* font-family: 'Cormorant', serif; */
+  /* font-family: 'IM Fell French Canon', serif; */
+  /* font-family: 'Marcellus', serif; */
+  font-size: 12pt}
+.smallcaps {
+  /* font-family: 'Alegreya SC', serif; */
+  /* font-family: 'Cormorant SC', serif; */
+  /* font-family: 'IM Fell French Canon SC', serif; */
+  /* font-family: 'Marcellus SC', serif; */
+  font-variant-caps: small-caps}
+body {
+  margin: 0;
+}
+
+h1 {
+  break-after: page;
+  font-size: 2.6em;
+  font-weight: normal;
+  margin: 3em 0;
+  page: clean;
+}
+h2 {
+  font-size: 1.5em;
+  font-variant: small-caps;
+  font-weight: normal;
+  margin: 0 0 2em;
+  text-align: center;
+}
+p {
+  hyphens: auto;
+  line-height: 1.5em;
+  margin: 0 0 1em 0;
+}
+br::after {
+  content: '';
+  display: inline-block;
+  width: 0.78em;
+}
+
+#authors {
+  page: clean;
+}
+#authors p {
+  text-indent: 0;
+}
+
+#contents {
+  break-after: page;
+  page: clean;
+}
+#contents p {
+  margin: 2em 0;
+  text-indent: 0;
+}
+#contents ul {
+  display: block;
+  margin: 1em 0;
+  padding: 0;
+}
+#contents li {
+  display: block;
+}
+#contents li ul {
+  margin: 0 0 0 1em;
+}
+#contents a {
+  color: inherit;
+  text-decoration: none;
+}
+#contents a::after {
+  /* weasyprint */
+  content: ' ' leader('.') ' ' target-counter(attr(href), page);
+}
+/* pagedjs hacks for lack of leader() support */
+#contents ul {
+  overflow-x: hidden;
+}
+#contents li::before {
+  content: ".................................................................................................................................................";
+  float: left;
+  width: 0;
+  padding-left: 5px;
+  letter-spacing: 2px;
+}
+#contents a {
+  background-color: white;
+  padding-right: 0.25em;
+  right: 0;
+}
+#contents a::after {
+  content: target-counter(attr(href), page);
+  position: absolute;
+  right: 0;
+  background-color: white;
+  padding-left: 0.25em;
+}
+
+.fullpage {
+  display: none;
+}
+  </style>
+</head>
+<body>
+
+$if(title)$
+<h1>$title$</h1>
+$endif$
+
+<section id="authors">
+
+    $if(interviewee)$
+    <div class="interviewee-wrapper">Interviewee: <span class="interviewee">$interviewee$</span></div>
+    $endif$
+
+    $if(interviewer)$
+    <div class="interviewer-wrapper">Interviewer: <span class="interviewer">$interviewer$</span></div>
+    $endif$
+
+    $if(dates)$
+    <div>Interview Sessions:</div>
+    <ul class="dates">
+      $for(dates)$
+      <li>$dates$</li>
+      $endfor$
+    </ul>
+    $endif$
+
+    $if(abstract)$
+    <div class="abstract">
+    <div class="abstract-title">$abstract-title$</div>
+    $abstract$
+    </div>
+    $endif$
+
+</section>
+$if(toc)$
+<section id="contents">
+<h2>Table of Contents</h2>
+$table-of-contents$
+</section>
+$endif$
+$body$
+$for(include-after)$
+$include-after$
+$endfor$
+</body>
+</html>
