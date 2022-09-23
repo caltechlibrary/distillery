@@ -21,14 +21,43 @@ def main(file):
             [
                 "pandoc",
                 "--standalone",
+                "--shift-heading-level-by=1",
+                "--table-of-contents",
                 "--from=markdown",
                 "--to=html",
-                "--template=.github/workflows/templates/default.html",
+                "--template=.github/workflows/templates/web.html",
                 f"--output=build/{file_segments[1]}/{file_segments[1]}.html",
                 f"transcripts/{file_segments[1]}/{file_segments[1]}.md",
             ]
         )
         print(f"🐞 file generated: build/{file_segments[1]}/{file_segments[1]}.html")
+        # create intermediary html for pagedjs
+        subprocess.run(
+            [
+                "pandoc",
+                "--standalone",
+                "--shift-heading-level-by=1",
+                "--table-of-contents",
+                "--from=markdown",
+                "--to=html",
+                "--template=.github/workflows/templates/pdf.html",
+                f"--output=build/{file_segments[1]}/pdf.html",
+                f"transcripts/{file_segments[1]}/{file_segments[1]}.md",
+            ]
+        )
+        print(f"🐞 file generated: build/{file_segments[1]}/pdf.html")
+        # create pdf with pagedjs
+        subprocess.run(
+            [
+                "pagedjs-cli",
+                f"build/{file_segments[1]}/pdf.html",
+                "--output",
+                f"transcripts/{file_segments[1]}/{file_segments[1]}.pdf",
+            ]
+        )
+        print(f"🐞 file generated: build/{file_segments[1]}/{file_segments[1]}.pdf")
+        os.remove(f"build/{file_segments[1]}/pdf.html")
+        print(f"🐞 file deleted: build/{file_segments[1]}/pdf.html")
 
 
 if __name__ == "__main__":
