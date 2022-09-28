@@ -101,8 +101,9 @@ def main(
                         for file_version in digital_object["file_versions"]
                     ]
                     if line.split()[-1] not in file_versions:
-                        # TODO change file_uri from s3 scheme
-                        file_version = {"file_uri": line.split()[-1], "publish": True}
+                        base_url = f'https://{config("OH_S3_BUCKET")}.s3.us-west-2.amazonaws.com'
+                        file_uri = f'{base_url}/{line.split()[-1].split("/", maxsplit=3)[-1]}'
+                        file_version = {"file_uri": file_uri, "publish": True}
                         digital_object["publish"] = True
                         digital_object["file_versions"].append(file_version)
                         distillery.archivessnake_post(
