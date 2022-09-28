@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" lang="$lang$" xml:lang="$lang$"$if(dir)$ dir="$dir$"$endif$>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="generator" content="pandoc">
@@ -20,11 +20,89 @@ $endif$
 $for(css)$
   <link rel="stylesheet" href="$css$">
 $endfor$
+<link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
+<style>
+  /* layout */
+  figure {
+    text-align: center;
+  }
+  @media (min-width: 992px) {
+    main > *:not(header, nav, h2, h3),
+    main > header > *:not(figure) {
+      margin-inline: 25%;
+      max-width: 50%;
+      padding-inline: var(--spacing);
+    }
+    main > header {
+      overflow: auto;
+    }
+    main > header > figure,
+    main > nav[role="doc-toc"] {
+      clear: right;
+      float: right;
+      max-width: 25%;
+      padding-inline-start: var(--block-spacing-horizontal);
+    }
+    main > h2,
+    main > h3 {
+      clear: left;
+      float: left;
+      max-width: 25%;
+      padding-inline-end: var(--block-spacing-horizontal);
+    }
+    figure {
+      text-align: unset;
+    }
+  }
+</style>
+<style>
+  /* table of contents */
+  @media (min-width: 992px) {
+    nav[role="doc-toc"] {
+      max-height: 100vh;
+      overflow-y: auto;
+      position: sticky;
+      top: 0;
+    }
+  }
+  /* override pico nav https://picocss.com/docs/navs.html */
+  /* nav with role=doc-toc useful for accessibility */
+  /* https://www.w3.org/TR/dpub-aria-1.1/#doc-toc */
+  nav[role="doc-toc"] ul {
+    display: block;
+    padding-inline-start: var(--spacing);
+  }
+  nav[role="doc-toc"] ul:first-of-type {
+    margin-inline-start: 0;
+  }
+  nav[role="doc-toc"] ul:last-of-type {
+    margin-inline-end: 0;
+  }
+  nav[role="doc-toc"] li {
+    display: list-item;
+    padding: 0;
+  }
+  nav[role="doc-toc"] li > * {
+    --spacing: 1rem;
+  }
+  nav[role="doc-toc"] li ul {
+    margin-block-start: 0;
+  }
+  nav[role="doc-toc"] a {
+    display: inline;
+  }
+</style>
+<style>
+  .smallcaps {
+    font-variant: small-caps;
+  }
+</style>
 $for(header-includes)$
   $header-includes$
 $endfor$
 </head>
 <body>
+<main class="container">
 $for(include-before)$
 $include-before$
 $endfor$
@@ -74,5 +152,20 @@ $body$
 $for(include-after)$
 $include-after$
 $endfor$
+</main>
+<script>
+  // set img alt attributes differently than pandoc for better accessibility
+  document.querySelectorAll("figure img").forEach(img => {
+    if (img.getAttribute("title")) {
+      img.setAttribute("alt", img.getAttribute("title"));
+      img.removeAttribute("title");
+    }
+    if (img.nextElementSibling) {
+      img.nextElementSibling.removeAttribute("aria-hidden");
+    }
+  });
+  // move headshot figure into header area
+  document.querySelector("#title-block-header h1").insertAdjacentElement("afterend", document.getElementById("headshot").parentElement);
+</script>
 </body>
 </html>
