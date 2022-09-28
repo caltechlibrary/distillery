@@ -118,19 +118,18 @@ $endfor$
 $if(date)$
 <p class="date">$date$</p>
 $endif$
-$if(interviewee)$
-<div class="interviewee-wrapper">Interviewee: <span class="interviewee">$interviewee$</span></div>
-$endif$
 $if(interviewer)$
-<div class="interviewer-wrapper">Interviewer: <span class="interviewer">$interviewer$</span></div>
+<div class="interviewer-wrapper">Interviewed by <span class="interviewer">$interviewer$</span></div>
 $endif$
 $if(dates)$
-<div>Interview Sessions:</div>
-<ul class="dates">
-  $for(dates)$
-  <li>$dates$</li>
-  $endfor$
-</ul>
+<details>
+  <summary>Interview Session Dates</summary>
+  <ul>
+    $for(dates)$
+    <li>$dates$</li>
+    $endfor$
+  </ul>
+</details>
 $endif$
 $if(abstract)$
 <div class="abstract">

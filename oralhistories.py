@@ -373,7 +373,8 @@ def create_metadata_file(transcript_dir):
         metadata["dates"] = []
         for date in archival_object["dates"]:
             if date["date_type"] == "single":
-                metadata["dates"].append(date["begin"])
+                # TODO format dates as: Month DD, YYYY
+                metadata["dates"].append(datetime.strptime(date["begin"], "%Y-%m-%d").strftime("%B %d, %Y").replace(" 0", " "))
     if archival_object.get("linked_agents"):
         for linked_agent in archival_object["linked_agents"]:
             if linked_agent.get("relator") == "ive":
