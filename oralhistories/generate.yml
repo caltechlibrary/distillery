@@ -1,4 +1,4 @@
-name: Generate HTML
+name: Generate Files
 on:
   push:
     branches:
@@ -9,7 +9,7 @@ on:
       - "**.md"
   workflow_dispatch:
 jobs:
-  generate-html:
+  generate-files:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

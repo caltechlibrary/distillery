@@ -18,6 +18,7 @@ def main(file):
             os.remove(f"{os.path.splitext(file)[0]}.pdf")
             return
         os.makedirs(f"build/{file_segments[1]}", exist_ok=True)
+        # generate html
         subprocess.run(
             [
                 "pandoc",
