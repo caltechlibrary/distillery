@@ -1,15 +1,13 @@
-name: Generate Files
+name: Regenerate Files
 on:
-  push:
-    branches:
-      - "**"
-    tags-ignore:
-      - "**"
-    paths:
-      - "**.md"
   workflow_dispatch:
+    inputs:
+      identifier:
+        description: "ArchivesSpace Identifier"
+        required: true
+        type: string
 jobs:
-  generate-files:
+  regenerate-files:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -47,10 +45,7 @@ jobs:
         run: mkdir -p build
 
       - name: Process changed files
-        run: for file in $(git diff-tree --no-commit-id --name-only -r ${{ github.sha }});
-          do
-            python .github/workflows/generate.py "$file";
-          done
+        run: python .github/workflows/regenerate.py ${{ inputs.identifier }};
 
       - name: Integrate generated files
         run: rsync --remove-source-files -av build/ transcripts/
