@@ -134,7 +134,7 @@ def main(
                     if line.split(".")[-1] == "pdf":
                         label = "PDF Asset"
                     else:
-                        label = f'{line.split(".")[-1].upper()} Asset: {line.split("-", maxsplit=3)[-1].split(".")[0]}'
+                        label = f'{line.split(".")[-1].upper()} Asset: {line.split("/")[-1].split("-", maxsplit=3)[-1].split(".")[0]}'
                     create_digital_object_component(
                         digital_object_uri,
                         label,
