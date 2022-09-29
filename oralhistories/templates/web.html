@@ -137,6 +137,14 @@ $if(abstract)$
 $abstract$
 </div>
 $endif$
+$if(archival_object_uri)$
+<!--TODO set up variable for base URL-->
+<div><a href="https://collections.archives.caltech.edu$archival_object_uri$">Access the full archival record</a></div>
+$endif$
+$if(component_id)$
+<!--TODO set up variable for base URL-->
+<div><a href="https://test-oralhistories-static-site.s3.us-west-2.amazonaws.com/$component_id$/$component_id$.pdf">Access a PDF version of the transcript [TODO KB]</a></div>
+$endif$
 </header>
 $endif$
 $if(toc)$
