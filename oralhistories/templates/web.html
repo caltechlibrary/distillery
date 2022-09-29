@@ -181,7 +181,8 @@ $endfor$
   const pdf_link = document.getElementById("pdf");
   fetch(pdf_link.href, {method: "HEAD"}).then((response) => {
     const bytes = response.headers.get('content-length');
-    pdf_link.insertAdjacentText("beforeend", ` [${humanFileSize(bytes)}]`);
+    // NOTE: double dollar sign because this is a pandoc template
+    pdf_link.insertAdjacentText("beforeend", ` [$${humanFileSize(bytes)}]`);
   });
   function humanFileSize(size) {
     var i = size == 0 ? 0 : Math.floor(Math.log(size) / Math.log(1024));
