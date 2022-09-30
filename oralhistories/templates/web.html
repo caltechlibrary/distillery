@@ -231,7 +231,7 @@ $endfor$
         const id = entry.target.getAttribute('id');
         if (entry.intersectionRatio > 0) {
           // NOTE: double dollar sign because this is a pandoc template
-          item = document.querySelector(`nav li a[href="#${id}"]`).parentElement;
+          item = document.querySelector(`nav li a[href="#$${id}"]`).parentElement;
           item.classList.add('active');
           if (item.parentElement.parentElement.tagName == "NAV" && item.previousElementSibling) {
             // remove class from top-level LI & its last child LI
