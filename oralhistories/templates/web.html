@@ -232,9 +232,15 @@ $endfor$
         if (entry.intersectionRatio > 0) {
           // NOTE: double dollar sign because this is a pandoc template
           document.querySelector(`nav li a[href="#$${id}"]`).parentElement.classList.add('active');
-        } else {
-          // NOTE: double dollar sign because this is a pandoc template
-          document.querySelector(`nav li a[href="#$${id}"]`).parentElement.classList.remove('active');
+          if (item.parentElement.parentElement.tagName == "NAV" && item.previousElementSibling) {
+            // remove class from top-level LI & its last child LI
+            item.previousElementSibling.classList.remove("active");
+            item.previousElementSibling.lastElementChild.lastElementChild.classList.remove("active");
+          }
+          if (item.parentElement.parentElement.parentElement.parentElement.tagName == "NAV" && item.previousElementSibling) {
+            // remove class from previous item only after setting new class
+            item.previousElementSibling.classList.remove("active");
+          }
         }
       });
     });
