@@ -21,14 +21,14 @@ $for(css)$
   <link rel="stylesheet" href="$css$">
 $endfor$
 <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Montserrat:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 <style>
   /* layout */
   figure {
     text-align: center;
   }
   @media (min-width: 992px) {
-    main > *:not(header, nav, h2, h3),
-    main > header > *:not(figure) {
+    main > *:not(header, nav, h3) {
       margin-inline: 25%;
       max-width: 50%;
       padding-inline: var(--spacing);
@@ -36,27 +36,31 @@ $endfor$
     main > header {
       overflow: auto;
     }
-    main > header > figure,
+    main > header > :not(h1, figure) {
+      margin-inline-start: calc(33% + var(--block-spacing-horizontal) * 2);
+      margin-inline-end: auto;
+      max-width: fit-content;
+    }
+    main > header > figure {
+      float: left;
+      max-width: 33%;
+    }
     main > nav[role="doc-toc"] {
       clear: right;
       float: right;
       max-width: 25%;
       padding-inline-start: var(--block-spacing-horizontal);
     }
-    main > h2,
     main > h3 {
       clear: left;
       float: left;
       max-width: 25%;
       padding-inline-end: var(--block-spacing-horizontal);
     }
-    figure {
-      text-align: unset;
-    }
   }
 </style>
 <style>
-  /* table of contents */
+  /* sticky table of contents */
   @media (min-width: 992px) {
     nav[role="doc-toc"] {
       max-height: 100vh;
@@ -93,12 +97,35 @@ $endfor$
   }
 </style>
 <style>
-  /* disable responsive typography */
   :root {
-    --font-size: 16px;
+    --font-family: 'Montserrat', sans-serif;;
+    /* disable responsive typography */
+    --font-size: unset;
+  }
+  h1, h2, h3, nav {
+    font-family: 'Merriweather', serif;
+  }
+  nav ul {
+    font-weight: 300;
+    margin-block-start: 0.5em;
+  }
+  nav li {
+    margin-block-end: 0.5em;
+  }
+  figcaption {
+    font-size: smaller;
+  }
+  p {
+    line-height: 1.75;
+  }
+  @media (min-width: 992px) {
+    main > h3 {
+      font-size: 1rem;
+    }
   }
   .smallcaps {
     font-variant: small-caps;
+    font-weight: bold;
   }
 </style>
 $for(header-includes)$
@@ -136,10 +163,8 @@ $if(dates)$
 </details>
 $endif$
 $if(abstract)$
-<div class="abstract">
-<div class="abstract-title">$abstract-title$</div>
-$abstract$
-</div>
+<h2>$abstract-title$</h2>
+<p>$abstract$</p>
 $endif$
 $if(archival_object_uri)$
 <!--TODO set up variable for base URL-->
