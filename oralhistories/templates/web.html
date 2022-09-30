@@ -60,7 +60,11 @@ $endfor$
   }
 </style>
 <style>
-  /* sticky table of contents */
+  /* table of contents */
+  html {
+    scroll-behavior: smooth;
+  }
+  /* sticky */
   @media (min-width: 992px) {
     nav[role="doc-toc"] {
       max-height: 100vh;
@@ -94,6 +98,13 @@ $endfor$
   }
   nav[role="doc-toc"] a {
     display: inline;
+  }
+</style>
+<style>
+  /* scrollspy */
+  nav[role="doc-toc"] li.active > a {
+    color: var(--primary-hover);
+    font-weight: bold;
   }
 </style>
 <style>
@@ -213,6 +224,26 @@ $endfor$
     var i = size == 0 ? 0 : Math.floor(Math.log(size) / Math.log(1024));
     return (size / Math.pow(1024, i)).toFixed(2) * 1 + ' ' + ['B', 'kB', 'MB', 'GB', 'TB'][i];
   };
+  // scrollspy
+  window.addEventListener('DOMContentLoaded', () => {
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        const id = entry.target.getAttribute('id');
+        if (entry.intersectionRatio > 0) {
+          // NOTE: double dollar sign because this is a pandoc template
+          document.querySelector(`nav li a[href="#$${id}"]`).parentElement.classList.add('active');
+        } else {
+          // NOTE: double dollar sign because this is a pandoc template
+          document.querySelector(`nav li a[href="#$${id}"]`).parentElement.classList.remove('active');
+        }
+      });
+    });
+    // Track all headings that have an `id` applied
+    document.querySelectorAll('h2[id], h3[id').forEach((heading) => {
+      observer.observe(heading);
+    });
+  });
+  // TODO scroll toc with page contents to keep current toc item in viewport
 </script>
 </body>
 </html>
