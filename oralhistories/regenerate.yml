@@ -52,6 +52,9 @@ jobs:
       - name: Integrate generated files
         run: rsync --remove-source-files -av build/ transcripts/
 
+      - name: Delete __pycache__
+        run: rm -r .github/workflows/__pycache__
+
       - name: Configure Git identity
         run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
