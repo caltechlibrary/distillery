@@ -212,7 +212,9 @@ $endfor$
     }
   });
   // move frontispiece into header area
-  document.querySelector("#title-block-header h1").insertAdjacentElement("afterend", document.getElementById("frontispiece").parentElement);
+  if (document.getElementById("frontispiece")) {
+    document.querySelector("#title-block-header h1").insertAdjacentElement("afterend", document.getElementById("frontispiece").parentElement);
+  }
   // append file size to pdf links
   const pdf_link = document.getElementById("pdf");
   fetch(pdf_link.href, {method: "HEAD"}).then((response) => {
