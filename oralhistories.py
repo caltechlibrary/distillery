@@ -370,10 +370,21 @@ def clone_git_repository():
 
 
 def create_metadata_file(transcript_dir):
+    """Create a metadata.json file and return a dictionary.
+
+    :param transcript_dir: Path to the directory containing the
+        transcript.
+    :type transcript_dir: pathlib.Path
+    :return: Contents of the metadata.json file.
+    :rtype: dict
+    """
+
     archival_object = distillery.get_folder_data(transcript_dir.stem)
     metadata = {"title": archival_object["title"]}
     metadata["component_id"] = archival_object["component_id"]
     metadata["archival_object_uri"] = archival_object["uri"]
+    metadata["bucket"] = config("OH_S3_BUCKET")
+    metadata["archivesspace_public_url"] = config("ASPACE_PUBLIC_URL").rstrip("/")
     if archival_object.get("dates"):
         metadata["dates"] = []
         for date in archival_object["dates"]:

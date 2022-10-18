@@ -177,13 +177,16 @@ $if(abstract)$
 <h2>$abstract-title$</h2>
 <p>$abstract$</p>
 $endif$
+$if(archivesspace_public_url)$
 $if(archival_object_uri)$
-<!--TODO set up variable for base URL-->
-<div><a href="https://collections.archives.caltech.edu$archival_object_uri$">Access the full archival record</a></div>
+<div><a href="$archivesspace_public_url$$archival_object_uri$">Access the full archival record</a></div>
 $endif$
+$endif$
+$if(bucket)$
 $if(component_id)$
-<!--TODO set up variable for base URL-->
-<div><a id="pdf" href="https://test-oralhistories-static-site.s3.us-west-2.amazonaws.com/$component_id$/$component_id$.pdf">Access a PDF version of the transcript</a></div>
+<!--TODO set up appropriate relative URL-->
+<div><a id="pdf" href="https://$bucket$.s3.us-west-2.amazonaws.com/$component_id$/$component_id$.pdf">Access a PDF version of the transcript</a></div>
+$endif$
 $endif$
 </header>
 $endif$
