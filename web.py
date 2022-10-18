@@ -134,28 +134,13 @@ def stream(collection_id):
 
 @route("/oralhistories")
 def oralhistories_form():
-    return (
-        "<h1>Oral Histories</h1>"
-        f'<form action="{config("BASE_URL").rstrip("/")}/oralhistories" method="post" enctype="multipart/form-data">'
-        "<h2>Add</h2>"
-        '<p><label for="file">Select a Microsoft Word <b>docx</b> file to upload:</label></p>'
-        '<p><input type="file" name="file" id="file"></p>'
-        '<p><input type="submit" value="Upload"></p>'
-        "</form>"
-        "<hr>"
-        f'<form action="{config("BASE_URL").rstrip("/")}/oralhistories" method="post" enctype="multipart/form-data">'
-        "<h2>Update Metadata</h2>"
-        '<p><label for="component_id">Optionally enter a Component Unique Identfier for an ArchivesSpace record:</label></p>'
-        '<p><input type="text" name="component_id" id="component_id" aria-describedby="optional_component_id"></p>'
-        '<p id="optional_component_id">If no Component Unique Identifier is entered, all metadata will be updated from ArchivesSpace.</p>'
-        '<p><input type="submit" name="update" value="Update Metadata"></p>'
-        "</form>"
-        "<hr>"
-        f'<form action="{config("BASE_URL").rstrip("/")}/oralhistories" method="post" enctype="multipart/form-data">'
-        "<h2>Publish</h2>"
-        "<p>Publish recent changes to the web:</p>"
-        '<p><input type="submit" name="publish" value="Publish Changes"></p>'
-        "</form>"
+    return template(
+        "oralhistories",
+        distillery_base_url=config("BASE_URL").rstrip("/"),
+        user=authorize_user(),
+        archivesspace_staff_url=config("ASPACE_STAFF_URL"),
+        github_repo=config("OH_REPO"),
+        s3_bucket=config("OH_S3_BUCKET"),
     )
 
 
