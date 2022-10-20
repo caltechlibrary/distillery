@@ -230,28 +230,52 @@ $endfor$
     return (size / Math.pow(1024, i)).toFixed(2) * 1 + ' ' + ['B', 'kB', 'MB', 'GB', 'TB'][i];
   };
   // scrollspy
+  // inspired by https://www.bram.us/2020/01/10/smooth-scrolling-sticky-scrollspy-navigation/
+  // and https://stackoverflow.com/a/58981159
   window.addEventListener('DOMContentLoaded', () => {
     const observer = new IntersectionObserver(entries => {
       entries.forEach(entry => {
         const id = entry.target.getAttribute('id');
-        if (entry.intersectionRatio > 0) {
-          // NOTE: double dollar sign because this is a pandoc template
-          item = document.querySelector(`nav li a[href="#$${id}"]`).parentElement;
-          item.classList.add('active');
-          if (item.parentElement.parentElement.tagName == "NAV" && item.previousElementSibling) {
-            // remove class from top-level LI & its last child LI
-            item.previousElementSibling.classList.remove("active");
-            item.previousElementSibling.lastElementChild.lastElementChild.classList.remove("active");
+        if (entry.isIntersecting) {
+          // remove "active" class from nav item associated with any
+          // previously intersecting heading;
+          // we do this because we want the nav item to remain active
+          // even when its heading is no longer visible and before the
+          // next heading is visible;
+          if (entry.target.tagName == "H2" && document.querySelector("nav > ul > li.active")) {
+            document.querySelector("nav > ul > li.active").classList.remove("active");
           }
-          if (item.parentElement.parentElement.parentElement.parentElement.tagName == "NAV" && item.previousElementSibling) {
-            // remove class from previous item only after setting new class
-            item.previousElementSibling.classList.remove("active");
+          if (entry.target.tagName == "H3" && document.querySelector("nav li li.active")) {
+            document.querySelector("nav li li.active").classList.remove("active");
+          }
+          // NOTE: use a double dollar sign in a pandoc template
+          item = document.querySelector(`nav a[href="#$${id}"]`).parentElement;
+          item.classList.add('active');
+        }
+        if (!entry.isIntersecting && entry.boundingClientRect.top > 0) {
+          // NOTE: the user is scrolling up
+          // remove "active" class from nav item at the corresponding level
+          if (entry.target.tagName == "H2" && document.querySelector("nav > ul > li.active")) {
+            document.querySelector("nav > ul > li.active").classList.remove("active");
+          }
+          if (entry.target.tagName == "H3" && document.querySelector("nav li li.active")) {
+            document.querySelector("nav li li.active").classList.remove("active");
+          }
+          // and add it to the previous sibling
+          if (document.querySelector(`nav a[href="#${id}"]`).parentElement.previousElementSibling) {
+            document.querySelector(`nav a[href="#${id}"]`).parentElement.previousElementSibling.classList.add("active");
+            // and the last child of the sibling
+            if (document.querySelector(`nav a[href="#${id}"]`).parentElement.previousElementSibling.lastElementChild) {
+              if (document.querySelector(`nav a[href="#${id}"]`).parentElement.previousElementSibling.lastElementChild.lastElementChild) {
+                document.querySelector(`nav a[href="#${id}"]`).parentElement.previousElementSibling.lastElementChild.lastElementChild.classList.add("active");
+              }
+            }
           }
         }
       });
     });
     // Track all headings that have an `id` applied
-    document.querySelectorAll('h2[id], h3[id').forEach((heading) => {
+    document.querySelectorAll('h2[id], h3[id]').forEach((heading) => {
       observer.observe(heading);
     });
   });
