@@ -77,15 +77,17 @@
         <hr>
         <h2 id="update">Update Metadata</h2>
         <form action="{{distillery_base_url}}/oralhistories" method="post" enctype="multipart/form-data">
-            <label for="component_id">Optionally enter a Component Unique Identfier for an ArchivesSpace record:</label>
-            <input type="text" name="component_id" id="component_id" aria-describedby="optional_component_id">
-            <p id="optional_component_id">If no Component Unique Identifier is entered, all metadata will be updated from ArchivesSpace.</p>
+            <label for="component_id_update">Optionally enter a Component Unique Identfier for an ArchivesSpace record:</label>
+            <input type="text" name="component_id_update" id="component_id_update" aria-describedby="optional_component_id_update">
+            <p id="optional_component_id_update">If no Component Unique Identifier is entered, all metadata will be updated from ArchivesSpace.</p>
             <input type="submit" name="update" value="Update Metadata">
         </form>
         <hr>
         <h2 id="publish">Publish</h2>
         <form action="{{distillery_base_url}}/oralhistories" method="post" enctype="multipart/form-data">
-            <p>Publish recent changes to the web:</p>
+            <label for="component_id_publish">Optionally enter a Component Unique Identfier for an ArchivesSpace record:</label>
+            <input type="text" name="component_id_publish" id="component_id_publish" aria-describedby="optional_component_id_publish">
+            <p id="optional_component_id_publish">If no Component Unique Identifier is entered, all changes will be published to the web.</p>
             <input type="submit" name="publish" value="Publish Changes">
         </form>
     </main>

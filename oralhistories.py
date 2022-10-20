@@ -55,22 +55,16 @@ def main(
             f'{metadata["component_id"]}.md',
         )
     if publish:
-        # publish web files to S3
-        aws_cmd = sh.Command(config("WORK_AWS_CMD"))
-        s3sync_output = aws_cmd(
-            "s3",
-            "sync",
-            f'{Path(repo_dir).joinpath("transcripts")}',
-            f's3://{config("OH_S3_BUCKET")}',
-            "--exclude",
-            "*.md",
-            "--delete",
-            "--no-progress",
-            _env={
-                "AWS_ACCESS_KEY_ID": config("AWS_ACCESS_KEY"),
-                "AWS_SECRET_ACCESS_KEY": config("AWS_SECRET_KEY"),
-            },
-        )
+        if component_id:
+            # publish a single record
+            transcript_source = Path(repo_dir).joinpath("transcripts", component_id)
+            bucket_destination = f's3://{config("OH_S3_BUCKET")}/{component_id}/'
+            s3sync_output = publish_transcripts(transcript_source, bucket_destination)
+        else:
+            # publish all records (example case: interviewer name change)
+            transcript_source = Path(repo_dir).joinpath("transcripts")
+            bucket_destination = f's3://{config("OH_S3_BUCKET")}'
+            s3sync_output = publish_transcripts(transcript_source, bucket_destination)
         # tag latest commit as published
         tagname = f'published/{datetime.now().strftime("%Y-%m-%d.%H%M%S")}'
         git_cmd(
@@ -432,6 +426,26 @@ def convert_word_to_markdown(docxfile, transcript_dir):
     logger.info(
         f'☑️  WORD FILE CONVERTED TO MARKDOWN: {transcript_dir.joinpath(f"{transcript_dir.stem}.md")}'
     )
+
+
+def publish_transcripts(transcript_source, bucket_destination):
+    # publish transcript files to S3
+    aws_cmd = sh.Command(config("WORK_AWS_CMD"))
+    return aws_cmd(
+        "s3",
+        "sync",
+        transcript_source,
+        bucket_destination,
+        "--exclude",
+        "*.md",
+        "--delete",
+        "--no-progress",
+        _env={
+            "AWS_ACCESS_KEY_ID": config("AWS_ACCESS_KEY"),
+            "AWS_SECRET_ACCESS_KEY": config("AWS_SECRET_KEY"),
+        },
+    )
+
 
 
 def push_markdown_file(transcript_dir):
