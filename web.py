@@ -148,17 +148,23 @@ def oralhistories_form():
 def oralhistories_post():
     if request.forms.get("publish"):
         # write a file for alchemist.py to find
-        Path(config("WEB_STATUS_FILES")).joinpath("publish-oral-histories").touch()
-        return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
-    if request.forms.get("update"):
-        # write a file for alchemist.py to find
-        if request.forms.get("component_id"):
+        if request.forms.get("component_id_publish"):
             Path(config("WEB_STATUS_FILES")).joinpath(
-                request.forms.get("component_id")
+                f'{request.forms.get("component_id_publish")}--publish'
             ).touch()
             return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
         else:
-            Path(config("WEB_STATUS_FILES")).joinpath("update-oral-histories").touch()
+            Path(config("WEB_STATUS_FILES")).joinpath("oral-histories--publish").touch()
+            return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
+    if request.forms.get("update"):
+        # write a file for alchemist.py to find
+        if request.forms.get("component_id_update"):
+            Path(config("WEB_STATUS_FILES")).joinpath(
+                f'{request.forms.get("component_id_update")}--update'
+            ).touch()
+            return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
+        else:
+            Path(config("WEB_STATUS_FILES")).joinpath("oral-histories--update").touch()
             return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
     upload = request.files.get("file")
     if Path(upload.filename).suffix not in [".docx"]:
