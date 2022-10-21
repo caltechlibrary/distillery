@@ -380,11 +380,27 @@ def create_metadata_file(transcript_dir):
     metadata["bucket"] = config("OH_S3_BUCKET")
     metadata["archivesspace_public_url"] = config("ASPACE_PUBLIC_URL").rstrip("/")
     if archival_object.get("dates"):
-        metadata["dates"] = []
+        dates = {}
         for date in archival_object["dates"]:
             if date["date_type"] == "single":
-                # format dates as: Month D, YYYY
-                metadata["dates"].append(datetime.strptime(date["begin"], "%Y-%m-%d").strftime("%B %d, %Y").replace(" 0", " "))
+                # key: YYYY-MM-DD, value: Month D, YYYY
+                dates[date["begin"]] = (
+                    datetime.strptime(date["begin"], "%Y-%m-%d")
+                    .strftime("%B %d, %Y")
+                    .replace(" 0", " ")
+                )
+            else:
+                logger.warning(
+                    f'⚠️  NON-SINGLE DATE TYPE FOUND: {archival_object["component_id"]}'
+                )
+        if int(sorted(dates)[-1][:4]) - int(sorted(dates)[0][:4]) == 0:
+            metadata["date_summary"] = sorted(dates)[0][:4]
+        else:
+            metadata[
+                "date_summary"
+            ] = f"{sorted(dates)[0][:4]} to {sorted(dates)[-1][:4]}"
+        # sort dates by key (YYYY-MM-DD) and get values (Month D, YYYY)
+        metadata["dates"] = [value for key, value in sorted(dates.items())]
     if archival_object.get("linked_agents"):
         for linked_agent in archival_object["linked_agents"]:
             if linked_agent.get("relator") == "ive":

@@ -165,7 +165,11 @@ $if(interviewer)$
 $endif$
 $if(dates)$
 <details>
+  $if(date_summary)$
+  <summary>Interview Sessions from $date_summary$</summary>
+  $else$
   <summary>Interview Session Dates</summary>
+  $endif$
   <ul>
     $for(dates)$
     <li>$dates$</li>
