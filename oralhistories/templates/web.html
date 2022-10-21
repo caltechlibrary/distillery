@@ -49,7 +49,6 @@ $endfor$
       clear: right;
       float: right;
       max-width: 20%;
-      padding-inline-start: var(--block-spacing-horizontal);
     }
     main > h3 {
       clear: left;
@@ -71,7 +70,7 @@ $endfor$
   @media (min-width: 992px) {
     nav[role="doc-toc"] {
       max-height: 100vh;
-      overflow-y: auto;
+      overflow: auto;
       position: sticky;
       top: 0;
     }
@@ -252,6 +251,12 @@ $endfor$
           // NOTE: use a double dollar sign in a pandoc template
           item = document.querySelector(`nav a[href="#$${id}"]`).parentElement;
           item.classList.add('active');
+          // determine if nav list is at the top of the window
+          // prevent a disorienting jump when the first nav item would want to scroll into view
+          if (document.querySelector("nav[role='doc-toc']").offsetTop == document.documentElement.scrollTop) {
+            // ensure nav items are scrolled into view in the sidebar
+            item.scrollIntoView({behavior: "smooth", block: "nearest"});
+          }
         }
         if (!entry.isIntersecting && entry.boundingClientRect.top > 0) {
           // NOTE: the user is scrolling up
