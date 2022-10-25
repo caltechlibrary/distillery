@@ -1,9 +1,11 @@
 <!DOCTYPE html>
-<html lang="$lang$">
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <link href="https://fonts.googleapis.com/css2?family=Cardo&family=Fanwood+Text&family=Linden+Hill&family=Sorts+Mill+Goudy" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Alegreya&family=Alegreya+SC&family=Cormorant&family=Cormorant+SC&family=IM+Fell+French+Canon&family=IM+Fell+French+Canon+SC&family=Marcellus&family=Marcellus+SC" rel="stylesheet">  <style>
+<meta charset="utf-8">
+<!-- <link href="https://fonts.googleapis.com/css2?family=Cardo&family=Fanwood+Text&family=Linden+Hill&family=Sorts+Mill+Goudy" rel="stylesheet"> -->
+<!-- <link href="https://fonts.googleapis.com/css2?family=Alegreya&family=Alegreya+SC&family=Cormorant&family=Cormorant+SC&family=IM+Fell+French+Canon&family=IM+Fell+French+Canon+SC&family=Marcellus&family=Marcellus+SC" rel="stylesheet"> -->
+<link href="https://fonts.googleapis.com/css2?family=Sorts+Mill+Goudy" rel="stylesheet">
+<style>
 @page {
   margin: 2in;
   size: letter;
@@ -18,8 +20,6 @@
   @top-right { content: none }
   @bottom-left { content: none }
 }
-
-img { display: none;}
 
 html {
   /* font-family: 'Cardo', serif; */
@@ -41,11 +41,31 @@ body {
   margin: 0;
 }
 
-h1 {
+figure {
+  margin-inline: 0;
+}
+figure img {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+}
+figcaption {
+  font-size: 0.8em;
+  margin-block-start: 0.8em;
+  text-align: center;
+}
+
+#cover {
   break-after: page;
+  page: clean;
+}
+h1 {
   font-size: 2.6em;
   font-weight: normal;
   margin: 3em 0;
+}
+#abstract {
+  break-after: page;
   page: clean;
 }
 h2 {
@@ -54,6 +74,9 @@ h2 {
   font-weight: normal;
   margin: 0 0 2em;
   text-align: center;
+}
+h2, h3 {
+  break-after: avoid;
 }
 p {
   hyphens: auto;
@@ -66,16 +89,8 @@ br::after {
   width: 0.78em;
 }
 
-#authors {
-  page: clean;
-}
-#authors p {
-  text-indent: 0;
-}
-
 #contents {
   break-after: page;
-  page: clean;
 }
 #contents p {
   margin: 2em 0;
@@ -100,77 +115,55 @@ br::after {
   /* weasyprint */
   content: ' ' leader('.') ' ' target-counter(attr(href), page);
 }
-/* pagedjs hacks for lack of leader() support */
-#contents ul {
-  overflow-x: hidden;
-}
-#contents li::before {
-  content: ".................................................................................................................................................";
-  float: left;
-  width: 0;
-  padding-left: 5px;
-  letter-spacing: 2px;
-}
-#contents a {
-  background-color: white;
-  padding-right: 0.25em;
-  right: 0;
+/* pagedjs lacks leader() support */
+#contents li {
+  margin: 0.33rem 1rem;
+  text-indent: -1rem;
 }
 #contents a::after {
   content: target-counter(attr(href), page);
   position: absolute;
   right: 0;
-  background-color: white;
-  padding-left: 0.25em;
 }
 
 .fullpage {
   display: none;
 }
-  </style>
+</style>
 </head>
 <body>
+
+<section id="cover">
 
 $if(title)$
 <h1>$title$</h1>
 $endif$
 
-<section id="authors">
+$if(interviewer)$
+<p class="interviewer">Interviewed by <span>$interviewer$</span></p>
+$endif$
 
-    $if(interviewee)$
-    <div class="interviewee-wrapper">Interviewee: <span class="interviewee">$interviewee$</span></div>
-    $endif$
-
-    $if(interviewer)$
-    <div class="interviewer-wrapper">Interviewer: <span class="interviewer">$interviewer$</span></div>
-    $endif$
-
-    $if(dates)$
-    <div>Interview Sessions:</div>
-    <ul class="dates">
-      $for(dates)$
-      <li>$dates$</li>
-      $endfor$
-    </ul>
-    $endif$
-
-    $if(abstract)$
-    <div class="abstract">
-    <div class="abstract-title">$abstract-title$</div>
-    $abstract$
-    </div>
-    $endif$
+$if(date_summary)$
+<p class="dates">$date_summary$</p>
+$endif$
 
 </section>
+
+$if(abstract)$
+<section id="abstract">
+<h2>$abstract-title$</h2>
+$abstract$
+</section>
+$endif$
+
 $if(toc)$
 <section id="contents">
 <h2>Table of Contents</h2>
 $table-of-contents$
 </section>
 $endif$
+
 $body$
-$for(include-after)$
-$include-after$
-$endfor$
+
 </body>
 </html>
