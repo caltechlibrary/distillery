@@ -96,7 +96,9 @@ def main(
                     ]
                     if line.split()[-1] not in file_versions:
                         base_url = f'https://{config("OH_S3_BUCKET")}.s3.us-west-2.amazonaws.com'
-                        file_uri = f'{base_url}/{line.split()[-1].split("/", maxsplit=3)[-1]}'
+                        file_uri = (
+                            f'{base_url}/{line.split()[-1].split("/", maxsplit=3)[-1]}'
+                        )
                         file_version = {"file_uri": file_uri, "publish": True}
                         digital_object["publish"] = True
                         digital_object["file_versions"].append(file_version)
@@ -113,6 +115,10 @@ def main(
                         logger.info(
                             f"ℹ️  EXISTING DIGITAL OBJECT FILE VERSION FOUND: {line.split()[-1]}"
                         )
+                    # set a redirect in the resolver
+                    set_resolver_redirect(
+                        f'archives/{line.split("/")[-1].split(".")[0]}', file_uri
+                    )
                 else:
                     # look for an existing digital_object_component
                     digital_object_component_uri = find_digital_object_component(
@@ -151,6 +157,7 @@ def main(
                     logger.info(
                         f"🔥 DIGITAL OBJECT FILE VERSION DELETED: {line.split()[-1]}"
                     )
+                    # TODO determine if resolver entry should be deleted
                 else:
                     # look for an existing digital_object_component
                     digital_object_component_uri = find_digital_object_component(
@@ -462,6 +469,29 @@ def publish_transcripts(transcript_source, bucket_destination):
         },
     )
 
+
+def set_resolver_redirect(resolver_id, redirect_url):
+    """Create or update a redirect entry in the S3 bucket."""
+    aws_cmd = sh.Command(config("WORK_AWS_CMD"))
+    logger.info(
+        f'☑️  RESOLVER REDIRECT SET: s3://{config("RESOLVER_S3_BUCKET")}/{resolver_id} ➡️  {redirect_url}'
+    )
+    return aws_cmd(
+        "s3api",
+        "put-object",
+        "--acl",
+        "public-read",
+        "--bucket",
+        config("RESOLVER_S3_BUCKET"),
+        "--key",
+        resolver_id,
+        "--website-redirect-location",
+        redirect_url,
+        _env={
+            "AWS_ACCESS_KEY_ID": config("RESOLVER_AWS_ACCESS_KEY_ID"),
+            "AWS_SECRET_ACCESS_KEY": config("RESOLVER_AWS_SECRET_ACCESS_KEY"),
+        },
+    )
 
 
 def push_markdown_file(transcript_dir):
