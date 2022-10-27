@@ -139,8 +139,8 @@ def oralhistories_form():
         distillery_base_url=config("BASE_URL").rstrip("/"),
         user=authorize_user(),
         archivesspace_staff_url=config("ASPACE_STAFF_URL"),
-        github_repo=config("OH_REPO"),
-        s3_bucket=config("OH_S3_BUCKET"),
+        github_repo=config("ORALHISTORIES_GITHUB_REPO"),
+        s3_bucket=config("ORALHISTORIES_BUCKET"),
     )
 
 

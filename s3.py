@@ -24,8 +24,8 @@ validation_logger = logging.getLogger("validation")
 
 s3_client = boto3.client(
     "s3",
-    aws_access_key_id=config("AWS_ACCESS_KEY"),
-    aws_secret_access_key=config("AWS_SECRET_KEY"),
+    aws_access_key_id=config("DISTILLERY_AWS_ACCESS_KEY_ID"),
+    aws_secret_access_key=config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
 )
 
 
@@ -134,7 +134,9 @@ def transfer_collection_datafile(variables):
     logger.info(
         f'☑️  S3 OBJECT UPLOADED: {config("PRESERVATION_BUCKET")}/{str(collection_datafile_key)}'
     )
-    validation_logger.info(f'S3: {config("PRESERVATION_BUCKET")}/{str(collection_datafile_key)}')
+    validation_logger.info(
+        f'S3: {config("PRESERVATION_BUCKET")}/{str(collection_datafile_key)}'
+    )
 
 
 def transfer_derivative_structure(variables):
@@ -163,7 +165,9 @@ def transfer_archival_object_datafile(variables):
     logger.info(
         f'☑️  S3 OBJECT UPLOADED: {config("PRESERVATION_BUCKET")}/{str(archival_object_datafile_key)}'
     )
-    validation_logger.info(f'S3: {config("PRESERVATION_BUCKET")}/{str(archival_object_datafile_key)}')
+    validation_logger.info(
+        f'S3: {config("PRESERVATION_BUCKET")}/{str(archival_object_datafile_key)}'
+    )
 
 
 def transfer_digital_object_component_file(variables):
@@ -208,7 +212,9 @@ def transfer_digital_object_component_file(variables):
         logger.info(
             f'☑️  S3 OBJECT UPLOADED: {config("PRESERVATION_BUCKET")}/{preservation_file_key}'
         )
-        validation_logger.info(f'S3: {config("PRESERVATION_BUCKET")}/{preservation_file_key}')
+        validation_logger.info(
+            f'S3: {config("PRESERVATION_BUCKET")}/{preservation_file_key}'
+        )
         return response["ETag"].strip('"')
 
 

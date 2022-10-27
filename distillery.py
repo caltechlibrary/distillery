@@ -287,8 +287,8 @@ def distill(
         # s3_client.put_object(
         boto3.client(
             "s3",
-            aws_access_key_id=config("AWS_ACCESS_KEY"),
-            aws_secret_access_key=config("AWS_SECRET_KEY"),
+            aws_access_key_id=config("DISTILLERY_AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
         ).put_object(
             Bucket=PRESERVATION_BUCKET,
             Key=collection_id + "/" + collection_id + ".json",
@@ -383,8 +383,8 @@ def distill(
             # s3_client.put_object(
             boto3.client(
                 "s3",
-                aws_access_key_id=config("AWS_ACCESS_KEY"),
-                aws_secret_access_key=config("AWS_SECRET_KEY"),
+                aws_access_key_id=config("DISTILLERY_AWS_ACCESS_KEY_ID"),
+                aws_secret_access_key=config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
             ).put_object(
                 Bucket=PRESERVATION_BUCKET,
                 Key=get_s3_aip_folder_key(
@@ -509,8 +509,12 @@ def distill(
                             # s3_client.put_object,
                             boto3.client(
                                 "s3",
-                                aws_access_key_id=config("AWS_ACCESS_KEY"),
-                                aws_secret_access_key=config("AWS_SECRET_KEY"),
+                                aws_access_key_id=config(
+                                    "DISTILLERY_AWS_ACCESS_KEY_ID"
+                                ),
+                                aws_secret_access_key=config(
+                                    "DISTILLERY_AWS_SECRET_ACCESS_KEY"
+                                ),
                             ).put_object,
                             Bucket=PRESERVATION_BUCKET,
                             Key=aip_image_data["s3key"],
@@ -655,7 +659,7 @@ def archivessnake_post(uri, object):
     response.raise_for_status()
     # TODO handle error responses
     validation_logger.info(f'ARCHIVESSPACE: {response.json()["uri"]}')
-    logger.info(f'🐞: {response.json()}')
+    logger.info(f"🐞: {response.json()}")
     return response
 
 
