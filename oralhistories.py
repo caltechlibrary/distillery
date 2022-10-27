@@ -58,12 +58,14 @@ def main(
         if component_id:
             # publish a single record
             transcript_source = Path(repo_dir).joinpath("transcripts", component_id)
-            bucket_destination = f's3://{config("OH_S3_BUCKET")}/{component_id}/'
+            bucket_destination = (
+                f's3://{config("ORALHISTORIES_BUCKET")}/{component_id}/'
+            )
             s3sync_output = publish_transcripts(transcript_source, bucket_destination)
         else:
             # publish all records (example case: interviewer name change)
             transcript_source = Path(repo_dir).joinpath("transcripts")
-            bucket_destination = f's3://{config("OH_S3_BUCKET")}'
+            bucket_destination = f's3://{config("ORALHISTORIES_BUCKET")}'
             s3sync_output = publish_transcripts(transcript_source, bucket_destination)
         # tag latest commit as published
         tagname = f'published/{datetime.now().strftime("%Y-%m-%d.%H%M%S")}'
@@ -95,7 +97,7 @@ def main(
                         for file_version in digital_object["file_versions"]
                     ]
                     if line.split()[-1] not in file_versions:
-                        base_url = f'https://{config("OH_S3_BUCKET")}.s3.us-west-2.amazonaws.com'
+                        base_url = f'https://{config("ORALHISTORIES_BUCKET")}.s3.us-west-2.amazonaws.com'
                         file_uri = (
                             f'{base_url}/{line.split()[-1].split("/", maxsplit=3)[-1]}'
                         )
@@ -204,22 +206,22 @@ def add_commit_push(repo_dir, component_id="", update=False):
         "--",
     )
     if diff:
-        if config("OH_REPO_GIT_EMAIL", default="") and config(
-            "OH_REPO_GIT_NAME", default=""
+        if config("ORALHISTORIES_GIT_USER_EMAIL", default="") and config(
+            "ORALHISTORIES_GIT_USER_NAME", default=""
         ):
             git_cmd(
                 "-C",
                 repo_dir,
                 "config",
                 "user.email",
-                config("OH_REPO_GIT_EMAIL"),
+                config("ORALHISTORIES_GIT_USER_EMAIL"),
             )
             git_cmd(
                 "-C",
                 repo_dir,
                 "config",
                 "user.name",
-                config("OH_REPO_GIT_NAME"),
+                config("ORALHISTORIES_GIT_USER_NAME"),
             )
         if component_id:
             if update:
@@ -247,7 +249,7 @@ def add_commit_push(repo_dir, component_id="", update=False):
             _tty_out=False,
         ).strip("'")
         logger.info(
-            f'☑️  CHANGES PUSHED TO GITHUB: https://github.com/{config("OH_REPO")}/commit/{hash}'
+            f'☑️  CHANGES PUSHED TO GITHUB: https://github.com/{config("ORALHISTORIES_GITHUB_REPO")}/commit/{hash}'
         )
     else:
         logger.warning(f"⚠️  NO CHANGES DETECTED")
@@ -337,7 +339,7 @@ def create_digital_object_component(digital_object_uri, label, filename):
     digital_object_component["component_id"] = filename
     digital_object_component["file_versions"] = [
         {
-            "file_uri": f'https://github.com/{config("OH_REPO")}/blob/main/transcripts/{"-".join([filename.split("-")[0], filename.split("-")[1], filename.split("-")[2]])}/{filename}'
+            "file_uri": f'https://github.com/{config("ORALHISTORIES_GITHUB_REPO")}/blob/main/transcripts/{"-".join([filename.split("-")[0], filename.split("-")[1], filename.split("-")[2]])}/{filename}'
         }
     ]
     response = distillery.archivessnake_post(
@@ -352,11 +354,11 @@ def clone_git_repository():
     # use a specific ssh identity_file when cloning this repository
     git_cmd(
         "clone",
-        f'git@github.com:{config("OH_REPO")}.git',
+        f'git@github.com:{config("ORALHISTORIES_GITHUB_REPO")}.git',
         "--depth",
         "1",
         repo_dir,
-        _env={"GIT_SSH_COMMAND": f'ssh -i {config("OH_REPO_SSH_KEY")}'},
+        _env={"GIT_SSH_COMMAND": f'ssh -i {config("ORALHISTORIES_GITHUB_SSH_KEY")}'},
     )
     logger.info(f"☑️  GIT REPOSITORY CLONED TO TEMPORARY DIRECTORY: {repo_dir}")
     # set the ssh identity_file to use with this repository
@@ -365,7 +367,7 @@ def clone_git_repository():
         repo_dir,
         "config",
         "core.sshCommand",
-        f'ssh -i {config("OH_REPO_SSH_KEY")}',
+        f'ssh -i {config("ORALHISTORIES_GITHUB_SSH_KEY")}',
     )
     return repo_dir
 
@@ -384,7 +386,7 @@ def create_metadata_file(transcript_dir):
     metadata = {"title": archival_object["title"]}
     metadata["component_id"] = archival_object["component_id"]
     metadata["archival_object_uri"] = archival_object["uri"]
-    metadata["bucket"] = config("OH_S3_BUCKET")
+    metadata["bucket"] = config("ORALHISTORIES_BUCKET")
     metadata["archivesspace_public_url"] = config("ASPACE_PUBLIC_URL").rstrip("/")
     if archival_object.get("dates"):
         dates = {}
@@ -464,8 +466,8 @@ def publish_transcripts(transcript_source, bucket_destination):
         "--delete",
         "--no-progress",
         _env={
-            "AWS_ACCESS_KEY_ID": config("AWS_ACCESS_KEY"),
-            "AWS_SECRET_ACCESS_KEY": config("AWS_SECRET_KEY"),
+            "AWS_ACCESS_KEY_ID": config("DISTILLERY_AWS_ACCESS_KEY_ID"),
+            "AWS_SECRET_ACCESS_KEY": config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
         },
     )
 
@@ -474,7 +476,7 @@ def set_resolver_redirect(resolver_id, redirect_url):
     """Create or update a redirect entry in the S3 bucket."""
     aws_cmd = sh.Command(config("WORK_AWS_CMD"))
     logger.info(
-        f'☑️  RESOLVER REDIRECT SET: s3://{config("RESOLVER_S3_BUCKET")}/{resolver_id} ➡️  {redirect_url}'
+        f'☑️  RESOLVER REDIRECT SET: s3://{config("RESOLVER_BUCKET")}/{resolver_id} ➡️  {redirect_url}'
     )
     return aws_cmd(
         "s3api",
@@ -482,14 +484,14 @@ def set_resolver_redirect(resolver_id, redirect_url):
         "--acl",
         "public-read",
         "--bucket",
-        config("RESOLVER_S3_BUCKET"),
+        config("RESOLVER_BUCKET"),
         "--key",
         resolver_id,
         "--website-redirect-location",
         redirect_url,
         _env={
-            "AWS_ACCESS_KEY_ID": config("RESOLVER_AWS_ACCESS_KEY_ID"),
-            "AWS_SECRET_ACCESS_KEY": config("RESOLVER_AWS_SECRET_ACCESS_KEY"),
+            "AWS_ACCESS_KEY_ID": config("DISTILLERY_AWS_ACCESS_KEY_ID"),
+            "AWS_SECRET_ACCESS_KEY": config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
         },
     )
 
@@ -510,22 +512,22 @@ def push_markdown_file(transcript_dir):
         "--",
     )
     if diff:
-        if config("OH_REPO_GIT_EMAIL", default="") and config(
-            "OH_REPO_GIT_NAME", default=""
+        if config("ORALHISTORIES_GIT_USER_EMAIL", default="") and config(
+            "ORALHISTORIES_GIT_USER_NAME", default=""
         ):
             git_cmd(
                 "-C",
                 transcript_dir.parent.parent,
                 "config",
                 "user.email",
-                config("OH_REPO_GIT_EMAIL"),
+                config("ORALHISTORIES_GIT_USER_EMAIL"),
             )
             git_cmd(
                 "-C",
                 transcript_dir.parent.parent,
                 "config",
                 "user.name",
-                config("OH_REPO_GIT_NAME"),
+                config("ORALHISTORIES_GIT_USER_NAME"),
             )
         git_cmd(
             "-C",
@@ -536,7 +538,7 @@ def push_markdown_file(transcript_dir):
         )
         git_cmd("-C", transcript_dir.parent.parent, "push", "origin", "main")
         logger.info(
-            f'☑️  TRANSCRIPT PUSHED TO GITHUB: https://github.com/{config("OH_REPO")}/blob/main/{transcript_dir.stem}/{transcript_dir.stem}.md'
+            f'☑️  TRANSCRIPT PUSHED TO GITHUB: https://github.com/{config("ORALHISTORIES_GITHUB_REPO")}/blob/main/{transcript_dir.stem}/{transcript_dir.stem}.md'
         )
     else:
         logger.warning(f"⚠️  NO CHANGES DETECTED: {transcript_dir.stem}.md")
