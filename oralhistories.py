@@ -4,6 +4,7 @@ import os
 import sh
 import shutil
 import tempfile
+import urllib.parse
 
 from datetime import datetime
 from pathlib import Path
@@ -52,6 +53,7 @@ def main(
         create_digital_object_component(
             digital_object_uri,
             "Markdown",
+            metadata["component_id"],
             f'{metadata["component_id"]}.md',
         )
     if publish:
@@ -69,24 +71,17 @@ def main(
             s3sync_output = publish_transcripts(transcript_source, bucket_destination)
         # tag latest commit as published
         tagname = f'published/{datetime.now().strftime("%Y-%m-%d.%H%M%S")}'
-        git_cmd(
-            "-C",
-            repo_dir,
-            "tag",
-            tagname,
-        )
+        git_cmd("-C", repo_dir, "tag", tagname)
         git_cmd("-C", repo_dir, "push", "origin", tagname)
         # update ArchivesSpace records
         for line in s3sync_output.splitlines():
             logger.info(f"line: {line}")
             # look for the digital_object
             digital_object_uri = distillery.find_digital_object(
-                f'{line.split()[-1].split("/")[-2]}'
+                f'{line.split("/")[-2]}'
             )
             if not digital_object_uri:
-                logger.warning(
-                    f'⚠️  DIGITAL OBJECT NOT FOUND: {line.split()[-1].split("/")[-2]}'
-                )
+                logger.warning(f'⚠️  DIGITAL OBJECT NOT FOUND: {line.split("/")[-2]}')
                 continue
             digital_object = distillery.archivessnake_get(digital_object_uri).json()
             if line.split()[0] == "upload:":
@@ -136,10 +131,11 @@ def main(
                     if line.split(".")[-1] == "pdf":
                         label = "PDF Asset"
                     else:
-                        label = f'{line.split(".")[-1].upper()} Asset: {line.split("/")[-1].split("-", maxsplit=3)[-1].split(".")[0]}'
+                        label = f'{line.rsplit(".")[-1].upper()} Asset: {line.split("/")[-1].rsplit(".", maxsplit=1)[0].split("-", maxsplit=3)[-1]}'
                     create_digital_object_component(
                         digital_object_uri,
                         label,
+                        line.split("/")[-2],
                         line.split("/")[-1],
                     )
             if line.split()[0] == "delete:":
@@ -154,7 +150,7 @@ def main(
                     digital_object["file_versions"] = file_versions
                     distillery.archivessnake_post(digital_object_uri, digital_object)
                     logger.info(
-                        f'☑️  DIGITAL OBJECT UNPUBLISHED: {line.split()[-1].split("/")[-2]}'
+                        f'☑️  DIGITAL OBJECT UNPUBLISHED: {line.split("/")[-2]}'
                     )
                     logger.info(
                         f"🔥 DIGITAL OBJECT FILE VERSION DELETED: {line.split()[-1]}"
@@ -333,13 +329,13 @@ def create_digital_object(metadata):
     return digital_object_post_response.json()["uri"]
 
 
-def create_digital_object_component(digital_object_uri, label, filename):
+def create_digital_object_component(digital_object_uri, label, fileparent, filename):
     digital_object_component = {"digital_object": {"ref": digital_object_uri}}
     digital_object_component["label"] = label
     digital_object_component["component_id"] = filename
     digital_object_component["file_versions"] = [
         {
-            "file_uri": f'https://github.com/{config("ORALHISTORIES_GITHUB_REPO")}/blob/main/transcripts/{"-".join([filename.split("-")[0], filename.split("-")[1], filename.split("-")[2]])}/{filename}'
+            "file_uri": f'https://github.com/{config("ORALHISTORIES_GITHUB_REPO")}/blob/main/transcripts/{fileparent}/{urllib.parse.quote(filename)}'
         }
     ]
     response = distillery.archivessnake_post(
