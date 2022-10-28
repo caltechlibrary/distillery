@@ -84,9 +84,7 @@ def main(
                 logger.warning(f'⚠️  DIGITAL OBJECT NOT FOUND: {line.split("/")[-2]}')
                 continue
             digital_object = distillery.archivessnake_get(digital_object_uri).json()
-            base_url = (
-                f'https://{config("ORALHISTORIES_BUCKET")}.s3.us-west-2.amazonaws.com'
-            )
+            base_url = config("ORALHISTORIES_PUBLIC_BASE_URL")
             file_uri = f'{base_url}/{line.split("/")[-2]}/{line.split("/")[-1]}'
             if line.split()[0] == "upload:":
                 if line.split(".")[-1] == "html":
@@ -380,7 +378,6 @@ def create_metadata_file(transcript_dir):
     metadata = {"title": archival_object["title"]}
     metadata["component_id"] = archival_object["component_id"]
     metadata["archival_object_uri"] = archival_object["uri"]
-    metadata["bucket"] = config("ORALHISTORIES_BUCKET")
     metadata["archivesspace_public_url"] = config("ASPACE_PUBLIC_URL").rstrip("/")
     if archival_object.get("dates"):
         dates = {}
