@@ -183,12 +183,14 @@ $abstract$
 $endif$
 $if(archivesspace_public_url)$
 $if(archival_object_uri)$
-<div><a href="$archivesspace_public_url$$archival_object_uri$">Access the full archival record</a></div>
+<p><a href="$archivesspace_public_url$$archival_object_uri$">Access the full archival record</a></p>
 $endif$
 $endif$
 $if(component_id)$
-<p id="pdf"><a href="$component_id$.pdf">Access a PDF version of the transcript</a></p>
+<p><a id="pdf" href="$component_id$.pdf">Access a PDF version of the transcript</a></p>
 $endif$
+$if(resolver_base_url)$
+<p><a href="$resolver_base_url$/$component_id$">Citable URL</a></p>
 $endif$
 </header>
 $endif$

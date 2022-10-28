@@ -378,6 +378,7 @@ def create_metadata_file(transcript_dir):
     metadata = {"title": archival_object["title"]}
     metadata["component_id"] = archival_object["component_id"]
     metadata["archival_object_uri"] = archival_object["uri"]
+    metadata["resolver_base_url"] = config("RESOLVER_BASE_URL").rstrip("/")
     metadata["archivesspace_public_url"] = config("ASPACE_PUBLIC_URL").rstrip("/")
     if archival_object.get("dates"):
         dates = {}
