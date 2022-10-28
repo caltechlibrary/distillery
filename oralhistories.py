@@ -84,6 +84,10 @@ def main(
                 logger.warning(f'⚠️  DIGITAL OBJECT NOT FOUND: {line.split("/")[-2]}')
                 continue
             digital_object = distillery.archivessnake_get(digital_object_uri).json()
+            base_url = (
+                f'https://{config("ORALHISTORIES_BUCKET")}.s3.us-west-2.amazonaws.com'
+            )
+            file_uri = f'{base_url}/{line.split("/")[-2]}/{line.split("/")[-1]}'
             if line.split()[0] == "upload:":
                 if line.split(".")[-1] == "html":
                     # add file_version to digital_object
@@ -91,11 +95,7 @@ def main(
                         file_version["file_uri"]
                         for file_version in digital_object["file_versions"]
                     ]
-                    if line.split()[-1] not in file_versions:
-                        base_url = f'https://{config("ORALHISTORIES_BUCKET")}.s3.us-west-2.amazonaws.com'
-                        file_uri = (
-                            f'{base_url}/{line.split()[-1].split("/", maxsplit=3)[-1]}'
-                        )
+                    if file_uri not in file_versions:
                         file_version = {"file_uri": file_uri, "publish": True}
                         digital_object["publish"] = True
                         digital_object["file_versions"].append(file_version)
@@ -103,14 +103,14 @@ def main(
                             digital_object_uri, digital_object
                         )
                         logger.info(
-                            f"☑️  DIGITAL OBJECT FILE VERSION ADDED: {line.split()[-1]}"
+                            f"☑️  DIGITAL OBJECT FILE VERSION ADDED: {file_uri}"
                         )
                         logger.info(
                             f'☑️  DIGITAL OBJECT PUBLISHED: {line.split()[-1].split("/")[-2]}'
                         )
                     else:
                         logger.info(
-                            f"ℹ️  EXISTING DIGITAL OBJECT FILE VERSION FOUND: {line.split()[-1]}"
+                            f"ℹ️  EXISTING DIGITAL OBJECT FILE VERSION FOUND: {file_uri}"
                         )
                     # set a redirect in the resolver
                     set_resolver_redirect(
@@ -144,7 +144,7 @@ def main(
                     file_versions = [
                         file_version
                         for file_version in digital_object["file_versions"]
-                        if not (file_version["file_uri"] == line.split()[-1])
+                        if not (file_version["file_uri"] == file_uri)
                     ]
                     digital_object["publish"] = False
                     digital_object["file_versions"] = file_versions
@@ -152,9 +152,7 @@ def main(
                     logger.info(
                         f'☑️  DIGITAL OBJECT UNPUBLISHED: {line.split("/")[-2]}'
                     )
-                    logger.info(
-                        f"🔥 DIGITAL OBJECT FILE VERSION DELETED: {line.split()[-1]}"
-                    )
+                    logger.info(f"🔥 DIGITAL OBJECT FILE VERSION DELETED: {file_uri}")
                     # TODO determine if resolver entry should be deleted
                 else:
                     # look for an existing digital_object_component
