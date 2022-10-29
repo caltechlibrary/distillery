@@ -111,9 +111,10 @@ def main(
                             f"ℹ️  EXISTING DIGITAL OBJECT FILE VERSION FOUND: {file_uri}"
                         )
                     # set a redirect in the resolver
-                    set_resolver_redirect(
-                        f'archives/{line.split("/")[-1].split(".")[0]}', file_uri
-                    )
+                    if config("RESOLVER_BUCKET", default=""):
+                        set_resolver_redirect(
+                            f'archives/{line.split("/")[-1].split(".")[0]}', file_uri
+                        )
                 else:
                     # look for an existing digital_object_component
                     digital_object_component_uri = find_digital_object_component(
@@ -378,7 +379,7 @@ def create_metadata_file(transcript_dir):
     metadata = {"title": archival_object["title"]}
     metadata["component_id"] = archival_object["component_id"]
     metadata["archival_object_uri"] = archival_object["uri"]
-    metadata["resolver_base_url"] = config("RESOLVER_BASE_URL").rstrip("/")
+    metadata["resolver_base_url"] = config("RESOLVER_BASE_URL", default="").rstrip("/")
     metadata["archivesspace_public_url"] = config("ASPACE_PUBLIC_URL").rstrip("/")
     if archival_object.get("dates"):
         dates = {}

@@ -10,7 +10,7 @@
   margin: 2in;
   size: letter;
   @top-right { content: counter(page); margin-right: -1in; }
-  @bottom-left { content: "$if(resolver_base_url)$$if(component_id)$$resolver_base_url$/$component_id$$endif$$endif$"; font-size: small; margin-left: -1in; }
+  @bottom-left { content: "$if(resolver_base_url)$$resolver_base_url$$endif$/$if(component_id)$$component_id$$endif$"; font-size: small; margin-left: -1in; }
 }
 @page :blank {
   @top-right { content: none }
