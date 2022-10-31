@@ -9,9 +9,11 @@ def main(file):
     if file.startswith("transcripts/"):
         # file_segments[1] will be component_id
         file_segments = file.split("/")
+        # skip when build artifacts already exist
         if os.path.isfile(f"build/{file_segments[1]}/{file_segments[1]}.html"):
             print(f"🐞 file exists: build/{file_segments[1]}/{file_segments[1]}.html")
             return
+        # remove published files when markdown transcript is deleted
         if file.endswith(".md") and not os.path.isfile(file):
             print(f"🐞 file deleted: {file}")
             os.remove(f"{os.path.splitext(file)[0]}.html")
@@ -22,6 +24,21 @@ def main(file):
 
 def generate_files(identifier):
     os.makedirs(f"build/{identifier}", exist_ok=True)
+    # copy assets for build
+    subprocess.run(
+        [
+            "rsync",
+            "-a",
+            "--exclude",
+            "*.md",
+            "--exclude",
+            "*.html",
+            "--exclude",
+            "*.pdf",
+            f"transcripts/{identifier}/",
+            f"build/{identifier}/",
+        ]
+    )
     # generate html
     subprocess.run(
         [

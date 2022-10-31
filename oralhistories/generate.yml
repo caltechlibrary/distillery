@@ -6,7 +6,7 @@ on:
     tags-ignore:
       - "**"
     paths:
-      - "**.md"
+      - "transcripts/**"
   workflow_dispatch:
 jobs:
   generate-files:
