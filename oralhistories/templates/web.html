@@ -94,6 +94,33 @@ $endif$
   }
   </style>
   <style>
+  [data-theme="light"],
+  :root:not([data-theme="dark"]) {
+    /*
+    see formulas here:
+    https://github.com/picocss/pico/blob/master/scss/themes/default/_colors.scss
+    and defaults here:
+    https://github.com/picocss/pico/blob/master/scss/themes/default/_light.scss
+    with a tool here:
+    https://www.hexcolortool.com/#c75000
+    */
+    --primary: hsl(24, 100%, 39%, 1); /* #c75000 */
+    --primary-hover: hsl(24, 100%, 30%, 1);
+    --primary-focus: hsl(24, 100%, 39%, 0.125);
+    --primary-inverse: #FFF;
+  }
+  @media only screen and (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      /*
+      see defaults here:
+      https://github.com/picocss/pico/blob/master/scss/themes/default/_dark.scss
+      */
+      --primary: hsl(24, 100%, 39%, 1); /* #c75000 */
+      --primary-hover: hsl(24, 95%, 48%, 1);
+      --primary-focus: hsl(24, 100%, 39%, 0.25);
+      --primary-inverse: #FFF;
+    }
+  }
   :root {
     --font-family: 'Montserrat', sans-serif;;
     /* disable responsive typography */
