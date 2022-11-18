@@ -15,6 +15,7 @@ import shutil
 from csv import DictReader
 from pathlib import Path
 
+import rpyc
 import tailer
 from bottle import (
     abort,
@@ -32,6 +33,7 @@ from decouple import config
 import bottle
 
 bottle.TEMPLATES.clear()
+bottle.TEMPLATE_PATH.insert(0, str(Path(__file__).parent.resolve().joinpath("views")))
 
 logging.config.fileConfig(
     # set the logging configuration in the settings.ini file
@@ -39,6 +41,10 @@ logging.config.fileConfig(
     disable_existing_loggers=True,
 )
 logger = logging.getLogger("web")
+
+oralhistories_work_server_connection = rpyc.connect(
+    config("WORK_HOSTNAME"), config("ORALHISTORIES_RPYC_PORT")
+)
 
 
 @error(403)
@@ -146,33 +152,41 @@ def oralhistories_form():
 
 @route("/oralhistories", method="POST")
 def oralhistories_post():
+    if request.forms.get("upload"):
+        upload = request.files.get("file")
+        if Path(upload.filename).suffix not in [".docx"]:
+            return f'<p>Only <b>docx</b> files are allowed at this time.</p><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
+        # TODO avoid nasty Error: 500 by checking for existing file
+        upload.save(
+            config("ORALHISTORIES_WEB_UPLOADS")
+        )  # appends upload.filename automatically
+        # asynchronously run process on server
+        oralhistories_run = rpyc.async_(oralhistories_work_server_connection.root.run)
+        async_result = oralhistories_run(component_id=Path(upload.filename).stem)
+        # return template("oralhistories_post", component_id=Path(upload.filename).stem)
+        return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
     if request.forms.get("publish"):
-        # write a file for alchemist.py to find
+        # asynchronously run process on server
+        oralhistories_run = rpyc.async_(oralhistories_work_server_connection.root.run)
         if request.forms.get("component_id_publish"):
-            Path(config("WEB_STATUS_FILES")).joinpath(
-                f'{request.forms.get("component_id_publish")}--publish'
-            ).touch()
+            async_result = oralhistories_run(
+                component_id=request.forms.get("component_id_publish"), publish=True
+            )
             return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
         else:
-            Path(config("WEB_STATUS_FILES")).joinpath("oral-histories--publish").touch()
+            async_result = oralhistories_run(publish=True)
             return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
     if request.forms.get("update"):
-        # write a file for alchemist.py to find
+        # asynchronously run process on server
+        oralhistories_run = rpyc.async_(oralhistories_work_server_connection.root.run)
         if request.forms.get("component_id_update"):
-            Path(config("WEB_STATUS_FILES")).joinpath(
-                f'{request.forms.get("component_id_update")}--update'
-            ).touch()
+            async_result = oralhistories_run(
+                component_id=request.forms.get("component_id_update"), update=True
+            )
             return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
         else:
-            Path(config("WEB_STATUS_FILES")).joinpath("oral-histories--update").touch()
+            async_result = oralhistories_run(update=True)
             return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
-    upload = request.files.get("file")
-    if Path(upload.filename).suffix not in [".docx"]:
-        return f'<p>Only <b>docx</b> files are allowed at this time.</p><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
-    # save the file for alchemist.py to find
-    # TODO avoid nasty Error: 500 by checking for existing file
-    upload.save(config("WEB_STATUS_FILES"))  # appends upload.filename automatically
-    return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
 
 
 def authorize_user():
@@ -199,7 +213,13 @@ if __name__ == "__main__":
         "email_address": "hello@example.com",
         "display_name": "World",
     }
-    run(host="localhost", port=1234, server="gevent", reloader=True, debug=True)
+    run(
+        host=config("LOCALHOST"),
+        port=config("LOCALPORT"),
+        server="gevent",
+        reloader=True,
+        debug=True,
+    )
 else:
     # fmt: off
 
@@ -211,8 +231,7 @@ else:
     debug_user = None
 
     # bottle requires gevent.monkey.patch_all()
-    from gevent import monkey
-    monkey.patch_all()
+    from gevent import monkey; monkey.patch_all()
 
     # for attaching Bottle to Apache using mod_wsgi
     application = default_app()
