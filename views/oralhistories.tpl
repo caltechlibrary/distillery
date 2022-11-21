@@ -72,7 +72,7 @@
         <form action="{{distillery_base_url}}/oralhistories" method="post" enctype="multipart/form-data">
             <label for="file">Select a Microsoft Word <b>docx</b> file to upload:</label>
             <input type="file" name="file" id="file" required>
-            <input type="submit" name="upload" value="Upload">
+            <input type="submit" value="Upload">
         </form>
         <hr>
         <h2 id="update">Update Metadata</h2>
