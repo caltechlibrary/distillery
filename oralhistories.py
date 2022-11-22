@@ -375,6 +375,8 @@ def create_metadata_file(transcript_dir):
     :rtype: dict
     """
 
+    # TODO surround with try/except
+    # TODO log a warning if no archival object exists
     archival_object = distillery.get_folder_data(transcript_dir.stem)
     metadata = {"title": archival_object["title"]}
     metadata["component_id"] = archival_object["component_id"]

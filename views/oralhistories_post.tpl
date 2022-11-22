@@ -52,13 +52,37 @@
       </nav>
     </header>
     <hr>
-    %if error:
-    <p>{{error}}</p>
+    %if op == "upload":
+    %if component_id == "error":
+    <p>❌ only <code>docx</code> files are allowed at this time</p>
     %else:
     <p>✅ the <b>{{component_id}}.docx</b> file was uploaded</p>
     <ul>
-      <li>the <a href="https://github.com/{{github_repo}}/blob/main/transcripts/{{component_id}}/{{component_id}}.md">GitHub <b>{{component_id}}.md</b></a> file should be available shortly</li>
-      <li>an ArchivesSpace Digital Object record should also be created for <a href="{{archivesspace_staff_url}}/search?q={{component_id}}">{{component_id}}</a></li>
+      <li>the <a href="https://github.com/{{github_repo}}/blob/main/transcripts/{{component_id}}/{{component_id}}.md"><b>{{component_id}}.md</b> file in GitHub</a> should be available shortly</li>
+      <li>an ArchivesSpace Digital Object record should be created for <a href="{{archivesspace_staff_url}}/search?q={{component_id}}">{{component_id}}</a></li>
+    </ul>
+    %end
+    %end
+    %if op == "publish":
+    %if component_id == "all":
+    <p>✅ all transcripts were set to be (re)published</p>
+    %else:
+    <p>✅ the <b>{{component_id}}</b> transcript was set to be published</p>
+    <ul>
+      <li>the <a href="{{oralhistories_public_base_url}}/{{component_id}}/{{component_id}}.html">HTML transcript</a> and its <a href="{{resolver_base_url}}/{{component_id}}">resolver link</a> should be available shortly</li>
+      <li>ArchivesSpace Digital Object Components should be created for <a href="{{archivesspace_staff_url}}/search?q={{component_id}}">{{component_id}}</a></li>
+    </ul>
+    %end
+    %end
+    %if op == "update":
+    %if component_id == "all":
+    <p>✅ metadata for all <a href="https://github.com/{{github_repo}}/tree/main/transcripts">transcripts in GitHub</a> will be updated shortly</p>
+    %else:
+    <p>✅ metadata for the <a href="https://github.com/{{github_repo}}/blob/main/transcripts/{{component_id}}/{{component_id}}.md"><b>{{component_id}}.md</b> transcript in GitHub</a> will be updated shortly</p>
+    %end
+    %end
+    %if component_id != "error":
+    <ul>
       <li>any errors will be logged and sent to <i>{{user["email_address"]}}</i></li>
     </ul>
     %end
