@@ -151,41 +151,75 @@ def oralhistories_post():
             return bottle.template(
                 "oralhistories_post",
                 distillery_base_url=config("BASE_URL").rstrip("/"),
-                error="Only <code>docx</code> files are allowed at this time.",
+                user=authorize_user(),
+                component_id="error",
+                op="upload",
             )
-        # TODO avoid nasty Error: 500 by checking for existing file
-        upload.save(
-            config("WEB_STATUS_FILES")
-        )  # appends upload.filename automatically
-        return bottle.template(
-            "oralhistories_post",
-            distillery_base_url=config("BASE_URL").rstrip("/"),
-            error=None,
-            github_repo=config("ORALHISTORIES_GITHUB_REPO"),
-            archivesspace_staff_url=config("ASPACE_STAFF_URL"),
-            user=authorize_user(),
-            component_id=Path(upload.filename).stem,
-        )
-    if request.forms.get("publish"):
+        else:
+            # TODO avoid nasty Error: 500 by checking for existing file
+            upload.save(
+                config("WEB_STATUS_FILES")
+            )  # appends upload.filename automatically
+            return bottle.template(
+                "oralhistories_post",
+                distillery_base_url=config("BASE_URL").rstrip("/"),
+                github_repo=config("ORALHISTORIES_GITHUB_REPO"),
+                archivesspace_staff_url=config("ASPACE_STAFF_URL"),
+                user=authorize_user(),
+                component_id=Path(upload.filename).stem,
+                op="upload",
+            )
+    if bottle.request.forms.get("publish"):
         # write a file for alchemist.py to find
-        if request.forms.get("component_id_publish"):
+        if bottle.request.forms.get("component_id_publish"):
+            # TODO sanitize component_id_publish string
             Path(config("WEB_STATUS_FILES")).joinpath(
-                f'{request.forms.get("component_id_publish")}--publish'
+                f'{bottle.request.forms.get("component_id_publish")}--publish'
             ).touch()
-            return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
+            return bottle.template(
+                "oralhistories_post",
+                distillery_base_url=config("BASE_URL").rstrip("/"),
+                archivesspace_staff_url=config("ASPACE_STAFF_URL"),
+                user=authorize_user(),
+                component_id=bottle.request.forms.get("component_id_publish"),
+                op="publish",
+                oralhistories_public_base_url=config("ORALHISTORIES_PUBLIC_BASE_URL"),
+                resolver_base_url=config("RESOLVER_BASE_URL"),
+            )
         else:
             Path(config("WEB_STATUS_FILES")).joinpath("oral-histories--publish").touch()
-            return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
-    if request.forms.get("update"):
+            return bottle.template(
+                "oralhistories_post",
+                distillery_base_url=config("BASE_URL").rstrip("/"),
+                user=authorize_user(),
+                component_id="all",
+                op="publish",
+            )
+    if bottle.request.forms.get("update"):
         # write a file for alchemist.py to find
-        if request.forms.get("component_id_update"):
+        if bottle.request.forms.get("component_id_update"):
+            # TODO sanitize component_id_update string
             Path(config("WEB_STATUS_FILES")).joinpath(
-                f'{request.forms.get("component_id_update")}--update'
+                f'{bottle.request.forms.get("component_id_update")}--update'
             ).touch()
-            return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
+            return bottle.template(
+                "oralhistories_post",
+                distillery_base_url=config("BASE_URL").rstrip("/"),
+                github_repo=config("ORALHISTORIES_GITHUB_REPO"),
+                user=authorize_user(),
+                component_id=bottle.request.forms.get("component_id_update"),
+                op="update",
+            )
         else:
             Path(config("WEB_STATUS_FILES")).joinpath("oral-histories--update").touch()
-            return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
+            return bottle.template(
+                "oralhistories_post",
+                distillery_base_url=config("BASE_URL").rstrip("/"),
+                github_repo=config("ORALHISTORIES_GITHUB_REPO"),
+                user=authorize_user(),
+                component_id="all",
+                op="update",
+            )
 
 
 def authorize_user():
