@@ -351,7 +351,7 @@ def clone_git_repository():
         "--depth",
         "1",
         repo_dir,
-        _env={"GIT_SSH_COMMAND": f'ssh -i {config("ORALHISTORIES_GITHUB_SSH_KEY")}'},
+        _env={"GIT_SSH_COMMAND": f'ssh -i {config("ORALHISTORIES_GITHUB_SSH_KEY")} -o StrictHostKeyChecking=no'},
     )
     logger.info(f"☑️  GIT REPOSITORY CLONED TO TEMPORARY DIRECTORY: {repo_dir}")
     # set the ssh identity_file to use with this repository

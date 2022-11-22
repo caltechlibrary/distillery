@@ -24,14 +24,13 @@ from bottle import (
     post,
     request,
     response,
-    route,
-    run,
     template,
 )
 from decouple import config
 import bottle
 
 bottle.TEMPLATES.clear()
+bottle.TEMPLATE_PATH.insert(0, str(Path(__file__).parent.resolve().joinpath("views")))
 
 logging.config.fileConfig(
     # set the logging configuration in the settings.ini file
@@ -132,9 +131,9 @@ def stream(collection_id):
                 yield f"data: {line}\n\n"
 
 
-@route("/oralhistories")
+@bottle.route("/oralhistories")
 def oralhistories_form():
-    return template(
+    return bottle.template(
         "oralhistories",
         distillery_base_url=config("BASE_URL").rstrip("/"),
         user=authorize_user(),
@@ -144,8 +143,29 @@ def oralhistories_form():
     )
 
 
-@route("/oralhistories", method="POST")
+@bottle.route("/oralhistories", method="POST")
 def oralhistories_post():
+    if bottle.request.forms.get("upload"):
+        upload = bottle.request.files.get("file")
+        if Path(upload.filename).suffix not in [".docx"]:
+            return bottle.template(
+                "oralhistories_post",
+                distillery_base_url=config("BASE_URL").rstrip("/"),
+                error="Only <code>docx</code> files are allowed at this time.",
+            )
+        # TODO avoid nasty Error: 500 by checking for existing file
+        upload.save(
+            config("WEB_STATUS_FILES")
+        )  # appends upload.filename automatically
+        return bottle.template(
+            "oralhistories_post",
+            distillery_base_url=config("BASE_URL").rstrip("/"),
+            error=None,
+            github_repo=config("ORALHISTORIES_GITHUB_REPO"),
+            archivesspace_staff_url=config("ASPACE_STAFF_URL"),
+            user=authorize_user(),
+            component_id=Path(upload.filename).stem,
+        )
     if request.forms.get("publish"):
         # write a file for alchemist.py to find
         if request.forms.get("component_id_publish"):
@@ -166,13 +186,6 @@ def oralhistories_post():
         else:
             Path(config("WEB_STATUS_FILES")).joinpath("oral-histories--update").touch()
             return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
-    upload = request.files.get("file")
-    if Path(upload.filename).suffix not in [".docx"]:
-        return f'<p>Only <b>docx</b> files are allowed at this time.</p><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
-    # save the file for alchemist.py to find
-    # TODO avoid nasty Error: 500 by checking for existing file
-    upload.save(config("WEB_STATUS_FILES"))  # appends upload.filename automatically
-    return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
 
 
 def authorize_user():
@@ -199,7 +212,13 @@ if __name__ == "__main__":
         "email_address": "hello@example.com",
         "display_name": "World",
     }
-    run(host="localhost", port=1234, server="gevent", reloader=True, debug=True)
+    bottle.run(
+        host=config("LOCALHOST"),
+        port=config("LOCALPORT"),
+        server="gevent",
+        reloader=True,
+        debug=True,
+    )
 else:
     # fmt: off
 
@@ -216,5 +235,3 @@ else:
 
     # for attaching Bottle to Apache using mod_wsgi
     application = default_app()
-
-    # fmt: on
