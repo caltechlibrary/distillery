@@ -47,14 +47,16 @@ for f in glob(
 
     if Path(f).suffix in [".docx"]:
         # move the file to stop future initiation with the same file
-        docxfile = shutil.move(f, tempfile.mkdtemp())
+        # TODO handle file already exists error
+        docxfile = shutil.move(f, config("ORALHISTORIES_WORK_UPLOADS"))
         logger.info(f"➡️  FILE MOVED: {docxfile}")
+        component_id = Path(docxfile).stem
         try:
             command = [
                 sys.executable,
                 str(Path(__file__).parent.resolve().joinpath("oralhistories.py")),
-                "--docxfile",
-                docxfile,
+                "--component-id",
+                component_id,
             ]
             logger.info(f'🚰 RUNNING COMMAND: {" ".join(command)}')
             result = subprocess.run(
@@ -77,8 +79,6 @@ for f in glob(
         except BaseException as e:
             logger.error(f"❌ {e}")
             raise
-        # cleanup
-        shutil.rmtree(str(Path(docxfile).parent))
         continue
 
     if "-OH-" in Path(f).name:

@@ -63,17 +63,6 @@
     </ul>
     %end
     %end
-    %if op == "publish":
-    %if component_id == "all":
-    <p>✅ all transcripts were set to be (re)published</p>
-    %else:
-    <p>✅ the <b>{{component_id}}</b> transcript was set to be published</p>
-    <ul>
-      <li>the <a href="{{oralhistories_public_base_url}}/{{component_id}}/{{component_id}}.html">HTML transcript</a> and its <a href="{{resolver_base_url}}/{{component_id}}">resolver link</a> should be available shortly</li>
-      <li>ArchivesSpace Digital Object Components should be created for <a href="{{archivesspace_staff_url}}/search?q={{component_id}}">{{component_id}}</a></li>
-    </ul>
-    %end
-    %end
     %if op == "update":
     %if component_id == "all":
     <p>✅ metadata for all <a href="https://github.com/{{github_repo}}/tree/main/transcripts">transcripts in GitHub</a> will be updated shortly</p>
@@ -81,9 +70,20 @@
     <p>✅ metadata for the <a href="https://github.com/{{github_repo}}/blob/main/transcripts/{{component_id}}/{{component_id}}.md"><b>{{component_id}}.md</b> transcript in GitHub</a> will be updated shortly</p>
     %end
     %end
+    %if op == "publish":
+    %if component_id == "all":
+    <p>✅ all transcripts are set to be (re)published</p>
+    %else:
+    <p>✅ the <b>{{component_id}}</b> transcript is set to be published</p>
+    <ul>
+      <li>the <a href="{{oralhistories_public_base_url}}/{{component_id}}/{{component_id}}.html">HTML transcript</a> and its <a href="{{resolver_base_url}}/{{component_id}}">resolver link</a> should be available shortly</li>
+      <li>ArchivesSpace Digital Object Components should be created for <a href="{{archivesspace_staff_url}}/search?q={{component_id}}">{{component_id}}</a></li>
+    </ul>
+    %end
+    %end
     %if component_id != "error":
     <ul>
-      <li>any errors will be logged and sent to <i>{{user["email_address"]}}</i></li>
+      <li><s>any errors will be logged and sent to <i>{{user["email_address"]}}</s></i></li>
     </ul>
     %end
   </main>
