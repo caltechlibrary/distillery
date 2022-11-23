@@ -21,61 +21,83 @@ logging.config.fileConfig(
 )
 logger = logging.getLogger("oralhistories")
 
+aws_cmd = sh.Command(config("WORK_AWS_CMD"))
+git_cmd = sh.Command(config("WORK_GIT_CMD"))
+pandoc_cmd = sh.Command(config("WORK_PANDOC_CMD"))
+
 
 def main(
-    docxfile: ("Word file to convert to Markdown", "option", "w"),  # type: ignore
     component_id: ("Component Unique Identifier from ArchivesSpace", "option", "i"),  # type: ignore
     update: ("Update metadata from ArchivesSpace", "flag", "u"),  # type: ignore
     publish: ("Initiate publishing to web", "flag", "p"),  # type: ignore
 ):
-    # update workflow files
-    repo_dir = clone_git_repository()
-    shutil.copytree(
-        Path(__file__).parent.joinpath("oralhistories"),
-        Path(repo_dir).joinpath(".github", "workflows"),
-        dirs_exist_ok=True,
-    )
-    git_cmd = sh.Command(config("WORK_GIT_CMD"))
-    git_cmd(
-        "-C",
-        repo_dir,
-        "add",
-        "-A",
-    )
-    if docxfile:
-        transcript_dir = Path(repo_dir).joinpath("transcripts", Path(docxfile).stem)
-        os.makedirs(transcript_dir, exist_ok=True)
-        metadata = create_metadata_file(transcript_dir)
-        convert_word_to_markdown(docxfile, transcript_dir)
-        os.remove(transcript_dir.joinpath("metadata.json"))
-        push_markdown_file(transcript_dir)
+    tmp_oralhistories_repository = clone_oralhistories_repository()
+    # update github workflow files
+    copy_github_workflow_changes(tmp_oralhistories_repository)
+    add_commit_push(tmp_oralhistories_repository)
+    # ASSUMPTION: a DOCX file is provided
+    if component_id and not update and not publish:
+        archival_object = distillery.get_folder_data(component_id)
+        metadata = create_metadata(archival_object)
+        transcript_directory = create_metadata_file(
+            tmp_oralhistories_repository, component_id, metadata
+        )
+        convert_word_to_markdown(transcript_directory)
+        os.remove(transcript_directory.joinpath("metadata.json"))
+        os.remove(
+            f'{Path(config("ORALHISTORIES_WORK_UPLOADS")).joinpath(f"{component_id}.docx")}'
+        )
+        add_commit_push(tmp_oralhistories_repository, component_id)
         digital_object_uri = create_digital_object(metadata)
         create_digital_object_component(
             digital_object_uri,
             "Markdown",
-            metadata["component_id"],
-            f'{metadata["component_id"]}.md',
+            component_id,
+            f"{component_id}.md",
         )
+    if update:
+        if component_id:
+            # update a single record
+            update_markdown_metadata(tmp_oralhistories_repository, component_id)
+            add_commit_push(tmp_oralhistories_repository, component_id, update)
+        else:
+            # update all records (example case: interviewer name change)
+            transcript_directories = [
+                i
+                for i in Path(tmp_oralhistories_repository)
+                .joinpath("transcripts")
+                .iterdir()
+                if i.is_dir()
+            ]
+            for transcript_directory in transcript_directories:
+                component_id = transcript_directory.stem
+                # TODO wrap in try/except
+                update_markdown_metadata(tmp_oralhistories_repository, component_id)
+            add_commit_push(tmp_oralhistories_repository, update=update)
     if publish:
         if component_id:
             # publish a single record
-            transcript_source = Path(repo_dir).joinpath("transcripts", component_id)
+            transcript_source = Path(tmp_oralhistories_repository).joinpath(
+                "transcripts", component_id
+            )
             bucket_destination = (
                 f's3://{config("ORALHISTORIES_BUCKET")}/{component_id}/'
             )
             s3sync_output = publish_transcripts(transcript_source, bucket_destination)
         else:
             # publish all records (example case: interviewer name change)
-            transcript_source = Path(repo_dir).joinpath("transcripts")
+            transcript_source = Path(tmp_oralhistories_repository).joinpath(
+                "transcripts"
+            )
             bucket_destination = f's3://{config("ORALHISTORIES_BUCKET")}'
             s3sync_output = publish_transcripts(transcript_source, bucket_destination)
         # tag latest commit as published
         tagname = f'published/{datetime.now().strftime("%Y-%m-%d.%H%M%S")}'
-        git_cmd("-C", repo_dir, "tag", tagname)
-        git_cmd("-C", repo_dir, "push", "origin", tagname)
+        git_cmd("-C", tmp_oralhistories_repository, "tag", tagname)
+        git_cmd("-C", tmp_oralhistories_repository, "push", "origin", tagname)
         # update ArchivesSpace records
         for line in s3sync_output.splitlines():
-            logger.info(f"line: {line}")
+            logger.debug(f"🐞 line: {line}")
             # look for the digital_object
             digital_object_uri = distillery.find_digital_object(
                 f'{line.split("/")[-2]}'
@@ -164,58 +186,63 @@ def main(
                         logger.info(
                             f'🔥 DIGITAL OBJECT COMPONENT DELETED: {line.split("/")[-1]}'
                         )
-    if update:
-        if component_id:
-            # update a single record
-            transcript_dir = Path(repo_dir).joinpath("transcripts", component_id)
-            update_markdown_metadata(transcript_dir)
-        else:
-            # update all records (example case: interviewer name change)
-            transcript_directories = [
-                i
-                for i in Path(repo_dir).joinpath("transcripts").iterdir()
-                if i.is_dir()
-            ]
-            for transcript_dir in transcript_directories:
-                update_markdown_metadata(transcript_dir)
-        add_commit_push(repo_dir, component_id, update)
     # cleanup
-    shutil.rmtree(repo_dir)
+    shutil.rmtree(tmp_oralhistories_repository)
 
 
-def add_commit_push(repo_dir, component_id="", update=False):
-    git_cmd = sh.Command(config("WORK_GIT_CMD"))
+def clone_oralhistories_repository():
+    tmp_oralhistories_repository = tempfile.mkdtemp()
+    # use a specific ssh identity_file when cloning this repository
+    git_cmd(
+        "clone",
+        f'git@github.com:{config("ORALHISTORIES_GITHUB_REPO")}.git',
+        "--depth",
+        "1",
+        tmp_oralhistories_repository,
+        _env={
+            "GIT_SSH_COMMAND": f'ssh -i {config("ORALHISTORIES_GITHUB_SSH_KEY")} -o StrictHostKeyChecking=no'
+        },
+    )
+    logger.info(
+        f"☑️  GIT REPOSITORY CLONED TO TEMPORARY DIRECTORY: {tmp_oralhistories_repository}"
+    )
+    # set the ssh identity_file to use with this repository
     git_cmd(
         "-C",
-        repo_dir,
-        "add",
-        "-A",
+        tmp_oralhistories_repository,
+        "config",
+        "core.sshCommand",
+        f'ssh -i {config("ORALHISTORIES_GITHUB_SSH_KEY")} -o StrictHostKeyChecking=no',
     )
-    diff = git_cmd(
-        "-C",
-        repo_dir,
-        "diff-index",
-        "HEAD",
-        "--",
+    return tmp_oralhistories_repository
+
+
+def copy_github_workflow_changes(tmp_oralhistories_repository):
+    shutil.copytree(
+        Path(__file__).parent.joinpath("oralhistories"),
+        Path(tmp_oralhistories_repository).joinpath(".github", "workflows"),
+        dirs_exist_ok=True,
     )
+
+
+def add_commit_push(tmp_oralhistories_repository, component_id="", update=False):
+    git_cmd("-C", tmp_oralhistories_repository, "add", "-A")
+    diff = git_cmd("-C", tmp_oralhistories_repository, "diff-index", "HEAD", "--")
     if diff:
-        if config("ORALHISTORIES_GIT_USER_EMAIL", default="") and config(
-            "ORALHISTORIES_GIT_USER_NAME", default=""
-        ):
-            git_cmd(
-                "-C",
-                repo_dir,
-                "config",
-                "user.email",
-                config("ORALHISTORIES_GIT_USER_EMAIL"),
-            )
-            git_cmd(
-                "-C",
-                repo_dir,
-                "config",
-                "user.name",
-                config("ORALHISTORIES_GIT_USER_NAME"),
-            )
+        git_cmd(
+            "-C",
+            tmp_oralhistories_repository,
+            "config",
+            "user.email",
+            config("ORALHISTORIES_GIT_USER_EMAIL"),
+        )
+        git_cmd(
+            "-C",
+            tmp_oralhistories_repository,
+            "config",
+            "user.name",
+            config("ORALHISTORIES_GIT_USER_NAME"),
+        )
         if component_id:
             if update:
                 commit_msg = f"update {component_id}.md metadata"
@@ -225,17 +252,11 @@ def add_commit_push(repo_dir, component_id="", update=False):
             commit_msg = "update workflow files"
         else:
             commit_msg = "bulk update metadata"
-        git_cmd(
-            "-C",
-            repo_dir,
-            "commit",
-            "-m",
-            commit_msg,
-        )
-        git_cmd("-C", repo_dir, "push", "origin", "main")
+        git_cmd("-C", tmp_oralhistories_repository, "commit", "-m", commit_msg)
+        git_cmd("-C", tmp_oralhistories_repository, "push", "origin", "main")
         hash = git_cmd(
             "-C",
-            repo_dir,
+            tmp_oralhistories_repository,
             "log",
             "--max-count=1",
             "--format=format:'%H'",
@@ -245,52 +266,87 @@ def add_commit_push(repo_dir, component_id="", update=False):
             f'☑️  CHANGES PUSHED TO GITHUB: https://github.com/{config("ORALHISTORIES_GITHUB_REPO")}/commit/{hash}'
         )
     else:
-        logger.warning(f"⚠️  NO CHANGES DETECTED")
+        logger.info(f"ℹ️  NO CHANGES DETECTED")
 
 
-def update_markdown_metadata(transcript_dir):
-    create_metadata_file(transcript_dir)
-    # TODO account for _closed versions
-    pandoc_cmd = sh.Command(config("WORK_PANDOC_CMD"))
-    # create a fragment without metadata but with table of contents
-    pandoc_cmd(
-        "--from",
-        "markdown",
-        "--to",
-        "markdown",
-        f'--output={transcript_dir.joinpath(f"fragment.md")}',
-        transcript_dir.joinpath(f"{transcript_dir.stem}.md"),
+def create_metadata(archival_object):
+    metadata = {"title": archival_object["title"]}
+    metadata["component_id"] = archival_object["component_id"]
+    metadata["archival_object_uri"] = archival_object["uri"]
+    metadata["resolver_base_url"] = config("RESOLVER_BASE_URL", default="").rstrip("/")
+    metadata["archivesspace_public_url"] = config("ASPACE_PUBLIC_URL").rstrip("/")
+    if archival_object.get("dates"):
+        dates = {}
+        for date in archival_object["dates"]:
+            if date["date_type"] == "single":
+                # key: YYYY-MM-DD, value: Month D, YYYY
+                dates[date["begin"]] = (
+                    datetime.strptime(date["begin"], "%Y-%m-%d")
+                    .strftime("%B %d, %Y")
+                    .replace(" 0", " ")
+                )
+            else:
+                logger.warning(
+                    f'⚠️  NON-SINGLE DATE TYPE FOUND: {archival_object["component_id"]}'
+                )
+        if int(sorted(dates)[-1][:4]) - int(sorted(dates)[0][:4]) == 0:
+            metadata["date_summary"] = sorted(dates)[0][:4]
+        else:
+            metadata[
+                "date_summary"
+            ] = f"{sorted(dates)[0][:4]} to {sorted(dates)[-1][:4]}"
+        # sort dates by key (YYYY-MM-DD) and get values (Month D, YYYY)
+        metadata["dates"] = [value for key, value in sorted(dates.items())]
+    if archival_object.get("linked_agents"):
+        for linked_agent in archival_object["linked_agents"]:
+            if linked_agent.get("relator") == "ive":
+                agent = distillery.archivessnake_get(linked_agent["ref"]).json()
+                # TODO [allow for other than inverted names](https://github.com/caltechlibrary/distillery/issues/24)
+                if agent["display_name"]["name_order"] == "inverted":
+                    metadata[
+                        "interviewee"
+                    ] = f'{agent["display_name"]["rest_of_name"]} {agent["display_name"]["primary_name"]}'
+            if linked_agent.get("relator") == "ivr":
+                agent = distillery.archivessnake_get(linked_agent["ref"]).json()
+                # TODO [allow for other than inverted names](https://github.com/caltechlibrary/distillery/issues/24)
+                if agent["display_name"]["name_order"] == "inverted":
+                    metadata[
+                        "interviewer"
+                    ] = f'{agent["display_name"]["rest_of_name"]} {agent["display_name"]["primary_name"]}'
+    if archival_object.get("notes"):
+        for note in archival_object["notes"]:
+            if note["type"] == "abstract":
+                # NOTE only using the first abstract content field
+                metadata["abstract"] = note["content"][0].replace(r"\\n", r"\n")
+    return metadata
+
+
+def create_metadata_file(tmp_oralhistories_repository, component_id, metadata):
+    transcript_directory = Path(tmp_oralhistories_repository).joinpath(
+        "transcripts", component_id
     )
-    # add updated metadata to markdown fragment
+    os.makedirs(transcript_directory, exist_ok=True)
+    with open(transcript_directory.joinpath("metadata.json"), "w") as f:
+        f.write(json.dumps(metadata))
+    logger.info(
+        f'☑️  METADATA FILE CREATED: {transcript_directory.joinpath("metadata.json")}'
+    )
+    return transcript_directory
+
+
+def convert_word_to_markdown(transcript_directory):
+    # TODO account for _closed versions
     pandoc_cmd(
         "--standalone",
-        f'--metadata-file={transcript_dir.joinpath("metadata.json")}',
-        "--from",
-        "markdown",
-        "--to",
-        "markdown",
-        f'--output={transcript_dir.joinpath(f"{transcript_dir.stem}.md")}',
-        transcript_dir.joinpath(f"fragment.md"),
+        f'--metadata-file={transcript_directory.joinpath("metadata.json")}',
+        f'--output={transcript_directory.joinpath(f"{transcript_directory.stem}.md")}',
+        Path(config("ORALHISTORIES_WORK_UPLOADS")).joinpath(
+            f"{transcript_directory.stem}.docx"
+        ),
     )
-    os.remove(transcript_dir.joinpath("metadata.json"))
-    os.remove(transcript_dir.joinpath("fragment.md"))
     logger.info(
-        f'☑️  MARKDOWN METADATA UPDATED: {transcript_dir.joinpath(f"{transcript_dir.stem}.md")}'
+        f'☑️  WORD FILE CONVERTED TO MARKDOWN: {transcript_directory.joinpath(f"{transcript_directory.stem}.md")}'
     )
-
-
-def find_digital_object_component(digital_object_component_component_id):
-    response = distillery.archivessnake_get(
-        f"/repositories/2/find_by_id/digital_object_components?component_id[]={digital_object_component_component_id}"
-    )
-    response.raise_for_status()
-    if len(response.json()["digital_object_components"]) < 1:
-        return None
-    if len(response.json()["digital_object_components"]) > 1:
-        raise ValueError(
-            f"❌ MULTIPLE DIGITAL OBJECT COMPONENTS FOUND WITH COMPONENT ID: {digital_object_component_component_id}"
-        )
-    return response.json()["digital_object_components"][0]["ref"]
 
 
 def create_digital_object(metadata):
@@ -341,116 +397,57 @@ def create_digital_object_component(digital_object_uri, label, fileparent, filen
     logger.info(f'✳️  DIGITAL OBJECT COMPONENT CREATED: {response.json()["uri"]}')
 
 
-def clone_git_repository():
-    repo_dir = tempfile.mkdtemp()
-    git_cmd = sh.Command(config("WORK_GIT_CMD"))
-    # use a specific ssh identity_file when cloning this repository
-    git_cmd(
-        "clone",
-        f'git@github.com:{config("ORALHISTORIES_GITHUB_REPO")}.git',
-        "--depth",
-        "1",
-        repo_dir,
-        _env={"GIT_SSH_COMMAND": f'ssh -i {config("ORALHISTORIES_GITHUB_SSH_KEY")} -o StrictHostKeyChecking=no'},
+def update_markdown_metadata(tmp_oralhistories_repository, component_id):
+    # TODO handle error upstream if archival object not found
+    archival_object = distillery.get_folder_data(component_id)
+    metadata = create_metadata(archival_object)
+    transcript_directory = create_metadata_file(
+        tmp_oralhistories_repository, component_id, metadata
     )
-    logger.info(f"☑️  GIT REPOSITORY CLONED TO TEMPORARY DIRECTORY: {repo_dir}")
-    # set the ssh identity_file to use with this repository
-    git_cmd(
-        "-C",
-        repo_dir,
-        "config",
-        "core.sshCommand",
-        f'ssh -i {config("ORALHISTORIES_GITHUB_SSH_KEY")}',
-    )
-    return repo_dir
-
-
-def create_metadata_file(transcript_dir):
-    """Create a metadata.json file and return a dictionary.
-
-    :param transcript_dir: Path to the directory containing the
-        transcript.
-    :type transcript_dir: pathlib.Path
-    :return: Contents of the metadata.json file.
-    :rtype: dict
-    """
-
-    # TODO surround with try/except
-    # TODO log a warning if no archival object exists
-    archival_object = distillery.get_folder_data(transcript_dir.stem)
-    metadata = {"title": archival_object["title"]}
-    metadata["component_id"] = archival_object["component_id"]
-    metadata["archival_object_uri"] = archival_object["uri"]
-    metadata["resolver_base_url"] = config("RESOLVER_BASE_URL", default="").rstrip("/")
-    metadata["archivesspace_public_url"] = config("ASPACE_PUBLIC_URL").rstrip("/")
-    if archival_object.get("dates"):
-        dates = {}
-        for date in archival_object["dates"]:
-            if date["date_type"] == "single":
-                # key: YYYY-MM-DD, value: Month D, YYYY
-                dates[date["begin"]] = (
-                    datetime.strptime(date["begin"], "%Y-%m-%d")
-                    .strftime("%B %d, %Y")
-                    .replace(" 0", " ")
-                )
-            else:
-                logger.warning(
-                    f'⚠️  NON-SINGLE DATE TYPE FOUND: {archival_object["component_id"]}'
-                )
-        if int(sorted(dates)[-1][:4]) - int(sorted(dates)[0][:4]) == 0:
-            metadata["date_summary"] = sorted(dates)[0][:4]
-        else:
-            metadata[
-                "date_summary"
-            ] = f"{sorted(dates)[0][:4]} to {sorted(dates)[-1][:4]}"
-        # sort dates by key (YYYY-MM-DD) and get values (Month D, YYYY)
-        metadata["dates"] = [value for key, value in sorted(dates.items())]
-    if archival_object.get("linked_agents"):
-        for linked_agent in archival_object["linked_agents"]:
-            if linked_agent.get("relator") == "ive":
-                agent = distillery.archivessnake_get(linked_agent["ref"]).json()
-                # TODO [allow for other than inverted names](https://github.com/caltechlibrary/distillery/issues/24)
-                if agent["display_name"]["name_order"] == "inverted":
-                    metadata[
-                        "interviewee"
-                    ] = f'{agent["display_name"]["rest_of_name"]} {agent["display_name"]["primary_name"]}'
-            if linked_agent.get("relator") == "ivr":
-                agent = distillery.archivessnake_get(linked_agent["ref"]).json()
-                # TODO [allow for other than inverted names](https://github.com/caltechlibrary/distillery/issues/24)
-                if agent["display_name"]["name_order"] == "inverted":
-                    metadata[
-                        "interviewer"
-                    ] = f'{agent["display_name"]["rest_of_name"]} {agent["display_name"]["primary_name"]}'
-    if archival_object.get("notes"):
-        for note in archival_object["notes"]:
-            if note["type"] == "abstract":
-                # NOTE only using the first abstract content field
-                metadata["abstract"] = note["content"][0].replace(r"\\n", r"\n")
-    with open(transcript_dir.joinpath("metadata.json"), "w") as f:
-        f.write(json.dumps(metadata))
-    logger.info(
-        f'☑️  METADATA FILE CREATED: {transcript_dir.joinpath("metadata.json")}'
-    )
-    return metadata
-
-
-def convert_word_to_markdown(docxfile, transcript_dir):
     # TODO account for _closed versions
-    pandoc_cmd = sh.Command(config("WORK_PANDOC_CMD"))
+    # create a fragment without metadata but with table of contents
+    pandoc_cmd(
+        "--from",
+        "markdown",
+        "--to",
+        "markdown",
+        f'--output={transcript_directory.joinpath(f"fragment.md")}',
+        transcript_directory.joinpath(f"{transcript_directory.stem}.md"),
+    )
+    # add updated metadata to markdown fragment
     pandoc_cmd(
         "--standalone",
-        f'--metadata-file={transcript_dir.joinpath("metadata.json")}',
-        f'--output={transcript_dir.joinpath(f"{transcript_dir.stem}.md")}',
-        docxfile,
+        f'--metadata-file={transcript_directory.joinpath("metadata.json")}',
+        "--from",
+        "markdown",
+        "--to",
+        "markdown",
+        f'--output={transcript_directory.joinpath(f"{transcript_directory.stem}.md")}',
+        transcript_directory.joinpath(f"fragment.md"),
     )
+    os.remove(transcript_directory.joinpath("metadata.json"))
+    os.remove(transcript_directory.joinpath("fragment.md"))
     logger.info(
-        f'☑️  WORD FILE CONVERTED TO MARKDOWN: {transcript_dir.joinpath(f"{transcript_dir.stem}.md")}'
+        f'☑️  MARKDOWN METADATA UPDATED: {transcript_directory.joinpath(f"{transcript_directory.stem}.md")}'
     )
+
+
+def find_digital_object_component(digital_object_component_component_id):
+    response = distillery.archivessnake_get(
+        f"/repositories/2/find_by_id/digital_object_components?component_id[]={digital_object_component_component_id}"
+    )
+    response.raise_for_status()
+    if len(response.json()["digital_object_components"]) < 1:
+        return None
+    if len(response.json()["digital_object_components"]) > 1:
+        raise ValueError(
+            f"❌ MULTIPLE DIGITAL OBJECT COMPONENTS FOUND WITH COMPONENT ID: {digital_object_component_component_id}"
+        )
+    return response.json()["digital_object_components"][0]["ref"]
 
 
 def publish_transcripts(transcript_source, bucket_destination):
     # publish transcript files to S3
-    aws_cmd = sh.Command(config("WORK_AWS_CMD"))
     return aws_cmd(
         "s3",
         "sync",
@@ -469,7 +466,6 @@ def publish_transcripts(transcript_source, bucket_destination):
 
 def set_resolver_redirect(resolver_id, redirect_url):
     """Create or update a redirect entry in the S3 bucket."""
-    aws_cmd = sh.Command(config("WORK_AWS_CMD"))
     logger.info(
         f'☑️  RESOLVER REDIRECT SET: s3://{config("RESOLVER_BUCKET")}/{resolver_id} ➡️  {redirect_url}'
     )
@@ -489,54 +485,6 @@ def set_resolver_redirect(resolver_id, redirect_url):
             "AWS_SECRET_ACCESS_KEY": config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
         },
     )
-
-
-def push_markdown_file(transcript_dir):
-    git_cmd = sh.Command(config("WORK_GIT_CMD"))
-    git_cmd(
-        "-C",
-        transcript_dir.parent.parent,
-        "add",
-        transcript_dir.joinpath(f"{transcript_dir.stem}.md"),
-    )
-    diff = git_cmd(
-        "-C",
-        transcript_dir.parent.parent,
-        "diff-index",
-        "HEAD",
-        "--",
-    )
-    if diff:
-        if config("ORALHISTORIES_GIT_USER_EMAIL", default="") and config(
-            "ORALHISTORIES_GIT_USER_NAME", default=""
-        ):
-            git_cmd(
-                "-C",
-                transcript_dir.parent.parent,
-                "config",
-                "user.email",
-                config("ORALHISTORIES_GIT_USER_EMAIL"),
-            )
-            git_cmd(
-                "-C",
-                transcript_dir.parent.parent,
-                "config",
-                "user.name",
-                config("ORALHISTORIES_GIT_USER_NAME"),
-            )
-        git_cmd(
-            "-C",
-            transcript_dir.parent.parent,
-            "commit",
-            "-m",
-            f"add {transcript_dir.stem}.md converted from docx",
-        )
-        git_cmd("-C", transcript_dir.parent.parent, "push", "origin", "main")
-        logger.info(
-            f'☑️  TRANSCRIPT PUSHED TO GITHUB: https://github.com/{config("ORALHISTORIES_GITHUB_REPO")}/blob/main/{transcript_dir.stem}/{transcript_dir.stem}.md'
-        )
-    else:
-        logger.warning(f"⚠️  NO CHANGES DETECTED: {transcript_dir.stem}.md")
 
 
 if __name__ == "__main__":
