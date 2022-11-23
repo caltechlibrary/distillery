@@ -317,7 +317,7 @@ def create_metadata(archival_object):
         for note in archival_object["notes"]:
             if note["type"] == "abstract":
                 # NOTE only using the first abstract content field
-                metadata["abstract"] = note["content"][0].replace(r"\\n", r"\n")
+                metadata["abstract"] = note["content"][0]
     return metadata
 
 
