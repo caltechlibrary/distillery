@@ -147,15 +147,7 @@ def oralhistories_form():
 def oralhistories_post():
     if bottle.request.forms.get("upload"):
         upload = bottle.request.files.get("file")
-        if Path(upload.filename).suffix not in [".docx"]:
-            return bottle.template(
-                "oralhistories_post",
-                distillery_base_url=config("BASE_URL").rstrip("/"),
-                user=authorize_user(),
-                component_id="error",
-                op="upload",
-            )
-        else:
+        if Path(upload.filename).suffix in [".docx"]:
             # TODO avoid nasty Error: 500 by checking for existing file
             upload.save(
                 config("WEB_STATUS_FILES")
@@ -167,6 +159,14 @@ def oralhistories_post():
                 archivesspace_staff_url=config("ASPACE_STAFF_URL"),
                 user=authorize_user(),
                 component_id=Path(upload.filename).stem,
+                op="upload",
+            )
+        else:
+            return bottle.template(
+                "oralhistories_post",
+                distillery_base_url=config("BASE_URL").rstrip("/"),
+                user=authorize_user(),
+                component_id="error",
                 op="upload",
             )
     if bottle.request.forms.get("publish"):
