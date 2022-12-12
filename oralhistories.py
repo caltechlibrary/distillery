@@ -29,7 +29,10 @@ class OralHistoriesService(rpyc.Service):
     @rpyc.exposed
     def run(self, component_id=None, update=False, publish=False):
         self.tmp_oralhistories_repository = self.clone_oralhistories_repository()
-        self.stage_github_workflow_changes()
+        # update github workflow files
+        self.copy_github_workflow_changes()
+        self.add_commit_push()
+        # ASSUMPTION: a DOCX file is provided
         if component_id and not update and not publish:
             self.component_id = component_id
             self.archival_object = distillery.get_folder_data(component_id)
@@ -58,7 +61,7 @@ class OralHistoriesService(rpyc.Service):
                 )
                 s3sync_output = self.publish_transcripts()
             else:
-                # publish all records (example case: interviewer name change)
+                # (re)publish all records (example case: interviewer name change)
                 self.transcript_source_directory = Path(
                     self.tmp_oralhistories_repository
                 ).joinpath("transcripts")
@@ -223,14 +226,58 @@ class OralHistoriesService(rpyc.Service):
         )
         return tmp_oralhistories_repository
 
-    def stage_github_workflow_changes(self):
+    def copy_github_workflow_changes(self):
         shutil.copytree(
             Path(__file__).parent.joinpath("oralhistories"),
             Path(self.tmp_oralhistories_repository).joinpath(".github", "workflows"),
             dirs_exist_ok=True,
         )
+
+    def add_commit_push(
+        self, component_id="", update=False
+    ):
         git_cmd = sh.Command(config("WORK_GIT_CMD"))
         git_cmd("-C", self.tmp_oralhistories_repository, "add", "-A")
+        diff = git_cmd("-C", self.tmp_oralhistories_repository, "diff-index", "HEAD", "--")
+        if diff:
+            git_cmd(
+                "-C",
+                self.tmp_oralhistories_repository,
+                "config",
+                "user.email",
+                config("ORALHISTORIES_GIT_USER_EMAIL"),
+            )
+            git_cmd(
+                "-C",
+                self.tmp_oralhistories_repository,
+                "config",
+                "user.name",
+                config("ORALHISTORIES_GIT_USER_NAME"),
+            )
+            if component_id:
+                if update:
+                    commit_msg = f"update {component_id}.md metadata"
+                else:
+                    commit_msg = f"add {component_id}.md converted from docx"
+            elif ".github/workflows/" in diff and "transcripts/" not in diff:
+                commit_msg = "update workflow files"
+            else:
+                commit_msg = "bulk update metadata"
+            git_cmd("-C", self.tmp_oralhistories_repository, "commit", "-m", commit_msg)
+            git_cmd("-C", self.tmp_oralhistories_repository, "push", "origin", "main")
+            hash = git_cmd(
+                "-C",
+                self.tmp_oralhistories_repository,
+                "log",
+                "--max-count=1",
+                "--format=format:'%H'",
+                _tty_out=False,
+            ).strip("'")
+            logger.info(
+                f'☑️  CHANGES PUSHED TO GITHUB: https://github.com/{config("ORALHISTORIES_GITHUB_REPO")}/commit/{hash}'
+            )
+        else:
+            logger.warning(f"⚠️  NO CHANGES DETECTED")
 
     def create_metadata(self, archival_object):
         metadata = {"title": archival_object["title"]}
@@ -309,52 +356,6 @@ class OralHistoriesService(rpyc.Service):
         logger.info(
             f'☑️  WORD FILE CONVERTED TO MARKDOWN: {self.transcript_directory.joinpath(f"{self.component_id}.md")}'
         )
-
-    def add_commit_push(
-        self, tmp_oralhistories_repository, component_id="", update=False
-    ):
-        git_cmd = sh.Command(config("WORK_GIT_CMD"))
-        git_cmd("-C", tmp_oralhistories_repository, "add", "-A")
-        diff = git_cmd("-C", tmp_oralhistories_repository, "diff-index", "HEAD", "--")
-        if diff:
-            git_cmd(
-                "-C",
-                tmp_oralhistories_repository,
-                "config",
-                "user.email",
-                config("ORALHISTORIES_GIT_USER_EMAIL"),
-            )
-            git_cmd(
-                "-C",
-                tmp_oralhistories_repository,
-                "config",
-                "user.name",
-                config("ORALHISTORIES_GIT_USER_NAME"),
-            )
-            if component_id:
-                if update:
-                    commit_msg = f"update {component_id}.md metadata"
-                else:
-                    commit_msg = f"add {component_id}.md converted from docx"
-            elif ".github/workflows/" in diff and "transcripts/" not in diff:
-                commit_msg = "update workflow files"
-            else:
-                commit_msg = "bulk update metadata"
-            git_cmd("-C", tmp_oralhistories_repository, "commit", "-m", commit_msg)
-            git_cmd("-C", tmp_oralhistories_repository, "push", "origin", "main")
-            hash = git_cmd(
-                "-C",
-                tmp_oralhistories_repository,
-                "log",
-                "--max-count=1",
-                "--format=format:'%H'",
-                _tty_out=False,
-            ).strip("'")
-            logger.info(
-                f'☑️  CHANGES PUSHED TO GITHUB: https://github.com/{config("ORALHISTORIES_GITHUB_REPO")}/commit/{hash}'
-            )
-        else:
-            logger.warning(f"⚠️  NO CHANGES DETECTED")
 
     def create_digital_object(self):
         digital_object = {}
