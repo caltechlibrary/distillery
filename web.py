@@ -25,8 +25,6 @@ from bottle import (
     post,
     request,
     response,
-    route,
-    run,
     template,
 )
 from decouple import config
@@ -138,9 +136,9 @@ def stream(collection_id):
                 yield f"data: {line}\n\n"
 
 
-@route("/oralhistories")
+@bottle.route("/oralhistories")
 def oralhistories_form():
-    return template(
+    return bottle.template(
         "oralhistories",
         distillery_base_url=config("BASE_URL").rstrip("/"),
         user=authorize_user(),
@@ -150,43 +148,86 @@ def oralhistories_form():
     )
 
 
-@route("/oralhistories", method="POST")
+@bottle.route("/oralhistories", method="POST")
 def oralhistories_post():
-    if request.forms.get("upload"):
-        upload = request.files.get("file")
-        if Path(upload.filename).suffix not in [".docx"]:
-            return f'<p>Only <b>docx</b> files are allowed at this time.</p><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
-        # TODO avoid nasty Error: 500 by checking for existing file
-        upload.save(
-            config("ORALHISTORIES_WEB_UPLOADS")
-        )  # appends upload.filename automatically
+    if bottle.request.forms.get("upload"):
+        upload = bottle.request.files.get("file")
+        if Path(upload.filename).suffix in [".docx"]:
+            # TODO avoid nasty Error: 500 by checking for existing file
+            upload.save(
+                config("ORALHISTORIES_WEB_UPLOADS")
+            )  # appends upload.filename automatically
+            # asynchronously run process on server
+            oralhistories_run = rpyc.async_(oralhistories_work_server_connection.root.run)
+            async_result = oralhistories_run(component_id=Path(upload.filename).stem)
+            return bottle.template(
+                "oralhistories_post",
+                distillery_base_url=config("BASE_URL").rstrip("/"),
+                github_repo=config("ORALHISTORIES_GITHUB_REPO"),
+                archivesspace_staff_url=config("ASPACE_STAFF_URL"),
+                user=authorize_user(),
+                component_id=Path(upload.filename).stem,
+                op="upload",
+            )
+        else:
+            return bottle.template(
+                "oralhistories_post",
+                distillery_base_url=config("BASE_URL").rstrip("/"),
+                user=authorize_user(),
+                component_id="error",
+                op="upload",
+            )
+    if bottle.request.forms.get("publish"):
         # asynchronously run process on server
         oralhistories_run = rpyc.async_(oralhistories_work_server_connection.root.run)
-        async_result = oralhistories_run(component_id=Path(upload.filename).stem)
-        # return template("oralhistories_post", component_id=Path(upload.filename).stem)
-        return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
-    if request.forms.get("publish"):
-        # asynchronously run process on server
-        oralhistories_run = rpyc.async_(oralhistories_work_server_connection.root.run)
-        if request.forms.get("component_id_publish"):
+        if bottle.request.forms.get("component_id_publish"):
             async_result = oralhistories_run(
                 component_id=request.forms.get("component_id_publish"), publish=True
             )
-            return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
+            return bottle.template(
+                "oralhistories_post",
+                distillery_base_url=config("BASE_URL").rstrip("/"),
+                archivesspace_staff_url=config("ASPACE_STAFF_URL"),
+                user=authorize_user(),
+                component_id=bottle.request.forms.get("component_id_publish"),
+                op="publish",
+                oralhistories_public_base_url=config("ORALHISTORIES_PUBLIC_BASE_URL"),
+                resolver_base_url=config("RESOLVER_BASE_URL"),
+            )
         else:
             async_result = oralhistories_run(publish=True)
-            return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
-    if request.forms.get("update"):
+            return bottle.template(
+                "oralhistories_post",
+                distillery_base_url=config("BASE_URL").rstrip("/"),
+                user=authorize_user(),
+                component_id="all",
+                op="publish",
+            )
+    if bottle.request.forms.get("update"):
         # asynchronously run process on server
         oralhistories_run = rpyc.async_(oralhistories_work_server_connection.root.run)
         if request.forms.get("component_id_update"):
             async_result = oralhistories_run(
                 component_id=request.forms.get("component_id_update"), update=True
             )
-            return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
+            return bottle.template(
+                "oralhistories_post",
+                distillery_base_url=config("BASE_URL").rstrip("/"),
+                github_repo=config("ORALHISTORIES_GITHUB_REPO"),
+                user=authorize_user(),
+                component_id=bottle.request.forms.get("component_id_update"),
+                op="update",
+            )
         else:
             async_result = oralhistories_run(update=True)
-            return f'<h1>OK</h1><p><a href="{config("BASE_URL").rstrip("/")}/oralhistories">Go back to the form.</a></p>'
+            return bottle.template(
+                "oralhistories_post",
+                distillery_base_url=config("BASE_URL").rstrip("/"),
+                github_repo=config("ORALHISTORIES_GITHUB_REPO"),
+                user=authorize_user(),
+                component_id="all",
+                op="update",
+            )
 
 
 def authorize_user():
@@ -213,7 +254,7 @@ if __name__ == "__main__":
         "email_address": "hello@example.com",
         "display_name": "World",
     }
-    run(
+    bottle.run(
         host=config("LOCALHOST"),
         port=config("LOCALPORT"),
         server="gevent",
