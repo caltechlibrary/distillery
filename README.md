@@ -49,7 +49,16 @@ For copying to the cloud we are using and assuming AWS S3. For publishing access
 1. Run `pipenv install` within the project directory.
 1. Copy the `example-settings.ini` file to `settings.ini` and set appropriate values.
     - most values need to be set
+
+For the preservation and publication components:
+
 1. Set up a cron job to run `alchemist.py` every minute.
+
+For the oral histories component:
+
+1. Copy the `example-oralhistories.service` file to `/etc/systemd/system/oralhistories.service` and set appropriate values.
+1. Enable the service with `systemctl enable oralhistories`.
+1. Start the service with `systemctl start oralhistories`.
 
 ## [`oralhistories.py`](caltechlibrary/distillery/blob/main/oralhistories.py)
 
@@ -68,3 +77,5 @@ With the `--publish` parameter, this script will:
 
 - clone the latest versions of the generated HTML files along with any assets
 - sync any updates with an AWS S3 bucket to be accessible on the web
+
+After setting it up, the WORK server has a service listening for connections that trigger the processing based on the form submission on the WEB server. The oral histories component does not rely on the `alchemist.py` script nor a cron job to initiate processing.
