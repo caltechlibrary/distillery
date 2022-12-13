@@ -40,10 +40,6 @@ logging.config.fileConfig(
 )
 logger = logging.getLogger("web")
 
-oralhistories_work_server_connection = rpyc.connect(
-    config("WORK_HOSTNAME"), config("ORALHISTORIES_RPYC_PORT")
-)
-
 
 @error(403)
 def error403(error):
@@ -150,6 +146,9 @@ def oralhistories_form():
 
 @bottle.route("/oralhistories", method="POST")
 def oralhistories_post():
+    oralhistories_work_server_connection = rpyc.connect(
+        config("WORK_HOSTNAME"), config("ORALHISTORIES_RPYC_PORT")
+    )
     if bottle.request.forms.get("upload"):
         upload = bottle.request.files.get("file")
         if Path(upload.filename).suffix in [".docx"]:
@@ -262,6 +261,7 @@ if __name__ == "__main__":
         debug=True,
     )
 else:
+    # NOTE this code will run when using mod_wsgi
     # fmt: off
 
     # change working directory so relative paths (and template lookup) work again
@@ -276,5 +276,3 @@ else:
 
     # for attaching Bottle to Apache using mod_wsgi
     application = default_app()
-
-    # fmt: on

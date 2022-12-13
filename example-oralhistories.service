@@ -1,0 +1,27 @@
+# https://www.freedesktop.org/software/systemd/man/systemd.service.html
+#
+# modify and copy this file to /etc/systemd/system/oralhistories.service
+# on the work server
+#
+# enable with `systemctl enable oralhistories`
+# start with `systemctl start oralhistories`
+# reload with `systemctl reload oralhistories`
+# restart with `systemctl restart oralhistories`
+# stop with `systemctl stop oralhistories`
+#
+[Unit]
+Description=Oral Histories RPyC Listener
+#Documentation=
+StartLimitIntervalSec=0
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+#User=username
+#Environment="PIPENV_PIPFILE=/path/to/distillery/Pipfile"
+#ExecStart=/usr/bin/pipenv run python /path/to/distillery/oralhistories.py
+
+[Install]
+WantedBy=multi-user.target
