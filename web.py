@@ -15,6 +15,7 @@ import shutil
 from csv import DictReader
 from pathlib import Path
 
+import rpyc
 import tailer
 from bottle import (
     abort,
@@ -145,13 +146,21 @@ def oralhistories_form():
 
 @bottle.route("/oralhistories", method="POST")
 def oralhistories_post():
+    oralhistories_work_server_connection = rpyc.connect(
+        config("WORK_HOSTNAME"), config("ORALHISTORIES_RPYC_PORT")
+    )
     if bottle.request.forms.get("upload"):
         upload = bottle.request.files.get("file")
         if Path(upload.filename).suffix in [".docx"]:
             # TODO avoid nasty Error: 500 by checking for existing file
             upload.save(
-                config("WEB_STATUS_FILES")
+                config("ORALHISTORIES_WEB_UPLOADS")
             )  # appends upload.filename automatically
+            # asynchronously run process on WORK server
+            oralhistories_run = rpyc.async_(
+                oralhistories_work_server_connection.root.run
+            )
+            async_result = oralhistories_run(component_id=Path(upload.filename).stem)
             return bottle.template(
                 "oralhistories_post",
                 distillery_base_url=config("BASE_URL").rstrip("/"),
@@ -170,12 +179,12 @@ def oralhistories_post():
                 op="upload",
             )
     if bottle.request.forms.get("publish"):
-        # write a file for alchemist.py to find
+        # asynchronously run process on WORK server
+        oralhistories_run = rpyc.async_(oralhistories_work_server_connection.root.run)
         if bottle.request.forms.get("component_id_publish"):
-            # TODO sanitize component_id_publish string
-            Path(config("WEB_STATUS_FILES")).joinpath(
-                f'{bottle.request.forms.get("component_id_publish")}--publish'
-            ).touch()
+            async_result = oralhistories_run(
+                component_id=request.forms.get("component_id_publish"), publish=True
+            )
             return bottle.template(
                 "oralhistories_post",
                 distillery_base_url=config("BASE_URL").rstrip("/"),
@@ -187,7 +196,7 @@ def oralhistories_post():
                 resolver_base_url=config("RESOLVER_BASE_URL"),
             )
         else:
-            Path(config("WEB_STATUS_FILES")).joinpath("oral-histories--publish").touch()
+            async_result = oralhistories_run(publish=True)
             return bottle.template(
                 "oralhistories_post",
                 distillery_base_url=config("BASE_URL").rstrip("/"),
@@ -196,12 +205,12 @@ def oralhistories_post():
                 op="publish",
             )
     if bottle.request.forms.get("update"):
-        # write a file for alchemist.py to find
-        if bottle.request.forms.get("component_id_update"):
-            # TODO sanitize component_id_update string
-            Path(config("WEB_STATUS_FILES")).joinpath(
-                f'{bottle.request.forms.get("component_id_update")}--update'
-            ).touch()
+        # asynchronously run process on WORK server
+        oralhistories_run = rpyc.async_(oralhistories_work_server_connection.root.run)
+        if request.forms.get("component_id_update"):
+            async_result = oralhistories_run(
+                component_id=request.forms.get("component_id_update"), update=True
+            )
             return bottle.template(
                 "oralhistories_post",
                 distillery_base_url=config("BASE_URL").rstrip("/"),
@@ -211,7 +220,7 @@ def oralhistories_post():
                 op="update",
             )
         else:
-            Path(config("WEB_STATUS_FILES")).joinpath("oral-histories--update").touch()
+            async_result = oralhistories_run(update=True)
             return bottle.template(
                 "oralhistories_post",
                 distillery_base_url=config("BASE_URL").rstrip("/"),
@@ -254,6 +263,7 @@ if __name__ == "__main__":
         debug=True,
     )
 else:
+    # NOTE this code will run when using mod_wsgi
     # fmt: off
 
     # change working directory so relative paths (and template lookup) work again
@@ -263,9 +273,5 @@ else:
     # set the variable to avoid a NameError
     debug_user = None
 
-    # bottle requires gevent.monkey.patch_all()
-    from gevent import monkey
-    monkey.patch_all()
-
-    # for attaching Bottle to Apache using mod_wsgi
+    # attach Bottle to Apache using mod_wsgi
     application = default_app()
