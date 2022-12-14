@@ -1,5 +1,6 @@
 # SECRETS
 settings.ini
+users.csv
 
 # DEVELOPMENT
 __pycache__
