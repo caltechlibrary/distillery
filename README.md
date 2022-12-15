@@ -70,12 +70,22 @@ Starting with an initial transcript of an oral history interview in Microsoft Wo
 
 A GitHub Actions script runs after the addition of the Markdown file that will:
 
-- generate an HTML document that incorporates the metadata and the Markdown content
-- commit the new HTML file to the repository
+- generate HTML and PDF documents that incorporate the metadata and the Markdown content
+- commit the new generated files to the repository
 
 With the `--publish` parameter, this script will:
 
 - clone the latest versions of the generated HTML files along with any assets
 - sync any updates with an AWS S3 bucket to be accessible on the web
 
-After setting it up, the WORK server has a service listening for connections that trigger the processing based on the form submission on the WEB server. The oral histories component does not rely on the `alchemist.py` script nor a cron job to initiate processing.
+### Remote Connection to WORK Server
+
+The WORK server needs a service listening for [RPyC](https://rpyc.readthedocs.io/) connections to trigger the processing. See `example-oralhistories.service` for a starting point with `systemd`.
+
+The oral histories component does not rely on the `alchemist.py` script nor a cron job to initiate processing.
+
+### GitHub Actions
+
+The [Generate Files](https://github.com/caltechlibrary/distillery/blob/main/oralhistories/generate.yml) workflow commits HTML and PDF versions of transcripts to the oralhistories repository for any new or modified Markdown files.
+
+The [Regenerate Files](https://github.com/caltechlibrary/distillery/blob/main/oralhistories/regenerate.yml) workflow allows regeneration of HTML and PDF transcripts without corresponding modification of Markdown files. This can be useful if a template changes, for example. The workflow requires a transcript identifier to be entered before it can be run. A repository secret named `TOKEN` consisting of a personal access token for an authorized account must also be set.
