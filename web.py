@@ -46,11 +46,12 @@ def error403(error):
     return "Please contact Archives & Special Collections or Digital Library Development if you should have access."
 
 
-@get("/")
-def form_collection_id():
-    # we pass the user dictionary to the template
-    return template(
-        "form", base_url=config("BASE_URL").rstrip("/"), user=authorize_user()
+@bottle.route("/")
+def distillery_form():
+    return bottle.template(
+        "distillery_form",
+        distillery_base_url=config("BASE_URL").rstrip("/"),
+        user=authorize_user(),
     )
 
 
