@@ -53,11 +53,94 @@ asnake_client.authorize()
 class DistilleryService(rpyc.Service):
     @rpyc.exposed
     def validate(self, collection_id="", destinations="", timestamp=""):
-        pass
+        if collection_id:
+            self.collection_id = collection_id
+        else:
+            raise ValueError("collection_id is required")
+        if timestamp:
+            self.timestamp = timestamp
+        else:
+            # TODO determine effect on log file
+            self.timestamp = str(int(time.time()))
+
+        self.status_logger = logging.getLogger(self.collection_id)
+        self.status_logger.setLevel(logging.INFO)
+        status_handler = logging.FileHandler(
+            Path(config("WORK_STATUS_FILES")).joinpath(
+                f"{self.collection_id}.{self.timestamp}.log"
+            )
+        )
+        status_handler.setLevel(logging.INFO)
+        status_handler.setFormatter(logging.Formatter("%(message)s"))
+        self.status_logger.addHandler(status_handler)
+
+        self.status_logger.info(f"🟢 BEGIN VALIDATING COMPONENTS FOR {self.collection_id}")
+
+        if "onsite" in destinations and config("ONSITE_MEDIUM"):
+            try:
+                # Import a module named the same as the ONSITE_MEDIUM setting.
+                self.onsite_medium = importlib.import_module(config("ONSITE_MEDIUM"))
+                self.status_logger.info(f'☑️  ONSITE PRESERVATION MEDIUM: {config("ONSITE_MEDIUM")}')
+            except Exception:
+                message = f'❌ UNABLE TO IMPORT MODULE: {config("ONSITE_MEDIUM")}'
+                self.status_logger.error(message)
+                raise
+        if "cloud" in destinations and config("CLOUD_PLATFORM"):
+            try:
+                # Import a module named the same as the CLOUD_PLATFORM setting.
+                self.cloud_platform = importlib.import_module(config("CLOUD_PLATFORM"))
+                self.status_logger.info(f'☑️  CLOUD PRESERVATION PLATFORM: {config("CLOUD_PLATFORM")}')
+            except Exception:
+                message = f'❌ UNABLE TO IMPORT MODULE: {config("CLOUD_PLATFORM")}'
+                self.status_logger.error(message)
+                raise
+        if "access" in destinations and config("ACCESS_PLATFORM"):
+            try:
+                # Import a module named the same as the ACCESS_PLATFORM setting.
+                self.access_platform = importlib.import_module(config("ACCESS_PLATFORM"))
+                self.status_logger.info(f'☑️  ACCESS PLATFORM: {config("ACCESS_PLATFORM")}')
+            except Exception:
+                message = f'❌ UNABLE TO IMPORT MODULE: {config("ACCESS_PLATFORM")}'
+                self.status_logger.error(message)
+                raise
+        if not destinations:
+            message = f"❌ NO DESTINATIONS SPECIFIED FOR {self.collection_id}"
+            self.status_logger.error(message)
+            raise ValueError(message)
+
+        try:
+            # validate INITIAL_ORIGINAL_FILES directory
+            if Path(config("INITIAL_ORIGINAL_FILES")).is_dir():
+                self.confirm_collection_directory(config("INITIAL_ORIGINAL_FILES"))
+            else:
+                raise NotADirectoryError(config("INITIAL_ORIGINAL_FILES"))
+        except NotADirectoryError as e:
+            message = f"❌ DIRECTORY NOT FOUND: {str(e)}"
+            self.status_logger.error(message)
+            # re-raise the exception because we cannot continue without the files
+            raise
+
+        # send the character that stops javascript reloading in the web ui
+        self.status_logger.info(f"🟡")
 
     @rpyc.exposed
     def run(self, collection_id="", destinations="", timestamp=""):
         pass
+
+    def confirm_collection_directory(self, parent_directory):
+        # make a list of directory names to check against
+        entries = []
+        for entry in os.scandir(parent_directory):
+            if entry.is_dir:
+                entries.append(entry.name)
+        # check that collection_id case matches directory name
+        if self.collection_id in entries:
+            message = f"☑️  COLLECTION DIRECTORY FOUND: {self.collection_id}"
+            logger.info(message)
+            self.status_logger.info(message)
+            return os.path.join(parent_directory, self.collection_id)
+        else:
+            raise NotADirectoryError(os.path.join(parent_directory, self.collection_id))
 
 
 def main(
@@ -887,24 +970,6 @@ def get_collection_data(collection_id):
     else:
         raise RuntimeError(
             f"There was a problem retrieving the collection data from ArchivesSpace.\n"
-        )
-
-
-def confirm_collection_directory(parent_directory, collection_id):
-    # make a list of directory names to check against
-    entries = []
-    for entry in os.scandir(parent_directory):
-        if entry.is_dir:
-            entries.append(entry.name)
-    # check that collection_id case matches directory name
-    if collection_id in entries:
-        logger.info(
-            f"☑️  DIRECTORY FOUND: {os.path.join(parent_directory, collection_id)}"
-        )
-        return os.path.join(parent_directory, collection_id)
-    else:
-        raise NotADirectoryError(
-            f"Missing or invalid collection directory: {os.path.join(parent_directory, collection_id)}\n"
         )
 
 
