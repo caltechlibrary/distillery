@@ -37,40 +37,6 @@ def main(
 ):
     logger.info(f"☑️  RUNNING PREVIEW CHECKS FOR: {collection_id}")
     variables = {}
-    if onsite and config("ONSITE_MEDIUM"):
-        # Import a module named the same as the ONSITE_MEDIUM setting.
-        variables["onsite_medium"] = importlib.import_module(config("ONSITE_MEDIUM"))
-        variables["onsite"] = onsite
-        # TODO create init function that confirms everything is set to continue
-    if cloud and config("CLOUD_PLATFORM"):
-        # Import a module named the same as the CLOUD_PLATFORM setting.
-        variables["cloud_platform"] = importlib.import_module(config("CLOUD_PLATFORM"))
-        variables["cloud"] = cloud
-        # TODO create init function that confirms everything is set to continue
-    if access and config("ACCESS_PLATFORM"):
-        # Import a module named the same as the ACCESS_PLATFORM setting.
-        variables["access_platform"] = importlib.import_module(
-            config("ACCESS_PLATFORM")
-        )
-        variables["access"] = access
-        # TODO create init function that confirms everything is set to continue
-    variables["collection_id"] = collection_id
-
-    variables["stream_path"] = stream_path = Path(
-        config("WORK_NAS_APPS_MOUNTPOINT")
-    ).joinpath(config("NAS_STATUS_FILES_RELATIVE_PATH"), f"{collection_id}-processing")
-
-    # Report on directories found.
-    try:
-        distillery.confirm_collection_directory(
-            config("INITIAL_ORIGINAL_FILES"), collection_id
-        )
-    except FileNotFoundError as e:
-        message = f"❌ {collection_id} directory not found in {config('INITIAL_ORIGINAL_FILES')}\n"
-        with open(stream_path, "a") as stream:
-            stream.write(message)
-        # re-raise the exception because we cannot continue without the files
-        raise
 
     # Report on subdirectories found and filecount.
     initial_original_subdirectorycount = 0
