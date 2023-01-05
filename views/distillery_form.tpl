@@ -24,10 +24,6 @@
         h1, h2 {
             margin-block: revert;
         }
-        details {
-            border: none;
-            padding-block-start: var(--spacing);
-        }
         #user [role=button] {
             white-space: nowrap;
         }

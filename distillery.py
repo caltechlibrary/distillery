@@ -23,7 +23,7 @@ from pathlib import Path
 
 import boto3
 import botocore
-import plac
+import rpyc
 import sh
 from asnake.client import ASnakeClient
 from decouple import config
@@ -47,6 +47,17 @@ asnake_client = ASnakeClient(
     password=config("ASPACE_PASSWORD"),
 )
 asnake_client.authorize()
+
+
+@rpyc.service
+class DistilleryService(rpyc.Service):
+    @rpyc.exposed
+    def validate(self, collection_id="", destinations="", timestamp=""):
+        pass
+
+    @rpyc.exposed
+    def run(self, collection_id="", destinations="", timestamp=""):
+        pass
 
 
 def main(
@@ -2111,4 +2122,6 @@ def create_derivative_files(variables):
 
 
 if __name__ == "__main__":
-    plac.call(main)
+    # fmt: off
+    from rpyc.utils.server import ThreadedServer
+    ThreadedServer(DistilleryService, port=config("DISTILLERY_RPYC_PORT")).start()
