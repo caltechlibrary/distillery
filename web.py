@@ -11,6 +11,7 @@ from gevent import monkey; monkey.patch_all()
 import logging.config
 import os
 import shutil
+import time
 
 from csv import DictReader
 from pathlib import Path
@@ -55,82 +56,46 @@ def distillery_form():
     )
 
 
-@post("/preview")
-def preview():
-    # strip any invisibles
-    collection_id = request.forms.get("collection_id").strip()
-    # NOTE from form as multiple values
-    processes = "_".join(request.forms.getall("processes"))
-    # write the preview file for alchemist.py to find
-    Path(config("WEB_NAS_APPS_MOUNTPOINT")).joinpath(
-        config("NAS_STATUS_FILES_RELATIVE_PATH"), f"{collection_id}-preview-{processes}"
-    ).touch()
-    # set stream file path
-    stream_path = Path(config("WEB_NAS_APPS_MOUNTPOINT")).joinpath(
-        config("NAS_STATUS_FILES_RELATIVE_PATH"), f"{collection_id}-processing"
+@bottle.route("/", method="POST")
+def distillery_post():
+    distillery_work_server_connection = rpyc.connect(
+        config("WORK_HOSTNAME"), config("DISTILLERY_RPYC_PORT")
     )
-    # move any existing stream file to logs directory
-    if stream_path.is_file():
-        # NOTE shutil.move() in Python < 3.9 needs strings as arguments
-        shutil.move(
-            str(stream_path),
-            str(
-                os.path.join(
-                    config("WEB_NAS_APPS_MOUNTPOINT"),
-                    config("NAS_LOG_FILES_RELATIVE_PATH"),
-                    f"{collection_id}-{os.path.getmtime(stream_path)}.log",
-                )
-            ),
+    collection_id = bottle.request.forms.get("collection_id").strip()
+    timestamp = str(int(time.time()))
+    Path(config("WEB_STATUS_FILES")).joinpath(
+        f"{collection_id}.{timestamp}.log"
+    ).touch()
+    # NOTE using getall() wraps single and multiple values in a list;
+    # allows reuse of the same field name
+    destinations = "_".join(bottle.request.forms.getall("destinations"))
+    if bottle.request.forms.get("step") == "validate":
+        # TODO asynchronously validate on WORK server
+        distillery_validate = rpyc.async_(
+            distillery_work_server_connection.root.validate
         )
-    # create a new file for the event stream
-    # NOTE this file seemingly must be create here instead of in alchemist.py
-    # because nothing shows up in the stream when the file is created there
-    stream_path.touch()
-    return template(
-        "preview",
-        base_url=config("BASE_URL").rstrip("/"),
+        async_result = distillery_validate(
+            collection_id=collection_id, destinations=destinations, timestamp=timestamp
+        )
+    if bottle.request.forms.get("step") == "run":
+        # TODO asynchronously run on WORK server
+        pass
+    return bottle.template(
+        "distillery_post",
+        distillery_base_url=config("BASE_URL").rstrip("/"),
         collection_id=collection_id,
-        processes=processes,
+        timestamp=timestamp,
+        destinations=destinations,
     )
 
 
-@post("/distilling")
-def begin_processing():
-    collection_id = request.forms.get("collection_id")
-    processes = request.forms.get("processes")
-    # write the process file for alchemist.py to find
-    Path(config("WEB_NAS_APPS_MOUNTPOINT")).joinpath(
-        config("NAS_STATUS_FILES_RELATIVE_PATH"), f"{collection_id}-process-{processes}"
-    ).touch()
-    return template(
-        "distilling",
-        base_url=config("BASE_URL").rstrip("/"),
-        collection_id=collection_id,
-    )
-
-
-@get("/distill/<collection_id>")
-def stream(collection_id):
-    # using server-sent events that work with javascript in preview.tpl
-    response.content_type = "text/event-stream"
-    response.cache_control = "no-cache"
-
+@bottle.route("/log/<collection_id>/<timestamp>")
+def log(collection_id, timestamp):
     with open(
-        Path(
-            f'{config("WEB_NAS_APPS_MOUNTPOINT")}/{config("NAS_STATUS_FILES_RELATIVE_PATH")}'
-        ).joinpath(f"{collection_id}-processing"),
+        Path(config("WEB_STATUS_FILES")).joinpath(f"{collection_id}.{timestamp}.log"),
         encoding="utf-8",
     ) as f:
-        for line in tailer.follow(f):
-            # the event stream format starts with "data: " and ends with "\n\n"
-            # https://web.archive.org/web/20210701185847/https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format
-            if line.startswith("🟢"):
-                # we send an event field targeting a specific listener without data
-                yield f"event: init\n"
-            elif line.startswith("🟡"):
-                yield f"event: done\n"
-            else:
-                yield f"data: {line}\n\n"
+        return bottle.template("distillery_log", log=f.readlines())
 
 
 @bottle.route("/oralhistories")
