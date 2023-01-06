@@ -152,7 +152,10 @@ def oralhistories_post():
     if bottle.request.forms.get("upload"):
         upload = bottle.request.files.get("file")
         if Path(upload.filename).suffix in [".docx"]:
-            # TODO avoid nasty Error: 500 by checking for existing file
+            # delete an existing file
+            Path(config("ORALHISTORIES_WEB_UPLOADS")).joinpath(upload.filename).unlink(
+                missing_ok=True
+            )
             upload.save(
                 config("ORALHISTORIES_WEB_UPLOADS")
             )  # appends upload.filename automatically
