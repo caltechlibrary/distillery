@@ -190,13 +190,15 @@ def oralhistories_post():
                 op="upload",
             )
     if bottle.request.forms.get("publish"):
-        # asynchronously run process on WORK server
-        oralhistories_run = rpyc.async_(oralhistories_work_server_connection.root.run)
         if bottle.request.forms.get("component_id_publish"):
             component_id = bottle.request.forms.get("component_id_publish")
             Path(config("WEB_STATUS_FILES")).joinpath(
                 f"{component_id}.{timestamp}.log"
             ).touch()
+            # asynchronously run process on WORK server
+            oralhistories_run = rpyc.async_(
+                oralhistories_work_server_connection.root.run
+            )
             async_result = oralhistories_run(
                 component_id=component_id, publish=True, timestamp=timestamp
             )
@@ -220,13 +222,15 @@ def oralhistories_post():
                 op="publish",
             )
     if bottle.request.forms.get("update"):
-        # asynchronously run process on WORK server
-        oralhistories_run = rpyc.async_(oralhistories_work_server_connection.root.run)
         if bottle.request.forms.get("component_id_update"):
             component_id = bottle.request.forms.get("component_id_update")
             Path(config("WEB_STATUS_FILES")).joinpath(
                 f"{component_id}.{timestamp}.log"
             ).touch()
+            # asynchronously run process on WORK server
+            oralhistories_run = rpyc.async_(
+                oralhistories_work_server_connection.root.run
+            )
             async_result = oralhistories_run(
                 component_id=component_id, update=True, timestamp=timestamp
             )
