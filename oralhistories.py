@@ -28,6 +28,18 @@ logger = logging.getLogger("oralhistories")
 class OralHistoriesService(rpyc.Service):
     @rpyc.exposed
     def run(self, component_id=None, update=False, publish=False):
+        if component_id:
+            self.status_logger = logging.getLogger(component_id)
+            self.status_logger.setLevel(logging.INFO)
+            status_handler = logging.FileHandler(
+                Path(config("WORK_STATUS_FILES")).joinpath(f"{component_id}.log")
+            )
+            status_handler.setLevel(logging.INFO)
+            status_handler.setFormatter(logging.Formatter("%(message)s"))
+            self.status_logger.addHandler(status_handler)
+
+            self.status_logger.info(f"🟢 FILE UPLOADED: {component_id}.docx")
+
         self.tmp_oralhistories_repository = self.clone_oralhistories_repository()
         # update github workflow files
         self.copy_github_workflow_changes()

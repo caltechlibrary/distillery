@@ -159,6 +159,8 @@ def oralhistories_post():
             upload.save(
                 config("ORALHISTORIES_WEB_UPLOADS")
             )  # appends upload.filename automatically
+            component_id = Path(upload.filename).stem
+            Path(config("WEB_STATUS_FILES")).joinpath(f"{component_id}.log").touch()
             # asynchronously run process on WORK server
             oralhistories_run = rpyc.async_(
                 oralhistories_work_server_connection.root.run
