@@ -27,12 +27,14 @@ logger = logging.getLogger("oralhistories")
 @rpyc.service
 class OralHistoriesService(rpyc.Service):
     @rpyc.exposed
-    def run(self, component_id=None, update=False, publish=False):
-        if component_id:
+    def run(self, component_id=None, update=False, publish=False, timestamp=None):
+        if component_id and timestamp:
             self.status_logger = logging.getLogger(component_id)
             self.status_logger.setLevel(logging.INFO)
             status_handler = logging.FileHandler(
-                Path(config("WORK_STATUS_FILES")).joinpath(f"{component_id}.log")
+                Path(config("WORK_STATUS_FILES")).joinpath(
+                    f"{component_id}.{timestamp}.log"
+                )
             )
             status_handler.setLevel(logging.INFO)
             status_handler.setFormatter(logging.Formatter("%(message)s"))
