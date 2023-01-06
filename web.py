@@ -11,6 +11,7 @@ from gevent import monkey; monkey.patch_all()
 import logging.config
 import os
 import shutil
+import time
 
 from csv import DictReader
 from pathlib import Path
@@ -149,11 +150,14 @@ def oralhistories_post():
     oralhistories_work_server_connection = rpyc.connect(
         config("WORK_HOSTNAME"), config("ORALHISTORIES_RPYC_PORT")
     )
+    timestamp = str(int(time.time()))
     if bottle.request.forms.get("upload"):
         upload = bottle.request.files.get("file")
         if Path(upload.filename).suffix in [".docx"]:
             component_id = Path(upload.filename).stem
-            Path(config("WEB_STATUS_FILES")).joinpath(f"{component_id}.log").touch()
+            Path(config("WEB_STATUS_FILES")).joinpath(
+                f"{component_id}.{timestamp}.log"
+            ).touch()
             # delete an existing file
             Path(config("ORALHISTORIES_WEB_UPLOADS")).joinpath(upload.filename).unlink(
                 missing_ok=True
@@ -165,7 +169,9 @@ def oralhistories_post():
             oralhistories_run = rpyc.async_(
                 oralhistories_work_server_connection.root.run
             )
-            async_result = oralhistories_run(component_id=component_id)
+            async_result = oralhistories_run(
+                component_id=component_id, timestamp=timestamp
+            )
             return bottle.template(
                 "oralhistories_post",
                 distillery_base_url=config("BASE_URL").rstrip("/"),
@@ -188,8 +194,12 @@ def oralhistories_post():
         oralhistories_run = rpyc.async_(oralhistories_work_server_connection.root.run)
         if bottle.request.forms.get("component_id_publish"):
             component_id = bottle.request.forms.get("component_id_publish")
-            Path(config("WEB_STATUS_FILES")).joinpath(f"{component_id}.log").touch()
-            async_result = oralhistories_run(component_id=component_id, publish=True)
+            Path(config("WEB_STATUS_FILES")).joinpath(
+                f"{component_id}.{timestamp}.log"
+            ).touch()
+            async_result = oralhistories_run(
+                component_id=component_id, publish=True, timestamp=timestamp
+            )
             return bottle.template(
                 "oralhistories_post",
                 distillery_base_url=config("BASE_URL").rstrip("/"),
@@ -214,8 +224,12 @@ def oralhistories_post():
         oralhistories_run = rpyc.async_(oralhistories_work_server_connection.root.run)
         if bottle.request.forms.get("component_id_update"):
             component_id = bottle.request.forms.get("component_id_update")
-            Path(config("WEB_STATUS_FILES")).joinpath(f"{component_id}.log").touch()
-            async_result = oralhistories_run(component_id=component_id, update=True)
+            Path(config("WEB_STATUS_FILES")).joinpath(
+                f"{component_id}.{timestamp}.log"
+            ).touch()
+            async_result = oralhistories_run(
+                component_id=component_id, update=True, timestamp=timestamp
+            )
             return bottle.template(
                 "oralhistories_post",
                 distillery_base_url=config("BASE_URL").rstrip("/"),
