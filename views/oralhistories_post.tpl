@@ -10,24 +10,30 @@
     h1 {
       margin-block: 0;
     }
-    details {
-      border: none;
-      padding-block-start: var(--spacing);
+    #log {
+      border-radius: var(--border-radius);
+      height: 0;
+      margin-block-end: var(--spacing);
+      max-height: 50vh;
+      width: 100%;
     }
     #user [role=button] {
       white-space: nowrap;
     }
     @media (min-width: 992px) {
-      main > *:not(nav, details) {
+      main > *:not(nav) {
         margin-inline: 25%;
         max-width: 50%;
         padding-inline: var(--spacing);
       }
-      main > nav#user, main > details {
+      main > nav#user {
         clear: right;
         float: right;
         width: 25%;
         padding-inline-start: var(--block-spacing-horizontal);
+      }
+      #log {
+        padding-inline: revert;
       }
     }
   </style>
@@ -56,6 +62,27 @@
     %if component_id == "error":
     <p>❌ only <code>docx</code> files are allowed at this time</p>
     %else:
+    <iframe id="log" src="{{distillery_base_url}}/oralhistories/log/{{component_id}}/{{timestamp}}"></iframe>
+    <script>
+      const id = setInterval(function () {
+        let l = document.getElementById('log');
+        let d = l.contentDocument;
+        d.location.reload();
+        if (d.body.innerText.endsWith('🟡')) {
+          // stop reloading
+          clearInterval(id);
+        };
+        l.addEventListener('load', function() {
+          if (d.body.scrollHeight > 0) {
+            // add 48px to fit next item as it loads
+            l.style.height = d.body.scrollHeight + 48 + 'px';
+            // scroll to bottom
+            this.contentWindow.scrollTo(0, d.body.scrollHeight);
+          }
+        });
+      // reload every second
+      }, 1000);
+    </script>
     <p>✅ the <b>{{component_id}}.docx</b> file was uploaded</p>
     <ul>
       <li>the <a href="https://github.com/{{github_repo}}/blob/main/transcripts/{{component_id}}/{{component_id}}.md"><b>{{component_id}}.md</b> file in GitHub</a> should be available shortly</li>

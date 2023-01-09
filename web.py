@@ -179,6 +179,7 @@ def oralhistories_post():
                 archivesspace_staff_url=config("ASPACE_STAFF_URL"),
                 user=authorize_user(),
                 component_id=component_id,
+                timestamp=timestamp,
                 op="upload",
             )
         else:
@@ -208,6 +209,7 @@ def oralhistories_post():
                 archivesspace_staff_url=config("ASPACE_STAFF_URL"),
                 user=authorize_user(),
                 component_id=component_id,
+                timestamp=timestamp,
                 op="publish",
                 oralhistories_public_base_url=config("ORALHISTORIES_PUBLIC_BASE_URL"),
                 resolver_base_url=config("RESOLVER_BASE_URL"),
@@ -240,6 +242,7 @@ def oralhistories_post():
                 github_repo=config("ORALHISTORIES_GITHUB_REPO"),
                 user=authorize_user(),
                 component_id=component_id,
+                timestamp=timestamp,
                 op="update",
             )
         else:
@@ -252,6 +255,15 @@ def oralhistories_post():
                 component_id="all",
                 op="update",
             )
+
+
+@bottle.route("/oralhistories/log/<component_id>/<timestamp>")
+def oralhistories_log(component_id, timestamp):
+    with open(
+        Path(config("WEB_STATUS_FILES")).joinpath(f"{component_id}.{timestamp}.log"),
+        encoding="utf-8",
+    ) as f:
+        return bottle.template("oralhistories_log", log=f.readlines())
 
 
 def authorize_user():
