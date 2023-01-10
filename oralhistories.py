@@ -27,7 +27,7 @@ logger = logging.getLogger("oralhistories")
 @rpyc.service
 class OralHistoriesService(rpyc.Service):
     @rpyc.exposed
-    def run(self, component_id=None, update=False, publish=False):
+    def run(self, component_id="", update=False, publish=False):
         self.tmp_oralhistories_repository = self.clone_oralhistories_repository()
         # update github workflow files
         self.copy_github_workflow_changes()
@@ -35,7 +35,7 @@ class OralHistoriesService(rpyc.Service):
         # ASSUMPTION: a DOCX file is provided
         if component_id and not update and not publish:
             self.component_id = component_id
-            self.archival_object = distillery.get_folder_data(component_id)
+            self.archival_object = distillery.get_folder_data(self.component_id)
             self.metadata = self.create_metadata(archival_object=self.archival_object)
             self.transcript_directory = self.create_metadata_file()
             self.convert_word_to_markdown()
@@ -43,7 +43,7 @@ class OralHistoriesService(rpyc.Service):
             os.remove(
                 f'{Path(config("ORALHISTORIES_WORK_UPLOADS")).joinpath(f"{self.component_id}.docx")}'
             )
-            self.add_commit_push(self.tmp_oralhistories_repository, self.component_id)
+            self.add_commit_push(self.component_id)
             self.digital_object_uri = self.create_digital_object()
             self.create_digital_object_component(
                 "Markdown",
@@ -193,9 +193,7 @@ class OralHistoriesService(rpyc.Service):
                 for self.transcript_directory in transcript_directories:
                     self.component_id = self.transcript_directory.name
                     self.update_markdown_metadata()
-            self.add_commit_push(
-                self.tmp_oralhistories_repository, component_id, update
-            )
+            self.add_commit_push(component_id, update)
         # cleanup
         shutil.rmtree(self.tmp_oralhistories_repository)
 
