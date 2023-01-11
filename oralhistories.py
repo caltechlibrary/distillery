@@ -211,7 +211,7 @@ class OralHistoriesService(rpyc.Service):
         shutil.rmtree(self.tmp_oralhistories_repository)
 
         # send the character that stops javascript reloading in the web ui
-        self.status_logger.info(f"🟡")
+        self.status_logger.info("✅")
 
     def clone_oralhistories_repository(self):
         tmp_oralhistories_repository = tempfile.mkdtemp()
