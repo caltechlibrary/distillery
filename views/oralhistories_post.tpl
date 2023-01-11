@@ -58,11 +58,11 @@
       </nav>
     </header>
     <hr>
-    %if op == "upload":
+    %if op == "UPLOAD":
     %if component_id == "error":
     <p>❌ only <code>docx</code> files are allowed at this time</p>
     %else:
-    <iframe id="log" src="{{distillery_base_url}}/oralhistories/log/{{component_id}}/{{timestamp}}"></iframe>
+    <iframe id="log" src="{{distillery_base_url}}/oralhistories/log/{{component_id}}/{{timestamp}}/{{op}}"></iframe>
     <script>
       const id = setInterval(function () {
         let l = document.getElementById('log');
@@ -90,14 +90,14 @@
     </ul>
     %end
     %end
-    %if op == "update":
+    %if op == "UPDATE":
     %if component_id == "_":
     <p>✅ metadata for all <a href="https://github.com/{{github_repo}}/tree/main/transcripts">transcripts in GitHub</a> will be updated shortly</p>
     %else:
     <p>✅ metadata for the <a href="https://github.com/{{github_repo}}/blob/main/transcripts/{{component_id}}/{{component_id}}.md"><b>{{component_id}}.md</b> transcript in GitHub</a> will be updated shortly</p>
     %end
     %end
-    %if op == "publish":
+    %if op == "PUBLISH":
     %if component_id == "_":
     <p>✅ all transcripts are set to be (re)published</p>
     %else:
