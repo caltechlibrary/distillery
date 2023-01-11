@@ -6,6 +6,7 @@ import shutil
 import tempfile
 import urllib.parse
 
+import markdown
 import rpyc
 
 from datetime import datetime
@@ -508,6 +509,11 @@ class OralHistoriesService(rpyc.Service):
         logger.info(
             f'☑️  MARKDOWN METADATA UPDATED: {self.transcript_directory.joinpath(f"{self.transcript_directory.name}.md")}'
         )
+
+class StatusFormatter(logging.Formatter):
+    def format(self, record):
+        """Output markdown status messages as HTML5."""
+        return markdown.markdown(super().format(record), output_format="html5")
 
 
 if __name__ == "__main__":
