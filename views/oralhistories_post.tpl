@@ -68,7 +68,7 @@
         let l = document.getElementById('log');
         let d = l.contentDocument;
         d.location.reload();
-        if (d.body.innerText.endsWith('🟡')) {
+        if (d.body.innerText.includes('✅')) {
           // stop reloading
           clearInterval(id);
         };
