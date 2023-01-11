@@ -83,11 +83,6 @@
       // reload every second
       }, 1000);
     </script>
-    <p>✅ the <b>{{component_id}}.docx</b> file was uploaded</p>
-    <ul>
-      <li>the <a href="https://github.com/{{github_repo}}/blob/main/transcripts/{{component_id}}/{{component_id}}.md"><b>{{component_id}}.md</b> file in GitHub</a> should be available shortly</li>
-      <li>an ArchivesSpace Digital Object record should be created for <a href="{{archivesspace_staff_url}}/search?q={{component_id}}">{{component_id}}</a></li>
-    </ul>
     %end
     %end
     %if op == "UPDATE":
@@ -107,11 +102,6 @@
       <li>ArchivesSpace Digital Object Components should be created for <a href="{{archivesspace_staff_url}}/search?q={{component_id}}">{{component_id}}</a></li>
     </ul>
     %end
-    %end
-    %if component_id != "error":
-    <ul>
-      <li><s>any errors will be logged and sent to <i>{{user["email_address"]}}</s></i></li>
-    </ul>
     %end
   </main>
 </body>
