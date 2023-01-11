@@ -73,11 +73,11 @@
           clearInterval(id);
         };
         l.addEventListener('load', function() {
-          if (d.body.scrollHeight > 0) {
+          if (l.contentDocument.body.scrollHeight > 0) {
             // add 48px to fit next item as it loads
-            l.style.height = d.body.scrollHeight + 48 + 'px';
+            l.style.height = l.contentDocument.body.scrollHeight + 48 + 'px';
             // scroll to bottom
-            this.contentWindow.scrollTo(0, d.body.scrollHeight);
+            this.contentWindow.scrollTo(0, l.contentDocument.body.scrollHeight);
           }
         });
       // reload every second
