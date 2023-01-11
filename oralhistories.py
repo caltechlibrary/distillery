@@ -207,6 +207,8 @@ class OralHistoriesService(rpyc.Service):
                 for self.transcript_directory in transcript_directories:
                     self.component_id = self.transcript_directory.name
                     self.update_markdown_metadata()
+            # NOTE use component_id instead of self.component_id because
+            # component_id can be an empty string when updating all records
             self.add_commit_push(component_id, update)
         # cleanup
         shutil.rmtree(self.tmp_oralhistories_repository)
