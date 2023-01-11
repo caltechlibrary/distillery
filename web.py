@@ -171,7 +171,9 @@ def oralhistories_post():
             oralhistories_run = rpyc.async_(
                 oralhistories_work_server_connection.root.run
             )
-            async_result = oralhistories_run(component_id=component_id, logfile=logfile)
+            async_result = oralhistories_run(
+                component_id=component_id, logfile=str(logfile)
+            )
             return bottle.template(
                 "oralhistories_post",
                 distillery_base_url=config("BASE_URL").rstrip("/"),
@@ -200,7 +202,7 @@ def oralhistories_post():
             )
             logfile.touch()
             async_result = oralhistories_run(
-                component_id=component_id, publish=True, logfile=logfile
+                component_id=component_id, publish=True, logfile=str(logfile)
             )
             return bottle.template(
                 "oralhistories_post",
@@ -218,7 +220,7 @@ def oralhistories_post():
                 f"_.{timestamp}.PUBLISH.log"
             )
             logfile.touch()
-            async_result = oralhistories_run(publish=True, logfile=logfile)
+            async_result = oralhistories_run(publish=True, logfile=str(logfile))
             return bottle.template(
                 "oralhistories_post",
                 distillery_base_url=config("BASE_URL").rstrip("/"),
@@ -236,7 +238,7 @@ def oralhistories_post():
             )
             logfile.touch()
             async_result = oralhistories_run(
-                component_id=component_id, update=True, logfile=logfile
+                component_id=component_id, update=True, logfile=str(logfile)
             )
             return bottle.template(
                 "oralhistories_post",
@@ -252,7 +254,7 @@ def oralhistories_post():
                 f"_.{timestamp}.UPDATE.log"
             )
             logfile.touch()
-            async_result = oralhistories_run(update=True, logfile=logfile)
+            async_result = oralhistories_run(update=True, logfile=str(logfile))
             return bottle.template(
                 "oralhistories_post",
                 distillery_base_url=config("BASE_URL").rstrip("/"),
