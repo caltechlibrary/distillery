@@ -223,7 +223,7 @@ def oralhistories_post():
                 "oralhistories_post",
                 distillery_base_url=config("BASE_URL").rstrip("/"),
                 user=authorize_user(),
-                component_id="all",
+                component_id="_",
                 op="publish",
             )
     if bottle.request.forms.get("update"):
@@ -258,7 +258,7 @@ def oralhistories_post():
                 distillery_base_url=config("BASE_URL").rstrip("/"),
                 github_repo=config("ORALHISTORIES_GITHUB_REPO"),
                 user=authorize_user(),
-                component_id="all",
+                component_id="_",
                 op="update",
             )
 
