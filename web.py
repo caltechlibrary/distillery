@@ -155,6 +155,7 @@ def oralhistories_post():
         upload = bottle.request.files.get("file")
         if Path(upload.filename).suffix in [".docx"]:
             component_id = Path(upload.filename).stem
+            # TODO ensure WEB_STATUS_FILES exists
             Path(config("WEB_STATUS_FILES")).joinpath(
                 f"{component_id}.{timestamp}.log"
             ).touch()
