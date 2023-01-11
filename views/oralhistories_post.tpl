@@ -91,14 +91,14 @@
     %end
     %end
     %if op == "update":
-    %if component_id == "all":
+    %if component_id == "_":
     <p>✅ metadata for all <a href="https://github.com/{{github_repo}}/tree/main/transcripts">transcripts in GitHub</a> will be updated shortly</p>
     %else:
     <p>✅ metadata for the <a href="https://github.com/{{github_repo}}/blob/main/transcripts/{{component_id}}/{{component_id}}.md"><b>{{component_id}}.md</b> transcript in GitHub</a> will be updated shortly</p>
     %end
     %end
     %if op == "publish":
-    %if component_id == "all":
+    %if component_id == "_":
     <p>✅ all transcripts are set to be (re)published</p>
     %else:
     <p>✅ the <b>{{component_id}}</b> transcript is set to be published</p>
