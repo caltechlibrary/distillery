@@ -186,13 +186,7 @@ def oralhistories_post():
                 op=op,
             )
         else:
-            return bottle.template(
-                "oralhistories_post",
-                distillery_base_url=config("BASE_URL").rstrip("/"),
-                user=authorize_user(),
-                component_id="error",
-                op=op,
-            )
+            return "❌ ERROR: only .docx files are accepted"
     if bottle.request.forms.get("publish"):
         op = "PUBLISH"
         # asynchronously run process on WORK server
@@ -228,6 +222,7 @@ def oralhistories_post():
                 distillery_base_url=config("BASE_URL").rstrip("/"),
                 user=authorize_user(),
                 component_id="_",
+                timestamp=timestamp,
                 op=op,
             )
     if bottle.request.forms.get("update"):
@@ -264,6 +259,7 @@ def oralhistories_post():
                 github_repo=config("ORALHISTORIES_GITHUB_REPO"),
                 user=authorize_user(),
                 component_id="_",
+                timestamp=timestamp,
                 op=op,
             )
 

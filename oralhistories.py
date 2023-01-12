@@ -74,6 +74,7 @@ class OralHistoriesService(rpyc.Service):
                     f's3://{config("ORALHISTORIES_BUCKET")}/{component_id}/'
                 )
                 s3sync_output = self.publish_transcripts()
+                self.status_logger.info(f'☑️ [**{component_id}**]({config("ORALHISTORIES_PUBLIC_BASE_URL")}/{component_id}/{component_id}.html) transcript published')
             else:
                 # (re)publish all records (example case: interviewer name change)
                 self.transcript_source_directory = Path(
@@ -81,6 +82,7 @@ class OralHistoriesService(rpyc.Service):
                 ).joinpath("transcripts")
                 self.bucket_destination = f's3://{config("ORALHISTORIES_BUCKET")}'
                 s3sync_output = self.publish_transcripts()
+                self.status_logger.info(f'☑️ all transcripts have been (re)published')
             # tag latest commit as published
             tagname = f'published/{datetime.now().strftime("%Y-%m-%d.%H%M%S")}'
             git_cmd = sh.Command(config("WORK_GIT_CMD"))
@@ -187,6 +189,12 @@ class OralHistoriesService(rpyc.Service):
                             logger.info(
                                 f'🔥 DIGITAL OBJECT COMPONENT DELETED: {line.split("/")[-1]}'
                             )
+            if component_id:
+                self.status_logger.info(f'☑️ [**{component_id}**]({config("RESOLVER_BASE_URL")}/{component_id}) resolver link published')
+                self.status_logger.info(f'☑️ [**{component_id}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={self.digital_object_uri}) Digital Object record published in ArchivesSpace')
+            else:
+                self.status_logger.info(f'☑️ all resolver links have been (re)published')
+                self.status_logger.info(f'☑️ all Digital Object records have been (re)published in ArchivesSpace')
         if update:
             if component_id:
                 # update a single record
@@ -210,6 +218,10 @@ class OralHistoriesService(rpyc.Service):
             # NOTE use component_id instead of self.component_id because
             # component_id can be an empty string when updating all records
             self.add_commit_push(component_id, update)
+            if component_id:
+                self.status_logger.info(f'☑️ [**{component_id}**](https://github.com/{config("ORALHISTORIES_GITHUB_REPO")}/blob/main/transcripts/{component_id}/{component_id}.md) metadata updated in GitHub')
+            else:
+                self.status_logger.info(f'☑️ all metadata has been updated in GitHub')
         # cleanup
         shutil.rmtree(self.tmp_oralhistories_repository)
 
