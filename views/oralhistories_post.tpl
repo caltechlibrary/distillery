@@ -58,10 +58,6 @@
       </nav>
     </header>
     <hr>
-    %if op == "UPLOAD":
-    %if component_id == "error":
-    <p>❌ only <code>docx</code> files are allowed at this time</p>
-    %else:
     <iframe id="log" src="{{distillery_base_url}}/oralhistories/log/{{component_id}}/{{timestamp}}/{{op}}"></iframe>
     <script>
       const id = setInterval(function () {
@@ -83,26 +79,6 @@
       // reload every second
       }, 1000);
     </script>
-    %end
-    %end
-    %if op == "UPDATE":
-    %if component_id == "_":
-    <p>✅ metadata for all <a href="https://github.com/{{github_repo}}/tree/main/transcripts">transcripts in GitHub</a> will be updated shortly</p>
-    %else:
-    <p>✅ metadata for the <a href="https://github.com/{{github_repo}}/blob/main/transcripts/{{component_id}}/{{component_id}}.md"><b>{{component_id}}.md</b> transcript in GitHub</a> will be updated shortly</p>
-    %end
-    %end
-    %if op == "PUBLISH":
-    %if component_id == "_":
-    <p>✅ all transcripts are set to be (re)published</p>
-    %else:
-    <p>✅ the <b>{{component_id}}</b> transcript is set to be published</p>
-    <ul>
-      <li>the <a href="{{oralhistories_public_base_url}}/{{component_id}}/{{component_id}}.html">HTML transcript</a> and its <a href="{{resolver_base_url}}/{{component_id}}">resolver link</a> should be available shortly</li>
-      <li>ArchivesSpace Digital Object Components should be created for <a href="{{archivesspace_staff_url}}/search?q={{component_id}}">{{component_id}}</a></li>
-    </ul>
-    %end
-    %end
   </main>
 </body>
 
