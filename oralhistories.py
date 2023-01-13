@@ -45,7 +45,7 @@ class OralHistoriesService(rpyc.Service):
         self.add_commit_push()
         # ASSUMPTION: a DOCX file is provided
         if component_id and not update and not publish:
-            self.status_logger.info(f"☑️ **{component_id}.docx** file received")
+            self.status_logger.info(f"☑️ received **{component_id}.docx** file")
             self.component_id = component_id
             self.archival_object = distillery.get_folder_data(self.component_id)
             self.metadata = self.create_metadata(archival_object=self.archival_object)
@@ -56,14 +56,18 @@ class OralHistoriesService(rpyc.Service):
                 f'{Path(config("ORALHISTORIES_WORK_UPLOADS")).joinpath(f"{self.component_id}.docx")}'
             )
             self.add_commit_push(self.component_id)
-            self.status_logger.info(f'☑️ [**{component_id}.md**](https://github.com/{config("ORALHISTORIES_GITHUB_REPO")}/blob/main/transcripts/{component_id}/{component_id}.md) file pushed to GitHub')
+            self.status_logger.info(
+                f'☑️ pushed [**{component_id}.md** file](https://github.com/{config("ORALHISTORIES_GITHUB_REPO")}/blob/main/transcripts/{component_id}/{component_id}.md) to GitHub'
+            )
             self.digital_object_uri = self.create_digital_object()
             self.create_digital_object_component(
                 "Markdown",
                 self.component_id,
                 f"{self.component_id}.md",
             )
-            self.status_logger.info(f'☑️ [**{component_id}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={self.digital_object_uri}) Digital Object record created in ArchivesSpace')
+            self.status_logger.info(
+                f'☑️ created [**{component_id}** Digital Object record]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={self.digital_object_uri}) in ArchivesSpace'
+            )
         if publish:
             if component_id:
                 # publish a single record
@@ -74,7 +78,9 @@ class OralHistoriesService(rpyc.Service):
                     f's3://{config("ORALHISTORIES_BUCKET")}/{component_id}/'
                 )
                 s3sync_output = self.publish_transcripts()
-                self.status_logger.info(f'☑️ [**{component_id}**]({config("ORALHISTORIES_PUBLIC_BASE_URL")}/{component_id}/{component_id}.html) transcript published')
+                self.status_logger.info(
+                    f'☑️ published [**{component_id}** transcript]({config("ORALHISTORIES_PUBLIC_BASE_URL")}/{component_id}/{component_id}.html) to the web'
+                )
             else:
                 # (re)publish all records (example case: interviewer name change)
                 self.transcript_source_directory = Path(
@@ -82,7 +88,7 @@ class OralHistoriesService(rpyc.Service):
                 ).joinpath("transcripts")
                 self.bucket_destination = f's3://{config("ORALHISTORIES_BUCKET")}'
                 s3sync_output = self.publish_transcripts()
-                self.status_logger.info(f'☑️ all transcripts have been (re)published')
+                self.status_logger.info("☑️ (re)published all transcripts to the web")
             # tag latest commit as published
             tagname = f'published/{datetime.now().strftime("%Y-%m-%d.%H%M%S")}'
             git_cmd = sh.Command(config("WORK_GIT_CMD"))
@@ -190,11 +196,17 @@ class OralHistoriesService(rpyc.Service):
                                 f'🔥 DIGITAL OBJECT COMPONENT DELETED: {line.split("/")[-1]}'
                             )
             if component_id:
-                self.status_logger.info(f'☑️ [**{component_id}**]({config("RESOLVER_BASE_URL")}/{component_id}) resolver link published')
-                self.status_logger.info(f'☑️ [**{component_id}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={self.digital_object_uri}) Digital Object record published in ArchivesSpace')
+                self.status_logger.info(
+                    f'☑️ created [**{component_id}** persistant URL entry]({config("RESOLVER_BASE_URL")}/{component_id}) in resolver'
+                )
+                self.status_logger.info(
+                    f'☑️ published [**{component_id}** Digital Object record]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={self.digital_object_uri}) in ArchivesSpace'
+                )
             else:
-                self.status_logger.info(f'☑️ all resolver links have been (re)published')
-                self.status_logger.info(f'☑️ all Digital Object records have been (re)published in ArchivesSpace')
+                self.status_logger.info(f"☑️ (re)published all resolver links")
+                self.status_logger.info(
+                    "☑️ (re)published all Digital Object records in ArchivesSpace"
+                )
         if update:
             if component_id:
                 # update a single record
@@ -219,9 +231,11 @@ class OralHistoriesService(rpyc.Service):
             # component_id can be an empty string when updating all records
             self.add_commit_push(component_id, update)
             if component_id:
-                self.status_logger.info(f'☑️ [**{component_id}**](https://github.com/{config("ORALHISTORIES_GITHUB_REPO")}/blob/main/transcripts/{component_id}/{component_id}.md) metadata updated in GitHub')
+                self.status_logger.info(
+                    f'☑️ updated [**{component_id}** metadata](https://github.com/{config("ORALHISTORIES_GITHUB_REPO")}/blob/main/transcripts/{component_id}/{component_id}.md) in GitHub'
+                )
             else:
-                self.status_logger.info(f'☑️ all metadata has been updated in GitHub')
+                self.status_logger.info("☑️ updated all metadata in GitHub")
         # cleanup
         shutil.rmtree(self.tmp_oralhistories_repository)
 
