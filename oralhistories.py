@@ -63,7 +63,7 @@ class OralHistoriesService(rpyc.Service):
                 self.component_id,
                 f"{self.component_id}.md",
             )
-            self.status_logger.info(f'☑️ [**{component_id}**]({config("ASPACE_STAFF_URL")}{self.digital_object_uri}) Digital Object record created in ArchivesSpace')
+            self.status_logger.info(f'☑️ [**{component_id}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={self.digital_object_uri}) Digital Object record created in ArchivesSpace')
         if publish:
             if component_id:
                 # publish a single record
