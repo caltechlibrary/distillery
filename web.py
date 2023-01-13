@@ -161,12 +161,8 @@ def oralhistories_post():
                 f"{component_id}.{timestamp}.{op}.log"
             )
             logfile.touch()
-            # delete an existing file
-            Path(config("ORALHISTORIES_WEB_UPLOADS")).joinpath(upload.filename).unlink(
-                missing_ok=True
-            )
             upload.save(
-                config("ORALHISTORIES_WEB_UPLOADS")
+                config("ORALHISTORIES_WEB_UPLOADS"), overwrite=True
             )  # appends upload.filename automatically
             # asynchronously run process on WORK server
             oralhistories_run = rpyc.async_(
