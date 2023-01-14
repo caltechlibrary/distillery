@@ -13,6 +13,9 @@ from datetime import datetime
 from pathlib import Path
 
 from decouple import config  # pypi: python-decouple
+from markdown_link_attr_modifier import (
+    LinkAttrModifierExtension,
+)  # pypi: markdown-link-attr-modifier
 
 import distillery
 
@@ -535,10 +538,15 @@ class OralHistoriesService(rpyc.Service):
             f'☑️  MARKDOWN METADATA UPDATED: {self.transcript_directory.joinpath(f"{self.transcript_directory.name}.md")}'
         )
 
+
 class StatusFormatter(logging.Formatter):
     def format(self, record):
         """Output markdown status messages as HTML5."""
-        return markdown.markdown(super().format(record), output_format="html5")
+        return markdown.markdown(
+            super().format(record),
+            output_format="html5",
+            extensions=[LinkAttrModifierExtension(new_tab="on")],
+        )
 
 
 if __name__ == "__main__":
