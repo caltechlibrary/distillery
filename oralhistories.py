@@ -6,12 +6,16 @@ import shutil
 import tempfile
 import urllib.parse
 
+import markdown
 import rpyc
 
 from datetime import datetime
 from pathlib import Path
 
 from decouple import config  # pypi: python-decouple
+from markdown_link_attr_modifier import (
+    LinkAttrModifierExtension,
+)  # pypi: markdown-link-attr-modifier
 
 import distillery
 
@@ -27,15 +31,26 @@ logger = logging.getLogger("oralhistories")
 @rpyc.service
 class OralHistoriesService(rpyc.Service):
     @rpyc.exposed
-    def run(self, component_id=None, update=False, publish=False):
+    def run(self, component_id="", update=False, publish=False, logfile=""):
+        if component_id:
+            self.status_logger = logging.getLogger(component_id)
+        else:
+            self.status_logger = logging.getLogger("_")
+        self.status_logger.setLevel(logging.INFO)
+        status_handler = logging.FileHandler(logfile)
+        status_handler.setLevel(logging.INFO)
+        status_handler.setFormatter(StatusFormatter("%(message)s"))
+        self.status_logger.addHandler(status_handler)
+
         self.tmp_oralhistories_repository = self.clone_oralhistories_repository()
         # update github workflow files
         self.copy_github_workflow_changes()
         self.add_commit_push()
         # ASSUMPTION: a DOCX file is provided
         if component_id and not update and not publish:
+            self.status_logger.info(f"☑️ received **{component_id}.docx** file")
             self.component_id = component_id
-            self.archival_object = distillery.get_folder_data(component_id)
+            self.archival_object = distillery.get_folder_data(self.component_id)
             self.metadata = self.create_metadata(archival_object=self.archival_object)
             self.transcript_directory = self.create_metadata_file()
             self.convert_word_to_markdown()
@@ -43,12 +58,18 @@ class OralHistoriesService(rpyc.Service):
             os.remove(
                 f'{Path(config("ORALHISTORIES_WORK_UPLOADS")).joinpath(f"{self.component_id}.docx")}'
             )
-            self.add_commit_push(self.tmp_oralhistories_repository, self.component_id)
+            self.add_commit_push(self.component_id)
+            self.status_logger.info(
+                f'☑️ pushed [**{component_id}.md** file](https://github.com/{config("ORALHISTORIES_GITHUB_REPO")}/blob/main/transcripts/{component_id}/{component_id}.md) to GitHub'
+            )
             self.digital_object_uri = self.create_digital_object()
             self.create_digital_object_component(
                 "Markdown",
                 self.component_id,
                 f"{self.component_id}.md",
+            )
+            self.status_logger.info(
+                f'☑️ created [**{component_id}** Digital Object record]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={self.digital_object_uri}) in ArchivesSpace'
             )
         if publish:
             if component_id:
@@ -60,6 +81,9 @@ class OralHistoriesService(rpyc.Service):
                     f's3://{config("ORALHISTORIES_BUCKET")}/{component_id}/'
                 )
                 s3sync_output = self.publish_transcripts()
+                self.status_logger.info(
+                    f'☑️ published [**{component_id}** transcript]({config("ORALHISTORIES_PUBLIC_BASE_URL")}/{component_id}/{component_id}.html) to the web'
+                )
             else:
                 # (re)publish all records (example case: interviewer name change)
                 self.transcript_source_directory = Path(
@@ -67,6 +91,7 @@ class OralHistoriesService(rpyc.Service):
                 ).joinpath("transcripts")
                 self.bucket_destination = f's3://{config("ORALHISTORIES_BUCKET")}'
                 s3sync_output = self.publish_transcripts()
+                self.status_logger.info("☑️ (re)published all transcripts to the web")
             # tag latest commit as published
             tagname = f'published/{datetime.now().strftime("%Y-%m-%d.%H%M%S")}'
             git_cmd = sh.Command(config("WORK_GIT_CMD"))
@@ -173,6 +198,18 @@ class OralHistoriesService(rpyc.Service):
                             logger.info(
                                 f'🔥 DIGITAL OBJECT COMPONENT DELETED: {line.split("/")[-1]}'
                             )
+            if component_id:
+                self.status_logger.info(
+                    f'☑️ created [**{component_id}** persistant URL entry]({config("RESOLVER_BASE_URL")}/{component_id}) in resolver'
+                )
+                self.status_logger.info(
+                    f'☑️ published [**{component_id}** Digital Object record]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={self.digital_object_uri}) in ArchivesSpace'
+                )
+            else:
+                self.status_logger.info(f"☑️ (re)published all resolver links")
+                self.status_logger.info(
+                    "☑️ (re)published all Digital Object records in ArchivesSpace"
+                )
         if update:
             if component_id:
                 # update a single record
@@ -193,11 +230,20 @@ class OralHistoriesService(rpyc.Service):
                 for self.transcript_directory in transcript_directories:
                     self.component_id = self.transcript_directory.name
                     self.update_markdown_metadata()
-            self.add_commit_push(
-                self.tmp_oralhistories_repository, component_id, update
-            )
+            # NOTE use component_id instead of self.component_id because
+            # component_id can be an empty string when updating all records
+            self.add_commit_push(component_id, update)
+            if component_id:
+                self.status_logger.info(
+                    f'☑️ updated [**{component_id}** metadata](https://github.com/{config("ORALHISTORIES_GITHUB_REPO")}/blob/main/transcripts/{component_id}/{component_id}.md) in GitHub'
+                )
+            else:
+                self.status_logger.info("☑️ updated all metadata in GitHub")
         # cleanup
         shutil.rmtree(self.tmp_oralhistories_repository)
+
+        # send the character that stops javascript reloading in the web ui
+        self.status_logger.info("✅")
 
     def clone_oralhistories_repository(self):
         tmp_oralhistories_repository = tempfile.mkdtemp()
@@ -329,7 +375,8 @@ class OralHistoriesService(rpyc.Service):
             for note in archival_object["notes"]:
                 if note["type"] == "abstract":
                     # NOTE only using the first abstract content field
-                    metadata["abstract"] = note["content"][0].replace(r"\\n", r"\n")
+                    # NOTE [add a newline to the end of the JSON string literal](https://github.com/jgm/pandoc/issues/8502)
+                    metadata["abstract"] = f'{note["content"][0].strip()}\n'
         return metadata
 
     def create_metadata_file(self):
@@ -489,6 +536,16 @@ class OralHistoriesService(rpyc.Service):
         os.remove(self.transcript_directory.joinpath("fragment.md"))
         logger.info(
             f'☑️  MARKDOWN METADATA UPDATED: {self.transcript_directory.joinpath(f"{self.transcript_directory.name}.md")}'
+        )
+
+
+class StatusFormatter(logging.Formatter):
+    def format(self, record):
+        """Output markdown status messages as HTML5."""
+        return markdown.markdown(
+            super().format(record),
+            output_format="html5",
+            extensions=[LinkAttrModifierExtension(new_tab="on")],
         )
 
 
