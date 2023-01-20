@@ -38,40 +38,6 @@ def main(
     logger.info(f"☑️  RUNNING PREVIEW CHECKS FOR: {collection_id}")
     variables = {}
 
-    # Report on subdirectories found and filecount.
-    initial_original_subdirectorycount = 0
-    initial_original_filecount = 0
-    for dirpath, dirnames, filenames in os.walk(
-        os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id)
-    ):
-        if dirnames:
-            for dirname in dirnames:
-                initial_original_subdirectorycount += 1
-                with open(stream_path, "a") as stream:
-                    stream.write(f"📁 {collection_id}/{dirname}\n")
-        if filenames:
-            for filename in filenames:
-                type, encoding = mimetypes.guess_type(Path(dirpath).joinpath(filename))
-                # NOTE additional mimetypes TBD
-                if type == "image/tiff":
-                    initial_original_filecount += 1
-    if not initial_original_subdirectorycount:
-        message = f"❌ No subdirectories found under {collection_id} directory in {config('INITIAL_ORIGINAL_FILES')}\n"
-        with open(stream_path, "a") as stream:
-            stream.write(message)
-        raise FileNotFoundError(message)
-    if initial_original_filecount:
-        logger.info(f"☑️  FILE COUNT: {initial_original_filecount}")
-        with open(stream_path, "a") as stream:
-            stream.write(
-                f"📄 Number of files to be processed: {initial_original_filecount}\n"
-            )
-    else:
-        message = f"❌ No files found for {collection_id} that can be processed by Distillery\n"
-        with open(stream_path, "a") as stream:
-            stream.write(message)
-        raise FileNotFoundError(message)
-
     variables["collection_data"] = distillery.get_collection_data(
         variables["collection_id"]
     )

@@ -120,6 +120,42 @@ class DistilleryService(rpyc.Service):
             # re-raise the exception because we cannot continue without the files
             raise
 
+        initial_original_subdirectorycount = 0
+        initial_original_filecount = 0
+        for dirpath, dirnames, filenames in os.walk(
+            os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id)
+        ):
+            if dirnames:
+                for dirname in dirnames:
+                    # count and list subdirectories in the collection directory
+                    initial_original_subdirectorycount += 1
+                    self.status_logger.info(f"📁 {collection_id}/{dirname}")
+            if filenames:
+                for filename in filenames:
+                    type, encoding = mimetypes.guess_type(Path(dirpath).joinpath(filename))
+                    # NOTE additional mimetypes TBD
+                    if type == "image/tiff":
+                        # count files
+                        initial_original_filecount += 1
+        if not initial_original_subdirectorycount:
+            message = f"❌ No subdirectories found under {collection_id} directory"
+            self.status_logger.error(message)
+            raise FileNotFoundError(message)
+        if initial_original_filecount:
+            logger.info(f"☑️  TIFF FILE COUNT: {initial_original_filecount}")
+            self.status_logger.info(
+                    f"📄 TIFF file count: {initial_original_filecount}"
+                )
+        else:
+            message = f"❌ No TIFF files found for {collection_id}"
+            self.status_logger.error(message)
+            raise FileNotFoundError(message)
+
+        # TODO validate collection id in ArchivesSpace
+        # TODO validate tape destination
+        # TODO validate cloud destination
+        # TODO validate access destination
+
         # send the character that stops javascript reloading in the web ui
         self.status_logger.info(f"🟡")
 
