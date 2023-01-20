@@ -115,86 +115,125 @@ def oralhistories_post():
     oralhistories_work_server_connection = rpyc.connect(
         config("WORK_HOSTNAME"), config("ORALHISTORIES_RPYC_PORT")
     )
+    timestamp = str(int(time.time()))
     if bottle.request.forms.get("upload"):
+        op = "UPLOAD"
         upload = bottle.request.files.get("file")
         if Path(upload.filename).suffix in [".docx"]:
-            # TODO avoid nasty Error: 500 by checking for existing file
+            component_id = Path(upload.filename).stem
+            # TODO ensure WEB_STATUS_FILES exists
+            logfile = Path(config("WEB_STATUS_FILES")).joinpath(
+                f"{component_id}.{timestamp}.{op}.log"
+            )
+            logfile.touch()
             upload.save(
-                config("ORALHISTORIES_WEB_UPLOADS")
+                config("ORALHISTORIES_WEB_UPLOADS"), overwrite=True
             )  # appends upload.filename automatically
             # asynchronously run process on WORK server
             oralhistories_run = rpyc.async_(
                 oralhistories_work_server_connection.root.run
             )
-            async_result = oralhistories_run(component_id=Path(upload.filename).stem)
+            async_result = oralhistories_run(
+                component_id=component_id, logfile=str(logfile)
+            )
             return bottle.template(
                 "oralhistories_post",
                 distillery_base_url=config("BASE_URL").rstrip("/"),
                 github_repo=config("ORALHISTORIES_GITHUB_REPO"),
                 archivesspace_staff_url=config("ASPACE_STAFF_URL"),
                 user=authorize_user(),
-                component_id=Path(upload.filename).stem,
-                op="upload",
+                component_id=component_id,
+                timestamp=timestamp,
+                op=op,
             )
         else:
-            return bottle.template(
-                "oralhistories_post",
-                distillery_base_url=config("BASE_URL").rstrip("/"),
-                user=authorize_user(),
-                component_id="error",
-                op="upload",
-            )
+            return "❌ ERROR: only .docx files are accepted"
     if bottle.request.forms.get("publish"):
+        op = "PUBLISH"
         # asynchronously run process on WORK server
         oralhistories_run = rpyc.async_(oralhistories_work_server_connection.root.run)
         if bottle.request.forms.get("component_id_publish"):
+            component_id = bottle.request.forms.get("component_id_publish")
+            logfile = Path(config("WEB_STATUS_FILES")).joinpath(
+                f"{component_id}.{timestamp}.{op}.log"
+            )
+            logfile.touch()
             async_result = oralhistories_run(
-                component_id=request.forms.get("component_id_publish"), publish=True
+                component_id=component_id, publish=True, logfile=str(logfile)
             )
             return bottle.template(
                 "oralhistories_post",
                 distillery_base_url=config("BASE_URL").rstrip("/"),
                 archivesspace_staff_url=config("ASPACE_STAFF_URL"),
                 user=authorize_user(),
-                component_id=bottle.request.forms.get("component_id_publish"),
-                op="publish",
+                component_id=component_id,
+                timestamp=timestamp,
+                op=op,
                 oralhistories_public_base_url=config("ORALHISTORIES_PUBLIC_BASE_URL"),
                 resolver_base_url=config("RESOLVER_BASE_URL"),
             )
         else:
-            async_result = oralhistories_run(publish=True)
+            logfile = Path(config("WEB_STATUS_FILES")).joinpath(
+                f"_.{timestamp}.{op}.log"
+            )
+            logfile.touch()
+            async_result = oralhistories_run(publish=True, logfile=str(logfile))
             return bottle.template(
                 "oralhistories_post",
                 distillery_base_url=config("BASE_URL").rstrip("/"),
                 user=authorize_user(),
-                component_id="all",
-                op="publish",
+                component_id="_",
+                timestamp=timestamp,
+                op=op,
             )
     if bottle.request.forms.get("update"):
+        op = "UPDATE"
         # asynchronously run process on WORK server
         oralhistories_run = rpyc.async_(oralhistories_work_server_connection.root.run)
-        if request.forms.get("component_id_update"):
+        if bottle.request.forms.get("component_id_update"):
+            component_id = bottle.request.forms.get("component_id_update")
+            logfile = Path(config("WEB_STATUS_FILES")).joinpath(
+                f"{component_id}.{timestamp}.{op}.log"
+            )
+            logfile.touch()
             async_result = oralhistories_run(
-                component_id=request.forms.get("component_id_update"), update=True
+                component_id=component_id, update=True, logfile=str(logfile)
             )
             return bottle.template(
                 "oralhistories_post",
                 distillery_base_url=config("BASE_URL").rstrip("/"),
                 github_repo=config("ORALHISTORIES_GITHUB_REPO"),
                 user=authorize_user(),
-                component_id=bottle.request.forms.get("component_id_update"),
-                op="update",
+                component_id=component_id,
+                timestamp=timestamp,
+                op=op,
             )
         else:
-            async_result = oralhistories_run(update=True)
+            logfile = Path(config("WEB_STATUS_FILES")).joinpath(
+                f"_.{timestamp}.{op}.log"
+            )
+            logfile.touch()
+            async_result = oralhistories_run(update=True, logfile=str(logfile))
             return bottle.template(
                 "oralhistories_post",
                 distillery_base_url=config("BASE_URL").rstrip("/"),
                 github_repo=config("ORALHISTORIES_GITHUB_REPO"),
                 user=authorize_user(),
-                component_id="all",
-                op="update",
+                component_id="_",
+                timestamp=timestamp,
+                op=op,
             )
+
+
+@bottle.route("/oralhistories/log/<component_id>/<timestamp>/<op>")
+def oralhistories_log(component_id, timestamp, op):
+    with open(
+        Path(config("WEB_STATUS_FILES")).joinpath(
+            f"{component_id}.{timestamp}.{op}.log"
+        ),
+        encoding="utf-8",
+    ) as f:
+        return bottle.template("oralhistories_log", log=f.readlines())
 
 
 def authorize_user():
