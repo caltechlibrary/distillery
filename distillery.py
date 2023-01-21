@@ -163,7 +163,12 @@ class DistilleryService(rpyc.Service):
             self.status_logger.error(message)
             raise FileNotFoundError(message)
 
-        # TODO validate collection id in ArchivesSpace
+        # validate collection in ArchivesSpace
+        collection_data = get_collection_data(collection_id)
+        self.status_logger.info(
+            f'☑️  ARCHIVESSPACE COLLECTION FOUND: [**{collection_data["title"]}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={collection_data["uri"]})'
+        )
+
         # TODO validate tape destination
         # TODO validate cloud destination
         # TODO validate access destination

@@ -38,14 +38,6 @@ def main(
     logger.info(f"☑️  RUNNING PREVIEW CHECKS FOR: {collection_id}")
     variables = {}
 
-    variables["collection_data"] = distillery.get_collection_data(
-        variables["collection_id"]
-    )
-
-    message = f'✅ Collection found in ArchivesSpace: {variables["collection_data"]["title"]} [{config("ASPACE_STAFF_URL")}/resolve/readonly?uri={variables["collection_data"]["uri"]}]\n'
-    with open(stream_path, "a") as stream:
-        stream.write(message)
-
     if variables.get("onsite"):
         variables["onsite_medium"].preview(variables)
     if variables.get("cloud"):
