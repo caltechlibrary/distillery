@@ -30,6 +30,8 @@ from decouple import config
 from jpylyzer import jpylyzer
 from requests import HTTPError
 
+import statuslogger
+
 logging.config.fileConfig(
     # set the logging configuration in the settings.ini file
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.ini"),
@@ -71,7 +73,7 @@ class DistilleryService(rpyc.Service):
             )
         )
         status_handler.setLevel(logging.INFO)
-        status_handler.setFormatter(logging.Formatter("%(message)s"))
+        status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
         self.status_logger.addHandler(status_handler)
 
         self.status_logger.info(
