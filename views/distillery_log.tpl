@@ -8,5 +8,5 @@
 </head>
 <body>
 % for item in log:
-<p>{{item}}
+{{!item}}
 % end
