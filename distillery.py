@@ -74,13 +74,17 @@ class DistilleryService(rpyc.Service):
         status_handler.setFormatter(logging.Formatter("%(message)s"))
         self.status_logger.addHandler(status_handler)
 
-        self.status_logger.info(f"🟢 BEGIN VALIDATING COMPONENTS FOR {self.collection_id}")
+        self.status_logger.info(
+            f"🟢 BEGIN VALIDATING COMPONENTS FOR {self.collection_id}"
+        )
 
         if "onsite" in destinations and config("ONSITE_MEDIUM"):
             try:
                 # Import a module named the same as the ONSITE_MEDIUM setting.
                 self.onsite_medium = importlib.import_module(config("ONSITE_MEDIUM"))
-                self.status_logger.info(f'☑️  ONSITE PRESERVATION MEDIUM: {config("ONSITE_MEDIUM")}')
+                self.status_logger.info(
+                    f'☑️  ONSITE PRESERVATION MEDIUM: {config("ONSITE_MEDIUM")}'
+                )
             except Exception:
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("ONSITE_MEDIUM")}'
                 self.status_logger.error(message)
@@ -89,7 +93,9 @@ class DistilleryService(rpyc.Service):
             try:
                 # Import a module named the same as the CLOUD_PLATFORM setting.
                 self.cloud_platform = importlib.import_module(config("CLOUD_PLATFORM"))
-                self.status_logger.info(f'☑️  CLOUD PRESERVATION PLATFORM: {config("CLOUD_PLATFORM")}')
+                self.status_logger.info(
+                    f'☑️  CLOUD PRESERVATION PLATFORM: {config("CLOUD_PLATFORM")}'
+                )
             except Exception:
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("CLOUD_PLATFORM")}'
                 self.status_logger.error(message)
@@ -97,8 +103,12 @@ class DistilleryService(rpyc.Service):
         if "access" in destinations and config("ACCESS_PLATFORM"):
             try:
                 # Import a module named the same as the ACCESS_PLATFORM setting.
-                self.access_platform = importlib.import_module(config("ACCESS_PLATFORM"))
-                self.status_logger.info(f'☑️  ACCESS PLATFORM: {config("ACCESS_PLATFORM")}')
+                self.access_platform = importlib.import_module(
+                    config("ACCESS_PLATFORM")
+                )
+                self.status_logger.info(
+                    f'☑️  ACCESS PLATFORM: {config("ACCESS_PLATFORM")}'
+                )
             except Exception:
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("ACCESS_PLATFORM")}'
                 self.status_logger.error(message)
@@ -132,7 +142,9 @@ class DistilleryService(rpyc.Service):
                     self.status_logger.info(f"📁 {collection_id}/{dirname}")
             if filenames:
                 for filename in filenames:
-                    type, encoding = mimetypes.guess_type(Path(dirpath).joinpath(filename))
+                    type, encoding = mimetypes.guess_type(
+                        Path(dirpath).joinpath(filename)
+                    )
                     # NOTE additional mimetypes TBD
                     if type == "image/tiff":
                         # count files
@@ -143,9 +155,7 @@ class DistilleryService(rpyc.Service):
             raise FileNotFoundError(message)
         if initial_original_filecount:
             logger.info(f"☑️  TIFF FILE COUNT: {initial_original_filecount}")
-            self.status_logger.info(
-                    f"📄 TIFF file count: {initial_original_filecount}"
-                )
+            self.status_logger.info(f"📄 TIFF file count: {initial_original_filecount}")
         else:
             message = f"❌ No TIFF files found for {collection_id}"
             self.status_logger.error(message)
