@@ -5,7 +5,6 @@ Caltech Archives & Special Collections automated system for preparing and sendin
 ## Architecture
 
 - `web.py` checks user authorization, runs the web form, triggers the status files, and displays status
-- `alchemist.py` should be scheduled every minute to check for status files, and upon finding one, initiates processing
 - `distillery.py` contains the main script that, depending on the options selected, retrieves metadata, converts images, writes metadata, uploads to S3, and creates ArchivesSpace records
 - `tape.py`
 - `s3.py`
@@ -15,7 +14,7 @@ Caltech Archives & Special Collections automated system for preparing and sendin
 
 `web.py` is a [Bottle](https://bottlepy.org/) application and can be run on localhost or a web server such as Apache with mod_wsgi.
 
-We have separated the web interface and the file processing on different servers. `alchemist.py` runs on a different server, checking a shared filesystem for the status files to initiate file processing.
+The WORK server needs a service listening for [RPyC](https://rpyc.readthedocs.io/) connections to trigger the processing. See `distillery-example.service` for a starting point with `systemd`.
 
 We assume another server for ArchivesSpace and another that has a tape drive attached.
 
@@ -52,7 +51,9 @@ For copying to the cloud we are using and assuming AWS S3. For publishing access
 
 For the preservation and publication components:
 
-1. Set up a cron job to run `alchemist.py` every minute.
+1. Copy the `distillery-example.service` file to `/etc/systemd/system/distillery.service` and set appropriate values.
+1. Enable the service with `systemctl enable distillery`.
+1. Start the service with `systemctl start distillery`.
 
 For the oral histories component:
 
@@ -77,12 +78,6 @@ With the `--publish` parameter, this script will:
 
 - clone the latest versions of the generated HTML files along with any assets
 - sync any updates with an AWS S3 bucket to be accessible on the web
-
-### Remote Connection to WORK Server
-
-The WORK server needs a service listening for [RPyC](https://rpyc.readthedocs.io/) connections to trigger the processing. See `example-oralhistories.service` for a starting point with `systemd`.
-
-The oral histories component does not rely on the `alchemist.py` script nor a cron job to initiate processing.
 
 ### GitHub Actions
 
