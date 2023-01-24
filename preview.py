@@ -40,15 +40,6 @@ def main(
 
     if variables.get("onsite"):
         variables["onsite_medium"].preview(variables)
-    if variables.get("cloud"):
-        if variables["cloud_platform"].is_bucket_writable(
-            config("PRESERVATION_BUCKET")
-        ):
-            message = (
-                f'✅ S3 Bucket connection successful: {config("PRESERVATION_BUCKET")}\n'
-            )
-            with open(variables["stream_path"], "a") as stream:
-                stream.write(message)
     if variables.get("access"):
         if variables["access_platform"].islandora_server_connection_is_successful:
             message = f'✅ Islandora server connection successful: {config("ISLANDORA_SSH_HOST")}\n'
