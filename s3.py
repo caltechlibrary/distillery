@@ -234,14 +234,14 @@ def process_digital_object_component_file(variables):
         return
 
 
-def is_bucket_writable(bucket):
+def validate_connection():
     if (
-        s3_client.put_object(Bucket=bucket, Key=".distillery")["ResponseMetadata"][
-            "HTTPStatusCode"
-        ]
+        s3_client.put_object(Bucket=config("PRESERVATION_BUCKET"), Key=".distillery")[
+            "ResponseMetadata"
+        ]["HTTPStatusCode"]
         == 200
     ):
-        logger.info(f"☁️  S3 BUCKET WRITABLE: {bucket}")
+        logger.info(f'☁️  S3 BUCKET WRITABLE: {config("PRESERVATION_BUCKET")}')
         return True
 
 

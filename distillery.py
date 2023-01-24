@@ -170,7 +170,11 @@ class DistilleryService(rpyc.Service):
         )
 
         # TODO validate tape destination
-        # TODO validate cloud destination
+        # validate cloud destination
+        if self.cloud_platform:
+            if self.cloud_platform.validate_connection():
+                message = f'☑️  CONNECTION SUCCESSFUL: {config("CLOUD_PLATFORM")}'
+                self.status_logger.info(message)
         # TODO validate access destination
 
         # send the character that stops javascript reloading in the web ui
