@@ -35,7 +35,6 @@ import statuslogger
 logging.config.fileConfig(
     # set the logging configuration in the settings.ini file
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.ini"),
-    disable_existing_loggers=True,
 )
 logger = logging.getLogger("distillery")
 archivesspace_logger = logging.getLogger("archivesspace")
@@ -91,6 +90,8 @@ class DistilleryService(rpyc.Service):
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("ONSITE_MEDIUM")}'
                 self.status_logger.error(message)
                 raise
+        else:
+            self.onsite_medium = None
         if "cloud" in destinations and config("CLOUD_PLATFORM"):
             try:
                 # Import a module named the same as the CLOUD_PLATFORM setting.
@@ -102,6 +103,8 @@ class DistilleryService(rpyc.Service):
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("CLOUD_PLATFORM")}'
                 self.status_logger.error(message)
                 raise
+        else:
+            self.cloud_platform = None
         if "access" in destinations and config("ACCESS_PLATFORM"):
             try:
                 # Import a module named the same as the ACCESS_PLATFORM setting.
@@ -115,6 +118,8 @@ class DistilleryService(rpyc.Service):
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("ACCESS_PLATFORM")}'
                 self.status_logger.error(message)
                 raise
+        else:
+            self.access_platform = None
         if not destinations:
             message = f"❌ NO DESTINATIONS SPECIFIED FOR {self.collection_id}"
             self.status_logger.error(message)
