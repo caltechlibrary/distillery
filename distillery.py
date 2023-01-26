@@ -92,6 +92,7 @@ class DistilleryService(rpyc.Service):
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("ONSITE_MEDIUM")}'
                 self.status_logger.error(message)
                 raise
+            # TODO validate ONSITE_MEDIUM connection
         else:
             self.onsite_medium = None
         if "cloud" in destinations and config("CLOUD_PLATFORM"):
@@ -102,6 +103,11 @@ class DistilleryService(rpyc.Service):
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("CLOUD_PLATFORM")}'
                 self.status_logger.error(message)
                 raise
+            # validate CLOUD_PLATFORM connection
+            if self.cloud_platform.validate_connection():
+                message = f'☑️  CONNECTION SUCCESS: {config("CLOUD_PLATFORM")}'
+                self.status_logger.info(message)
+            # TODO handle connection failure
         else:
             self.cloud_platform = None
         if "access" in destinations and config("ACCESS_PLATFORM"):
@@ -173,13 +179,6 @@ class DistilleryService(rpyc.Service):
         self.status_logger.info(
             f'☑️  ARCHIVESSPACE COLLECTION FOUND: [**{collection_data["title"]}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={collection_data["uri"]})'
         )
-
-        # TODO validate tape destination
-        # validate cloud destination
-        if self.cloud_platform:
-            if self.cloud_platform.validate_connection():
-                message = f'☑️  CONNECTION SUCCESSFUL: {config("CLOUD_PLATFORM")}'
-                self.status_logger.info(message)
 
         # send the character that stops javascript reloading in the web ui
         self.status_logger.info(f"🟡")
