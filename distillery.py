@@ -144,7 +144,11 @@ class DistilleryService(rpyc.Service):
         try:
             # validate INITIAL_ORIGINAL_FILES directory
             if Path(config("INITIAL_ORIGINAL_FILES")).is_dir():
-                self.confirm_collection_directory(config("INITIAL_ORIGINAL_FILES"))
+                confirm_collection_directory(
+                    self.collection_id, config("INITIAL_ORIGINAL_FILES")
+                )
+                message = f"☑️  COLLECTION DIRECTORY FOUND: {collection_id}"
+                self.status_logger.info(message)
             else:
                 raise NotADirectoryError(config("INITIAL_ORIGINAL_FILES"))
         except NotADirectoryError as e:
@@ -197,20 +201,20 @@ class DistilleryService(rpyc.Service):
     def run(self, collection_id="", destinations="", timestamp=""):
         pass
 
-    def confirm_collection_directory(self, parent_directory):
-        # make a list of directory names to check against
-        entries = []
-        for entry in os.scandir(parent_directory):
-            if entry.is_dir:
-                entries.append(entry.name)
-        # check that collection_id case matches directory name
-        if self.collection_id in entries:
-            message = f"☑️  COLLECTION DIRECTORY FOUND: {self.collection_id}"
-            logger.info(message)
-            self.status_logger.info(message)
-            return os.path.join(parent_directory, self.collection_id)
-        else:
-            raise NotADirectoryError(os.path.join(parent_directory, self.collection_id))
+
+def confirm_collection_directory(collection_id, parent_directory):
+    # make a list of directory names to check against
+    entries = []
+    for entry in os.scandir(parent_directory):
+        if entry.is_dir:
+            entries.append(entry.name)
+    # check that collection_id case matches directory name
+    if collection_id in entries:
+        message = f"☑️  COLLECTION DIRECTORY FOUND: {collection_id}"
+        logger.info(message)
+        return os.path.join(parent_directory, collection_id)
+    else:
+        raise NotADirectoryError(os.path.join(parent_directory, collection_id))
 
 
 def main(
