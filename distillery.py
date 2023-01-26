@@ -79,13 +79,15 @@ class DistilleryService(rpyc.Service):
             f"🟢 BEGIN VALIDATING COMPONENTS FOR {self.collection_id}"
         )
 
+        if not destinations:
+            message = f"❌ NO DESTINATIONS SPECIFIED FOR {self.collection_id}"
+            self.status_logger.error(message)
+            raise ValueError(message)
+
         if "onsite" in destinations and config("ONSITE_MEDIUM"):
+            # import ONSITE_MEDIUM module
             try:
-                # Import a module named the same as the ONSITE_MEDIUM setting.
                 self.onsite_medium = importlib.import_module(config("ONSITE_MEDIUM"))
-                self.status_logger.info(
-                    f'☑️  ONSITE PRESERVATION MEDIUM: {config("ONSITE_MEDIUM")}'
-                )
             except Exception:
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("ONSITE_MEDIUM")}'
                 self.status_logger.error(message)
@@ -93,12 +95,9 @@ class DistilleryService(rpyc.Service):
         else:
             self.onsite_medium = None
         if "cloud" in destinations and config("CLOUD_PLATFORM"):
+            # import CLOUD_PLATFORM module
             try:
-                # Import a module named the same as the CLOUD_PLATFORM setting.
                 self.cloud_platform = importlib.import_module(config("CLOUD_PLATFORM"))
-                self.status_logger.info(
-                    f'☑️  CLOUD PRESERVATION PLATFORM: {config("CLOUD_PLATFORM")}'
-                )
             except Exception:
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("CLOUD_PLATFORM")}'
                 self.status_logger.error(message)
@@ -106,13 +105,10 @@ class DistilleryService(rpyc.Service):
         else:
             self.cloud_platform = None
         if "access" in destinations and config("ACCESS_PLATFORM"):
+            # import ACCESS_PLATFORM module
             try:
-                # Import a module named the same as the ACCESS_PLATFORM setting.
                 self.access_platform = importlib.import_module(
                     config("ACCESS_PLATFORM")
-                )
-                self.status_logger.info(
-                    f'☑️  ACCESS PLATFORM: {config("ACCESS_PLATFORM")}'
                 )
             except Exception:
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("ACCESS_PLATFORM")}'
@@ -120,10 +116,6 @@ class DistilleryService(rpyc.Service):
                 raise
         else:
             self.access_platform = None
-        if not destinations:
-            message = f"❌ NO DESTINATIONS SPECIFIED FOR {self.collection_id}"
-            self.status_logger.error(message)
-            raise ValueError(message)
 
         try:
             # validate INITIAL_ORIGINAL_FILES directory
