@@ -10,6 +10,8 @@ from datetime import datetime
 from pathlib import Path
 
 import boto3
+import botocore
+
 from decouple import config
 
 import distillery
@@ -235,14 +237,20 @@ def process_digital_object_component_file(variables):
 
 
 def validate_connection():
-    if (
-        s3_client.put_object(Bucket=config("PRESERVATION_BUCKET"), Key=".distillery")[
-            "ResponseMetadata"
-        ]["HTTPStatusCode"]
-        == 200
-    ):
-        logger.info(f'☁️  S3 BUCKET WRITABLE: {config("PRESERVATION_BUCKET")}')
-        return True
+    try:
+        response = s3_client.put_object(
+            Bucket=config("PRESERVATION_BUCKET"), Key=".distillery"
+        )
+        if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
+            logger.info(f'☁️  S3 BUCKET WRITABLE: {config("PRESERVATION_BUCKET")}')
+            return True
+        else:
+            logger.error(f'❌ S3 BUCKET NOT WRITABLE: {config("PRESERVATION_BUCKET")}')
+            logger.error(f"❌ S3 BUCKET RESPONSE: {response}")
+            return False
+    except botocore.exceptions.ClientError as error:
+        logger.error(f"❌ S3 ERROR: {error.response}")
+        return False
 
 
 def process_during_files_loop(variables):

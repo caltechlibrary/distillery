@@ -107,7 +107,10 @@ class DistilleryService(rpyc.Service):
             if self.cloud_platform.validate_connection():
                 message = f'☑️  CONNECTION SUCCESS: {config("CLOUD_PLATFORM")}'
                 self.status_logger.info(message)
-            # TODO handle connection failure
+            else:
+                message = f'❌ CONNECTION FAILURE: {config("CLOUD_PLATFORM")}'
+                self.status_logger.error(message)
+                raise ConnectionError(message)
         else:
             self.cloud_platform = None
         if "access" in destinations and config("ACCESS_PLATFORM"):
