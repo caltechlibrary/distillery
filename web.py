@@ -70,7 +70,7 @@ def distillery_post():
     # allows reuse of the same field name
     destinations = "_".join(bottle.request.forms.getall("destinations"))
     if bottle.request.forms.get("step") == "validate":
-        # TODO asynchronously validate on WORK server
+        # asynchronously validate on WORK server
         distillery_validate = rpyc.async_(
             distillery_work_server_connection.root.validate
         )
