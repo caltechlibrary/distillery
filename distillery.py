@@ -114,6 +114,14 @@ class DistilleryService(rpyc.Service):
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("ACCESS_PLATFORM")}'
                 self.status_logger.error(message)
                 raise
+            # validate ACCESS_PLATFORM connection
+            if self.access_platform.validate_connection():
+                message = f'☑️  CONNECTION SUCCESS: {config("ACCESS_PLATFORM")}'
+                self.status_logger.info(message)
+            else:
+                message = f'❌ CONNECTION FAILURE: {config("ACCESS_PLATFORM")}'
+                self.status_logger.error(message)
+                raise ConnectionError(message)
         else:
             self.access_platform = None
 
@@ -171,11 +179,6 @@ class DistilleryService(rpyc.Service):
         if self.cloud_platform:
             if self.cloud_platform.validate_connection():
                 message = f'☑️  CONNECTION SUCCESSFUL: {config("CLOUD_PLATFORM")}'
-                self.status_logger.info(message)
-        # validate access destination
-        if self.access_platform:
-            if self.access_platform.validate_connection():
-                message = f'☑️  CONNECTION SUCCESSFUL: {config("ACCESS_PLATFORM")}'
                 self.status_logger.info(message)
 
         # send the character that stops javascript reloading in the web ui

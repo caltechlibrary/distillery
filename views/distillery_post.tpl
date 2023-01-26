@@ -44,6 +44,12 @@
         if (d.body.innerText.endsWith('🟡')) {
           // stop reloading
           clearInterval(id);
+          // enable button
+          document.querySelector('#init button').disabled = false;
+        };
+        if (d.body.innerText.includes('❌')) {
+          // stop reloading
+          clearInterval(id);
         };
         l.addEventListener('load', function() {
           if (d.body.scrollHeight > 0) {
@@ -62,7 +68,7 @@
         <input type="hidden" id="destinations" name="destinations" value="{{destinations}}">
         <input type="hidden" id="step" name="step" value="run">
         <div class="grid">
-        <button>Initiate Processing 🚀</button>
+        <button disabled>Initiate Processing 🚀</button>
         <div id="cancel"><a href="{{distillery_base_url}}">Cancel</a></div>
         </div>
     </form>
