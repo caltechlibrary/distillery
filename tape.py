@@ -15,17 +15,18 @@ import distillery
 logging.config.fileConfig(
     # set the logging configuration in the settings.ini file
     Path(__file__).resolve().parent.joinpath("settings.ini"),
-    disable_existing_loggers=True,
+    disable_existing_loggers=False,
 )
 logger = logging.getLogger("tape")
 validation_logger = logging.getLogger("validation")
 
+
+# NOTE known_hosts file of user on WORK server must include TAPE server keys
+# `ssh-keyscan -H $TAPE_SSH_HOST >> ~/.ssh/known_hosts`
 tape_server = sh.ssh.bake(
     f"{config('TAPE_SSH_USER')}@{config('TAPE_SSH_HOST')}",
     "-p",
     f"{config('TAPE_SSH_PORT')}",
-    "-o",
-    "StrictHostKeyChecking=no",
     "-i",
     f'{config("TAPE_SSH_KEY")}',
 )
@@ -157,15 +158,15 @@ def create_archivesspace_tape_records(variables):
     pass
 
 
-def preview(variables):
-    """Run before any files are moved or records are created."""
+def validate_connection():
+    """If WORK server can successfully SSH into TAPE server."""
     tape_server_connection = tape_server()
     if tape_server_connection.exit_code == 0:
-        logger.info(f"📼 TAPE SERVER CONNECTION SUCCESSFUL: {tape_server}")
-    # TODO ensure errors will output a message to the web
-    message = f"✅ Tape Indicator found: {get_tape_indicator()}\n"
-    with open(variables["stream_path"], "a") as stream:
-        stream.write(message)
+        logger.info(f"📼 TAPE SERVER CONNECTION SUCCESS: {tape_server}")
+        return True
+    else:
+        logger.error(f"❌ TAPE SERVER CONNECTION FAILURE: {tape_server}")
+        return False
 
 
 def collection_level_preprocessing(variables):

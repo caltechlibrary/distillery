@@ -92,7 +92,14 @@ class DistilleryService(rpyc.Service):
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("ONSITE_MEDIUM")}'
                 self.status_logger.error(message)
                 raise
-            # TODO validate ONSITE_MEDIUM connection
+            # validate ONSITE_MEDIUM connection
+            if self.onsite_medium.validate_connection():
+                message = f'☑️  CONNECTION SUCCESS: {config("ONSITE_MEDIUM")}'
+                self.status_logger.info(message)
+            else:
+                message = f'❌ CONNECTION FAILURE: {config("ONSITE_MEDIUM")}'
+                self.status_logger.error(message)
+                raise ConnectionError(message)
         else:
             self.onsite_medium = None
         if "cloud" in destinations and config("CLOUD_PLATFORM"):
