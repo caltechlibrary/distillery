@@ -74,9 +74,7 @@ def distillery_post():
         distillery_validate = rpyc.async_(
             distillery_work_server_connection.root.validate
         )
-        async_result = distillery_validate(
-            collection_id=collection_id, destinations=destinations, timestamp=timestamp
-        )
+        async_result = distillery_validate(collection_id, destinations, timestamp)
     if bottle.request.forms.get("step") == "run":
         # TODO asynchronously run on WORK server
         pass
