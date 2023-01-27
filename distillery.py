@@ -52,18 +52,16 @@ asnake_client.authorize()
 
 @rpyc.service
 class DistilleryService(rpyc.Service):
-    @rpyc.exposed
-    def validate(self, collection_id="", destinations="", timestamp=""):
-        if collection_id:
-            self.collection_id = collection_id
-        else:
-            raise ValueError("collection_id is required")
-        if timestamp:
-            self.timestamp = timestamp
-        else:
-            # TODO determine effect on log file
-            self.timestamp = str(int(time.time()))
+    def _initiate_variables(self, collection_id, destinations, timestamp):
+        self.collection_id = collection_id
+        self.destinations = destinations
+        self.timestamp = timestamp
+        self.status_logger = None
+        self.onsite_medium = None
+        self.cloud_platform = None
+        self.access_platform = None
 
+    def _create_status_logger(self):
         self.status_logger = logging.getLogger(self.collection_id)
         self.status_logger.setLevel(logging.INFO)
         status_handler = logging.FileHandler(
@@ -75,16 +73,8 @@ class DistilleryService(rpyc.Service):
         status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
         self.status_logger.addHandler(status_handler)
 
-        self.status_logger.info(
-            f"🟢 BEGIN VALIDATING COMPONENTS FOR {self.collection_id}"
-        )
-
-        if not destinations:
-            message = f"❌ NO DESTINATIONS SPECIFIED FOR {self.collection_id}"
-            self.status_logger.error(message)
-            raise ValueError(message)
-
-        if "onsite" in destinations and config("ONSITE_MEDIUM"):
+    def _import_modules(self):
+        if "onsite" in self.destinations and config("ONSITE_MEDIUM"):
             # import ONSITE_MEDIUM module
             try:
                 self.onsite_medium = importlib.import_module(config("ONSITE_MEDIUM"))
@@ -92,17 +82,7 @@ class DistilleryService(rpyc.Service):
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("ONSITE_MEDIUM")}'
                 self.status_logger.error(message)
                 raise
-            # validate ONSITE_MEDIUM connection
-            if self.onsite_medium.validate_connection():
-                message = f'☑️  CONNECTION SUCCESS: {config("ONSITE_MEDIUM")}'
-                self.status_logger.info(message)
-            else:
-                message = f'❌ CONNECTION FAILURE: {config("ONSITE_MEDIUM")}'
-                self.status_logger.error(message)
-                raise ConnectionError(message)
-        else:
-            self.onsite_medium = None
-        if "cloud" in destinations and config("CLOUD_PLATFORM"):
+        if "cloud" in self.destinations and config("CLOUD_PLATFORM"):
             # import CLOUD_PLATFORM module
             try:
                 self.cloud_platform = importlib.import_module(config("CLOUD_PLATFORM"))
@@ -110,17 +90,7 @@ class DistilleryService(rpyc.Service):
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("CLOUD_PLATFORM")}'
                 self.status_logger.error(message)
                 raise
-            # validate CLOUD_PLATFORM connection
-            if self.cloud_platform.validate_connection():
-                message = f'☑️  CONNECTION SUCCESS: {config("CLOUD_PLATFORM")}'
-                self.status_logger.info(message)
-            else:
-                message = f'❌ CONNECTION FAILURE: {config("CLOUD_PLATFORM")}'
-                self.status_logger.error(message)
-                raise ConnectionError(message)
-        else:
-            self.cloud_platform = None
-        if "access" in destinations and config("ACCESS_PLATFORM"):
+        if "access" in self.destinations and config("ACCESS_PLATFORM"):
             # import ACCESS_PLATFORM module
             try:
                 self.access_platform = importlib.import_module(
@@ -130,6 +100,37 @@ class DistilleryService(rpyc.Service):
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("ACCESS_PLATFORM")}'
                 self.status_logger.error(message)
                 raise
+
+    @rpyc.exposed
+    def validate(self, collection_id, destinations, timestamp):
+        self._initiate_variables(collection_id, destinations, timestamp)
+
+        self._create_status_logger()
+        self.status_logger.info(
+            f"🟢 BEGIN VALIDATING COMPONENTS FOR {self.collection_id}"
+        )
+
+        self._import_modules()
+
+        if self.onsite_medium:
+            # validate ONSITE_MEDIUM connection
+            if self.onsite_medium.validate_connection():
+                message = f'☑️  CONNECTION SUCCESS: {config("ONSITE_MEDIUM")}'
+                self.status_logger.info(message)
+            else:
+                message = f'❌ CONNECTION FAILURE: {config("ONSITE_MEDIUM")}'
+                self.status_logger.error(message)
+                raise ConnectionError(message)
+        if self.cloud_platform:
+            # validate CLOUD_PLATFORM connection
+            if self.cloud_platform.validate_connection():
+                message = f'☑️  CONNECTION SUCCESS: {config("CLOUD_PLATFORM")}'
+                self.status_logger.info(message)
+            else:
+                message = f'❌ CONNECTION FAILURE: {config("CLOUD_PLATFORM")}'
+                self.status_logger.error(message)
+                raise ConnectionError(message)
+        if self.access_platform:
             # validate ACCESS_PLATFORM connection
             if self.access_platform.validate_connection():
                 message = f'☑️  CONNECTION SUCCESS: {config("ACCESS_PLATFORM")}'
@@ -138,8 +139,6 @@ class DistilleryService(rpyc.Service):
                 message = f'❌ CONNECTION FAILURE: {config("ACCESS_PLATFORM")}'
                 self.status_logger.error(message)
                 raise ConnectionError(message)
-        else:
-            self.access_platform = None
 
         try:
             # validate INITIAL_ORIGINAL_FILES directory
@@ -147,7 +146,7 @@ class DistilleryService(rpyc.Service):
                 confirm_collection_directory(
                     self.collection_id, config("INITIAL_ORIGINAL_FILES")
                 )
-                message = f"☑️  COLLECTION DIRECTORY FOUND: {collection_id}"
+                message = f"☑️  COLLECTION DIRECTORY FOUND: {self.collection_id}"
                 self.status_logger.info(message)
             else:
                 raise NotADirectoryError(config("INITIAL_ORIGINAL_FILES"))
@@ -160,13 +159,13 @@ class DistilleryService(rpyc.Service):
         initial_original_subdirectorycount = 0
         initial_original_filecount = 0
         for dirpath, dirnames, filenames in os.walk(
-            os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id)
+            os.path.join(config("INITIAL_ORIGINAL_FILES"), self.collection_id)
         ):
             if dirnames:
                 for dirname in dirnames:
                     # count and list subdirectories in the collection directory
                     initial_original_subdirectorycount += 1
-                    self.status_logger.info(f"📁 {collection_id}/{dirname}")
+                    self.status_logger.info(f"📁 {self.collection_id}/{dirname}")
             if filenames:
                 for filename in filenames:
                     type, encoding = mimetypes.guess_type(
@@ -177,19 +176,19 @@ class DistilleryService(rpyc.Service):
                         # count files
                         initial_original_filecount += 1
         if not initial_original_subdirectorycount:
-            message = f"❌ No subdirectories found under {collection_id} directory"
+            message = f"❌ No subdirectories found under {self.collection_id} directory"
             self.status_logger.error(message)
             raise FileNotFoundError(message)
         if initial_original_filecount:
             logger.info(f"☑️  TIFF FILE COUNT: {initial_original_filecount}")
             self.status_logger.info(f"📄 TIFF file count: {initial_original_filecount}")
         else:
-            message = f"❌ No TIFF files found for {collection_id}"
+            message = f"❌ No TIFF files found for {self.collection_id}"
             self.status_logger.error(message)
             raise FileNotFoundError(message)
 
         # validate collection in ArchivesSpace
-        collection_data = get_collection_data(collection_id)
+        collection_data = get_collection_data(self.collection_id)
         self.status_logger.info(
             f'☑️  ARCHIVESSPACE COLLECTION FOUND: [**{collection_data["title"]}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={collection_data["uri"]})'
         )
