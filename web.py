@@ -48,11 +48,13 @@ def error403(error):
 
 
 @bottle.route("/")
-def distillery_form():
+def distillery_get():
+    step = "collecting"
     return bottle.template(
-        "distillery_form",
+        "distillery",
         distillery_base_url=config("BASE_URL").rstrip("/"),
         user=authorize_user(),
+        step=step,
     )
 
 
@@ -68,22 +70,26 @@ def distillery_post():
         f"{collection_id}.{timestamp}.log"
     ).touch()
     # NOTE using getall() wraps single and multiple values in a list;
-    # allows reuse of the same field name
+    # allows reuse of the same field name; only strings seem to work with rpyc
     # TODO sanitize destinations
     destinations = "_".join(bottle.request.forms.getall("destinations"))
-    if bottle.request.forms.get("step") == "validate":
+    if bottle.request.forms.get("step") == "validating":
+        step = "validating"
         # asynchronously validate on WORK server
         distillery_validate = rpyc.async_(
             distillery_work_server_connection.root.validate
         )
         async_result = distillery_validate(collection_id, destinations, timestamp)
-    if bottle.request.forms.get("step") == "run":
+    if bottle.request.forms.get("step") == "running":
+        step = "running"
         # asynchronously run on WORK server
         distillery_run = rpyc.async_(distillery_work_server_connection.root.run)
         async_result = distillery_run(collection_id, destinations, timestamp)
     return bottle.template(
-        "distillery_post",
+        "distillery",
         distillery_base_url=config("BASE_URL").rstrip("/"),
+        user=authorize_user(),
+        step=step,
         collection_id=collection_id,
         timestamp=timestamp,
         destinations=destinations,
