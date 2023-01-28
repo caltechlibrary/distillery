@@ -197,8 +197,16 @@ class DistilleryService(rpyc.Service):
         self.status_logger.info(f"🟡")
 
     @rpyc.exposed
-    def run(self, collection_id="", destinations="", timestamp=""):
-        pass
+    def run(self, collection_id, destinations, timestamp):
+        self._initiate_variables(collection_id, destinations, timestamp)
+        self._create_status_logger()
+        self.status_logger.info(f"🟢 BEGIN DISTILLING: {self.collection_id}")
+        self._import_modules()
+        self.status_logger.info(
+            f'☑️  DESTINATIONS: {self.destinations.replace("_", ", ")}'
+        )
+        # send the character that stops javascript reloading in the web ui
+        self.status_logger.info(f"🟡")
 
 
 def confirm_collection_directory(collection_id, parent_directory):
