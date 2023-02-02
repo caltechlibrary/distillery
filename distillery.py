@@ -205,6 +205,13 @@ class DistilleryService(rpyc.Service):
         self.status_logger.info(
             f'☑️  DESTINATIONS: {self.destinations.replace("_", ", ")}'
         )
+
+        # retrieve collection data from ArchivesSpace
+        collection_data = get_collection_data(self.collection_id)
+        self.status_logger.info(
+            f'☑️  ARCHIVESSPACE COLLECTION DATA RETRIEVED: [**{collection_data["title"]}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={collection_data["uri"]})'
+        )
+
         # send the character that stops javascript reloading in the web ui
         self.status_logger.info(f"🟡")
 
@@ -224,18 +231,32 @@ def confirm_collection_directory(collection_id, parent_directory):
         raise NotADirectoryError(os.path.join(parent_directory, collection_id))
 
 
+def get_collection_data(collection_id):
+    # raises an HTTPError exception if unsuccessful
+    collection_uri = get_collection_uri(collection_id)
+    collection_data = asnake_client.get(collection_uri).json()
+    if not collection_identifiers_match(collection_id, collection_data):
+        message = f"❌ The Collection ID from the form, {collection_id}, must exactly match the identifier in ArchivesSpace, {collection_data['id_0']}, including case-sensitively.\n"
+        raise ValueError(message)
+    if collection_data:
+        collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
+        if collection_data["tree"]["_resolved"]:
+            logger.info(
+                f'☑️  ARCHIVESSPACE COLLECTION DATA RETRIEVED: {collection_data["uri"]}'
+            )
+            return collection_data
+    else:
+        raise RuntimeError(
+            f"There was a problem retrieving the collection data from ArchivesSpace.\n"
+        )
+
+
 def main(
     cloud: ("sending to cloud storage", "flag", "c"),  # type: ignore
     onsite: ("preparing for onsite storage", "flag", "o"),  # type: ignore
     access: ("publishing access copies", "flag", "a"),  # type: ignore
     collection_id: "the Collection ID from ArchivesSpace",  # type: ignore
 ):
-    variables["collection_data"] = get_collection_data(variables["collection_id"])
-
-    message = f'✅ Collection found in ArchivesSpace: {variables["collection_data"]["title"]} [{config("ASPACE_STAFF_URL")}/resolve/readonly?uri={variables["collection_data"]["uri"]}]\n'
-    with open(stream_path, "a") as stream:
-        stream.write(message)
-
     if variables.get("onsite") or variables.get("cloud"):
         variables["WORK_LOSSLESS_PRESERVATION_FILES"] = (
             Path(config("WORK_NAS_ARCHIVES_MOUNTPOINT"))
@@ -1001,26 +1022,6 @@ def get_archival_object(id):
     response = asnake_client.get("/repositories/2/archival_objects/" + id)
     response.raise_for_status()
     return response.json()
-
-
-def get_collection_data(collection_id):
-    # raises an HTTPError exception if unsuccessful
-    collection_uri = get_collection_uri(collection_id)
-    collection_data = asnake_client.get(collection_uri).json()
-    if not collection_identifiers_match(collection_id, collection_data):
-        message = f"❌ The Collection ID from the form, {collection_id}, must exactly match the identifier in ArchivesSpace, {collection_data['id_0']}, including case-sensitively.\n"
-        raise ValueError(message)
-    if collection_data:
-        collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
-        if collection_data["tree"]["_resolved"]:
-            logger.info(
-                f'☑️  ARCHIVESSPACE COLLECTION DATA RETRIEVED: {collection_data["uri"]}'
-            )
-            return collection_data
-    else:
-        raise RuntimeError(
-            f"There was a problem retrieving the collection data from ArchivesSpace.\n"
-        )
 
 
 def get_collection_tree(collection_uri):
