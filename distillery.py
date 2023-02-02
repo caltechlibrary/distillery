@@ -230,37 +230,6 @@ def main(
     access: ("publishing access copies", "flag", "a"),  # type: ignore
     collection_id: "the Collection ID from ArchivesSpace",  # type: ignore
 ):
-    # logger.debug("🟣")
-    # logger.info("🔵")
-    # logger.warning("🟡")
-    # logger.error("🔴")
-    # logger.critical("🆘")
-    validation_logger.info(f"🔮 {datetime.now()}")
-    variables = {}
-    if onsite and config("ONSITE_MEDIUM"):
-        # Import a module named the same as the ONSITE_MEDIUM setting.
-        variables["onsite_medium"] = importlib.import_module(config("ONSITE_MEDIUM"))
-        variables["onsite"] = onsite
-        variables["tape_indicator"] = variables["onsite_medium"].get_tape_indicator()
-        # TODO create init function that confirms everything is set to continue
-    if cloud and config("CLOUD_PLATFORM"):
-        # Import a module named the same as the CLOUD_PLATFORM setting.
-        variables["cloud_platform"] = importlib.import_module(config("CLOUD_PLATFORM"))
-        variables["cloud"] = cloud
-        # TODO create init function that confirms everything is set to continue
-    if access and config("ACCESS_PLATFORM"):
-        # Import a module named the same as the ACCESS_PLATFORM setting.
-        variables["access_platform"] = importlib.import_module(
-            config("ACCESS_PLATFORM")
-        )
-        variables["access"] = access
-        # TODO create init function that confirms everything is set to continue
-    variables["collection_id"] = collection_id
-
-    variables["stream_path"] = stream_path = Path(
-        config("WORK_NAS_APPS_MOUNTPOINT")
-    ).joinpath(config("NAS_STATUS_FILES_RELATIVE_PATH"), f"{collection_id}-processing")
-
     variables["collection_data"] = get_collection_data(variables["collection_id"])
 
     message = f'✅ Collection found in ArchivesSpace: {variables["collection_data"]["title"]} [{config("ASPACE_STAFF_URL")}/resolve/readonly?uri={variables["collection_data"]["uri"]}]\n'
