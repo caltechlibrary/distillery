@@ -108,26 +108,21 @@ def main(
         f.write(f"🗄 Finished processing {collection_id}.\n📆 {datetime.now()}\n")
 
 
-def collection_level_preprocessing(variables):
+def collection_level_preprocessing(collection_id, work_preservation_files):
     """Run before any files are moved or records are created."""
-    # logger.info("🐞 INSIDE s3.collection_level_preprocessing()")
-    transfer_collection_datafile(variables)
+    transfer_collection_datafile(collection_id, work_preservation_files)
 
 
-def transfer_collection_datafile(variables):
+def transfer_collection_datafile(collection_id, work_preservation_files):
     """POST collection data to S3 bucket as a JSON file."""
-    # logger.info("🐞 INSIDE s3.transfer_collection_datafile()")
-    # logger.info(f'🐞 type(variables["WORK_LOSSLESS_PRESERVATION_FILES"]): {type(variables["WORK_LOSSLESS_PRESERVATION_FILES"])}')
-    collection_datafile_key = Path(variables["collection_id"]).joinpath(
-        f'{variables["collection_id"]}.json'
+    collection_datafile_key = Path(collection_id).joinpath(
+        f'{collection_id}.json'
     )
-    # logger.info(f'🐞 collection_datafile_key: {str(collection_datafile_key)}')
     collection_datafile_path = (
-        Path(variables["WORK_LOSSLESS_PRESERVATION_FILES"])
+        Path(work_preservation_files)
         .joinpath(collection_datafile_key)
         .resolve()
     )
-    # logger.info(f"🐞 collection_datafile_path: {str(collection_datafile_path)}")
     s3_client.put_object(
         Bucket=config("PRESERVATION_BUCKET"),
         Key=str(collection_datafile_key),

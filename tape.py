@@ -169,7 +169,7 @@ def validate_connection():
         return False
 
 
-def collection_level_preprocessing(variables):
+def collection_level_preprocessing(collection_id, work_preservation_files):
     """Run before any files are moved or records are created."""
     pass
 
