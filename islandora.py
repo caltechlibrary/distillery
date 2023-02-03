@@ -54,85 +54,84 @@ def main(
     logger.info("🦕 islandora")
 
 
-def collection_structure_processing(variables):
-    # logger.debug("🦕 collection_structure_processing()")
-    # logger.debug("\n".join(["🐞 variables.keys():", *variables.keys()]))
-    # logger.debug(f"🐞 variables.keys():\n{chr(10).join(variables.keys())}")
-    # Set the directory for the Islandora collection files.
-    # NOTE: The parent directory name is formatted for use as a PID:
-    # https://github.com/mjordan/islandora_batch_with_derivs#preserving-existing-pids-and-relationships
-    islandora_collection_metadata_directory = os.path.join(
-        config("COMPRESSED_ACCESS_FILES"),
-        "collections",
-        f'caltech+{variables["collection_id"]}',  # NOTE hardcoded namespace
-    )
+class AccessPlatform:
+    def __init__(self, collection_id, collection_data):
+        self.collection_id = collection_id
+        self.collection_data = collection_data
 
-    # Construct the MODS XML for the collection.
-    collection_mods_xml = construct_collection_mods_xml(variables["collection_data"])
-
-    # Save the MODS.xml file for the collection.
-    collection_mods_xml_path = save_xml_file(
-        os.path.join(
-            islandora_collection_metadata_directory,
-            "MODS.xml",
-        ),
-        collection_mods_xml,
-    )
-    logger.info(f"☑️  ISLANDORA COLLECTION MODS SAVED: {collection_mods_xml_path}")
-
-    # Construct the COLLECTION_POLICY XML for the collection.
-    collection_policy_xml = construct_collection_policy_xml(
-        variables["collection_data"]
-    )
-
-    # Save a COLLECTION_POLICY.xml file for the collection.
-    collection_policy_xml_path = save_xml_file(
-        os.path.join(
-            islandora_collection_metadata_directory,
-            "COLLECTION_POLICY.xml",
-        ),
-        collection_policy_xml,
-    )
-    logger.info(f"☑️  ISLANDORA COLLECTION POLICY SAVED: {collection_policy_xml_path}")
-
-    # Create the temporary staging directory.
-    variables["islandora_staging_files"] = islandora_server.mktemp(
-        "--directory"
-    ).strip()
-    validation_logger.info(f'ISLANDORA: {variables["islandora_staging_files"]}')
-    # Upload the collections directory.
-    upload_to_islandora_server(
-        os.path.join(config("COMPRESSED_ACCESS_FILES"), "collections"), variables
-    )
-
-    # Retrieve an existing or new collection PID from Islandora.
-    try:
-        # Run a Solr query via drush for the expected collection PID.
-        # NOTE: Using DC fields for simpler syntax; a Solr query string example
-        # using fedora fields would be:
-        # f"--solr_query='PID:caltech\:{collection_id} AND RELS_EXT_hasModel_uri_s:info\:fedora\/islandora\:collectionCModel'",
-        idcrudfp = islandora_server(
-            "drush",
-            f"--root={config('ISLANDORA_WEBROOT')}",
-            "islandora_datastream_crud_fetch_pids",
-            f'--solr_query="dc.identifier:caltech\:{variables["collection_id"]} AND dc.type:Collection"',
+    def collection_structure_processing(self):
+        """ Set the directory for the Islandora collection files."""
+        # NOTE: The parent directory name is formatted for use as a PID:
+        # https://github.com/mjordan/islandora_batch_with_derivs#preserving-existing-pids-and-relationships
+        islandora_collection_metadata_directory = os.path.join(
+            config("COMPRESSED_ACCESS_FILES"),
+            "collections",
+            f"caltech+{self.collection_id}",  # NOTE hardcoded namespace
         )
-        variables["islandora_collection_pid"] = idcrudfp.strip()
+
+        # Construct the MODS XML for the collection.
+        collection_mods_xml = construct_collection_mods_xml(self.collection_data)
+
+        # Save the MODS.xml file for the collection.
+        collection_mods_xml_path = save_xml_file(
+            os.path.join(
+                islandora_collection_metadata_directory,
+                "MODS.xml",
+            ),
+            collection_mods_xml,
+        )
+        logger.info(f"☑️  ISLANDORA COLLECTION MODS SAVED: {collection_mods_xml_path}")
+
+        # Construct the COLLECTION_POLICY XML for the collection.
+        collection_policy_xml = construct_collection_policy_xml(self.collection_data)
+
+        # Save a COLLECTION_POLICY.xml file for the collection.
+        collection_policy_xml_path = save_xml_file(
+            os.path.join(
+                islandora_collection_metadata_directory,
+                "COLLECTION_POLICY.xml",
+            ),
+            collection_policy_xml,
+        )
         logger.info(
-            f'☑️  EXISTING ISLANDORA COLLECTION FOUND: {config("ISLANDORA_URL").rstrip("/")}/islandora/object/{variables["islandora_collection_pid"]}'
+            f"☑️  ISLANDORA COLLECTION POLICY SAVED: {collection_policy_xml_path}"
         )
-    except sh.ErrorReturnCode as e:
-        # Drush exits with a non-zero status when no PIDs are found, which is
-        # interpreted as an error by sh.
-        if "Sorry, no PIDS were found." in str(e.stderr, "utf-8"):
-            # Create a new collection because the identifier was not found.
-            variables["islandora_collection_pid"] = create_islandora_collection(
-                variables["islandora_staging_files"]
+
+        # Create the temporary staging directory.
+        self.islandora_staging_files = islandora_server.mktemp("--directory").strip()
+        validation_logger.info(f"ISLANDORA: {self.islandora_staging_files}")
+        # Upload the collections directory.
+        upload_to_islandora_server(
+            os.path.join(config("COMPRESSED_ACCESS_FILES"), "collections"),
+            self.islandora_staging_files,
+        )
+
+        # Retrieve an existing or new collection PID from Islandora.
+        try:
+            # Run a Solr query via drush for the expected collection PID.
+            # NOTE: Using DC fields for simpler syntax; a Solr query string example
+            # using fedora fields would be:
+            # f"--solr_query='PID:caltech\:{collection_id} AND RELS_EXT_hasModel_uri_s:info\:fedora\/islandora\:collectionCModel'",
+            idcrudfp = islandora_server(
+                "drush",
+                f"--root={config('ISLANDORA_WEBROOT')}",
+                "islandora_datastream_crud_fetch_pids",
+                f'--solr_query="dc.identifier:caltech\:{self.collection_id} AND dc.type:Collection"',
             )
-            return variables
-        else:
-            raise
-    return variables
+            self.islandora_collection_pid = idcrudfp.strip()
+            logger.info(
+                f'☑️  EXISTING ISLANDORA COLLECTION FOUND: {config("ISLANDORA_URL").rstrip("/")}/islandora/object/{self.islandora_collection_pid}'
+            )
+        except sh.ErrorReturnCode as e:
+            # Drush exits with a non-zero status when no PIDs are found, which is
+            # interpreted as an error by sh.
+            if "Sorry, no PIDS were found." in str(e.stderr, "utf-8"):
+                # Create a new collection because the identifier was not found.
+                self.islandora_collection_pid = create_islandora_collection(
+                    self.islandora_staging_files
+                )
+            else:
+                raise
 
 
 def archival_object_level_processing(variables):
