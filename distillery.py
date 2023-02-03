@@ -60,6 +60,7 @@ class DistilleryService(rpyc.Service):
         self.onsite_medium = None
         self.cloud_platform = None
         self.access_platform = None
+        self.variables = {}
 
     def _create_status_logger(self):
         self.status_logger = logging.getLogger(self.collection_id)
@@ -249,6 +250,8 @@ class DistilleryService(rpyc.Service):
         working_collection_directory = confirm_collection_directory(
             self.collection_id, config("WORKING_ORIGINAL_FILES")
         )
+
+        create_derivative_structure(self.variables, working_collection_directory)
 
         # send the character that stops javascript reloading in the web ui
         self.status_logger.info(f"🟡")
@@ -2121,7 +2124,12 @@ def create_preservation_files_structure(variables):
     create_derivative_structure(variables)
 
 
-def create_derivative_structure(variables):
+def create_derivative_structure(variables, collection_directory):
+    # TODO variables["folder_data"]
+    # TODO variables["folder_arrangement"]
+    # TODO variables.get("onsite")
+    # TODO variables.get("cloud")
+    # TODO variables.get("access")
     """Loop over subdirectories inside ORIGINAL_FILES/CollectionID directory.
 
     Example:
