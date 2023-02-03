@@ -263,9 +263,6 @@ def main(
     access: ("publishing access copies", "flag", "a"),  # type: ignore
     collection_id: "the Collection ID from ArchivesSpace",  # type: ignore
 ):
-    # Create LOSSLESS_PRESERVATION_FILES.
-    create_derivative_structure(variables)
-
     if variables.get("onsite"):
         # TODO run in the background but wait for it before writing records to ArchivesSpace
         # transfer PRESERVATION_FILES/CollectionID directory as a whole to tape
@@ -1140,33 +1137,6 @@ def prepare_filepaths_list(folderpath):
     return filepaths
 
 
-def prepare_folder_list(collection_directory):
-    # `depth = 2` means do not recurse past one set of subdirectories.
-    # [collection]/
-    # ├── [collection]_[box]_[folder]/
-    # │   ├── [directory_not_traversed]/
-    # │   │   └── [file_not_included].tiff
-    # │   ├── [collection]_[box]_[folder]_[leaf].tiff
-    # │   └── [collection]_[box]_[folder]_[leaf].tiff
-    # └── [collection]_[box]_[folder]/
-    #     ├── [collection]_[box]_[folder]_[leaf].tif
-    #     └── [collection]_[box]_[folder]_[leaf].tif
-    depth = 2
-    filecounter = 0
-    folders = []
-    for root, dirs, files in os.walk(collection_directory):
-        if root[len(collection_directory) :].count(os.sep) == 0:
-            for d in dirs:
-                folders.append(os.path.join(root, d))
-        if root[len(collection_directory) :].count(os.sep) < depth:
-            for f in files:
-                if os.path.splitext(f)[1] in [".tif", ".tiff"]:
-                    filecounter += 1
-    filecount = filecounter
-    # TODO remove unused filecount
-    return folders, filecount
-
-
 def create_lossless_jpeg2000_image(variables):
     """Convert original image and ensure matching image signatures."""
     cut_cmd = sh.Command(config("WORK_CUT_CMD"))
@@ -1652,36 +1622,28 @@ def create_derivative_structure(variables, collection_directory):
     │   └── CollectionID_001_02_04.tif
     └── CollectionID_007_08
     """
-
-    variables["folders"], variables["filecount"] = prepare_folder_list(
-        variables["collection_directory"]
-    )  # TODO pass only variables
     # NOTE [::-1] makes a reverse copy of the list for use with pop() below
-    folders = variables["folders"][::-1]
-    for _ in range(len(folders)):
-        # Using pop() (and/or range(len()) above) maybe helps to be sure that
-        # if folder metadata fails to process properly, it and its images are
-        # skipped completely and the script moves on to the next directory.
-        variables["folderpath"] = folders.pop()
-        logger.info(f'▶️  PROCESSING DIRECTORY: {variables["folderpath"]}')
+    subdirectories = [str(s) for s in Path(collection_directory).iterdir() if s.is_dir()][
+        ::-1
+    ]
+    for _ in range(len(subdirectories)):
+        # Using pop() (and/or range(len()) above) maybe helps to be sure that if
+        # archival object metadata fails to process properly, it and its images
+        # are skipped completely and the script moves on to the next directory.
+        subdirectory = subdirectories.pop()
+        logger.info(f"▶️  PROCESSING DIRECTORY: {subdirectory}")
 
         # Set up list of file paths for the current directory.
-        variables["filepaths"] = prepare_filepaths_list(variables["folderpath"])
+        variables["filepaths"] = prepare_filepaths_list(subdirectory)
 
         # Avoid processing directory when there are no files.
         if not variables["filepaths"]:
-            logger.warning(f'⚠️  NO FILES IN DIRECTORY: {variables["folderpath"]}')
+            logger.warning(f"⚠️  NO FILES IN DIRECTORY: {subdirectory}")
             continue
-
-        # process_folder_metadata obfuscates too much
-        # (
-        #     variables["folder_arrangement"],
-        #     variables["folder_data"],
-        # ) = process_folder_metadata(variables["folderpath"])
 
         # extract component_id from folderpath and get archival_object data
         variables["folder_data"] = get_folder_data(
-            normalize_directory_component_id(variables["folderpath"])
+            normalize_directory_component_id(subdirectory)
         )
         variables["folder_arrangement"] = get_folder_arrangement(
             variables["folder_data"]
@@ -1691,8 +1653,8 @@ def create_derivative_structure(variables, collection_directory):
             save_folder_data(
                 variables["folder_arrangement"],
                 variables["folder_data"],
-                variables["WORK_LOSSLESS_PRESERVATION_FILES"],
-            )  # TODO pass only variables
+                config("WORK_PRESERVATION_FILES"),
+            )
 
         if variables.get("access"):
             variables["access_platform"].archival_object_level_processing(variables)
