@@ -22,6 +22,13 @@ s3_client = boto3.client(
     aws_secret_access_key=config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
 )
 
+class AccessPlatform:
+    def __init__(self, collection_id, collection_data):
+        self.collection_id = collection_id
+        self.collection_data = collection_data
+
+    def collection_structure_processing(self):
+        pass
 
 def validate_connection():
     try:

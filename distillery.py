@@ -212,8 +212,72 @@ class DistilleryService(rpyc.Service):
             f'☑️  ARCHIVESSPACE COLLECTION DATA RETRIEVED: [**{collection_data["title"]}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={collection_data["uri"]})'
         )
 
+        # for preservation destinations
+        if self.onsite_medium or self.cloud_platform:
+            # validate WORK_PRESERVATION_FILES directory
+            work_preservation_files = Path(config("WORK_PRESERVATION_FILES")).resolve(
+                strict=True
+            )
+            # save collection metadata
+            save_collection_metadata(collection_data, work_preservation_files)
+            # run collection-level preprocessing
+            if self.cloud_platform:
+                self.cloud_platform.collection_level_preprocessing(
+                    self.collection_id, work_preservation_files
+                )
+
+        # for access publication
+        if self.access_platform:
+            accessDistiller = self.access_platform.AccessPlatform(
+                self.collection_id, collection_data
+            )
+            accessDistiller.collection_structure_processing()
+
+        # Move the `collection_id` directory into `WORKING_ORIGINAL_FILES`.
+        try:
+            shutil.move(
+                str(os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id)),
+                str(os.path.join(config("WORKING_ORIGINAL_FILES"), collection_id)),
+            )
+        except BaseException as e:
+            message = "❌ unable to move the source files for processing"
+            self.status_logger.info(message)
+            logger.error(f"❌ {e}")
+            # re-raise the exception because we cannot continue without the files
+            raise
+
+        working_collection_directory = confirm_collection_directory(
+            self.collection_id, config("WORKING_ORIGINAL_FILES")
+        )
+
         # send the character that stops javascript reloading in the web ui
         self.status_logger.info(f"🟡")
+
+
+def main(
+    cloud: ("sending to cloud storage", "flag", "c"),  # type: ignore
+    onsite: ("preparing for onsite storage", "flag", "o"),  # type: ignore
+    access: ("publishing access copies", "flag", "a"),  # type: ignore
+    collection_id: "the Collection ID from ArchivesSpace",  # type: ignore
+):
+    # Create LOSSLESS_PRESERVATION_FILES.
+    create_derivative_structure(variables)
+
+    if variables.get("onsite"):
+        # TODO run in the background but wait for it before writing records to ArchivesSpace
+        # transfer PRESERVATION_FILES/CollectionID directory as a whole to tape
+        variables["onsite_medium"].transfer_derivative_collection(variables)
+    if variables.get("access"):
+        # TODO run in the background but wait for it before writing records to ArchivesSpace
+        # stage ISLANDORA_ACCESS_FILES on islandora_server before ingest
+        variables["access_platform"].transfer_derivative_files(variables)
+        variables["access_platform"].ingest_derivative_files(variables)
+        variables["access_platform"].loop_over_derivative_structure(variables)
+
+    # PROCESS PRESERVATION STRUCTURE
+    # create an ArchivesSpace Digital Object Component for each preservation file
+    if variables.get("onsite") or variables.get("cloud"):
+        loop_over_archival_object_datafiles(variables)
 
 
 def confirm_collection_directory(collection_id, parent_directory):
@@ -251,76 +315,16 @@ def get_collection_data(collection_id):
         )
 
 
-def main(
-    cloud: ("sending to cloud storage", "flag", "c"),  # type: ignore
-    onsite: ("preparing for onsite storage", "flag", "o"),  # type: ignore
-    access: ("publishing access copies", "flag", "a"),  # type: ignore
-    collection_id: "the Collection ID from ArchivesSpace",  # type: ignore
-):
-    if variables.get("onsite") or variables.get("cloud"):
-        variables["WORK_LOSSLESS_PRESERVATION_FILES"] = (
-            Path(config("WORK_NAS_ARCHIVES_MOUNTPOINT"))
-            .joinpath(config("NAS_LOSSLESS_PRESERVATION_FILES_RELATIVE_PATH"))
-            .resolve(strict=True)
-        )
-        save_collection_metadata(
-            variables["collection_data"], variables["WORK_LOSSLESS_PRESERVATION_FILES"]
-        )  # TODO pass only variables
-
-    logger.debug(f"🐞 variables.keys():\n{chr(10).join(variables.keys())}")
-    # COLLECTION STRUCTURE PROCESSING
-    # if variables["onsite"]:
-    #     variables["onsite_medium"].collection_level_preprocessing(variables)
-    if variables.get("cloud"):
-        variables["cloud_platform"].collection_level_preprocessing(variables)
-    if variables["access"]:
-        variables = variables["access_platform"].collection_structure_processing(
-            variables
-        )
-
-    # Move the `collection_id` directory into `WORKING_ORIGINAL_FILES`.
-    try:
-        # NOTE using copy+rm in order to not destroy an existing destination structure
-        shutil.copytree(
-            str(os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id)),
-            str(os.path.join(config("WORKING_ORIGINAL_FILES"), collection_id)),
-            dirs_exist_ok=True,
-        )
-        shutil.rmtree(
-            str(os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id))
-        )
-    except BaseException as e:
-        message = "❌ unable to move the source files for processing\n"
-        with open(stream_path, "a") as stream:
-            stream.write(message)
-        logger.error(f"❌ {e}")
-        # re-raise the exception because we cannot continue without the files
-        raise
-
-    variables["WORKING_ORIGINAL_FILES"] = config("WORKING_ORIGINAL_FILES")
-
-    variables["collection_directory"] = confirm_collection_directory(
-        variables["WORKING_ORIGINAL_FILES"], variables["collection_id"]
-    )  # TODO pass only variables
-
-    # Create LOSSLESS_PRESERVATION_FILES.
-    create_derivative_structure(variables)
-
-    if variables.get("onsite"):
-        # TODO run in the background but wait for it before writing records to ArchivesSpace
-        # transfer PRESERVATION_FILES/CollectionID directory as a whole to tape
-        variables["onsite_medium"].transfer_derivative_collection(variables)
-    if variables.get("access"):
-        # TODO run in the background but wait for it before writing records to ArchivesSpace
-        # stage ISLANDORA_ACCESS_FILES on islandora_server before ingest
-        variables["access_platform"].transfer_derivative_files(variables)
-        variables["access_platform"].ingest_derivative_files(variables)
-        variables["access_platform"].loop_over_derivative_structure(variables)
-
-    # PROCESS PRESERVATION STRUCTURE
-    # create an ArchivesSpace Digital Object Component for each preservation file
-    if variables.get("onsite") or variables.get("cloud"):
-        loop_over_archival_object_datafiles(variables)
+def save_collection_metadata(collection_data, directory):
+    filename = os.path.join(
+        directory,
+        collection_data["id_0"],
+        f"{collection_data['id_0']}.json",
+    )
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    with open(filename, "w") as f:
+        f.write(json.dumps(collection_data, indent=4))
+    logger.info(f"☑️  COLLECTION DATA SAVED: {filename}")
 
 
 def distill(
@@ -1891,18 +1895,6 @@ def process_folder_metadata(folderpath):
         raise RuntimeError(str(e))
 
     return folder_arrangement, folder_data
-
-
-def save_collection_metadata(collection_data, directory):
-    filename = os.path.join(
-        directory,
-        collection_data["id_0"],
-        f"{collection_data['id_0']}.json",
-    )
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
-    with open(filename, "w") as f:
-        f.write(json.dumps(collection_data, indent=4))
-    logger.info(f"☑️  COLLECTION DATA SAVED: {filename}")
 
 
 def save_folder_data(folder_arrangement, folder_data, directory):
