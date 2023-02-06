@@ -28,7 +28,18 @@ class AccessPlatform:
         self.collection_data = collection_data
 
     def collection_structure_processing(self):
-        pass
+        # TODO build html metadata/thumbnail page?
+        logger.info(f"🐞 COLLECTION STRUCTURE PROCESSING: {self.collection_id}")
+
+    def archival_object_level_processing(self, variables):
+        # we have a list of file paths and all the metadata
+        # TODO build html metadata/thumbnail page?
+        # TODO build manifest?
+        logger.info(f"🐞 ARCHIVAL OBJECT LEVEL PROCESSING: {self.collection_id}")
+
+    def create_access_files(self, variables):
+        # TODO create the Pyramid TIFFs for iiif-serverless
+        logger.info(f"🐞 CREATE ACCESS FILES: {self.collection_id}")
 
 def validate_connection():
     try:
