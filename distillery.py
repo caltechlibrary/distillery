@@ -214,6 +214,8 @@ class DistilleryService(rpyc.Service):
         )
 
         # for preservation destinations
+        onsiteDistiller = None
+        cloudDistiller = None
         if self.onsite_medium or self.cloud_platform:
             # validate WORK_PRESERVATION_FILES directory
             work_preservation_files = Path(config("WORK_PRESERVATION_FILES")).resolve(
@@ -228,6 +230,7 @@ class DistilleryService(rpyc.Service):
                 )
 
         # for access publication
+        accessDistiller = None
         if self.access_platform:
             accessDistiller = self.access_platform.AccessPlatform(
                 self.collection_id, collection_data
@@ -251,7 +254,7 @@ class DistilleryService(rpyc.Service):
             self.collection_id, config("WORKING_ORIGINAL_FILES")
         )
 
-        create_derivative_structure(self.variables, working_collection_directory)
+        create_derivative_structure(self.variables, working_collection_directory, onsiteDistiller, cloudDistiller, accessDistiller)
 
         # send the character that stops javascript reloading in the web ui
         self.status_logger.info(f"🟡")
@@ -697,10 +700,11 @@ def get_folder_data(component_id):
     )
     find_by_id_response.raise_for_status()
     if len(find_by_id_response.json()["archival_objects"]) < 1:
-        # figure out the box folder
-        raise ValueError(f"No records found with component_id: {component_id}")
+        logger.warning(f"⚠️  ARCHIVAL OBJECT NOT FOUND: {component_id}")
+        return None
     if len(find_by_id_response.json()["archival_objects"]) > 1:
-        raise ValueError(f"Multiple records found with component_id: {component_id}")
+        logger.warning(f"⚠️  MULTIPLE ARCHIVAL OBJECTS FOUND: {component_id}")
+        return None
     archival_object_get_response = asnake_client.get(
         f"{find_by_id_response.json()['archival_objects'][0]['ref']}?resolve[]=digital_object&resolve[]=repository&resolve[]=top_container"
     )
@@ -1604,12 +1608,9 @@ def create_preservation_files_structure(variables):
     create_derivative_structure(variables)
 
 
-def create_derivative_structure(variables, collection_directory):
+def create_derivative_structure(variables, collection_directory, onsite, cloud, access):
     # TODO variables["folder_data"]
     # TODO variables["folder_arrangement"]
-    # TODO variables.get("onsite")
-    # TODO variables.get("cloud")
-    # TODO variables.get("access")
     """Loop over subdirectories inside ORIGINAL_FILES/CollectionID directory.
 
     Example:
@@ -1645,24 +1646,26 @@ def create_derivative_structure(variables, collection_directory):
         variables["folder_data"] = get_folder_data(
             normalize_directory_component_id(subdirectory)
         )
+        if not variables["folder_data"]:
+            continue
         variables["folder_arrangement"] = get_folder_arrangement(
             variables["folder_data"]
         )
 
-        if variables.get("onsite") or variables.get("cloud"):
+        if onsite or cloud:
             save_folder_data(
                 variables["folder_arrangement"],
                 variables["folder_data"],
                 config("WORK_PRESERVATION_FILES"),
             )
 
-        if variables.get("access"):
-            variables["access_platform"].archival_object_level_processing(variables)
+        if access:
+            access.archival_object_level_processing(variables)
 
-        create_derivative_files(variables)
+        create_derivative_files(variables, onsite, cloud, access)
 
 
-def create_derivative_files(variables):
+def create_derivative_files(variables, onsite, cloud, access):
     """Loop over files in subdirectories of ORIGINAL_FILES/CollectionID directory.
 
     Example:
@@ -1675,7 +1678,6 @@ def create_derivative_files(variables):
     │   └── CollectionID_001_02_04.tif
     └── CollectionID_007_08
     """
-
     # NOTE We use a reversed list so the components will be ingested in
     # the correct order for the digital object tree and use it with pop() so the
     # count of remaining items is accurate during the loop.
@@ -1694,7 +1696,7 @@ def create_derivative_files(variables):
         )
 
         # TODO check for existing derivative structure
-        if variables.get("onsite") or variables.get("cloud"):
+        if onsite or cloud:
             # TODO import mimetypes; mimetypes.guess_type(filepath)
 
             # Create lossless JPEG 2000 image from original.
@@ -1705,8 +1707,8 @@ def create_derivative_files(variables):
             # TODO refactor and send to module for extra parameters
             # digital_object_component = prepare_digital_object_component()
 
-        if variables.get("access"):
-            variables["access_platform"].create_access_files(variables)
+        if access:
+            access.create_access_files(variables)
 
 
 if __name__ == "__main__":
