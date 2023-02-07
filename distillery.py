@@ -254,33 +254,29 @@ class DistilleryService(rpyc.Service):
             self.collection_id, config("WORKING_ORIGINAL_FILES")
         )
 
+        # TODO consider running this loop here in order to log items within it or send the logger to the function
         create_derivative_structure(self.variables, working_collection_directory, onsiteDistiller, cloudDistiller, accessDistiller)
+
+        if self.onsite_medium:
+            # TODO run in the background but wait for it before writing records to ArchivesSpace
+            # TODO is there a benefit in transferring PRESERVATION_FILES/CollectionID directory as a whole to tape?
+            # TODO variables["WORK_LOSSLESS_PRESERVATION_FILES"]
+            # TODO variables["collection_id"]
+            self.onsite_medium.transfer_derivative_collection(self.variables)
+
+        if self.access_platform:
+            # TODO run in the background but wait for it before writing records to ArchivesSpace
+            accessDistiller.transfer_derivative_files(self.variables)
+            accessDistiller.ingest_derivative_files(self.variables)
+            accessDistiller.loop_over_derivative_structure(self.variables)
+
+        # PROCESS PRESERVATION STRUCTURE
+        # create an ArchivesSpace Digital Object Component for each preservation file
+        if self.onsite_medium or self.cloud_platform:
+            loop_over_archival_object_datafiles(self.variables)
 
         # send the character that stops javascript reloading in the web ui
         self.status_logger.info(f"🟡")
-
-
-def main(
-    cloud: ("sending to cloud storage", "flag", "c"),  # type: ignore
-    onsite: ("preparing for onsite storage", "flag", "o"),  # type: ignore
-    access: ("publishing access copies", "flag", "a"),  # type: ignore
-    collection_id: "the Collection ID from ArchivesSpace",  # type: ignore
-):
-    if variables.get("onsite"):
-        # TODO run in the background but wait for it before writing records to ArchivesSpace
-        # transfer PRESERVATION_FILES/CollectionID directory as a whole to tape
-        variables["onsite_medium"].transfer_derivative_collection(variables)
-    if variables.get("access"):
-        # TODO run in the background but wait for it before writing records to ArchivesSpace
-        # stage ISLANDORA_ACCESS_FILES on islandora_server before ingest
-        variables["access_platform"].transfer_derivative_files(variables)
-        variables["access_platform"].ingest_derivative_files(variables)
-        variables["access_platform"].loop_over_derivative_structure(variables)
-
-    # PROCESS PRESERVATION STRUCTURE
-    # create an ArchivesSpace Digital Object Component for each preservation file
-    if variables.get("onsite") or variables.get("cloud"):
-        loop_over_archival_object_datafiles(variables)
 
 
 def confirm_collection_directory(collection_id, parent_directory):

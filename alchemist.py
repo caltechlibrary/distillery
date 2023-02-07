@@ -41,6 +41,15 @@ class AccessPlatform:
         # TODO create the Pyramid TIFFs for iiif-serverless
         logger.info(f"🐞 CREATE ACCESS FILES: {self.collection_id}")
 
+    def transfer_derivative_files(self, variables):
+        logger.info(f"🐞 TRANSFER DERIVATIVE FILES: {self.collection_id}")
+
+    def ingest_derivative_files(self, variables):
+        logger.info(f"🐞 INGEST DERIVATIVE FILES: {self.collection_id}")
+
+    def loop_over_derivative_structure(self, variables):
+        logger.info(f"🐞 LOOP OVER DERIVATIVE STRUCTURE: {self.collection_id}")
+
 def validate_connection():
     try:
         response = s3_client.put_object(
