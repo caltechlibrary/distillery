@@ -175,6 +175,8 @@ def collection_level_preprocessing(collection_id, work_preservation_files):
 
 
 def transfer_derivative_collection(variables):
+    # TODO variables["WORK_LOSSLESS_PRESERVATION_FILES"]
+    # TODO variables["collection_id"]
     """Transfer PRESERVATION_FILES/CollectionID directory as a whole to tape."""
     # Calculate whether the collection_id directory will fit on the current tape.
     collection_id_directory_bytes = distillery.get_directory_bytes(
@@ -260,6 +262,7 @@ def process_digital_object_component_file(variables):
 
 
 def rsync_to_tape(variables):
+    # TODO variables["collection_id"]
     """Ensure NAS is mounted and copy collection directory tree to tape."""
 
     def process_output(line):
