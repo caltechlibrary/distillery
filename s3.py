@@ -129,7 +129,7 @@ def transfer_collection_datafile(collection_id, work_preservation_files):
         Body=str(collection_datafile_path),
     )
     logger.info(
-        f'☑️  S3 OBJECT UPLOADED: {config("PRESERVATION_BUCKET")}/{str(collection_datafile_key)}'
+        f'☑️  COLLECTION DATAFILE UPLOADED TO S3: {config("PRESERVATION_BUCKET")}/{str(collection_datafile_key)}'
     )
     validation_logger.info(
         f'S3: {config("PRESERVATION_BUCKET")}/{str(collection_datafile_key)}'
@@ -152,7 +152,7 @@ def transfer_archival_object_datafile(variables):
     # logger.info(f'🐞 str(variables["current_archival_object_datafile"]): {str(variables["current_archival_object_datafile"])}')
     archival_object_datafile_key = str(
         variables["current_archival_object_datafile"]
-    ).split(f'{variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/')[-1]
+    ).split(f'{config("WORK_PRESERVATION_FILES")}/')[-1]
     # logger.info(f'🐞 archival_object_datafile_key: {archival_object_datafile_key}')
     s3_client.put_object(
         Bucket=config("PRESERVATION_BUCKET"),
@@ -160,7 +160,7 @@ def transfer_archival_object_datafile(variables):
         Body=str(variables["current_archival_object_datafile"]),
     )
     logger.info(
-        f'☑️  S3 OBJECT UPLOADED: {config("PRESERVATION_BUCKET")}/{str(archival_object_datafile_key)}'
+        f'☑️  ARCHIVAL OBJECT DATAFILE UPLOADED TO S3: {config("PRESERVATION_BUCKET")}/{str(archival_object_datafile_key)}'
     )
     validation_logger.info(
         f'S3: {config("PRESERVATION_BUCKET")}/{str(archival_object_datafile_key)}'
@@ -188,7 +188,7 @@ def transfer_digital_object_component_file(variables):
         "ETag": "\"614bccea2760f37f41be65c62c41d66e\""
     }"""
     preservation_file_key = str(variables["preservation_file_info"]["filepath"])[
-        len(f'{str(variables["WORK_LOSSLESS_PRESERVATION_FILES"])}/') :
+        len(f'{config("WORK_PRESERVATION_FILES")}/') :
     ]
     with open(variables["preservation_file_info"]["filepath"], "rb") as body:
         response = s3_client.put_object(
@@ -207,7 +207,7 @@ def transfer_digital_object_component_file(variables):
         return
     else:
         logger.info(
-            f'☑️  S3 OBJECT UPLOADED: {config("PRESERVATION_BUCKET")}/{preservation_file_key}'
+            f'☑️  DIGITAL OBJECT COMPONENT FILE UPLOADED TO S3: {config("PRESERVATION_BUCKET")}/{preservation_file_key}'
         )
         validation_logger.info(
             f'S3: {config("PRESERVATION_BUCKET")}/{preservation_file_key}'

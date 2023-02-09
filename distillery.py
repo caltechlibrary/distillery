@@ -35,6 +35,7 @@ import statuslogger
 logging.config.fileConfig(
     # set the logging configuration in the settings.ini file
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.ini"),
+    disable_existing_loggers=False,  # log messages from sh will come through
 )
 logger = logging.getLogger("distillery")
 archivesspace_logger = logging.getLogger("archivesspace")
@@ -63,6 +64,8 @@ class DistilleryService(rpyc.Service):
         self.variables = {}
 
     def _create_status_logger(self):
+        # QUESTION do we need to define this logger inside the class?
+        # could we just move & rename the file it creates after the process finishes?
         self.status_logger = logging.getLogger(self.collection_id)
         self.status_logger.setLevel(logging.INFO)
         status_handler = logging.FileHandler(
@@ -228,6 +231,7 @@ class DistilleryService(rpyc.Service):
                 self.cloud_platform.collection_level_preprocessing(
                     self.collection_id, work_preservation_files
                 )
+                cloudDistiller = True
 
         # for access publication
         accessDistiller = None
@@ -255,7 +259,10 @@ class DistilleryService(rpyc.Service):
         )
 
         # TODO consider running this loop here in order to log items within it or send the logger to the function
-        create_derivative_structure(self.variables, working_collection_directory, onsiteDistiller, cloudDistiller, accessDistiller)
+        create_derivative_structure(self.variables, working_collection_directory, collection_data, onsiteDistiller, cloudDistiller, accessDistiller)
+        message = f"☑️  DERIVATIVES CREATED"
+        logger.info(message)
+        self.status_logger.info(message)
 
         if self.onsite_medium:
             # TODO run in the background but wait for it before writing records to ArchivesSpace
@@ -273,7 +280,7 @@ class DistilleryService(rpyc.Service):
         # PROCESS PRESERVATION STRUCTURE
         # create an ArchivesSpace Digital Object Component for each preservation file
         if self.onsite_medium or self.cloud_platform:
-            loop_over_archival_object_datafiles(self.variables)
+            loop_over_archival_object_datafiles(self.variables, self.collection_id, self.onsite_medium, self.cloud_platform)
 
         # send the character that stops javascript reloading in the web ui
         self.status_logger.info(f"🟡")
@@ -1002,7 +1009,7 @@ def construct_file_version(variables):
         variables["preservation_file_info"]["filesize"]
     )
     file_key = str(variables["preservation_file_info"]["filepath"])[
-        len(f'{str(variables["WORK_LOSSLESS_PRESERVATION_FILES"])}/') :
+        len(f'{config("WORK_PRESERVATION_FILES")}/') :
     ]
     file_version[
         "file_uri"
@@ -1137,7 +1144,7 @@ def prepare_filepaths_list(folderpath):
     return filepaths
 
 
-def create_lossless_jpeg2000_image(variables):
+def create_lossless_jpeg2000_image(variables, collection_data):
     """Convert original image and ensure matching image signatures."""
     cut_cmd = sh.Command(config("WORK_CUT_CMD"))
     sha512sum_cmd = sh.Command(config("WORK_SHA512SUM_CMD"))
@@ -1177,7 +1184,7 @@ def create_lossless_jpeg2000_image(variables):
         filepath_components,
     )  # TODO rename functions
     preservation_image_path = (
-        Path(variables["WORK_LOSSLESS_PRESERVATION_FILES"])
+        Path(config("WORK_PRESERVATION_FILES"))
         .joinpath(preservation_image_key)
         .as_posix()
     )
@@ -1197,7 +1204,7 @@ def create_lossless_jpeg2000_image(variables):
         variables["folder_arrangement"],
         filepath_components,
         variables["folder_data"],
-        variables["collection_data"],
+        collection_data,
     )
     # Catch any conversion errors in order to skip file and continue.
     # TODO needs testing
@@ -1456,28 +1463,28 @@ def write_xmp_metadata(filepath, metadata):
     )
 
 
-def loop_over_archival_object_datafiles(variables):
+def loop_over_archival_object_datafiles(variables, collection_id, onsite, cloud):
     """
     {PRESERVATION_FILES}/CollectionID
     ├── CollectionID.json
     └── CollectionID-s01-Organizational-Records
         └── CollectionID_001_05-Annual-Meetings--1943  <-- list at this level
             ├── CollectionID_001_05_0001
-            │   └── ek7b_sk6n.jp2
+            │   └── ek7b_sk6n.jp2
             ├── CollectionID_001_05_0002
             │   └── 34at_tzc3.jp2
             └── CollectionID_001_05.json
     """
     preservation_collection_path = Path(
-        variables["WORK_LOSSLESS_PRESERVATION_FILES"]
-    ).joinpath(variables["collection_id"])
+        config("WORK_PRESERVATION_FILES")
+    ).joinpath(collection_id)
 
     # identify preservation_folders by JSON files like CollectionID_001_05.json
     # {PRESERVATION_FILES}/HBF/HBF-s01-Organizational-Records/HBF_001_05-Annual-Meetings--1943
     variables["preservation_folders"] = []
 
     for archival_object_datafile in preservation_collection_path.rglob(
-        f'{variables["collection_id"]}_*.json'
+        f'{collection_id}_*.json'
     ):
         variables["current_archival_object_datafile"] = archival_object_datafile
         variables["preservation_folders"].append(archival_object_datafile.parent)
@@ -1506,32 +1513,31 @@ def loop_over_archival_object_datafiles(variables):
         # original_image_path
         # preservation_folders
         # current_archival_object_datafile
-        if variables.get("onsite"):
-            variables["onsite_medium"].process_archival_object_datafile(variables)
-        if variables.get("cloud"):
-            variables["cloud_platform"].process_archival_object_datafile(variables)
-
+        if onsite:
+            onsite.process_archival_object_datafile(variables)
+        if cloud:
+            cloud.process_archival_object_datafile(variables)
     # TODO this loop does not need to be initiated from within this function
     # as long as variables has the right data
     # TODO check contents of folder_data if files are looped over independently
-    loop_over_preservation_files(variables)
+    loop_over_preservation_files(variables, onsite, cloud)
 
 
-def loop_over_preservation_files(variables):
+def loop_over_preservation_files(variables, onsite, cloud):
     """
     {PRESERVATION_FILES}/CollectionID
     ├── CollectionID.json
     └── CollectionID-s01-Organizational-Records
         └── CollectionID_001_05-Annual-Meetings--1943  <-- preservation_folder
             ├── CollectionID_001_05_0001               <-- dirname
-            │   └── ek7b_sk6n.jp2                      <-- filename
+            │   └── ek7b_sk6n.jp2                      <-- filename
             ├── CollectionID_001_05_0002
-            │   └── 34at_tzc3.jp2
+            │   └── 34at_tzc3.jp2
             └── CollectionID_001_05.json
     """
     for preservation_folder in variables["preservation_folders"]:
         # see https://stackoverflow.com/a/54790514 for os.walk explainer
-        for dirpath, dirnames, filenames in os.walk(preservation_folder):
+        for dirpath, dirnames, filenames in sorted(os.walk(preservation_folder)):
             # preservation_foldername = Path(dirpath).name
             for filename in filenames:
                 # logger.info(f'🐞 str(dirpath): {str(dirpath)}')
@@ -1553,12 +1559,12 @@ def loop_over_preservation_files(variables):
                     )
                     variables["preservation_file_info"]["mimetype"] = type
 
-                if variables.get("onsite"):
-                    variables["onsite_medium"].process_digital_object_component_file(
+                if onsite:
+                    onsite.process_digital_object_component_file(
                         variables
                     )
-                if variables.get("cloud"):
-                    variables["cloud_platform"].process_digital_object_component_file(
+                if cloud:
+                    cloud.process_digital_object_component_file(
                         variables
                     )
 
@@ -1604,7 +1610,7 @@ def create_preservation_files_structure(variables):
     create_derivative_structure(variables)
 
 
-def create_derivative_structure(variables, collection_directory, onsite, cloud, access):
+def create_derivative_structure(variables, collection_directory, collection_data, onsite, cloud, access):
     # TODO variables["folder_data"]
     # TODO variables["folder_arrangement"]
     """Loop over subdirectories inside ORIGINAL_FILES/CollectionID directory.
@@ -1643,6 +1649,7 @@ def create_derivative_structure(variables, collection_directory, onsite, cloud, 
             normalize_directory_component_id(subdirectory)
         )
         if not variables["folder_data"]:
+            logger.warning(f"⚠️  CONTINUING LOOP AT: {subdirectory}")
             continue
         variables["folder_arrangement"] = get_folder_arrangement(
             variables["folder_data"]
@@ -1658,10 +1665,10 @@ def create_derivative_structure(variables, collection_directory, onsite, cloud, 
         if access:
             access.archival_object_level_processing(variables)
 
-        create_derivative_files(variables, onsite, cloud, access)
+        create_derivative_files(variables, collection_data, onsite, cloud, access)
 
 
-def create_derivative_files(variables, onsite, cloud, access):
+def create_derivative_files(variables, collection_data, onsite, cloud, access):
     """Loop over files in subdirectories of ORIGINAL_FILES/CollectionID directory.
 
     Example:
@@ -1695,8 +1702,12 @@ def create_derivative_files(variables, onsite, cloud, access):
         if onsite or cloud:
             # TODO import mimetypes; mimetypes.guess_type(filepath)
 
-            # Create lossless JPEG 2000 image from original.
-            create_lossless_jpeg2000_image(variables)
+            try:
+                # Create lossless JPEG 2000 image from original.
+                create_lossless_jpeg2000_image(variables, collection_data)
+            except Exception as e:
+                logger.error(f"❌ {str(e)}")
+                continue
 
             # TODO create digital_object_component
             # TODO refactor based on mimetype
