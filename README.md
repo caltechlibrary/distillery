@@ -33,7 +33,7 @@ For copying to the cloud we are using and assuming AWS S3. For publishing access
 
 1. Clone the [Distillery](https://github.com/caltechlibrary/distillery) repository.
 1. Run `pipenv install` within the project directory.
-1. Copy the `example-settings.ini` file to `settings.ini` and set appropriate values.
+1. Copy the `settings.ini-example` file to `settings.ini` and set appropriate values.
     - ensure the `WEB_NAS_APPS_MOUNTPOINT` and `NAS_STATUS_FILES_RELATIVE_PATH` values are set
 1. Copy the `example-users.csv` file to `users.csv` and add authorized users.
 
@@ -46,7 +46,7 @@ For copying to the cloud we are using and assuming AWS S3. For publishing access
 
 1. Clone the [Distillery](https://github.com/caltechlibrary/distillery) repository.
 1. Run `pipenv install` within the project directory.
-1. Copy the `example-settings.ini` file to `settings.ini` and set appropriate values.
+1. Copy the `settings.ini-example` file to `settings.ini` and set appropriate values.
     - most values need to be set
 
 For the preservation and publication components:
