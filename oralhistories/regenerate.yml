@@ -28,10 +28,12 @@ jobs:
           node-version: '14.x'
 
       - name: Install other packages
+        env:
+          pandoc_version: '3.1'
         run: |
-          wget --no-verbose https://github.com/jgm/pandoc/releases/download/2.19.2/pandoc-2.19.2-1-amd64.deb
-          sudo dpkg -i pandoc-2.19.2-1-amd64.deb
-          rm pandoc-2.19.2-1-amd64.deb
+          wget --no-verbose https://github.com/jgm/pandoc/releases/download/${pandoc_version}/pandoc-${pandoc_version}-1-amd64.deb
+          sudo dpkg -i pandoc-${pandoc_version}-1-amd64.deb
+          rm pandoc-${pandoc_version}-1-amd64.deb
           npm install -g pagedjs-cli pagedjs
 
       - name: 🐞 pandoc --version
