@@ -371,27 +371,6 @@ def archivessnake_delete(uri):
     return response
 
 
-def calculate_pixel_signature(filepath):
-    return sh.cut(
-        sh.sha512sum(
-            sh.magick.stream_path(
-                "-quiet",
-                "-map",
-                "rgb",
-                "-storage-type",
-                "short",
-                filepath,
-                "-",
-                _piped=True,
-            )
-        ),
-        "-d",
-        " ",
-        "-f",
-        "1",
-    )
-
-
 def collection_identifiers_match(collection_id, collection_data):
     if collection_id != collection_data["id_0"]:
         return False
@@ -436,21 +415,6 @@ def confirm_digital_object_id(folder_data):
                 #     f"❇️ updated digital_object_id: {instance['digital_object']['_resolved']['digital_object_id']} ➡️ {folder_data['component_id']} {instance['digital_object']['ref']}"
                 # )
     return folder_data
-
-
-def confirm_file(filepath):
-    # confirm file exists and has the proper extention
-    # valid extensions are: .tif, .tiff
-    # NOTE: no mime type checking at this point, some TIFFs were troublesome
-    if os.path.isfile(filepath):
-        if os.path.splitext(filepath)[1] not in [".tif", ".tiff"]:
-            print("❌  invalid file type: " + filepath)
-            # TODO raise exception
-            exit()
-    else:
-        print("❌  invalid file path: " + filepath)
-        # TODO raise exception
-        exit()
 
 
 def create_digital_object(folder_data):
@@ -730,11 +694,6 @@ def get_folder_data(component_id):
     archival_object_get_response.raise_for_status()
     logger.info(f"☑️  ARCHIVAL OBJECT FOUND: {component_id}")
     return archival_object_get_response.json()
-
-
-def get_folder_id(filepath):
-    # isolate the filename and then get the folder id
-    return filepath.split("/")[-1].rsplit("_", 1)[0]
 
 
 def get_s3_aip_folder_key(prefix, folder_data):
@@ -1065,10 +1024,6 @@ def construct_file_version(variables):
     return file_version
 
 
-def add_file_version(variables):
-    variables = construct_file_version(variables)
-
-
 def prepare_digital_object_component(folder_data, PRESERVATION_BUCKET, aip_image_data):
     # MINIMAL REQUIREMENTS: digital_object and one of label, title, or date
     # FILE VERSIONS MINIMAL REQUIREMENTS: file_uri
@@ -1273,112 +1228,6 @@ def create_lossless_jpeg2000_image(variables, collection_data):
     )
 
 
-def process_aip_image(filepath, collection_data, folder_arrangement, folder_data):
-    # TODO REMOVE; DEPRECATED IN FAVOR OF create_lossless_jpeg2000_image()
-
-    # cut out only the checksum string for the pixel stream
-    # NOTE running this process in the background saves time because
-    # the conversion starts soon after in a different subprocess
-    cut_cmd = sh.Command(config("WORK_CUT_CMD"))
-    sha512sum_cmd = sh.Command(config("WORK_SHA512SUM_CMD"))
-    magick_cmd = sh.Command(config("WORK_MAGICK_CMD"))
-    sip_image_signature = cut_cmd(
-        sha512sum_cmd(
-            magick_cmd.stream(
-                "-quiet",
-                "-map",
-                "rgb",
-                "-storage-type",
-                "short",
-                filepath,
-                "-",
-                _piped=True,
-                _bg=True,
-            ),
-            _bg=True,
-        ),
-        "-d",
-        " ",
-        "-f",
-        "1",
-        _bg=True,
-    )
-    aip_image_path = os.path.splitext(filepath)[0] + "-LOSSLESS.jp2"
-    aip_image_conversion = magick_cmd.convert(
-        "-quiet", filepath, "-quality", "0", aip_image_path, _bg=True
-    )
-    file_parts = get_file_parts(filepath)
-    xmp_dc = get_xmp_dc_metadata(
-        folder_arrangement, file_parts, folder_data, collection_data
-    )
-    # catch any conversion errors in order to skip file and continue
-    try:
-        aip_image_conversion.wait()
-    except Exception as e:
-        # TODO log unfriendly `str(e)` instead of sending it along
-        # EXAMPLE:
-        # RAN: /usr/local/bin/magick convert -quiet /path/to/HBF/HBF_001_02/HBF_001_02_00.tif -quality 0 /path/to/HBF/HBF_001_02/HBF_001_02_00-LOSSLESS.jp2
-        # STDOUT:
-        # STDERR:
-        # convert: Cannot read TIFF header. `/path/to/HBF/HBF_001_02/HBF_001_02_00.tif' @ error/tiff.c/TIFFErrors/595.
-        # convert: no images defined `/path/to/HBF/HBF_001_02/HBF_001_02_00-LOSSLESS.jp2' @ error/convert.c/ConvertImageCommand/3304.
-        raise RuntimeError(str(e))
-    write_xmp_metadata(aip_image_path, xmp_dc)
-    # cut out only the checksum string for the pixel stream
-    aip_image_signature = cut_cmd(
-        sha512sum_cmd(
-            magick_cmd.stream(
-                "-quiet",
-                "-map",
-                "rgb",
-                "-storage-type",
-                "short",
-                aip_image_path,
-                "-",
-                _piped=True,
-                _bg=True,
-            ),
-            _bg=True,
-        ),
-        "-d",
-        " ",
-        "-f",
-        "1",
-        _bg=True,
-    )
-    # TODO change `get_aip_image_data()` to `get_initial_aip_image_data()`
-    aip_image_data = get_aip_image_data(aip_image_path)
-    sip_image_signature.wait()
-    aip_image_signature.wait()
-    # verify image signatures match
-    if aip_image_signature != sip_image_signature:
-        raise RuntimeError(
-            f'❌ image signatures did not match: {file_parts["filestem"]}'
-        )
-    aip_image_s3key = get_s3_aip_image_key(
-        get_s3_aip_folder_prefix(folder_arrangement, folder_data), file_parts
-    )
-    # Add more values to `aip_image_data` dictionary.
-    aip_image_data["component_id"] = file_parts["crockford_id"]
-    aip_image_data["sequence"] = file_parts["sequence"]
-    # TODO change `s3key` to something more generic; also use for tape filepath
-    aip_image_data["s3key"] = aip_image_s3key
-    """
-    {'component_id': 'y38m_hmsk',
-    'filepath': '/path/to/WORKING_ORIGINAL_FILES/HBF/HBF_01_05/HBF_01_05_01-LOSSLESS.jp2',
-    'filesize': '29775552',
-    'height': '6538',
-    'md5': <md5 HASH object @ 0x7f85fe823a10>,
-    'quantization': 'no quantization',
-    's3key': 'HBF/HBF-s01-Organizational-Records/HBF_001_05-Annual-Meetings--1943/HBF_01_05_0001/y38m_hmsk.jp2',
-    'sequence': '0001',
-    'standard': 'ISO/IEC 15444-1',
-    'transformation': '5-3 reversible',
-    'width': '5054'}
-    """
-    return aip_image_data
-
-
 def process_folder_metadata(folderpath):
     try:
         folder_data = get_folder_data(normalize_directory_component_id(folderpath))
@@ -1438,31 +1287,6 @@ def update_digital_object(uri, data):
     response.raise_for_status()
     archivesspace_logger.info(response.json()["uri"])
     return response
-
-
-def validate_settings():
-    WORKING_ORIGINAL_FILES = Path(
-        os.path.expanduser(config("WORKING_ORIGINAL_FILES"))
-    ).resolve(
-        strict=True
-    )  # NOTE do not create missing `WORKING_ORIGINAL_FILES`
-    STAGE_3_ORIGINAL_FILES = directory_setup(
-        os.path.expanduser(config("STAGE_3_ORIGINAL_FILES"))
-    ).resolve(strict=True)
-    PRESERVATION_BUCKET = config(
-        "PRESERVATION_BUCKET"
-    )  # TODO validate access to bucket
-    WORK_LOSSLESS_PRESERVATION_FILES = directory_setup(
-        os.path.expanduser(
-            f'{config("WORK_NAS_ARCHIVES_MOUNTPOINT")}/{config("NAS_LOSSLESS_PRESERVATION_FILES_RELATIVE_PATH")}'
-        )
-    ).resolve(strict=True)
-    return (
-        WORKING_ORIGINAL_FILES,
-        STAGE_3_ORIGINAL_FILES,
-        PRESERVATION_BUCKET,
-        WORK_LOSSLESS_PRESERVATION_FILES,
-    )
 
 
 def write_xmp_metadata(filepath, metadata):
