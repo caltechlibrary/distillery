@@ -112,7 +112,6 @@
     % if step == "validating":
     <form action="{{distillery_base_url}}" method="post">
       <input type="hidden" id="collection_id" name="collection_id" value="{{collection_id}}">
-      <input type="hidden" id="timestamp" name="timestamp" value="{{timestamp}}">
       <input type="hidden" id="destinations" name="destinations" value="{{destinations}}">
       <input type="hidden" id="step" name="step" value="running">
       <div class="grid">
