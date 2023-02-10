@@ -3,8 +3,6 @@
 
 # processing functionality; see web.py for bottlepy web application
 
-import base64
-import concurrent.futures
 import hashlib
 import importlib
 import json
@@ -16,15 +14,13 @@ import os
 import random
 import shutil
 import string
-import sys
 import time
-from datetime import datetime
+
 from pathlib import Path
 
-import boto3
-import botocore
 import rpyc
 import sh
+
 from asnake.client import ASnakeClient
 from decouple import config
 from jpylyzer import jpylyzer
