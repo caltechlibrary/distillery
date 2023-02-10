@@ -107,7 +107,7 @@
     % if step == "validating" or step == "running":
     <details>
       <summary>Details</summary>
-      <iframe id="log" src="{{distillery_base_url}}/log/{{collection_id}}/{{timestamp}}"></iframe>
+      <iframe id="log" src="{{distillery_base_url}}/log"></iframe>
     </details>
     % if step == "validating":
     <form action="{{distillery_base_url}}" method="post">

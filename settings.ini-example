@@ -50,6 +50,8 @@
 ;WEB_STATUS_FILES=/path/to/status/files
 ;WORK_STATUS_FILES=/path/to/status/files
 
+;WORK_LOG_FILES=/path/to/log/files
+
 ; INITIAL_ORIGINAL_FILES: (directory) location before any processing; CASC puts collection directories here
 ;INITIAL_ORIGINAL_FILES=/path/to/INITIAL_ORIGINAL_FILES
 ; WORKING_ORIGINAL_FILES: (directory) distillery.py moves collection directories here before processing
