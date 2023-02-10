@@ -40,6 +40,15 @@ logging.config.fileConfig(
 logger = logging.getLogger("distillery")
 archivesspace_logger = logging.getLogger("archivesspace")
 validation_logger = logging.getLogger("validation")
+status_logger = logging.getLogger("status")
+status_logger.setLevel(logging.INFO)
+status_logfile = (Path(config("WORK_STATUS_FILES")).joinpath("status.log"))
+status_handler = logging.FileHandler(status_logfile)
+status_handler.setLevel(logging.INFO)
+status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
+# HACK prevent duplicate handlers with circular imports
+if len(status_logger.handlers) == 0:
+    status_logger.addHandler(status_handler)
 
 # TODO do we need a class? https://stackoverflow.com/a/16502408/4100024
 # we have 8 functions that need an authorized connection to ArchivesSpace
@@ -57,25 +66,10 @@ class DistilleryService(rpyc.Service):
         self.collection_id = collection_id
         self.destinations = destinations
         self.timestamp = timestamp
-        self.status_logger = None
         self.onsite_medium = None
         self.cloud_platform = None
         self.access_platform = None
         self.variables = {}
-
-    def _create_status_logger(self):
-        # QUESTION do we need to define this logger inside the class?
-        # could we just move & rename the file it creates after the process finishes?
-        self.status_logger = logging.getLogger(self.collection_id)
-        self.status_logger.setLevel(logging.INFO)
-        status_handler = logging.FileHandler(
-            Path(config("WORK_STATUS_FILES")).joinpath(
-                f"{self.collection_id}.{self.timestamp}.log"
-            )
-        )
-        status_handler.setLevel(logging.INFO)
-        status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
-        self.status_logger.addHandler(status_handler)
 
     def _import_modules(self):
         if "onsite" in self.destinations and config("ONSITE_MEDIUM"):
@@ -84,7 +78,7 @@ class DistilleryService(rpyc.Service):
                 self.onsite_medium = importlib.import_module(config("ONSITE_MEDIUM"))
             except Exception:
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("ONSITE_MEDIUM")}'
-                self.status_logger.error(message)
+                status_logger.error(message)
                 raise
         if "cloud" in self.destinations and config("CLOUD_PLATFORM"):
             # import CLOUD_PLATFORM module
@@ -92,7 +86,7 @@ class DistilleryService(rpyc.Service):
                 self.cloud_platform = importlib.import_module(config("CLOUD_PLATFORM"))
             except Exception:
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("CLOUD_PLATFORM")}'
-                self.status_logger.error(message)
+                status_logger.error(message)
                 raise
         if "access" in self.destinations and config("ACCESS_PLATFORM"):
             # import ACCESS_PLATFORM module
@@ -102,15 +96,19 @@ class DistilleryService(rpyc.Service):
                 )
             except Exception:
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("ACCESS_PLATFORM")}'
-                self.status_logger.error(message)
+                status_logger.error(message)
                 raise
 
     @rpyc.exposed
     def validate(self, collection_id, destinations, timestamp):
+        """Validate connections, files, and data."""
+        # reset status_logfile
+        with open(status_logfile, "w") as f:
+            pass
+
         self._initiate_variables(collection_id, destinations, timestamp)
 
-        self._create_status_logger()
-        self.status_logger.info(
+        status_logger.info(
             f"🟢 BEGIN VALIDATING COMPONENTS FOR {self.collection_id}"
         )
 
@@ -120,28 +118,28 @@ class DistilleryService(rpyc.Service):
             # validate ONSITE_MEDIUM connection
             if self.onsite_medium.validate_connection():
                 message = f'☑️  CONNECTION SUCCESS: {config("ONSITE_MEDIUM")}'
-                self.status_logger.info(message)
+                status_logger.info(message)
             else:
                 message = f'❌ CONNECTION FAILURE: {config("ONSITE_MEDIUM")}'
-                self.status_logger.error(message)
+                status_logger.error(message)
                 raise ConnectionError(message)
         if self.cloud_platform:
             # validate CLOUD_PLATFORM connection
             if self.cloud_platform.validate_connection():
                 message = f'☑️  CONNECTION SUCCESS: {config("CLOUD_PLATFORM")}'
-                self.status_logger.info(message)
+                status_logger.info(message)
             else:
                 message = f'❌ CONNECTION FAILURE: {config("CLOUD_PLATFORM")}'
-                self.status_logger.error(message)
+                status_logger.error(message)
                 raise ConnectionError(message)
         if self.access_platform:
             # validate ACCESS_PLATFORM connection
             if self.access_platform.validate_connection():
                 message = f'☑️  CONNECTION SUCCESS: {config("ACCESS_PLATFORM")}'
-                self.status_logger.info(message)
+                status_logger.info(message)
             else:
                 message = f'❌ CONNECTION FAILURE: {config("ACCESS_PLATFORM")}'
-                self.status_logger.error(message)
+                status_logger.error(message)
                 raise ConnectionError(message)
 
         try:
@@ -151,12 +149,12 @@ class DistilleryService(rpyc.Service):
                     self.collection_id, config("INITIAL_ORIGINAL_FILES")
                 )
                 message = f"☑️  COLLECTION DIRECTORY FOUND: {self.collection_id}"
-                self.status_logger.info(message)
+                status_logger.info(message)
             else:
                 raise NotADirectoryError(config("INITIAL_ORIGINAL_FILES"))
         except NotADirectoryError as e:
             message = f"❌ DIRECTORY NOT FOUND: {str(e)}"
-            self.status_logger.error(message)
+            status_logger.error(message)
             # re-raise the exception because we cannot continue without the files
             raise
 
@@ -169,7 +167,7 @@ class DistilleryService(rpyc.Service):
                 for dirname in dirnames:
                     # count and list subdirectories in the collection directory
                     initial_original_subdirectorycount += 1
-                    self.status_logger.info(f"📁 {self.collection_id}/{dirname}")
+                    status_logger.info(f"📁 {self.collection_id}/{dirname}")
             if filenames:
                 for filename in filenames:
                     type, encoding = mimetypes.guess_type(
@@ -181,38 +179,45 @@ class DistilleryService(rpyc.Service):
                         initial_original_filecount += 1
         if not initial_original_subdirectorycount:
             message = f"❌ No subdirectories found under {self.collection_id} directory"
-            self.status_logger.error(message)
+            status_logger.error(message)
             raise FileNotFoundError(message)
         if initial_original_filecount:
             logger.info(f"☑️  TIFF FILE COUNT: {initial_original_filecount}")
-            self.status_logger.info(f"📄 TIFF file count: {initial_original_filecount}")
+            status_logger.info(f"📄 TIFF file count: {initial_original_filecount}")
         else:
             message = f"❌ No TIFF files found for {self.collection_id}"
-            self.status_logger.error(message)
+            status_logger.error(message)
             raise FileNotFoundError(message)
 
         # validate collection in ArchivesSpace
         collection_data = get_collection_data(self.collection_id)
-        self.status_logger.info(
+        status_logger.info(
             f'☑️  ARCHIVESSPACE COLLECTION FOUND: [**{collection_data["title"]}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={collection_data["uri"]})'
         )
 
         # send the character that stops javascript reloading in the web ui
-        self.status_logger.info(f"🟡")
+        status_logger.info(f"🟡")
+        # copy the status_logfile to the logs directory
+        logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(f"{self.collection_id}.{str(int(time.time()))}.validate.log")
+        shutil.copy2(status_logfile, logfile_dst)
+        logger.info(f"☑️  COPIED VALIDATE LOG FILE: {logfile_dst}")
 
     @rpyc.exposed
     def run(self, collection_id, destinations, timestamp):
+        """Run Distillery."""
+        # reset status_logfile
+        with open(status_logfile, "w") as f:
+            pass
         self._initiate_variables(collection_id, destinations, timestamp)
-        self._create_status_logger()
-        self.status_logger.info(f"🟢 BEGIN DISTILLING: {self.collection_id}")
+        status_logger.info(f"🟢 BEGIN DISTILLING: {self.collection_id}")
         self._import_modules()
-        self.status_logger.info(
+        status_logger.info(
             f'☑️  DESTINATIONS: {self.destinations.replace("_", ", ")}'
         )
 
         # retrieve collection data from ArchivesSpace
         collection_data = get_collection_data(self.collection_id)
-        self.status_logger.info(
+        status_logger.info(
             f'☑️  ARCHIVESSPACE COLLECTION DATA RETRIEVED: [**{collection_data["title"]}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={collection_data["uri"]})'
         )
 
@@ -249,7 +254,7 @@ class DistilleryService(rpyc.Service):
             )
         except BaseException as e:
             message = "❌ unable to move the source files for processing"
-            self.status_logger.info(message)
+            status_logger.info(message)
             logger.error(f"❌ {e}")
             # re-raise the exception because we cannot continue without the files
             raise
@@ -262,7 +267,7 @@ class DistilleryService(rpyc.Service):
         create_derivative_structure(self.variables, working_collection_directory, collection_data, onsiteDistiller, cloudDistiller, accessDistiller)
         message = f"☑️  DERIVATIVES CREATED"
         logger.info(message)
-        self.status_logger.info(message)
+        status_logger.info(message)
 
         if self.onsite_medium:
             # TODO run in the background but wait for it before writing records to ArchivesSpace
@@ -283,7 +288,11 @@ class DistilleryService(rpyc.Service):
             loop_over_archival_object_datafiles(self.variables, self.collection_id, self.onsite_medium, self.cloud_platform)
 
         # send the character that stops javascript reloading in the web ui
-        self.status_logger.info(f"🟡")
+        status_logger.info(f"🟡")
+        # copy the status_logfile to the logs directory
+        logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(f"{self.collection_id}.{str(int(time.time()))}.run.log")
+        shutil.copy2(status_logfile, logfile_dst)
+        logger.info(f"☑️  COPIED RUN LOG FILE: {logfile_dst}")
 
 
 def confirm_collection_directory(collection_id, parent_directory):

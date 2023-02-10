@@ -96,10 +96,10 @@ def distillery_post():
     )
 
 
-@bottle.route("/log/<collection_id>/<timestamp>")
-def log(collection_id, timestamp):
+@bottle.route("/log")
+def log():
     with open(
-        Path(config("WEB_STATUS_FILES")).joinpath(f"{collection_id}.{timestamp}.log"),
+        Path(config("WEB_STATUS_FILES")).joinpath("status.log"),
         encoding="utf-8",
     ) as f:
         return bottle.template("distillery_log", log=f.readlines())
