@@ -62,10 +62,9 @@ asnake_client.authorize()
 
 @rpyc.service
 class DistilleryService(rpyc.Service):
-    def _initiate_variables(self, collection_id, destinations, timestamp):
+    def _initiate_variables(self, collection_id, destinations):
         self.collection_id = collection_id
         self.destinations = destinations
-        self.timestamp = timestamp
         self.onsite_medium = None
         self.cloud_platform = None
         self.access_platform = None
@@ -100,13 +99,13 @@ class DistilleryService(rpyc.Service):
                 raise
 
     @rpyc.exposed
-    def validate(self, collection_id, destinations, timestamp):
+    def validate(self, collection_id, destinations):
         """Validate connections, files, and data."""
         # reset status_logfile
         with open(status_logfile, "w") as f:
             pass
 
-        self._initiate_variables(collection_id, destinations, timestamp)
+        self._initiate_variables(collection_id, destinations)
 
         status_logger.info(f"🟢 BEGIN VALIDATING COMPONENTS FOR {self.collection_id}")
 
@@ -203,12 +202,12 @@ class DistilleryService(rpyc.Service):
         logger.info(f"☑️  COPIED VALIDATE LOG FILE: {logfile_dst}")
 
     @rpyc.exposed
-    def run(self, collection_id, destinations, timestamp):
+    def run(self, collection_id, destinations):
         """Run Distillery."""
         # reset status_logfile
         with open(status_logfile, "w") as f:
             pass
-        self._initiate_variables(collection_id, destinations, timestamp)
+        self._initiate_variables(collection_id, destinations)
         status_logger.info(f"🟢 BEGIN DISTILLING: {self.collection_id}")
         self._import_modules()
         status_logger.info(f'☑️  DESTINATIONS: {self.destinations.replace("_", ", ")}')

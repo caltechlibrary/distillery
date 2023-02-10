@@ -65,10 +65,6 @@ def distillery_post():
     )
     # TODO sanitize collection_id
     collection_id = bottle.request.forms.get("collection_id").strip()
-    timestamp = str(int(time.time()))
-    Path(config("WEB_STATUS_FILES")).joinpath(
-        f"{collection_id}.{timestamp}.log"
-    ).touch()
     # NOTE using getall() wraps single and multiple values in a list;
     # allows reuse of the same field name; only strings seem to work with rpyc
     # TODO sanitize destinations
@@ -79,19 +75,18 @@ def distillery_post():
         distillery_validate = rpyc.async_(
             distillery_work_server_connection.root.validate
         )
-        async_result = distillery_validate(collection_id, destinations, timestamp)
+        async_result = distillery_validate(collection_id, destinations)
     if bottle.request.forms.get("step") == "running":
         step = "running"
         # asynchronously run on WORK server
         distillery_run = rpyc.async_(distillery_work_server_connection.root.run)
-        async_result = distillery_run(collection_id, destinations, timestamp)
+        async_result = distillery_run(collection_id, destinations)
     return bottle.template(
         "distillery",
         distillery_base_url=config("BASE_URL").rstrip("/"),
         user=authorize_user(),
         step=step,
         collection_id=collection_id,
-        timestamp=timestamp,
         destinations=destinations,
     )
 
