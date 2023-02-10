@@ -22,6 +22,7 @@ s3_client = boto3.client(
     aws_secret_access_key=config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
 )
 
+
 class AccessPlatform:
     def __init__(self, collection_id, collection_data):
         self.collection_id = collection_id
@@ -49,6 +50,7 @@ class AccessPlatform:
 
     def loop_over_derivative_structure(self, variables):
         logger.info(f"🐞 LOOP OVER DERIVATIVE STRUCTURE: {self.collection_id}")
+
 
 def validate_connection():
     try:
