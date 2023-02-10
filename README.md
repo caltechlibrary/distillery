@@ -1,14 +1,14 @@
 # Distillery
 
-Caltech Archives & Special Collections automated system for preparing and sending preservation files to tape and the cloud (S3), preparing and sending access files to a viewing system (Islandora), and recording all the files and locations in ArchivesSpace.
+Caltech Archives & Special Collections automated system for preparing and sending preservation files to tape and the cloud, preparing and sending access files to a display system, and recording all the files and locations in ArchivesSpace.
 
 ## Architecture
 
 - `web.py` checks user authorization, runs the web form, triggers the status files, and displays status
-- `distillery.py` contains the main script that, depending on the options selected, retrieves metadata, converts images, writes metadata, uploads to S3, and creates ArchivesSpace records
+- `distillery.py` contains the main script that, depending on the options selected, retrieves metadata, converts images, writes metadata, transmits preservation files, and creates ArchivesSpace records
 - `tape.py`
 - `s3.py`
-- `islandora.py` converts metadata and TIFFs to formats for Islandora, uploads and ingests the archival object folders as “book” items, records the proper digital object URLs in ArchivesSpace
+- `alchemist.py` IN DEVELOPMENT
 
 ## Server Explanation
 
@@ -18,31 +18,30 @@ The WORK server needs a service listening for [RPyC](https://rpyc.readthedocs.io
 
 We assume another server for ArchivesSpace and another that has a tape drive attached.
 
-For copying to the cloud we are using and assuming AWS S3. For publishing access copies we are currently using a separate server that runs Islandora 7.
+For copying to the cloud we are using and assuming AWS S3. For publishing access copies we are developing a IIIF-based static HTML system.
 
 ## General Requirements
 
 - ArchivesSpace
 
-## Web Server Requirements
+## WEB Server Requirements
 
 - WSGI support (for example, `mod_wsgi` with Apache)
 - User authentication (for example, HTTP Basic authentication or Shibboleth)
 
-## Web Server Setup Steps
+## WEB Server Setup Steps
 
 1. Clone the [Distillery](https://github.com/caltechlibrary/distillery) repository.
 1. Run `pipenv install` within the project directory.
 1. Copy the `settings.ini-example` file to `settings.ini` and set appropriate values.
-    - ensure the `WEB_NAS_APPS_MOUNTPOINT` and `NAS_STATUS_FILES_RELATIVE_PATH` values are set
 1. Copy the `example-users.csv` file to `users.csv` and add authorized users.
 
-## Processing Server Requirements
+## WORK Server Requirements
 
 - common utilities (`cut`, `sha512sum`, `rsync`)
 - specialized utilities (`exiftool`, `kdu_compress`, `magick`, `tesseract`)
 
-## Processing Server Setup Steps
+## WORK Server Setup Steps
 
 1. Clone the [Distillery](https://github.com/caltechlibrary/distillery) repository.
 1. Run `pipenv install` within the project directory.
