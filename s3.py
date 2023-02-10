@@ -115,13 +115,9 @@ def collection_level_preprocessing(collection_id, work_preservation_files):
 
 def transfer_collection_datafile(collection_id, work_preservation_files):
     """POST collection data to S3 bucket as a JSON file."""
-    collection_datafile_key = Path(collection_id).joinpath(
-        f'{collection_id}.json'
-    )
+    collection_datafile_key = Path(collection_id).joinpath(f"{collection_id}.json")
     collection_datafile_path = (
-        Path(work_preservation_files)
-        .joinpath(collection_datafile_key)
-        .resolve()
+        Path(work_preservation_files).joinpath(collection_datafile_key).resolve()
     )
     s3_client.put_object(
         Bucket=config("PRESERVATION_BUCKET"),

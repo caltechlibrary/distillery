@@ -42,7 +42,7 @@ archivesspace_logger = logging.getLogger("archivesspace")
 validation_logger = logging.getLogger("validation")
 status_logger = logging.getLogger("status")
 status_logger.setLevel(logging.INFO)
-status_logfile = (Path(config("WORK_STATUS_FILES")).joinpath("status.log"))
+status_logfile = Path(config("WORK_STATUS_FILES")).joinpath("status.log")
 status_handler = logging.FileHandler(status_logfile)
 status_handler.setLevel(logging.INFO)
 status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
@@ -108,9 +108,7 @@ class DistilleryService(rpyc.Service):
 
         self._initiate_variables(collection_id, destinations, timestamp)
 
-        status_logger.info(
-            f"🟢 BEGIN VALIDATING COMPONENTS FOR {self.collection_id}"
-        )
+        status_logger.info(f"🟢 BEGIN VALIDATING COMPONENTS FOR {self.collection_id}")
 
         self._import_modules()
 
@@ -198,7 +196,9 @@ class DistilleryService(rpyc.Service):
         # send the character that stops javascript reloading in the web ui
         status_logger.info(f"🟡")
         # copy the status_logfile to the logs directory
-        logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(f"{self.collection_id}.{str(int(time.time()))}.validate.log")
+        logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(
+            f"{self.collection_id}.{str(int(time.time()))}.validate.log"
+        )
         shutil.copy2(status_logfile, logfile_dst)
         logger.info(f"☑️  COPIED VALIDATE LOG FILE: {logfile_dst}")
 
@@ -211,9 +211,7 @@ class DistilleryService(rpyc.Service):
         self._initiate_variables(collection_id, destinations, timestamp)
         status_logger.info(f"🟢 BEGIN DISTILLING: {self.collection_id}")
         self._import_modules()
-        status_logger.info(
-            f'☑️  DESTINATIONS: {self.destinations.replace("_", ", ")}'
-        )
+        status_logger.info(f'☑️  DESTINATIONS: {self.destinations.replace("_", ", ")}')
 
         # retrieve collection data from ArchivesSpace
         collection_data = get_collection_data(self.collection_id)
@@ -264,7 +262,14 @@ class DistilleryService(rpyc.Service):
         )
 
         # TODO consider running this loop here in order to log items within it or send the logger to the function
-        create_derivative_structure(self.variables, working_collection_directory, collection_data, onsiteDistiller, cloudDistiller, accessDistiller)
+        create_derivative_structure(
+            self.variables,
+            working_collection_directory,
+            collection_data,
+            onsiteDistiller,
+            cloudDistiller,
+            accessDistiller,
+        )
         message = f"☑️  DERIVATIVES CREATED"
         logger.info(message)
         status_logger.info(message)
@@ -285,12 +290,19 @@ class DistilleryService(rpyc.Service):
         # PROCESS PRESERVATION STRUCTURE
         # create an ArchivesSpace Digital Object Component for each preservation file
         if self.onsite_medium or self.cloud_platform:
-            loop_over_archival_object_datafiles(self.variables, self.collection_id, self.onsite_medium, self.cloud_platform)
+            loop_over_archival_object_datafiles(
+                self.variables,
+                self.collection_id,
+                self.onsite_medium,
+                self.cloud_platform,
+            )
 
         # send the character that stops javascript reloading in the web ui
         status_logger.info(f"🟡")
         # copy the status_logfile to the logs directory
-        logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(f"{self.collection_id}.{str(int(time.time()))}.run.log")
+        logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(
+            f"{self.collection_id}.{str(int(time.time()))}.run.log"
+        )
         shutil.copy2(status_logfile, logfile_dst)
         logger.info(f"☑️  COPIED RUN LOG FILE: {logfile_dst}")
 
@@ -1484,16 +1496,16 @@ def loop_over_archival_object_datafiles(variables, collection_id, onsite, cloud)
             │   └── 34at_tzc3.jp2
             └── CollectionID_001_05.json
     """
-    preservation_collection_path = Path(
-        config("WORK_PRESERVATION_FILES")
-    ).joinpath(collection_id)
+    preservation_collection_path = Path(config("WORK_PRESERVATION_FILES")).joinpath(
+        collection_id
+    )
 
     # identify preservation_folders by JSON files like CollectionID_001_05.json
     # {PRESERVATION_FILES}/HBF/HBF-s01-Organizational-Records/HBF_001_05-Annual-Meetings--1943
     variables["preservation_folders"] = []
 
     for archival_object_datafile in preservation_collection_path.rglob(
-        f'{collection_id}_*.json'
+        f"{collection_id}_*.json"
     ):
         variables["current_archival_object_datafile"] = archival_object_datafile
         variables["preservation_folders"].append(archival_object_datafile.parent)
@@ -1569,13 +1581,9 @@ def loop_over_preservation_files(variables, onsite, cloud):
                     variables["preservation_file_info"]["mimetype"] = type
 
                 if onsite:
-                    onsite.process_digital_object_component_file(
-                        variables
-                    )
+                    onsite.process_digital_object_component_file(variables)
                 if cloud:
-                    cloud.process_digital_object_component_file(
-                        variables
-                    )
+                    cloud.process_digital_object_component_file(variables)
 
 
 def get_preservation_image_data(filepath):
@@ -1619,7 +1627,9 @@ def create_preservation_files_structure(variables):
     create_derivative_structure(variables)
 
 
-def create_derivative_structure(variables, collection_directory, collection_data, onsite, cloud, access):
+def create_derivative_structure(
+    variables, collection_directory, collection_data, onsite, cloud, access
+):
     # TODO variables["folder_data"]
     # TODO variables["folder_arrangement"]
     """Loop over subdirectories inside ORIGINAL_FILES/CollectionID directory.
@@ -1635,9 +1645,9 @@ def create_derivative_structure(variables, collection_directory, collection_data
     └── CollectionID_007_08
     """
     # NOTE [::-1] makes a reverse copy of the list for use with pop() below
-    subdirectories = [str(s) for s in Path(collection_directory).iterdir() if s.is_dir()][
-        ::-1
-    ]
+    subdirectories = [
+        str(s) for s in Path(collection_directory).iterdir() if s.is_dir()
+    ][::-1]
     for _ in range(len(subdirectories)):
         # Using pop() (and/or range(len()) above) maybe helps to be sure that if
         # archival object metadata fails to process properly, it and its images
