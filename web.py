@@ -10,26 +10,15 @@ from gevent import monkey; monkey.patch_all()
 
 import logging.config
 import os
-import shutil
 import time
 
 from csv import DictReader
 from pathlib import Path
 
-import rpyc
-import tailer
-from bottle import (
-    abort,
-    default_app,
-    error,
-    get,
-    post,
-    request,
-    response,
-    template,
-)
-from decouple import config
 import bottle
+import rpyc
+
+from decouple import config
 
 bottle.TEMPLATES.clear()
 bottle.TEMPLATE_PATH.insert(0, str(Path(__file__).parent.resolve().joinpath("views")))
@@ -42,7 +31,7 @@ logging.config.fileConfig(
 logger = logging.getLogger("web")
 
 
-@error(403)
+@bottle.error(403)
 def error403(error):
     return "Please contact Archives & Special Collections or Digital Library Development if you should have access."
 
@@ -242,18 +231,18 @@ def authorize_user():
     if debug_user:
         # debug_user is set when running bottle locally
         return debug_user
-    elif request.environ.get("REMOTE_USER", None):
+    elif bottle.request.environ.get("REMOTE_USER", None):
         # REMOTE_USER is an email address in Shibboleth
-        email_address = request.environ["REMOTE_USER"]
+        email_address = bottle.request.environ["REMOTE_USER"]
         # we check the username against our authorized users.csv file
         with open(Path(__file__).parent.resolve().joinpath("users.csv")) as csvfile:
             users = DictReader(csvfile)
             for user in users:
                 if user["email_address"] == email_address:
                     return user
-        abort(403)
+        bottle.abort(403)
     else:
-        abort(403)
+        bottle.abort(403)
 
 
 if __name__ == "__main__":
@@ -281,4 +270,4 @@ else:
     debug_user = None
 
     # attach Bottle to Apache using mod_wsgi
-    application = default_app()
+    application = bottle.default_app()
