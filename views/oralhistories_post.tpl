@@ -67,6 +67,10 @@
         if (d.body.innerText.includes('✅')) {
           // stop reloading
           clearInterval(id);
+        }
+        else if (d.body.innerText.includes('❌')) {
+          // stop reloading
+          clearInterval(id);
         };
         l.addEventListener('load', function() {
           if (l.contentDocument.body.scrollHeight > 0) {

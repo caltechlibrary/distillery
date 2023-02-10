@@ -455,20 +455,27 @@ class OralHistoriesService(rpyc.Service):
     def publish_transcripts(self):
         # publish transcript files to S3
         aws_cmd = sh.Command(config("WORK_AWS_CMD"))
-        return aws_cmd(
-            "s3",
-            "sync",
-            self.transcript_source_directory,
-            self.bucket_destination,
-            "--exclude",
-            "*.md",
-            "--delete",
-            "--no-progress",
-            _env={
-                "AWS_ACCESS_KEY_ID": config("DISTILLERY_AWS_ACCESS_KEY_ID"),
-                "AWS_SECRET_ACCESS_KEY": config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
-            },
-        )
+        try:
+            s3sync_output = aws_cmd(
+                "s3",
+                "sync",
+                self.transcript_source_directory,
+                self.bucket_destination,
+                "--exclude",
+                "*.md",
+                "--delete",
+                "--no-progress",
+                _env={
+                    "AWS_ACCESS_KEY_ID": config("DISTILLERY_AWS_ACCESS_KEY_ID"),
+                    "AWS_SECRET_ACCESS_KEY": config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
+                },
+            )
+            return s3sync_output
+        except Exception as e:
+            message = f'❌  S3 SYNC ERROR: {str(e.stderr, "utf-8")}'
+            logger.error(message)
+            self.status_logger.error(message)
+            raise e
 
     def set_resolver_redirect(self, resolver_id, redirect_url):
         """Create or update a redirect entry in the S3 bucket."""
