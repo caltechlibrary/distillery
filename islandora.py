@@ -44,94 +44,112 @@ islandora_server = sh.ssh.bake(
 #   return drupal_strlen(trim($pid)) <= 64 && preg_match('/^([A-Za-z0-9]|-|\.)+:(([A-Za-z0-9])|-|\.|~|_|(%[0-9A-F]{2}))+$/', trim($pid));
 # }
 # https://regexr.com/
-def main(
-    cloud: ("sending to cloud storage", "flag", "c"),  # type: ignore
-    onsite: ("preparing for onsite storage", "flag", "o"),  # type: ignore
-    access: ("publishing access copies", "flag", "a"),  # type: ignore
-    collection_id: "the Collection ID from ArchivesSpace",  # type: ignore
-):
-
-    logger.info("🦕 islandora")
-
-
 class AccessPlatform:
     def __init__(self, collection_id, collection_data):
         self.collection_id = collection_id
         self.collection_data = collection_data
 
     def collection_structure_processing(self):
-        """ Set the directory for the Islandora collection files."""
-        # NOTE: The parent directory name is formatted for use as a PID:
-        # https://github.com/mjordan/islandora_batch_with_derivs#preserving-existing-pids-and-relationships
-        islandora_collection_metadata_directory = os.path.join(
-            config("COMPRESSED_ACCESS_FILES"),
-            "collections",
-            f"caltech+{self.collection_id}",  # NOTE hardcoded namespace
-        )
-
-        # Construct the MODS XML for the collection.
-        collection_mods_xml = construct_collection_mods_xml(self.collection_data)
-
-        # Save the MODS.xml file for the collection.
-        collection_mods_xml_path = save_xml_file(
-            os.path.join(
-                islandora_collection_metadata_directory,
-                "MODS.xml",
-            ),
-            collection_mods_xml,
-        )
-        logger.info(f"☑️  ISLANDORA COLLECTION MODS SAVED: {collection_mods_xml_path}")
-
-        # Construct the COLLECTION_POLICY XML for the collection.
-        collection_policy_xml = construct_collection_policy_xml(self.collection_data)
-
-        # Save a COLLECTION_POLICY.xml file for the collection.
-        collection_policy_xml_path = save_xml_file(
-            os.path.join(
-                islandora_collection_metadata_directory,
-                "COLLECTION_POLICY.xml",
-            ),
-            collection_policy_xml,
-        )
-        logger.info(
-            f"☑️  ISLANDORA COLLECTION POLICY SAVED: {collection_policy_xml_path}"
-        )
-
-        # Create the temporary staging directory.
-        self.islandora_staging_files = islandora_server.mktemp("--directory").strip()
-        validation_logger.info(f"ISLANDORA: {self.islandora_staging_files}")
-        # Upload the collections directory.
-        upload_to_islandora_server(
-            os.path.join(config("COMPRESSED_ACCESS_FILES"), "collections"),
+        logger.info(f"🐞 COLLECTION STRUCTURE PROCESSING: {self.collection_id}")
+        (
             self.islandora_staging_files,
+            self.islandora_collection_pid,
+        ) = islandora_collection_structure_processing(
+            self.collection_id, self.collection_data
         )
 
-        # Retrieve an existing or new collection PID from Islandora.
-        try:
-            # Run a Solr query via drush for the expected collection PID.
-            # NOTE: Using DC fields for simpler syntax; a Solr query string example
-            # using fedora fields would be:
-            # f"--solr_query='PID:caltech\:{collection_id} AND RELS_EXT_hasModel_uri_s:info\:fedora\/islandora\:collectionCModel'",
-            idcrudfp = islandora_server(
-                "drush",
-                f"--root={config('ISLANDORA_WEBROOT')}",
-                "islandora_datastream_crud_fetch_pids",
-                f'--solr_query="dc.identifier:caltech\:{self.collection_id} AND dc.type:Collection"',
+    def archival_object_level_processing(self, variables):
+        logger.info(f"🐞 ARCHIVAL OBJECT LEVEL PROCESSING: {self.collection_id}")
+
+    def create_access_files(self, variables):
+        logger.info(f"🐞 CREATE ACCESS FILES: {self.collection_id}")
+
+    def transfer_derivative_files(self, variables):
+        logger.info(f"🐞 TRANSFER DERIVATIVE FILES: {self.collection_id}")
+        islandora_transfer_derivative_files(self.islandora_staging_files)
+
+    def ingest_derivative_files(self, variables):
+        logger.info(f"🐞 INGEST DERIVATIVE FILES: {self.collection_id}")
+        islandora_ingest_derivative_files(variables)
+
+    def loop_over_derivative_structure(self, variables):
+        logger.info(f"🐞 LOOP OVER DERIVATIVE STRUCTURE: {self.collection_id}")
+        islandora_loop_over_derivative_structure(variables)
+
+
+def islandora_collection_structure_processing(collection_id, collection_data):
+    """ Set the directory for the Islandora collection files."""
+    # NOTE: The parent directory name is formatted for use as a PID:
+    # https://github.com/mjordan/islandora_batch_with_derivs#preserving-existing-pids-and-relationships
+    islandora_collection_metadata_directory = os.path.join(
+        config("COMPRESSED_ACCESS_FILES"),
+        "collections",
+        f"caltech+{collection_id}",  # NOTE hardcoded namespace
+    )
+
+    # Construct the MODS XML for the collection.
+    collection_mods_xml = construct_collection_mods_xml(collection_data)
+
+    # Save the MODS.xml file for the collection.
+    collection_mods_xml_path = save_xml_file(
+        os.path.join(
+            islandora_collection_metadata_directory,
+            "MODS.xml",
+        ),
+        collection_mods_xml,
+    )
+    logger.info(f"☑️  ISLANDORA COLLECTION MODS SAVED: {collection_mods_xml_path}")
+
+    # Construct the COLLECTION_POLICY XML for the collection.
+    collection_policy_xml = construct_collection_policy_xml(collection_data)
+
+    # Save a COLLECTION_POLICY.xml file for the collection.
+    collection_policy_xml_path = save_xml_file(
+        os.path.join(
+            islandora_collection_metadata_directory,
+            "COLLECTION_POLICY.xml",
+        ),
+        collection_policy_xml,
+    )
+    logger.info(f"☑️  ISLANDORA COLLECTION POLICY SAVED: {collection_policy_xml_path}")
+
+    # Create the temporary staging directory.
+    islandora_staging_files = islandora_server.mktemp("--directory").strip()
+    validation_logger.info(f"ISLANDORA: {islandora_staging_files}")
+    # Upload the collections directory.
+    upload_to_islandora_server(
+        os.path.join(config("COMPRESSED_ACCESS_FILES"), "collections"),
+        islandora_staging_files,
+    )
+
+    # Retrieve an existing or new collection PID from Islandora.
+    try:
+        # Run a Solr query via drush for the expected collection PID.
+        # NOTE: Using DC fields for simpler syntax; a Solr query string example
+        # using fedora fields would be:
+        # f"--solr_query='PID:caltech\:{collection_id} AND RELS_EXT_hasModel_uri_s:info\:fedora\/islandora\:collectionCModel'",
+        idcrudfp = islandora_server(
+            "drush",
+            f"--root={config('ISLANDORA_WEBROOT')}",
+            "islandora_datastream_crud_fetch_pids",
+            f'--solr_query="dc.identifier:caltech\:{collection_id} AND dc.type:Collection"',
+        )
+        islandora_collection_pid = idcrudfp.strip()
+        logger.info(
+            f'☑️  EXISTING ISLANDORA COLLECTION FOUND: {config("ISLANDORA_URL").rstrip("/")}/islandora/object/{islandora_collection_pid}'
+        )
+        return islandora_staging_files, islandora_collection_pid
+    except sh.ErrorReturnCode as e:
+        # Drush exits with a non-zero status when no PIDs are found, which is
+        # interpreted as an error by sh.
+        if "Sorry, no PIDS were found." in str(e.stderr, "utf-8"):
+            # Create a new collection because the identifier was not found.
+            islandora_collection_pid = create_islandora_collection(
+                islandora_staging_files
             )
-            self.islandora_collection_pid = idcrudfp.strip()
-            logger.info(
-                f'☑️  EXISTING ISLANDORA COLLECTION FOUND: {config("ISLANDORA_URL").rstrip("/")}/islandora/object/{self.islandora_collection_pid}'
-            )
-        except sh.ErrorReturnCode as e:
-            # Drush exits with a non-zero status when no PIDs are found, which is
-            # interpreted as an error by sh.
-            if "Sorry, no PIDS were found." in str(e.stderr, "utf-8"):
-                # Create a new collection because the identifier was not found.
-                self.islandora_collection_pid = create_islandora_collection(
-                    self.islandora_staging_files
-                )
-            else:
-                raise
+            return islandora_staging_files, islandora_collection_pid
+        else:
+            raise
 
 
 def archival_object_level_processing(variables):
@@ -196,7 +214,7 @@ def create_access_files(variables):
         logger.debug(f'🐞 SINGLE FILE IN DIRECTORY: {variables["original_image_path"]}')
 
 
-def ingest_derivative_files(variables):
+def islandora_ingest_derivative_files(variables):
     # TODO determine object types
     # TODO check for existing book PIDs; script crashes if book PID exists
     add_books_to_islandora_collection(variables)
@@ -247,7 +265,7 @@ def add_books_to_islandora_collection(variables):
     )
 
 
-def loop_over_derivative_structure(variables):
+def islandora_loop_over_derivative_structure(variables):
     for book_directory in Path(
         f'{config("COMPRESSED_ACCESS_FILES").rstrip("/")}/books'
     ).iterdir():
@@ -600,7 +618,7 @@ def save_xml_file(destination_filepath, xml):
     return destination_filepath
 
 
-def transfer_derivative_files(variables):
+def islandora_transfer_derivative_files(islandora_staging_files):
     """Transfer ISLANDORA_ACCESS_FILES directory to Islandora server."""
     # Calculate whether the directory will fit on the server.
     access_files_bytes = distillery.get_directory_bytes(
@@ -610,7 +628,7 @@ def transfer_derivative_files(variables):
     # NOTE output from islandora_server connection is a string formatted like:
     # `52701552640 3822366720`
     server_bytes = islandora_server(
-        f'{config("ISLANDORA_PYTHON3_CMD")} -c \'import shutil; total, used, free = shutil.disk_usage("{variables["islandora_staging_files"]}"); print(total, free)\'',
+        f'{config("ISLANDORA_PYTHON3_CMD")} -c \'import shutil; total, used, free = shutil.disk_usage("{islandora_staging_files}"); print(total, free)\'',
     ).strip()
     # convert the string to a tuple and get the parts
     server_total_bytes = tuple(map(int, server_bytes.split(" ")))[0]
@@ -618,17 +636,18 @@ def transfer_derivative_files(variables):
     logger.info(f"🔢 FREE BYTES ON ISLANDORA SERVER: {server_free_bytes}")
     server_capacity_buffer = server_total_bytes * 0.01  # reserve 1% for tape index
     if not server_free_bytes - access_files_bytes > server_capacity_buffer:
-        message = f'❌ the islandora server does not have capacity for staging this set of access files: {variables["islandora_staging_files"]}'
+        message = f"❌ the islandora server does not have capacity for staging this set of access files: {islandora_staging_files}"
         logger.error(message)
         raise RuntimeError(message)
     # Copy ISLANDORA_ACCESS_FILES to Islandora server using rsync.
     # NOTE this is only for staging files prior to ingest
     upload_to_islandora_server(
-        os.path.join(config("COMPRESSED_ACCESS_FILES"), "books"), variables
+        os.path.join(config("COMPRESSED_ACCESS_FILES"), "books"),
+        islandora_staging_files,
     )
 
 
-def upload_to_islandora_server(source_directory, variables):
+def upload_to_islandora_server(source_directory, variables, islandora_staging_files):
     """Copy files via rsync for staging."""
     rsync_cmd = sh.Command(config("WORK_RSYNC_CMD"))
     rsync_cmd(
@@ -662,8 +681,3 @@ def validate_settings():
         strict=True
     )  # NOTE do not create missing `COMPRESSED_ACCESS_FILES` directory
     return WORKING_ORIGINAL_FILES, COMPRESSED_ACCESS_FILES
-
-
-if __name__ == "__main__":
-    # fmt: off
-    import plac; plac.call(main)
