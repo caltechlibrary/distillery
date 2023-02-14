@@ -132,7 +132,7 @@
       function reloadIframe() {
         log.contentDocument.location.reload();
         let text = log.contentDocument.body.innerText;
-        if (text.indexOf('🟡') !== -1) {
+        if (text.indexOf('🟡') != -1) {
           clearInterval(id);
           if (p) {
             console.log(p);
