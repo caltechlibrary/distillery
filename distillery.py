@@ -518,12 +518,6 @@ def get_aip_image_data(filepath):
     return aip_image_data
 
 
-def get_archival_object(id):
-    response = asnake_client.get("/repositories/2/archival_objects/" + id)
-    response.raise_for_status()
-    return response.json()
-
-
 def get_collection_tree(collection_uri):
     # raises an HTTPError exception if unsuccessful
     collection_tree = asnake_client.get(collection_uri + "/ordered_records").json()
@@ -652,7 +646,7 @@ def get_folder_arrangement(folder_data):
                 ]["_resolved"]["series"][0]["identifier"]
                 for ancestor in folder_data["ancestors"]:
                     if ancestor["level"] == "subseries":
-                        subseries = get_archival_object(ancestor["ref"].split("/")[-1])
+                        subseries = archivessnake_get(ancestor["ref"]).json()
                         folder_arrangement["subseries_display"] = subseries[
                             "display_string"
                         ]
