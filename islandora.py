@@ -294,7 +294,9 @@ def islandora_loop_over_derivative_structure(variables):
             },
         ]
 
-        variables["folder_data"] = distillery.get_folder_data(book_pid.split(":")[-1])
+        variables["folder_data"] = distillery.find_archival_object(
+            book_pid.split(":")[-1]
+        )
         # confirm existing or create digital_object with component_id
         variables["folder_data"] = distillery.confirm_digital_object(
             variables["folder_data"]
@@ -597,7 +599,7 @@ def generate_islandora_page_datastreams(
 
 def process_folder_metadata(folderpath):
     try:
-        folder_data = distillery.get_folder_data(
+        folder_data = distillery.find_archival_object(
             distillery.normalize_directory_component_id(folderpath)
         )
     except ValueError as e:

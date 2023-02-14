@@ -409,8 +409,8 @@ def confirm_digital_object_id(folder_data):
                 set_digital_object_id(
                     instance["digital_object"]["ref"], folder_data["component_id"]
                 )
-                # call get_folder_data() again to include updated digital_object_id
-                folder_data = get_folder_data(folder_data["component_id"])
+                # find_archival_object() again to include updated digital_object_id
+                folder_data = find_archival_object(folder_data["component_id"])
                 # logging.info(
                 #     f"❇️ updated digital_object_id: {instance['digital_object']['_resolved']['digital_object_id']} ➡️ {folder_data['component_id']} {instance['digital_object']['ref']}"
                 # )
@@ -478,8 +478,8 @@ def create_digital_object(folder_data):
 
     # TODO investigate how to roll back adding digital object to archival object
 
-    # call get_folder_data() again to include digital object instance
-    folder_data = get_folder_data(folder_data["component_id"])
+    # find_archival_object() again to include digital object instance
+    folder_data = find_archival_object(folder_data["component_id"])
 
     return folder_data
 
@@ -670,7 +670,9 @@ def get_folder_arrangement(folder_data):
 
 def find_archival_object(component_id):
     """Finds an archival object by component_id; Returns dict or None."""
-    find_uri = f"/repositories/2/find_by_id/archival_objects?component_id[]={component_id}"
+    find_uri = (
+        f"/repositories/2/find_by_id/archival_objects?component_id[]={component_id}"
+    )
     find_by_id_response = archivessnake_get(find_uri)
     if len(find_by_id_response.json()["archival_objects"]) < 1:
         logger.warning(f"⚠️  ARCHIVAL OBJECT NOT FOUND: {component_id}")
@@ -681,29 +683,8 @@ def find_archival_object(component_id):
     else:
         logger.info(f"☑️  ARCHIVAL OBJECT FOUND: {component_id}")
         return archivessnake_get(
-            find_by_id_response.json()["archival_objects"][0]["ref"]
+            f'{find_by_id_response.json()["archival_objects"][0]["ref"]}?resolve[]=digital_object&resolve[]=repository&resolve[]=top_container'
         ).json()
-
-
-def get_folder_data(component_id):
-    # TODO rename to get_archival_object()
-    # returns archival object metadata using the component_id; two API calls
-    find_by_id_response = asnake_client.get(
-        f"/repositories/2/find_by_id/archival_objects?component_id[]={component_id}"
-    )
-    find_by_id_response.raise_for_status()
-    if len(find_by_id_response.json()["archival_objects"]) < 1:
-        logger.warning(f"⚠️  ARCHIVAL OBJECT NOT FOUND: {component_id}")
-        return None
-    if len(find_by_id_response.json()["archival_objects"]) > 1:
-        logger.warning(f"⚠️  MULTIPLE ARCHIVAL OBJECTS FOUND: {component_id}")
-        return None
-    archival_object_get_response = asnake_client.get(
-        f"{find_by_id_response.json()['archival_objects'][0]['ref']}?resolve[]=digital_object&resolve[]=repository&resolve[]=top_container"
-    )
-    archival_object_get_response.raise_for_status()
-    logger.info(f"☑️  ARCHIVAL OBJECT FOUND: {component_id}")
-    return archival_object_get_response.json()
 
 
 def get_s3_aip_folder_key(prefix, folder_data):
@@ -1240,7 +1221,7 @@ def create_lossless_jpeg2000_image(variables, collection_data):
 
 def process_folder_metadata(folderpath):
     try:
-        folder_data = get_folder_data(normalize_directory_component_id(folderpath))
+        folder_data = find_archival_object(normalize_directory_component_id(folderpath))
     except ValueError as e:
         raise RuntimeError(str(e))
 
@@ -1339,7 +1320,9 @@ def loop_over_archival_object_datafiles(variables, collection_id, onsite, cloud)
         variables["current_archival_object_datafile"] = archival_object_datafile
         variables["preservation_folders"].append(archival_object_datafile.parent)
 
-        variables["folder_data"] = get_folder_data(Path(archival_object_datafile).stem)
+        variables["folder_data"] = find_archival_object(
+            Path(archival_object_datafile).stem
+        )
         # confirm existing or create digital_object with component_id
         variables["folder_data"] = confirm_digital_object(variables["folder_data"])
 
@@ -1492,8 +1475,8 @@ def create_derivative_structure(
             logger.warning(f"⚠️  NO FILES IN DIRECTORY: {subdirectory}")
             continue
 
-        # extract component_id from folderpath and get archival_object data
-        variables["folder_data"] = get_folder_data(
+        # get archival_object data via component_id from subdirectory name
+        variables["folder_data"] = find_archival_object(
             normalize_directory_component_id(subdirectory)
         )
         if not variables["folder_data"]:
