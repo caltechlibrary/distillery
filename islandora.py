@@ -297,8 +297,8 @@ def islandora_loop_over_derivative_structure(variables):
         variables["folder_data"] = distillery.find_archival_object(
             book_pid.split(":")[-1]
         )
-        # confirm existing or create digital_object with component_id
-        variables["folder_data"] = distillery.confirm_digital_object(
+        # load existing or create new digital_object with component_id
+        variables["folder_data"] = distillery.load_digital_object(
             variables["folder_data"]
         )
 
