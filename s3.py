@@ -84,14 +84,6 @@ def main(
     )
     variables["collection_data"] = distillery.get_collection_data(collection_id)
 
-    distillery.save_collection_metadata(
-        variables["collection_data"], WORK_LOSSLESS_PRESERVATION_FILES
-    )
-    with open(stream_path, "a") as f:
-        f.write(
-            f'✅ {variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/{collection_id}/{collection_id}.json\n'
-        )
-
     s3_client.put_object(
         Bucket=PRESERVATION_BUCKET,
         Key=collection_id + "/" + collection_id + ".json",
