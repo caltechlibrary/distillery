@@ -660,7 +660,7 @@ def get_file_parts(filepath):
     return file_parts
 
 
-def get_folder_arrangement(folder_data):
+def get_folder_arrangement(archival_object):
     """Return names and identifers of the arragement levels for a folder.
 
     EXAMPLES:
@@ -677,15 +677,15 @@ def get_folder_arrangement(folder_data):
     """
     # TODO document assumptions about arrangement
     folder_arrangement = {}
-    folder_arrangement["repository_name"] = folder_data["repository"]["_resolved"][
+    folder_arrangement["repository_name"] = archival_object["repository"]["_resolved"][
         "name"
     ]
-    folder_arrangement["repository_code"] = folder_data["repository"]["_resolved"][
+    folder_arrangement["repository_code"] = archival_object["repository"]["_resolved"][
         "repo_code"
     ]
-    folder_arrangement["folder_display"] = folder_data["display_string"]
-    folder_arrangement["folder_title"] = folder_data["title"]
-    for instance in folder_data["instances"]:
+    folder_arrangement["folder_display"] = archival_object["display_string"]
+    folder_arrangement["folder_title"] = archival_object["title"]
+    for instance in archival_object["instances"]:
         if "sub_container" in instance:
             if instance["sub_container"]["top_container"]["_resolved"].get(
                 "collection"
@@ -698,7 +698,7 @@ def get_folder_arrangement(folder_data):
                 ]["_resolved"]["collection"][0]["identifier"]
             else:
                 raise ValueError(
-                    f"Missing collection data for: {folder_data['component_id']}"
+                    f"Missing collection data for: {archival_object['component_id']}"
                 )
             if instance["sub_container"]["top_container"]["_resolved"].get("series"):
                 folder_arrangement["series_display"] = instance["sub_container"][
@@ -707,7 +707,7 @@ def get_folder_arrangement(folder_data):
                 folder_arrangement["series_id"] = instance["sub_container"][
                     "top_container"
                 ]["_resolved"]["series"][0]["identifier"]
-                for ancestor in folder_data["ancestors"]:
+                for ancestor in archival_object["ancestors"]:
                     if ancestor["level"] == "subseries":
                         subseries = archivessnake_get(ancestor["ref"]).json()
                         folder_arrangement["subseries_display"] = subseries[
@@ -722,11 +722,8 @@ def get_folder_arrangement(folder_data):
                                 f"Sub-Series record is missing component_id: {subseries['display_string']} {ancestor['ref']}"
                             )
             else:
-                # logging.info(
-                #     f"👀 series: {instance['sub_container']['top_container']['_resolved']['series']}"
-                # )
                 raise ValueError(
-                    f"Missing series data for: {folder_data['component_id']}"
+                    f"Missing series data for: {archival_object['component_id']}"
                 )
     logger.info("☑️  ARRANGEMENT LEVELS AGGREGATED")
     return folder_arrangement
