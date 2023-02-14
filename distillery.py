@@ -320,7 +320,7 @@ def confirm_collection_directory(collection_id, parent_directory):
 def get_collection_data(collection_id):
     # raises an HTTPError exception if unsuccessful
     collection_uri = get_collection_uri(collection_id)
-    collection_data = asnake_client.get(collection_uri).json()
+    collection_data = archivessnake_get(collection_uri).json()
     if not collection_identifiers_match(collection_id, collection_data):
         message = f"❌ The Collection ID from the form, {collection_id}, must exactly match the identifier in ArchivesSpace, {collection_data['id_0']}, including case-sensitively.\n"
         raise ValueError(message)
@@ -334,6 +334,42 @@ def get_collection_data(collection_id):
     else:
         raise RuntimeError(
             f"There was a problem retrieving the collection data from ArchivesSpace.\n"
+        )
+
+
+def get_collection_uri(collection_id):
+    # raises an HTTPError exception if unsuccessful
+    search_results_json = archivessnake_get(
+        f'/repositories/2/find_by_id/resources?identifier[]=["{collection_id}"]'
+    ).json()
+    if len(search_results_json["resources"]) < 1:
+        raise ValueError(
+            f"No collection found in ArchivesSpace with the ID: {collection_id}\n"
+        )
+    else:
+        return search_results_json["resources"][0]["ref"]
+
+
+def archivessnake_get(uri):
+    response = asnake_client.get(uri)
+    response.raise_for_status()
+    return response
+
+
+def collection_identifiers_match(collection_id, collection_data):
+    if collection_id != collection_data["id_0"]:
+        return False
+    return True
+
+
+def get_collection_tree(collection_uri):
+    # raises an HTTPError exception if unsuccessful
+    collection_tree = archivessnake_get(collection_uri + "/ordered_records").json()
+    if collection_tree:
+        return collection_tree
+    else:
+        raise RuntimeError(
+            f"There was a problem retrieving the collection tree from ArchivesSpace.\n"
         )
 
 
@@ -354,10 +390,67 @@ def save_collection_datafile(collection_data, directory):
     return collection_datafile_key
 
 
-def archivessnake_get(uri):
-    response = asnake_client.get(uri)
-    response.raise_for_status()
-    return response
+def create_derivative_structure(
+    variables, collection_directory, collection_data, onsite, cloud, access
+):
+    # TODO variables["folder_data"]
+    # TODO variables["folder_arrangement"]
+    """Loop over subdirectories inside ORIGINAL_FILES/CollectionID directory.
+
+    Example:
+    ORIGINAL_FILES/CollectionID <-- looping over directories under here
+    ├── CollectionID_000_XX
+    ├── CollectionID_001_02
+    │   ├── CollectionID_001_02_01.tif
+    │   ├── CollectionID_001_02_02.tif
+    │   ├── CollectionID_001_02_03.tif
+    │   └── CollectionID_001_02_04.tif
+    └── CollectionID_007_08
+    """
+    # NOTE [::-1] makes a reverse copy of the list for use with pop() below
+    subdirectories = [
+        str(s) for s in Path(collection_directory).iterdir() if s.is_dir()
+    ][::-1]
+    for _ in range(len(subdirectories)):
+        # Using pop() (and/or range(len()) above) maybe helps to be sure that if
+        # archival object metadata fails to process properly, it and its images
+        # are skipped completely and the script moves on to the next directory.
+        subdirectory = subdirectories.pop()
+        logger.info(f"▶️  PROCESSING DIRECTORY: {subdirectory}")
+
+        # Set up list of file paths for the current directory.
+        variables["filepaths"] = prepare_filepaths_list(subdirectory)
+
+        # Avoid processing directory when there are no files.
+        if not variables["filepaths"]:
+            logger.warning(f"⚠️  NO FILES IN DIRECTORY: {subdirectory}")
+            continue
+
+        # get archival_object data via component_id from subdirectory name
+        variables["folder_data"] = find_archival_object(
+            normalize_directory_component_id(subdirectory)
+        )
+        if not variables["folder_data"]:
+            logger.warning(f"⚠️  CONTINUING LOOP AT: {subdirectory}")
+            continue
+        variables["folder_arrangement"] = get_folder_arrangement(
+            variables["folder_data"]
+        )
+
+        if onsite or cloud:
+            archival_object_datafile_key = save_archival_object_datafile(
+                variables["folder_arrangement"],
+                variables["folder_data"],
+                config("WORK_PRESERVATION_FILES"),
+            )
+            status_logger.info(
+                f"☑️  ARCHIVAL OBJECT DATA FILE CREATED: {archival_object_datafile_key}"
+            )
+
+        if access:
+            access.archival_object_level_processing(variables)
+
+        create_derivative_files(variables, collection_data, onsite, cloud, access)
 
 
 def archivessnake_post(uri, object):
@@ -374,12 +467,6 @@ def archivessnake_delete(uri):
     response.raise_for_status()
     # TODO handle error responses
     return response
-
-
-def collection_identifiers_match(collection_id, collection_data):
-    if collection_id != collection_data["id_0"]:
-        return False
-    return True
 
 
 def confirm_digital_object(folder_data):
@@ -520,30 +607,6 @@ def get_aip_image_data(filepath):
     with open(aip_image_data["filepath"], "rb") as f:
         aip_image_data["md5"] = hashlib.md5(f.read())
     return aip_image_data
-
-
-def get_collection_tree(collection_uri):
-    # raises an HTTPError exception if unsuccessful
-    collection_tree = asnake_client.get(collection_uri + "/ordered_records").json()
-    if collection_tree:
-        return collection_tree
-    else:
-        raise RuntimeError(
-            f"There was a problem retrieving the collection tree from ArchivesSpace.\n"
-        )
-
-
-def get_collection_uri(collection_id):
-    # raises an HTTPError exception if unsuccessful
-    search_results_json = asnake_client.get(
-        f'/repositories/2/find_by_id/resources?identifier[]=["{collection_id}"]'
-    ).json()
-    if len(search_results_json["resources"]) < 1:
-        raise ValueError(
-            f"No collection found in ArchivesSpace with the ID: {collection_id}\n"
-        )
-    else:
-        return search_results_json["resources"][0]["ref"]
 
 
 def get_crockford_characters(n=4):
@@ -1446,69 +1509,6 @@ def create_preservation_files_structure(variables):
     )  # TODO pass only variables
     variables["step"] = "create_preservation_files_structure"  # TODO no more steps?
     create_derivative_structure(variables)
-
-
-def create_derivative_structure(
-    variables, collection_directory, collection_data, onsite, cloud, access
-):
-    # TODO variables["folder_data"]
-    # TODO variables["folder_arrangement"]
-    """Loop over subdirectories inside ORIGINAL_FILES/CollectionID directory.
-
-    Example:
-    ORIGINAL_FILES/CollectionID <-- looping over directories under here
-    ├── CollectionID_000_XX
-    ├── CollectionID_001_02
-    │   ├── CollectionID_001_02_01.tif
-    │   ├── CollectionID_001_02_02.tif
-    │   ├── CollectionID_001_02_03.tif
-    │   └── CollectionID_001_02_04.tif
-    └── CollectionID_007_08
-    """
-    # NOTE [::-1] makes a reverse copy of the list for use with pop() below
-    subdirectories = [
-        str(s) for s in Path(collection_directory).iterdir() if s.is_dir()
-    ][::-1]
-    for _ in range(len(subdirectories)):
-        # Using pop() (and/or range(len()) above) maybe helps to be sure that if
-        # archival object metadata fails to process properly, it and its images
-        # are skipped completely and the script moves on to the next directory.
-        subdirectory = subdirectories.pop()
-        logger.info(f"▶️  PROCESSING DIRECTORY: {subdirectory}")
-
-        # Set up list of file paths for the current directory.
-        variables["filepaths"] = prepare_filepaths_list(subdirectory)
-
-        # Avoid processing directory when there are no files.
-        if not variables["filepaths"]:
-            logger.warning(f"⚠️  NO FILES IN DIRECTORY: {subdirectory}")
-            continue
-
-        # get archival_object data via component_id from subdirectory name
-        variables["folder_data"] = find_archival_object(
-            normalize_directory_component_id(subdirectory)
-        )
-        if not variables["folder_data"]:
-            logger.warning(f"⚠️  CONTINUING LOOP AT: {subdirectory}")
-            continue
-        variables["folder_arrangement"] = get_folder_arrangement(
-            variables["folder_data"]
-        )
-
-        if onsite or cloud:
-            archival_object_datafile_key = save_archival_object_datafile(
-                variables["folder_arrangement"],
-                variables["folder_data"],
-                config("WORK_PRESERVATION_FILES"),
-            )
-            status_logger.info(
-                f"☑️  ARCHIVAL OBJECT DATA FILE CREATED: {archival_object_datafile_key}"
-            )
-
-        if access:
-            access.archival_object_level_processing(variables)
-
-        create_derivative_files(variables, collection_data, onsite, cloud, access)
 
 
 def create_derivative_files(variables, collection_data, onsite, cloud, access):
