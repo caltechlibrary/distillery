@@ -50,7 +50,7 @@ class OralHistoriesService(rpyc.Service):
         if component_id and not update and not publish:
             self.status_logger.info(f"☑️ received **{component_id}.docx** file")
             self.component_id = component_id
-            self.archival_object = distillery.get_folder_data(self.component_id)
+            self.archival_object = distillery.find_archival_object(self.component_id)
             self.metadata = self.create_metadata(archival_object=self.archival_object)
             self.transcript_directory = self.create_metadata_file()
             self.convert_word_to_markdown()
@@ -514,7 +514,7 @@ class OralHistoriesService(rpyc.Service):
         return response.json()["digital_object_components"][0]["ref"]
 
     def update_markdown_metadata(self):
-        self.archival_object = distillery.get_folder_data(self.component_id)
+        self.archival_object = distillery.find_archival_object(self.component_id)
         self.metadata = self.create_metadata(archival_object=self.archival_object)
         self.create_metadata_file()
         # TODO account for _closed versions
