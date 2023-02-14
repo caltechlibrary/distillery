@@ -1217,6 +1217,7 @@ def create_lossless_jpeg2000_image(variables, collection_data):
     logger.info(
         f'☑️  IMAGE SIGNATURES MATCH:\n{original_image_signature.strip()} {variables["original_image_path"].split("/")[-1]}\n{preservation_image_signature.strip()} {preservation_image_path.split("/")[-1]}'
     )
+    return preservation_image_key
 
 
 def process_folder_metadata(folderpath):
@@ -1243,19 +1244,22 @@ def process_folder_metadata(folderpath):
     return folder_arrangement, folder_data
 
 
-def save_folder_data(folder_arrangement, folder_data, directory):
+def save_archival_object_datafile(folder_arrangement, folder_data, directory):
+    """Save the archival object data to a JSON file."""
+    # TODO rename functions to be more abstract
+    archival_object_datafile_key = get_s3_aip_folder_key(
+        get_s3_aip_folder_prefix(folder_arrangement, folder_data),
+        folder_data,
+    )
     filename = os.path.join(
         directory,
-        # TODO rename functions to be more abstract
-        get_s3_aip_folder_key(
-            get_s3_aip_folder_prefix(folder_arrangement, folder_data),
-            folder_data,
-        ),
+        archival_object_datafile_key,
     )
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, "w") as f:
         f.write(json.dumps(folder_data, indent=4))
     logger.info(f"☑️  ARCHIVAL OBJECT DATA SAVED: {filename}")
+    return archival_object_datafile_key
 
 
 def save_preservation_file(source, destination):
@@ -1487,10 +1491,13 @@ def create_derivative_structure(
         )
 
         if onsite or cloud:
-            save_folder_data(
+            archival_object_datafile_key = save_archival_object_datafile(
                 variables["folder_arrangement"],
                 variables["folder_data"],
                 config("WORK_PRESERVATION_FILES"),
+            )
+            status_logger.info(
+                f"☑️  ARCHIVAL OBJECT DATA FILE CREATED: {archival_object_datafile_key}"
             )
 
         if access:
@@ -1535,7 +1542,10 @@ def create_derivative_files(variables, collection_data, onsite, cloud, access):
 
             try:
                 # Create lossless JPEG 2000 image from original.
-                create_lossless_jpeg2000_image(variables, collection_data)
+                preservation_image_key = create_lossless_jpeg2000_image(
+                    variables, collection_data
+                )
+                status_logger.info(f"☑️  FILE CREATED: {preservation_image_key}")
             except Exception as e:
                 logger.error(f"❌ {str(e)}")
                 continue
