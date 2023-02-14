@@ -469,23 +469,22 @@ def archivessnake_delete(uri):
     return response
 
 
-def confirm_digital_object(folder_data):
-    # TODO rename to load_digital_object(folder_data, create=True)
+def load_digital_object(archival_object):
     digital_object_count = 0
-    for instance in folder_data["instances"]:
+    for instance in archival_object["instances"]:
         if "digital_object" in instance.keys():
             digital_object_ref = instance["digital_object"]["ref"]
             digital_object_count += 1
             logger.info(f"☑️  DIGITAL OBJECT FOUND: {digital_object_ref}")
     if digital_object_count > 1:
         raise ValueError(
-            f"The ArchivesSpace record for {folder_data['component_id']} contains multiple digital objects."
+            f"The ArchivesSpace record for {archival_object['component_id']} contains multiple digital objects."
         )
     if digital_object_count < 1:
-        # returns new folder_data with digital object info included
-        folder_data = create_digital_object(folder_data)
-        folder_data = confirm_digital_object(folder_data)
-    return folder_data
+        # returns new archival_object with digital object info included
+        archival_object = create_digital_object(archival_object)
+        archival_object = load_digital_object(archival_object)
+    return archival_object
 
 
 def confirm_digital_object_id(folder_data):
@@ -1008,7 +1007,7 @@ def construct_digital_object_component(variables):
     if digital_object_uri:
         digital_object_component["digital_object"] = {"ref": digital_object_uri}
     else:
-        variables["folder_data"] = confirm_digital_object(variables["folder_data"])
+        variables["folder_data"] = load_digital_object(variables["folder_data"])
     digital_object_component["file_versions"] = [construct_file_version(variables)]
     return digital_object_component
 
@@ -1295,7 +1294,7 @@ def process_folder_metadata(folderpath):
         raise RuntimeError(str(e))
 
     try:
-        folder_data = confirm_digital_object(folder_data)
+        folder_data = load_digital_object(folder_data)
     except ValueError as e:
         raise RuntimeError(str(e))
 
@@ -1396,7 +1395,7 @@ def loop_over_archival_object_datafiles(variables, collection_id, onsite, cloud)
             Path(archival_object_datafile).stem
         )
         # confirm existing or create digital_object with component_id
-        variables["folder_data"] = confirm_digital_object(variables["folder_data"])
+        variables["folder_data"] = load_digital_object(variables["folder_data"])
 
         # logger.info(" ".join(variables.keys()))
         # onsite_medium
