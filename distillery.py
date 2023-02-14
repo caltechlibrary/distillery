@@ -223,7 +223,7 @@ class DistilleryService(rpyc.Service):
                 strict=True
             )
             # save collection metadata
-            save_collection_metadata(collection_data, work_preservation_files)
+            save_collection_datafile(collection_data, work_preservation_files)
             # run collection-level preprocessing
             if self.cloud_platform:
                 self.cloud_platform.collection_level_preprocessing(
@@ -337,16 +337,21 @@ def get_collection_data(collection_id):
         )
 
 
-def save_collection_metadata(collection_data, directory):
-    filename = os.path.join(
-        directory,
+def save_collection_datafile(collection_data, directory):
+    """Save the collection data to a JSON file."""
+    collection_datafile_key = os.path.join(
         collection_data["id_0"],
         f"{collection_data['id_0']}.json",
+    )
+    filename = os.path.join(
+        directory,
+        collection_datafile_key,
     )
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, "w") as f:
         f.write(json.dumps(collection_data, indent=4))
-    logger.info(f"☑️  COLLECTION DATA SAVED: {filename}")
+    logger.info(f"☑️  COLLECTION DATA FILE SAVED: {filename}")
+    return collection_datafile_key
 
 
 def archivessnake_get(uri):
@@ -1436,7 +1441,7 @@ def create_preservation_files_structure(variables):
     variables["collection_data"] = get_collection_data(
         variables["collection_id"]
     )  # TODO pass only variables
-    save_collection_metadata(
+    save_collection_datafile(
         variables["collection_data"], variables["WORK_LOSSLESS_PRESERVATION_FILES"]
     )  # TODO pass only variables
     variables["step"] = "create_preservation_files_structure"  # TODO no more steps?
