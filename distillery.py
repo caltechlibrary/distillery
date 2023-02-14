@@ -508,10 +508,10 @@ def confirm_digital_object_id(folder_data):
     return folder_data
 
 
-def create_digital_object(folder_data):
+def create_digital_object(archival_object):
     digital_object = {}
-    digital_object["digital_object_id"] = folder_data["component_id"]  # required
-    digital_object["title"] = folder_data["title"]  # required
+    digital_object["digital_object_id"] = archival_object["component_id"]  # required
+    digital_object["title"] = archival_object["title"]  # required
     # NOTE leaving created digital objects unpublished
     # digital_object['publish'] = True
 
@@ -543,7 +543,7 @@ def create_digital_object(folder_data):
                 in digital_object_post_response.json()["error"]["digital_object_id"]
             ):
                 raise ValueError(
-                    f" ⚠️\t non-unique digital_object_id: {folder_data['component_id']}"
+                    f" ⚠️\t non-unique digital_object_id: {archival_object['component_id']}"
                 )
     logger.info(
         f'✳️  DIGITAL OBJECT CREATED: {digital_object_post_response.json()["uri"]}'
@@ -554,14 +554,11 @@ def create_digital_object(folder_data):
         "instance_type": "digital_object",
         "digital_object": {"ref": digital_object_post_response.json()["uri"]},
     }
-    # get archival object
-    archival_object_get_response = archivessnake_get(folder_data["uri"])
-    archival_object = archival_object_get_response.json()
     # add digital object instance to archival object
     archival_object["instances"].append(digital_object_instance)
     # post updated archival object
     archival_object_post_response = archivessnake_post(
-        folder_data["uri"], archival_object
+        archival_object["uri"], archival_object
     )
     logger.info(
         f'☑️  ARCHIVAL OBJECT UPDATED: {archival_object_post_response.json()["uri"]}'
@@ -570,9 +567,9 @@ def create_digital_object(folder_data):
     # TODO investigate how to roll back adding digital object to archival object
 
     # find_archival_object() again to include digital object instance
-    folder_data = find_archival_object(folder_data["component_id"])
+    archival_object = find_archival_object(archival_object["component_id"])
 
-    return folder_data
+    return archival_object
 
 
 def directory_setup(directory):
