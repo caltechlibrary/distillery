@@ -464,8 +464,7 @@ def create_digital_object(folder_data):
         "digital_object": {"ref": digital_object_post_response.json()["uri"]},
     }
     # get archival object
-    archival_object_get_response = asnake_client.get(folder_data["uri"])
-    archival_object_get_response.raise_for_status()
+    archival_object_get_response = archivessnake_get(folder_data["uri"])
     archival_object = archival_object_get_response.json()
     # add digital object instance to archival object
     archival_object["instances"].append(digital_object_instance)
