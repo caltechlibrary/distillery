@@ -498,7 +498,7 @@ def generate_islandora_page_datastreams(
     COMPRESSED_ACCESS_FILES,
     collection_data,
     folder_arrangement,
-    folder_data,
+    archival_object,
 ):
     magick_cmd = sh.Command(config("WORK_MAGICK_CMD"))
     magick_cmd.convert(
@@ -513,7 +513,7 @@ def generate_islandora_page_datastreams(
     page_datastreams_directory = os.path.join(
         COMPRESSED_ACCESS_FILES,
         "books",
-        f"{collection_data['id_0']}+{folder_data['component_id']}",
+        f"{collection_data['id_0']}+{archival_object['component_id']}",
         page_sequence,
     )
     os.makedirs(page_datastreams_directory, exist_ok=True)
@@ -550,7 +550,7 @@ def generate_islandora_page_datastreams(
 
     file_parts = distillery.get_file_parts(filepath)
     xmp_dc = distillery.get_xmp_dc_metadata(
-        folder_arrangement, file_parts, folder_data, collection_data
+        folder_arrangement, file_parts, archival_object, collection_data
     )
     modsxml = create_page_mods_xml(xmp_dc)
     mods_path = os.path.join(page_datastreams_directory, "MODS.xml")
