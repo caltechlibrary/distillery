@@ -824,17 +824,19 @@ def get_digital_object_component_file_key(prefix, file_parts):
     )
 
 
-def get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_data):
+def get_xmp_dc_metadata(
+    folder_arrangement, file_parts, archival_object, collection_data
+):
     xmp_dc = {}
     xmp_dc["title"] = (
         folder_arrangement["folder_display"] + " [image " + file_parts["sequence"] + "]"
     )
     # TODO(tk) check extent type for pages/images/computer files/etc
-    if len(folder_data["extents"]) == 1:
+    if len(archival_object["extents"]) == 1:
         xmp_dc["title"] = (
             xmp_dc["title"].rstrip("]")
             + "/"
-            + folder_data["extents"][0]["number"].zfill(4)
+            + archival_object["extents"][0]["number"].zfill(4)
             + "]"
         )
     xmp_dc["identifier"] = file_parts["crockford_id"]
@@ -844,7 +846,7 @@ def get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_
         + ": "
         + folder_arrangement["collection_display"]
     )
-    for instance in folder_data["instances"]:
+    for instance in archival_object["instances"]:
         if "sub_container" in instance.keys():
             if (
                 "series"
@@ -856,7 +858,7 @@ def get_xmp_dc_metadata(folder_arrangement, file_parts, folder_data, collection_
                         0
                     ]["display_string"]
                 )
-                for ancestor in folder_data["ancestors"]:
+                for ancestor in archival_object["ancestors"]:
                     if ancestor["level"] == "subseries":
                         xmp_dc["source"] += (
                             " / " + folder_arrangement["subseries_display"]
