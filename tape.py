@@ -222,7 +222,9 @@ def ensure_top_container(variables):
 
     # Check ArchivesSpace archival_object for an existing top_container with the
     # same type and indicator values.
-    if tape_container_attached(variables["folder_data"], variables["tape_indicator"]):
+    if tape_container_attached(
+        variables["archival_object"], variables["tape_indicator"]
+    ):
         return
 
     # Set up and add a container instance to the ArchivesSpace archival_object.
@@ -244,12 +246,12 @@ def ensure_top_container(variables):
         "sub_container": {"top_container": {"ref": top_container_uri}},
     }
     # add container instance to archival_object
-    variables["folder_data"]["instances"].append(container_instance)
+    variables["archival_object"]["instances"].append(container_instance)
     # post updated archival_object
     distillery.archivessnake_post(
-        variables["folder_data"]["uri"], variables["folder_data"]
+        variables["archival_object"]["uri"], variables["archival_object"]
     )
-    logger.info(f'☑️  ARCHIVAL OBJECT UPDATED: {variables["folder_data"]["uri"]}')
+    logger.info(f'☑️  ARCHIVAL OBJECT UPDATED: {variables["archival_object"]["uri"]}')
 
 
 def process_digital_object_component_file(variables):

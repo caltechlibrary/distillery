@@ -393,7 +393,6 @@ def save_collection_datafile(collection_data, directory):
 def create_derivative_structure(
     variables, collection_directory, collection_data, onsite, cloud, access
 ):
-    # TODO variables["folder_data"]
     # TODO variables["folder_arrangement"]
     """Loop over subdirectories inside ORIGINAL_FILES/CollectionID directory.
 
@@ -427,20 +426,20 @@ def create_derivative_structure(
             continue
 
         # get archival_object data via component_id from subdirectory name
-        variables["folder_data"] = find_archival_object(
+        variables["archival_object"] = find_archival_object(
             normalize_directory_component_id(subdirectory)
         )
-        if not variables["folder_data"]:
+        if not variables["archival_object"]:
             logger.warning(f"⚠️  CONTINUING LOOP AT: {subdirectory}")
             continue
         variables["folder_arrangement"] = get_folder_arrangement(
-            variables["folder_data"]
+            variables["archival_object"]
         )
 
         if onsite or cloud:
             archival_object_datafile_key = save_archival_object_datafile(
                 variables["folder_arrangement"],
-                variables["folder_data"],
+                variables["archival_object"],
                 config("WORK_PRESERVATION_FILES"),
             )
             status_logger.info(
@@ -996,7 +995,7 @@ def construct_digital_object_component(variables):
     if digital_object_uri:
         digital_object_component["digital_object"] = {"ref": digital_object_uri}
     else:
-        variables["folder_data"] = load_digital_object(variables["folder_data"])
+        variables["archival_object"] = load_digital_object(variables["archival_object"])
     digital_object_component["file_versions"] = [construct_file_version(variables)]
     return digital_object_component
 
@@ -1199,7 +1198,7 @@ def create_lossless_jpeg2000_image(variables, collection_data):
     # Set up preservation structure.
     preservation_image_key = get_digital_object_component_file_key(
         get_archival_object_directory_prefix(
-            variables["folder_arrangement"], variables["folder_data"]
+            variables["folder_arrangement"], variables["archival_object"]
         ),
         filepath_components,
     )  # TODO rename functions
@@ -1223,7 +1222,7 @@ def create_lossless_jpeg2000_image(variables, collection_data):
     xmp_dc = get_xmp_dc_metadata(
         variables["folder_arrangement"],
         filepath_components,
-        variables["folder_data"],
+        variables["archival_object"],
         collection_data,
     )
     # Catch any conversion errors in order to skip file and continue.
@@ -1280,7 +1279,9 @@ def create_lossless_jpeg2000_image(variables, collection_data):
 
 def process_folder_metadata(folderpath):
     try:
-        archival_object = find_archival_object(normalize_directory_component_id(folderpath))
+        archival_object = find_archival_object(
+            normalize_directory_component_id(folderpath)
+        )
     except ValueError as e:
         raise RuntimeError(str(e))
 
@@ -1382,11 +1383,11 @@ def loop_over_archival_object_datafiles(variables, collection_id, onsite, cloud)
         variables["current_archival_object_datafile"] = archival_object_datafile
         variables["preservation_folders"].append(archival_object_datafile.parent)
 
-        variables["folder_data"] = find_archival_object(
+        variables["archival_object"] = find_archival_object(
             Path(archival_object_datafile).stem
         )
         # confirm existing or create digital_object with component_id
-        variables["folder_data"] = load_digital_object(variables["folder_data"])
+        variables["archival_object"] = load_digital_object(variables["archival_object"])
 
         # logger.info(" ".join(variables.keys()))
         # onsite_medium
@@ -1403,7 +1404,7 @@ def loop_over_archival_object_datafiles(variables, collection_id, onsite, cloud)
         # filecount
         # folderpath
         # filepaths
-        # folder_data
+        # archival_object
         # folder_arrangement
         # original_image_path
         # preservation_folders
@@ -1414,7 +1415,7 @@ def loop_over_archival_object_datafiles(variables, collection_id, onsite, cloud)
             cloud.process_archival_object_datafile(variables)
     # TODO this loop does not need to be initiated from within this function
     # as long as variables has the right data
-    # TODO check contents of folder_data if files are looped over independently
+    # TODO check contents of archival_object if files are looped over independently
     loop_over_preservation_files(variables, onsite, cloud)
 
 

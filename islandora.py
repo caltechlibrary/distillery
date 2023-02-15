@@ -164,7 +164,7 @@ def archival_object_level_processing(variables):
         os.path.join(
             config("COMPRESSED_ACCESS_FILES"),
             "books",
-            f'{variables["collection_id"]}+{variables["folder_data"]["component_id"]}',
+            f'{variables["collection_id"]}+{variables["archival_object"]["component_id"]}',
             "MODS.xml",
         ),
         book_mods_xml,
@@ -189,7 +189,7 @@ def create_access_files(variables):
                     config("COMPRESSED_ACCESS_FILES"),
                     variables["collection_data"],
                     variables["folder_arrangement"],
-                    variables["folder_data"],
+                    variables["archival_object"],
                 )
                 # copy first page thumbnail to book-level thumbnail
                 if sequence == "0001":
@@ -198,7 +198,7 @@ def create_access_files(variables):
                         os.path.join(
                             config("COMPRESSED_ACCESS_FILES"),
                             "books",
-                            f'{variables["collection_id"]}+{variables["folder_data"]["component_id"]}',
+                            f'{variables["collection_id"]}+{variables["archival_object"]["component_id"]}',
                             "TN.jpg",
                         ),
                     )
@@ -294,19 +294,19 @@ def islandora_loop_over_derivative_structure(variables):
             },
         ]
 
-        variables["folder_data"] = distillery.find_archival_object(
+        variables["archival_object"] = distillery.find_archival_object(
             book_pid.split(":")[-1]
         )
         # load existing or create new digital_object with component_id
-        variables["folder_data"] = distillery.load_digital_object(
-            variables["folder_data"]
+        variables["archival_object"] = distillery.load_digital_object(
+            variables["archival_object"]
         )
 
-        for instance in variables["folder_data"]["instances"]:
+        for instance in variables["archival_object"]["instances"]:
             if "digital_object" in instance.keys():
                 if instance["digital_object"]["_resolved"]["file_versions"]:
                     raise RuntimeError(
-                        f"⚠️ uh oh, digital_object file_versions for {variables['folder_data']['component_id']} has data: {instance['digital_object']['ref']}"
+                        f'⚠️ uh oh, digital_object file_versions for {variables["archival_object"]["component_id"]} has data: {instance["digital_object"]["ref"]}'
                     )
                 else:
                     digital_object = instance["digital_object"]["_resolved"]
@@ -331,7 +331,7 @@ def construct_book_mods_xml(variables):
     titleInfo.append(E.title(variables["folder_arrangement"]["folder_title"]))
     originInfo = E.originInfo()
     book_mods_xml.append(originInfo)
-    for date in variables["folder_data"]["dates"]:
+    for date in variables["archival_object"]["dates"]:
         if date["label"] == "creation":
             if date["date_type"] == "single":
                 originInfo.append(E.dateCreated(date["begin"], encoding="w3cdtf"))
@@ -372,11 +372,11 @@ def construct_book_mods_xml(variables):
     relatedItem.append(relatedItem_titleInfo)
     book_mods_xml.append(
         E.relatedItem(
-            f'https://collections.archives.caltech.edu{variables["folder_data"]["uri"]}'
+            f'https://collections.archives.caltech.edu{variables["archival_object"]["uri"]}'
         )
     )
     book_mods_xml.append(
-        E.identifier(variables["folder_data"]["component_id"], type="local")
+        E.identifier(variables["archival_object"]["component_id"], type="local")
     )
     for note in variables["collection_data"]["notes"]:
         if note["type"] == "userestrict":
