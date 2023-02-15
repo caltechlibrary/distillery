@@ -1302,12 +1302,12 @@ def process_folder_metadata(folderpath):
     return folder_arrangement, folder_data
 
 
-def save_archival_object_datafile(folder_arrangement, folder_data, directory):
+def save_archival_object_datafile(folder_arrangement, archival_object, directory):
     """Save the archival object data to a JSON file."""
     # TODO rename functions to be more abstract
     archival_object_datafile_key = get_archival_object_datafile_key(
-        get_archival_object_directory_prefix(folder_arrangement, folder_data),
-        folder_data,
+        get_archival_object_directory_prefix(folder_arrangement, archival_object),
+        archival_object,
     )
     filename = os.path.join(
         directory,
@@ -1315,7 +1315,7 @@ def save_archival_object_datafile(folder_arrangement, folder_data, directory):
     )
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, "w") as f:
-        f.write(json.dumps(folder_data, indent=4))
+        f.write(json.dumps(archival_object, indent=4))
     logger.info(f"☑️  ARCHIVAL OBJECT DATA SAVED: {filename}")
     return archival_object_datafile_key
 
