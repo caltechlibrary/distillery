@@ -599,18 +599,18 @@ def generate_islandora_page_datastreams(
 
 def process_folder_metadata(folderpath):
     try:
-        folder_data = distillery.find_archival_object(
+        archival_object = distillery.find_archival_object(
             distillery.normalize_directory_component_id(folderpath)
         )
     except ValueError as e:
         raise RuntimeError(str(e))
 
     try:
-        folder_arrangement = distillery.get_folder_arrangement(folder_data)
+        folder_arrangement = distillery.get_folder_arrangement(archival_object)
     except HTTPError as e:
         raise RuntimeError(str(e))
 
-    return folder_arrangement, folder_data
+    return folder_arrangement, archival_object
 
 
 def save_xml_file(destination_filepath, xml):

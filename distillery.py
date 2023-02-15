@@ -1280,26 +1280,26 @@ def create_lossless_jpeg2000_image(variables, collection_data):
 
 def process_folder_metadata(folderpath):
     try:
-        folder_data = find_archival_object(normalize_directory_component_id(folderpath))
+        archival_object = find_archival_object(normalize_directory_component_id(folderpath))
     except ValueError as e:
         raise RuntimeError(str(e))
 
     try:
-        folder_data = load_digital_object(folder_data)
+        archival_object = load_digital_object(archival_object)
     except ValueError as e:
         raise RuntimeError(str(e))
 
     try:
-        folder_data = confirm_digital_object_id(folder_data)
+        archival_object = confirm_digital_object_id(archival_object)
     except HTTPError as e:
         raise RuntimeError(str(e))
 
     try:
-        folder_arrangement = get_folder_arrangement(folder_data)
+        folder_arrangement = get_folder_arrangement(archival_object)
     except HTTPError as e:
         raise RuntimeError(str(e))
 
-    return folder_arrangement, folder_data
+    return folder_arrangement, archival_object
 
 
 def save_archival_object_datafile(folder_arrangement, archival_object, directory):
