@@ -487,25 +487,22 @@ def load_digital_object(archival_object):
     return archival_object
 
 
-def confirm_digital_object_id(folder_data):
-    # returns folder_data always in case digital_object_id was updated
-    for instance in folder_data["instances"]:
+def confirm_digital_object_id(archival_object):
+    # returns archival_object always in case digital_object_id was updated
+    for instance in archival_object["instances"]:
         # TODO(tk) create script/report to periodically check for violations
         if "digital_object" in instance:
             if (
                 instance["digital_object"]["_resolved"]["digital_object_id"]
-                != folder_data["component_id"]
+                != archival_object["component_id"]
             ):
                 # TODO confirm with Archives that replacing a digital_object_id is acceptable in all foreseen circumstances
                 set_digital_object_id(
-                    instance["digital_object"]["ref"], folder_data["component_id"]
+                    instance["digital_object"]["ref"], archival_object["component_id"]
                 )
                 # find_archival_object() again to include updated digital_object_id
-                folder_data = find_archival_object(folder_data["component_id"])
-                # logging.info(
-                #     f"❇️ updated digital_object_id: {instance['digital_object']['_resolved']['digital_object_id']} ➡️ {folder_data['component_id']} {instance['digital_object']['ref']}"
-                # )
-    return folder_data
+                archival_object = find_archival_object(archival_object["component_id"])
+    return archival_object
 
 
 def create_digital_object(archival_object):
