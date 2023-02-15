@@ -1071,7 +1071,9 @@ def construct_file_version(variables):
     return file_version
 
 
-def prepare_digital_object_component(folder_data, PRESERVATION_BUCKET, aip_image_data):
+def prepare_digital_object_component(
+    archival_object, PRESERVATION_BUCKET, aip_image_data
+):
     # MINIMAL REQUIREMENTS: digital_object and one of label, title, or date
     # FILE VERSIONS MINIMAL REQUIREMENTS: file_uri
     # 'publish': false is the default value
@@ -1084,7 +1086,7 @@ def prepare_digital_object_component(folder_data, PRESERVATION_BUCKET, aip_image
             }
         ]
     }
-    for instance in folder_data["instances"]:
+    for instance in archival_object["instances"]:
         # not checking if there is more than one digital object
         if "digital_object" in instance.keys():
             digital_object_component["digital_object"] = {}
