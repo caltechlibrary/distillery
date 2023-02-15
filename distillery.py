@@ -748,16 +748,22 @@ def find_archival_object(component_id):
         ).json()
 
 
-def get_s3_aip_folder_key(prefix, folder_data):
-    # exception for extended identifiers like HaleGE_02_0B_056_07
-    # TODO(tk) remove once no more exception files exist
-    # TODO(tk) use older_data['component_id'] directly
-    folder_id_parts = folder_data["component_id"].split("_")
-    folder_id = "_".join([folder_id_parts[0], folder_id_parts[-2], folder_id_parts[-1]])
-    return prefix + folder_id + ".json"
+def get_archival_object_datafile_key(prefix, archival_object):
+    """Return the key (file path) of an archival object datafile."""
+    # NOTE the prefix includes a trailing slash
+    return f'{prefix}{archival_object["component_id"]}.json'
 
 
-def get_s3_aip_folder_prefix(folder_arrangement, folder_data):
+def get_archival_object_directory_prefix(folder_arrangement, archival_object):
+    """Return the prefix (directory path) of an archival object.
+
+    The directory hierarchy is based on the identifiers and display
+    strings from the collection, series, subseries, and archival object,
+    including a trailing slash.
+
+    Non-alphanumeric characters are replaced with hyphens.
+    """
+
     prefix = folder_arrangement["collection_id"] + "/"
     if "series_id" in folder_arrangement.keys():
         prefix += (
@@ -791,22 +797,17 @@ def get_s3_aip_folder_prefix(folder_arrangement, folder_data):
                         ]
                     )
                     prefix += subseries_display + "/"
-    # exception for extended identifiers like HaleGE_02_0B_056_07
-    # TODO(tk) remove once no more exception files exist
-    # TODO(tk) use folder_data['component_id'] directly
-    folder_id_parts = folder_data["component_id"].split("_")
-    folder_id = "_".join([folder_id_parts[0], folder_id_parts[-2], folder_id_parts[-1]])
     folder_display = "".join(
         [c if c.isalnum() else "-" for c in folder_arrangement["folder_display"]]
     )
-    prefix += folder_id + "-" + folder_display + "/"
+    prefix += archival_object["component_id"] + "-" + folder_display + "/"
     return prefix
 
 
-def get_s3_aip_image_key(prefix, file_parts):
+def get_digital_object_component_file_key(prefix, file_parts):
+    """Return the key (file path) of a digital object component file."""
     # NOTE: '.jp2' is hardcoded as the extension
-    # HaleGE/HaleGE_s02_Correspondence_and_Documents_Relating_to_Organizations/HaleGE_s02_ss0B_National_Academy_of_Sciences/HaleGE_056_07_Section_on_Astronomy/HaleGE_056_07_0001/8c38-d9cy.jp2
-    # {
+    # file_parts: {
     #     "crockford_id": "me5v-z1yp",
     #     "extension": "tiff",
     #     "filename": "HaleGE_02_0B_056_07_0001.tiff",
@@ -815,14 +816,9 @@ def get_s3_aip_image_key(prefix, file_parts):
     #     "filestem": "HaleGE_02_0B_056_07_0001",
     #     "sequence": "0001"
     # }
-    # exception for extended identifiers like HaleGE_02_0B_056_07
-    # TODO(tk) remove once no more exception files exist
-    # TODO(tk) use file_parts['folder_id'] directly
-    folder_id_parts = file_parts["folder_id"].split("_")
-    folder_id = "_".join([folder_id_parts[0], folder_id_parts[-2], folder_id_parts[-1]])
     return (
         prefix
-        + folder_id
+        + file_parts["folder_id"]
         + "_"
         + file_parts["sequence"]
         + "/"
@@ -1200,8 +1196,8 @@ def create_lossless_jpeg2000_image(variables, collection_data):
         variables["original_image_path"]
     )  # TODO rename function
     # Set up preservation structure.
-    preservation_image_key = get_s3_aip_image_key(
-        get_s3_aip_folder_prefix(
+    preservation_image_key = get_digital_object_component_file_key(
+        get_archival_object_directory_prefix(
             variables["folder_arrangement"], variables["folder_data"]
         ),
         filepath_components,
@@ -1308,8 +1304,8 @@ def process_folder_metadata(folderpath):
 def save_archival_object_datafile(folder_arrangement, folder_data, directory):
     """Save the archival object data to a JSON file."""
     # TODO rename functions to be more abstract
-    archival_object_datafile_key = get_s3_aip_folder_key(
-        get_s3_aip_folder_prefix(folder_arrangement, folder_data),
+    archival_object_datafile_key = get_archival_object_datafile_key(
+        get_archival_object_directory_prefix(folder_arrangement, folder_data),
         folder_data,
     )
     filename = os.path.join(
