@@ -135,6 +135,8 @@
         if (text.indexOf('🟡') != -1) {
           clearInterval(id);
           if (p) {
+            // TODO 🐞 something here behaves unexpectedly in Chrome
+            // the paragraph is updated before the 🟡 emoji is in the log
             console.log(p);
             p.innerHTML = p.innerHTML.replace("Validating", "✅ Validated");
             p.innerHTML = p.innerHTML.replace("Processing", "✅ Processed");
