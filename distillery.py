@@ -448,6 +448,9 @@ def create_derivative_structure(
 
         if access:
             access.archival_object_level_processing(variables)
+            status_logger.info(
+                f'☑️  ARCHIVAL OBJECT PAGE CREATED: [**{variables["archival_object"]["component_id"]}**]({config("ACCESS_SITE_BASE_URL").rstrip("/")}/{variables["folder_arrangement"]["collection_id"]}/{variables["archival_object"]["component_id"]}/index.html)'
+            )
 
         create_derivative_files(variables, collection_data, onsite, cloud, access)
 
@@ -1521,16 +1524,16 @@ def create_derivative_files(variables, collection_data, onsite, cloud, access):
     variables["filepaths_popped"] = sorted(variables["filepaths"], reverse=True)
     variables["filepaths_count_initial"] = len(variables["filepaths"])
     for f in range(variables["filepaths_count_initial"]):
-        logger.debug(
-            f'🐞 len(variables["filepaths_popped"]): {len(variables["filepaths_popped"])}'
-        )
+        # logger.debug(
+        #     f'🐞 len(variables["filepaths_popped"]): {len(variables["filepaths_popped"])}'
+        # )
         variables["original_image_path"] = variables["filepaths_popped"].pop()
         logger.info(
             f'▶️  PROCESSING ITEM: {variables["original_image_path"][len(config("WORKING_ORIGINAL_FILES")) + 1:]}'
         )
-        logger.debug(
-            f'🐞 len(variables["filepaths_popped"]): {len(variables["filepaths_popped"])}'
-        )
+        # logger.debug(
+        #     f'🐞 len(variables["filepaths_popped"]): {len(variables["filepaths_popped"])}'
+        # )
 
         # TODO check for existing derivative structure
         if onsite or cloud:
@@ -1552,7 +1555,7 @@ def create_derivative_files(variables, collection_data, onsite, cloud, access):
             # digital_object_component = prepare_digital_object_component()
 
         if access:
-            access.create_access_files(variables)
+            result = access.create_access_file(variables)
 
 
 if __name__ == "__main__":
