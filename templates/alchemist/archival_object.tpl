@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
     <title>{display_string}</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/universalviewer@4.0.0/dist/uv.css">
-    <script src="https://cdn.jsdelivr.net/npm/universalviewer@4.0.0/dist/umd/UV.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/universalviewer@4.0.17/dist/umd/UV.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/universalviewer@4.0.17/dist/uv.min.css">
   </head>
   <body>
     <main class="container">
@@ -18,7 +18,7 @@
           TODO: add ancestry
         </h2>
       </header>
-      <div class="uv" id="uv" style="width:924px;height:668px"></div>
+      <div class="uv" id="uv" style="width:100%;height:80vh"></div>
       <script>
         const data = {iiif_manifest_json}
         uv = UV.init("uv", data);

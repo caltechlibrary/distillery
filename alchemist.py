@@ -131,14 +131,14 @@ def generate_archival_object_page(build_directory, variables):
         )
         logger.info(f"🐛 COLLECTION DIRECTORY: {collection_directory}")
         iiif_manifest_url = (
-                        config("ACCESS_SITE_BASE_URL").strip("/")
-                        + "/"
-                        + variables["folder_arrangement"]["collection_id"]
-                        + "/"
-                        + variables["archival_object"]["component_id"]
-                        + "/"
-                        + "manifest.json"
-                    )
+            config("ACCESS_SITE_BASE_URL").strip("/")
+            + "/"
+            + variables["folder_arrangement"]["collection_id"]
+            + "/"
+            + variables["archival_object"]["component_id"]
+            + "/"
+            + "manifest.json"
+        )
         archival_object_page_key = (
             Path(variables["folder_arrangement"]["collection_id"])
             .joinpath(f'{variables["archival_object"]["component_id"]}', "index.html")
@@ -163,7 +163,7 @@ def generate_archival_object_page(build_directory, variables):
                     notes=variables["archival_object"]["notes"],
                     uri=variables["archival_object"]["uri"],
                     iiif_manifest=iiif_manifest_url,
-                    iiif_manifest_json=json.dumps({"manifest": f"{iiif_manifest_url}"})
+                    iiif_manifest_json=json.dumps({"manifest": f"{iiif_manifest_url}"}),
                 )
             )
         logger.info(
@@ -237,7 +237,8 @@ def generate_iiif_manifest(build_directory, variables):
             "sequences": [{"@type": "sc:Sequence", "canvases": []}],
         }
         logger.info(f"🐛 MANIFEST: {manifest}")
-        for filepath in variables["filepaths"]:
+        logger.info(f"🐛 FILEPATHS: {variables['filepaths']}")
+        for filepath in sorted(variables["filepaths"]):
             logger.info(f"🐛 FILEPATH: {filepath}")
             # create canvas metadata
             # HACK the binaries for `vips` and `vipsheader` should be in the same place
@@ -277,7 +278,7 @@ def generate_iiif_manifest(build_directory, variables):
             canvas = {
                 "@type": "sc:Canvas",
                 "@id": canvas_id,
-                "label": f'{variables["archival_object"]["component_id"]}_{sequence}',
+                "label": sequence.strip("0"),
                 "width": width,
                 "height": height,
                 "images": [
