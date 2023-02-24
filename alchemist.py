@@ -278,7 +278,7 @@ def generate_iiif_manifest(build_directory, variables):
             canvas = {
                 "@type": "sc:Canvas",
                 "@id": canvas_id,
-                "label": sequence.strip("0"),
+                "label": sequence.lstrip("0"),
                 "width": width,
                 "height": height,
                 "images": [
