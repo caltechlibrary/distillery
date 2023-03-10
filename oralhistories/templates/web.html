@@ -245,10 +245,6 @@ $if(dates)$
   </ul>
 </details>
 $endif$
-$if(abstract)$
-<h2>$abstract-title$</h2>
-$abstract$
-$endif$
 $if(archivesspace_public_url)$
 $if(archival_object_uri)$
 <p><a href="$archivesspace_public_url$$archival_object_uri$">Access the full archival record</a></p>
@@ -257,8 +253,20 @@ $endif$
 $if(component_id)$
 <p><a id="pdf" href="$component_id$.pdf">Access a PDF version of the transcript</a></p>
 $endif$
+$if(interviewee)$
+$if(interviewer)$
+$if(dates)$
 $if(resolver_base_url)$
-<p><a href="$resolver_base_url$/$component_id$">Citable URL</a></p>
+$if(component_id)$
+<p>$interviewee$, interview by $interviewer$, <cite>Caltech Archives Oral History Project</cite>, $for(dates)$$dates$$sep$, $endfor$, <a href="$resolver_base_url$/$component_id$">$resolver_base_url$/$component_id$</a>.</p>
+$endif$
+$endif$
+$endif$
+$endif$
+$endif$
+$if(abstract)$
+<h2>$abstract-title$</h2>
+$abstract$
 $endif$
 </header>
 $endif$
