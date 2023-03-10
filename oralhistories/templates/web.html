@@ -293,7 +293,7 @@ $body$
   });
   // move frontispiece into header area
   if (document.getElementById("frontispiece")) {
-    document.querySelector("header h1").insertAdjacentElement("afterend", document.getElementById("frontispiece").parentElement);
+    document.querySelector("header h1").insertAdjacentElement("afterend", document.getElementById("frontispiece"));
   }
   // append file size to pdf links
   const pdf_link = document.getElementById("pdf");
