@@ -319,14 +319,11 @@ $body$
           // we do this because we want the nav item to remain active
           // even when its heading is no longer visible and before the
           // next heading is visible;
-          if (entry.target.tagName == "H2" && document.querySelector("nav > ul > li.active")) {
-            document.querySelector("nav > ul > li.active").classList.remove("active");
-          }
           if (entry.target.tagName == "H3" && document.querySelector("nav li li.active")) {
             document.querySelector("nav li li.active").classList.remove("active");
           }
           // NOTE: use a double dollar sign in a pandoc template
-          item = document.querySelector(`nav a[href="#$${id}"]`).parentElement;
+          item = document.querySelector(`nav li li a[href="#$${id}"]`).parentElement;
           item.classList.add('active');
           // determine if nav list is at the top of the window
           // prevent a disorienting jump when the first nav item would want to scroll into view
@@ -337,23 +334,11 @@ $body$
         }
         if (!entry.isIntersecting && entry.boundingClientRect.top > 0) {
           // NOTE: the user is scrolling up
-          // remove "active" class from nav item at the corresponding level
-          if (entry.target.tagName == "H2" && document.querySelector("nav > ul > li.active")) {
-            document.querySelector("nav > ul > li.active").classList.remove("active");
-          }
+          // remove "active" class from nav item
           if (entry.target.tagName == "H3" && document.querySelector("nav li li.active")) {
             document.querySelector("nav li li.active").classList.remove("active");
           }
-          // and add it to the previous sibling
-          if (document.querySelector(`nav a[href="#${id}"]`).parentElement.previousElementSibling) {
-            document.querySelector(`nav a[href="#${id}"]`).parentElement.previousElementSibling.classList.add("active");
-            // and the last child of the sibling
-            if (document.querySelector(`nav a[href="#${id}"]`).parentElement.previousElementSibling.lastElementChild) {
-              if (document.querySelector(`nav a[href="#${id}"]`).parentElement.previousElementSibling.lastElementChild.lastElementChild) {
-                document.querySelector(`nav a[href="#${id}"]`).parentElement.previousElementSibling.lastElementChild.lastElementChild.classList.add("active");
-              }
-            }
-          }
+          // TODO add it to the previous item
         }
       });
     });
