@@ -332,13 +332,23 @@ $body$
             item.scrollIntoView({behavior: "smooth", block: "nearest"});
           }
         }
-        if (!entry.isIntersecting && entry.boundingClientRect.top > 0) {
+        // NOTE: browsers use different ways of getting viewport height
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+        if (!entry.isIntersecting && entry.boundingClientRect.top > viewportHeight) {
           // NOTE: the user is scrolling up
-          // remove "active" class from nav item
           if (entry.target.tagName == "H3" && document.querySelector("nav li li.active")) {
-            document.querySelector("nav li li.active").classList.remove("active");
+            const viewportItem = document.querySelector("nav li li.active");
+            // remove "active" class from nav item that scrolled out of view
+            viewportItem.classList.remove("active");
+            if (viewportItem.previousElementSibling) {
+              // add "active" class to sibling nav item above
+              viewportItem.previousElementSibling.classList.add("active");
+            }
+            else if (viewportItem.parentElement.parentElement.previousElementSibling.lastElementChild.lastElementChild) {
+              // add "active" class to last cousin nav item above
+              viewportItem.parentElement.parentElement.previousElementSibling.lastElementChild.lastElementChild.classList.add("active");
+            }
           }
-          // TODO add it to the previous item
         }
       });
     });
