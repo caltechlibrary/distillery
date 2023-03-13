@@ -56,6 +56,7 @@ $endif$
   /* sticky */
   @media (min-width: 992px) {
     nav[role="doc-toc"] {
+      border-inline-start: thin solid var(--accordion-border-color);
       max-height: 100vh;
       overflow: auto;
       position: sticky;
@@ -82,15 +83,20 @@ $endif$
   nav[role="doc-toc"] li > * {
     --spacing: 1rem;
   }
+  nav[role="doc-toc"] li li {
+    list-style-type: circle;
+  }
   nav[role="doc-toc"] a {
     display: inline;
   }
   </style>
   <style>
   /* scrollspy */
+  nav[role="doc-toc"] li.active {
+    list-style-type: "◂\00a0\00a0";
+  }
   nav[role="doc-toc"] li.active > a {
     color: var(--primary-hover);
-    font-weight: bold;
   }
   </style>
   <style>
