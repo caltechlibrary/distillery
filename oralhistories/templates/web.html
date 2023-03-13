@@ -349,10 +349,14 @@ $body$
             if (viewportItem.previousElementSibling) {
               // add "active" class to sibling nav item above
               viewportItem.previousElementSibling.classList.add("active");
+              // ensure it is visible in the sidebar
+              viewportItem.previousElementSibling.scrollIntoView({behavior: "smooth", block: "nearest"});
             }
-            else if (viewportItem.parentElement.parentElement.previousElementSibling.lastElementChild.lastElementChild) {
+            else if (viewportItem.parentElement.parentElement.previousElementSibling) {
               // add "active" class to last cousin nav item above
               viewportItem.parentElement.parentElement.previousElementSibling.lastElementChild.lastElementChild.classList.add("active");
+              // ensure it is visible in the sidebar
+              viewportItem.parentElement.parentElement.previousElementSibling.lastElementChild.lastElementChild.scrollIntoView({behavior: "smooth", block: "nearest"});
             }
           }
         }
