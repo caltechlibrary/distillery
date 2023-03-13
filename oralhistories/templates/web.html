@@ -53,10 +53,14 @@ $endif$
   html {
     scroll-behavior: smooth;
   }
-  /* sticky */
   @media (min-width: 992px) {
     nav[role="doc-toc"] {
       border-inline-start: thin solid var(--accordion-border-color);
+    }
+  }
+  /* sticky */
+  @media (min-width: 992px) {
+    nav[role="doc-toc"] {
       max-height: 100vh;
       overflow: auto;
       position: sticky;
@@ -78,6 +82,7 @@ $endif$
   }
   nav[role="doc-toc"] li {
     display: list-item;
+    list-style-type: none;
     padding: 0;
   }
   nav[role="doc-toc"] li > * {
