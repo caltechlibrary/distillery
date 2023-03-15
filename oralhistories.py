@@ -48,7 +48,7 @@ class OralHistoriesService(rpyc.Service):
         self.add_commit_push()
         # ASSUMPTION: a DOCX file is provided
         if component_id and not update and not publish:
-            self.status_logger.info(f"☑️ received **{component_id}.docx** file")
+            self.status_logger.info(f"☑️  received **{component_id}.docx** file")
             self.component_id = component_id
             self.archival_object = distillery.find_archival_object(self.component_id)
             self.metadata = self.create_metadata(archival_object=self.archival_object)
@@ -60,7 +60,7 @@ class OralHistoriesService(rpyc.Service):
             )
             self.add_commit_push(self.component_id)
             self.status_logger.info(
-                f'☑️ pushed [**{component_id}.md** file](https://github.com/{config("ORALHISTORIES_GITHUB_REPO")}/blob/main/transcripts/{component_id}/{component_id}.md) to GitHub'
+                f'☑️  pushed [**{component_id}.md** file](https://github.com/{config("ORALHISTORIES_GITHUB_REPO")}/blob/main/transcripts/{component_id}/{component_id}.md) to GitHub'
             )
             self.digital_object_uri = self.create_digital_object()
             self.create_digital_object_component(
@@ -69,7 +69,7 @@ class OralHistoriesService(rpyc.Service):
                 f"{self.component_id}.md",
             )
             self.status_logger.info(
-                f'☑️ created [**{component_id}** Digital Object record]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={self.digital_object_uri}) in ArchivesSpace'
+                f'☑️  created [**{component_id}** Digital Object record]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={self.digital_object_uri}) in ArchivesSpace'
             )
         if publish:
             if component_id:
