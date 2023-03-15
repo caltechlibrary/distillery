@@ -336,17 +336,25 @@ class OralHistoriesService(rpyc.Service):
         if archival_object.get("dates"):
             dates = {}
             for date in archival_object["dates"]:
-                if date["date_type"] == "single":
-                    # key: YYYY-MM-DD, value: Month D, YYYY
-                    dates[date["begin"]] = (
-                        datetime.strptime(date["begin"], "%Y-%m-%d")
-                        .strftime("%B %d, %Y")
-                        .replace(" 0", " ")
-                    )
-                else:
-                    logger.warning(
-                        f'⚠️  NON-SINGLE DATE TYPE FOUND: {archival_object["component_id"]}'
-                    )
+                if date["label"] == "creation":
+                    if date["date_type"] == "single":
+                        # key: ISO 8601 date, value: formatted date
+                        if len(date["begin"]) == 4:
+                            dates[date["begin"]] = date["begin"]
+                        elif len(date["begin"]) == 7:
+                            dates[date["begin"]] = datetime.strptime(
+                                date["begin"], "%Y-%m"
+                            ).strftime("%B %Y")
+                        elif len(date["begin"]) == 10:
+                            dates[date["begin"]] = (
+                                datetime.strptime(date["begin"], "%Y-%m-%d")
+                                .strftime("%B %d, %Y")
+                                .replace(" 0", " ")
+                            )
+                    else:
+                        logger.warning(
+                            f'⚠️  NON-SINGLE DATE TYPE FOUND: {archival_object["component_id"]}'
+                        )
             if int(sorted(dates)[-1][:4]) - int(sorted(dates)[0][:4]) == 0:
                 metadata["date_summary"] = sorted(dates)[0][:4]
             else:
