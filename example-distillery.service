@@ -1,0 +1,33 @@
+# https://www.freedesktop.org/software/systemd/man/systemd.service.html
+#
+# modify and copy this file to /etc/systemd/system/distillery.service
+# on the work server
+#
+# enable with `systemctl enable distillery`
+# start with `systemctl start distillery`
+# reload with `systemctl reload distillery`
+# restart with `systemctl restart distillery`
+# stop with `systemctl stop distillery`
+#
+# see listening ports:
+# sudo lsof -nP -iTCP -sTCP:LISTEN
+#
+# follow logs:
+# sudo journalctl -u distillery.service -f
+
+[Unit]
+Description=Distillery RPyC Listener
+#Documentation=
+StartLimitIntervalSec=0
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+#User=username
+#Environment="PIPENV_PIPFILE=/path/to/distillery/Pipfile"
+#ExecStart=/usr/bin/pipenv run python /path/to/distillery/distillery.py
+
+[Install]
+WantedBy=multi-user.target
