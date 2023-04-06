@@ -9,6 +9,12 @@
 # restart with `systemctl restart oralhistories`
 # stop with `systemctl stop oralhistories`
 #
+# see listening ports:
+# sudo lsof -nP -iTCP -sTCP:LISTEN
+#
+# follow logs:
+# sudo journalctl -u oralhistories.service -f
+
 [Unit]
 Description=Oral Histories RPyC Listener
 #Documentation=

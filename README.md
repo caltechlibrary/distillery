@@ -50,7 +50,7 @@ For copying to the cloud we are using and assuming AWS S3. For publishing access
 
 For the preservation and publication components:
 
-1. Copy the `distillery-example.service` file to `/etc/systemd/system/distillery.service` and set appropriate values.
+1. Copy the `example-distillery.service` file to `/etc/systemd/system/distillery.service` and set appropriate values.
 1. Enable the service with `systemctl enable distillery`.
 1. Start the service with `systemctl start distillery`.
 
