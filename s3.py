@@ -111,11 +111,12 @@ def transfer_collection_datafile(collection_id, work_preservation_files):
     collection_datafile_path = (
         Path(work_preservation_files).joinpath(collection_datafile_key).resolve()
     )
-    s3_client.put_object(
-        Bucket=config("PRESERVATION_BUCKET"),
-        Key=str(collection_datafile_key),
-        Body=str(collection_datafile_path),
-    )
+    with open(collection_datafile_path, "rb") as body:
+        s3_client.put_object(
+            Bucket=config("PRESERVATION_BUCKET"),
+            Key=str(collection_datafile_key),
+            Body=body,
+        )
     logger.info(
         f'☑️  COLLECTION DATAFILE UPLOADED TO S3: {config("PRESERVATION_BUCKET")}/{str(collection_datafile_key)}'
     )
@@ -142,11 +143,12 @@ def transfer_archival_object_datafile(variables):
         variables["current_archival_object_datafile"]
     ).split(f'{config("WORK_PRESERVATION_FILES")}/')[-1]
     # logger.info(f'🐞 archival_object_datafile_key: {archival_object_datafile_key}')
-    s3_client.put_object(
-        Bucket=config("PRESERVATION_BUCKET"),
-        Key=archival_object_datafile_key,
-        Body=str(variables["current_archival_object_datafile"]),
-    )
+    with open(variables["current_archival_object_datafile"], "rb") as body:
+        s3_client.put_object(
+            Bucket=config("PRESERVATION_BUCKET"),
+            Key=archival_object_datafile_key,
+            Body=body,
+        )
     logger.info(
         f'☑️  ARCHIVAL OBJECT DATAFILE UPLOADED TO S3: {config("PRESERVATION_BUCKET")}/{str(archival_object_datafile_key)}'
     )
