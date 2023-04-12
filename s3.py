@@ -26,6 +26,7 @@ validation_logger = logging.getLogger("validation")
 
 s3_client = boto3.client(
     "s3",
+    region_name=config("DISTILLERY_AWS_REGION", default="us-west-2"),
     aws_access_key_id=config("DISTILLERY_AWS_ACCESS_KEY_ID"),
     aws_secret_access_key=config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
 )
