@@ -203,103 +203,108 @@ class DistilleryService(rpyc.Service):
         # reset status_logfile
         with open(status_logfile, "w") as f:
             pass
-        self._initiate_variables(collection_id, destinations)
-        status_logger.info(f"🟢 BEGIN DISTILLING: {self.collection_id}")
-        self._import_modules()
-        status_logger.info(f'☑️  DESTINATIONS: {self.destinations.replace("_", ", ")}')
-
-        # retrieve collection data from ArchivesSpace
-        collection_data = get_collection_data(self.collection_id)
-        status_logger.info(
-            f'☑️  ARCHIVESSPACE COLLECTION DATA RETRIEVED: [**{collection_data["title"]}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={collection_data["uri"]})'
-        )
-
-        # for preservation destinations
-        onsiteDistiller = None
-        cloudDistiller = None
-        if self.onsite_medium or self.cloud_platform:
-            # validate WORK_PRESERVATION_FILES directory
-            work_preservation_files = Path(config("WORK_PRESERVATION_FILES")).resolve(
-                strict=True
-            )
-            # save collection metadata
-            save_collection_datafile(collection_data, work_preservation_files)
-            # run collection-level preprocessing
-            if self.cloud_platform:
-                self.cloud_platform.collection_level_preprocessing(
-                    self.collection_id, work_preservation_files
-                )
-                cloudDistiller = True
-
-        # for access publication
-        accessDistiller = None
-        if self.access_platform:
-            accessDistiller = self.access_platform.AccessPlatform(
-                self.collection_id, collection_data
-            )
-            accessDistiller.collection_structure_processing()
-
-        # Move the `collection_id` directory into `WORKING_ORIGINAL_FILES`.
         try:
-            shutil.move(
-                str(os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id)),
-                str(os.path.join(config("WORKING_ORIGINAL_FILES"), collection_id)),
+            self._initiate_variables(collection_id, destinations)
+            status_logger.info(f"🟢 BEGIN DISTILLING: {self.collection_id}")
+            self._import_modules()
+            status_logger.info(f'☑️  DESTINATIONS: {self.destinations.replace("_", ", ")}')
+
+            # retrieve collection data from ArchivesSpace
+            collection_data = get_collection_data(self.collection_id)
+            status_logger.info(
+                f'☑️  ARCHIVESSPACE COLLECTION DATA RETRIEVED: [**{collection_data["title"]}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={collection_data["uri"]})'
             )
-        except BaseException as e:
-            message = "❌ unable to move the source files for processing"
-            status_logger.info(message)
-            logger.error(f"❌ {e}")
-            # re-raise the exception because we cannot continue without the files
-            raise
 
-        working_collection_directory = confirm_collection_directory(
-            self.collection_id, config("WORKING_ORIGINAL_FILES")
-        )
+            # for preservation destinations
+            onsiteDistiller = None
+            cloudDistiller = None
+            if self.onsite_medium or self.cloud_platform:
+                # validate WORK_PRESERVATION_FILES directory
+                work_preservation_files = Path(config("WORK_PRESERVATION_FILES")).resolve(
+                    strict=True
+                )
+                # save collection metadata
+                save_collection_datafile(collection_data, work_preservation_files)
+                # run collection-level preprocessing
+                if self.cloud_platform:
+                    self.cloud_platform.collection_level_preprocessing(
+                        self.collection_id, work_preservation_files
+                    )
+                    cloudDistiller = True
 
-        # TODO consider running this loop here in order to log items within it or send the logger to the function
-        create_derivative_structure(
-            self.variables,
-            working_collection_directory,
-            collection_data,
-            onsiteDistiller,
-            cloudDistiller,
-            accessDistiller,
-        )
-        message = f"☑️  DERIVATIVES CREATED"
-        logger.info(message)
-        status_logger.info(message)
+            # for access publication
+            accessDistiller = None
+            if self.access_platform:
+                accessDistiller = self.access_platform.AccessPlatform(
+                    self.collection_id, collection_data
+                )
+                accessDistiller.collection_structure_processing()
 
-        if self.onsite_medium:
-            # TODO run in the background but wait for it before writing records to ArchivesSpace
-            # TODO is there a benefit in transferring PRESERVATION_FILES/CollectionID directory as a whole to tape?
-            # TODO variables["WORK_LOSSLESS_PRESERVATION_FILES"]
-            # TODO variables["collection_id"]
-            self.onsite_medium.transfer_derivative_collection(self.variables)
+            # Move the `collection_id` directory into `WORKING_ORIGINAL_FILES`.
+            try:
+                shutil.move(
+                    str(os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id)),
+                    str(os.path.join(config("WORKING_ORIGINAL_FILES"), collection_id)),
+                )
+            except BaseException as e:
+                message = "❌ unable to move the source files for processing"
+                status_logger.info(message)
+                logger.error(f"❌ {e}")
+                # re-raise the exception because we cannot continue without the files
+                raise
 
-        if self.access_platform:
-            # TODO run in the background but wait for it before writing records to ArchivesSpace
-            accessDistiller.transfer_derivative_files(self.variables)
-            accessDistiller.ingest_derivative_files(self.variables)
-            accessDistiller.loop_over_derivative_structure(self.variables)
+            working_collection_directory = confirm_collection_directory(
+                self.collection_id, config("WORKING_ORIGINAL_FILES")
+            )
 
-        # PROCESS PRESERVATION STRUCTURE
-        # create an ArchivesSpace Digital Object Component for each preservation file
-        if self.onsite_medium or self.cloud_platform:
-            loop_over_archival_object_datafiles(
+            # TODO consider running this loop here in order to log items within it or send the logger to the function
+            create_derivative_structure(
                 self.variables,
-                self.collection_id,
-                self.onsite_medium,
-                self.cloud_platform,
+                working_collection_directory,
+                collection_data,
+                onsiteDistiller,
+                cloudDistiller,
+                accessDistiller,
             )
+            message = f"☑️  DERIVATIVES CREATED"
+            logger.info(message)
+            status_logger.info(message)
 
-        # send the character that stops javascript reloading in the web ui
-        status_logger.info(f"🟡")
-        # copy the status_logfile to the logs directory
-        logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(
-            f"{self.collection_id}.{str(int(time.time()))}.run.log"
-        )
-        shutil.copy2(status_logfile, logfile_dst)
-        logger.info(f"☑️  COPIED RUN LOG FILE: {logfile_dst}")
+            if self.onsite_medium:
+                # TODO run in the background but wait for it before writing records to ArchivesSpace
+                # TODO is there a benefit in transferring PRESERVATION_FILES/CollectionID directory as a whole to tape?
+                # TODO variables["WORK_LOSSLESS_PRESERVATION_FILES"]
+                # TODO variables["collection_id"]
+                self.onsite_medium.transfer_derivative_collection(self.variables)
+
+            if self.access_platform:
+                # TODO run in the background but wait for it before writing records to ArchivesSpace
+                accessDistiller.transfer_derivative_files(self.variables)
+                accessDistiller.ingest_derivative_files(self.variables)
+                accessDistiller.loop_over_derivative_structure(self.variables)
+
+            # PROCESS PRESERVATION STRUCTURE
+            # create an ArchivesSpace Digital Object Component for each preservation file
+            if self.onsite_medium or self.cloud_platform:
+                loop_over_archival_object_datafiles(
+                    self.variables,
+                    self.collection_id,
+                    self.onsite_medium,
+                    self.cloud_platform,
+                )
+        except Exception as e:
+            status_logger.error("❌ SOMETHING WENT WRONG")
+            status_logger.error(e)
+            raise
+        finally:
+            # send the character that stops javascript reloading in the web ui
+            status_logger.info(f"🟡")
+            # copy the status_logfile to the logs directory
+            logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(
+                f"{self.collection_id}.{str(int(time.time()))}.run.log"
+            )
+            shutil.copy2(status_logfile, logfile_dst)
+            logger.info(f"☑️  COPIED RUN LOG FILE: {logfile_dst}")
 
 
 def confirm_collection_directory(collection_id, parent_directory):
