@@ -135,8 +135,9 @@ class DistilleryService(rpyc.Service):
                 status_logger.error(message)
                 raise ConnectionError(message)
 
+        # validate INITIAL_ORIGINAL_FILES directory
+        # TODO allow for multiple locations / different mount points
         try:
-            # validate INITIAL_ORIGINAL_FILES directory
             if Path(config("INITIAL_ORIGINAL_FILES")).is_dir():
                 confirm_collection_directory(
                     self.collection_id, config("INITIAL_ORIGINAL_FILES")
@@ -163,6 +164,7 @@ class DistilleryService(rpyc.Service):
                     status_logger.info(f"📁 {self.collection_id}/{dirname}")
             if filenames:
                 for filename in filenames:
+                    # TODO remove mimetype checking
                     type, encoding = mimetypes.guess_type(
                         Path(dirpath).joinpath(filename)
                     )
@@ -175,9 +177,11 @@ class DistilleryService(rpyc.Service):
             status_logger.error(message)
             raise FileNotFoundError(message)
         if initial_original_filecount:
+            # TODO update wording
             logger.info(f"☑️  TIFF FILE COUNT: {initial_original_filecount}")
             status_logger.info(f"📄 TIFF file count: {initial_original_filecount}")
         else:
+            # TODO update wording
             message = f"❌ No TIFF files found for {self.collection_id}"
             status_logger.error(message)
             raise FileNotFoundError(message)
@@ -241,6 +245,7 @@ class DistilleryService(rpyc.Service):
                 accessDistiller.collection_structure_processing()
 
             # Move the `collection_id` directory into `WORKING_ORIGINAL_FILES`.
+            # TODO allow for different root volumes
             try:
                 shutil.move(
                     str(os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id)),
@@ -432,6 +437,7 @@ def create_derivative_structure(
 
         # get archival_object data via component_id from subdirectory name
         variables["archival_object"] = find_archival_object(
+            # TODO remove normalize function; must rely on strict naming convention
             normalize_directory_component_id(subdirectory)
         )
         if not variables["archival_object"]:
@@ -1166,6 +1172,7 @@ def prepare_filepaths_list(folderpath):
     filepaths = []
     with os.scandir(folderpath) as contents:
         for entry in contents:
+            # TODO remove TIFF-specific condition
             if entry.is_file() and os.path.splitext(entry.path)[1] in [".tif", ".tiff"]:
                 filepaths.append(entry.path)
     return filepaths
@@ -1543,7 +1550,7 @@ def create_derivative_files(variables, collection_data, onsite, cloud, access):
         # TODO check for existing derivative structure
         if onsite or cloud:
             # TODO import mimetypes; mimetypes.guess_type(filepath)
-
+            # TODO find out the appropriate conditions for creating JPEG 2000 images
             try:
                 # Create lossless JPEG 2000 image from original.
                 preservation_image_key = create_lossless_jpeg2000_image(
