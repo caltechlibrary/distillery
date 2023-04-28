@@ -15,6 +15,8 @@ import sh
 
 from decouple import config
 
+import distillery
+
 logging.config.fileConfig(
     # set the logging configuration in the settings.ini file
     Path(Path(__file__).resolve().parent).joinpath("settings.ini"),
@@ -48,6 +50,7 @@ class AccessPlatform:
         upload_iiif_manifest(self.build_directory, variables)
 
     def create_access_file(self, variables):
+        # TODO adapt for different file types
         # TODO create the Pyramid TIFF for iiif-serverless
         logger.info(f"🐛 CREATE ACCESS FILE: {self.collection_id}")
         logger.info(f"🐛 variables.keys(): {variables.keys()}")
@@ -70,6 +73,7 @@ class AccessPlatform:
         logger.info(f"🐛 LOOP OVER DERIVATIVE STRUCTURE: {self.collection_id}")
         logger.info(f"🐛 variables.keys(): {variables.keys()}")
         # TODO create digital object file versions in ArchivesSpace
+        create_file_versions(self.build_directory, variables)
 
 
 def validate_connection():
@@ -156,6 +160,7 @@ def generate_archival_object_page(build_directory, variables):
             archival_object_page_file,
             "w",
         ) as f:
+            # supply data to template placeholders
             f.write(
                 template.format(
                     display_string=variables["archival_object"]["display_string"],
@@ -436,3 +441,69 @@ def publish_access_files(build_directory, variables):
         logger.error(f"❌ EXCEPTION: {e}")
         logger.error(f"❌ TRACEBACK: {traceback.format_exc()}")
         raise
+
+
+def create_file_versions(build_directory, variables):
+    logger.info(f"🐛 BUILD DIRECTORY: {build_directory.name}")
+
+    collection_directory = Path(build_directory.name).joinpath(
+        variables["folder_arrangement"]["collection_id"]
+    )
+    logger.info(f"🐛 COLLECTION DIRECTORY: {collection_directory}")
+
+    for archival_object_directory in collection_directory.iterdir():
+
+        if not archival_object_directory.is_dir():
+            continue
+
+        archival_object_page_url = (
+            config("ACCESS_SITE_BASE_URL").strip("/")
+            + "/"
+            + variables["folder_arrangement"]["collection_id"]
+            + "/"
+            + variables["archival_object"]["component_id"]
+            + "/"
+            + "index.html"
+        )
+        logger.info(f"🐛 ARCHIVAL OBJECT PAGE URL: {archival_object_page_url}")
+
+        file_versions = [
+            {
+                "file_uri": archival_object_page_url,
+                "jsonmodel_type": "file_version",
+                "publish": True,
+            },
+            # TODO determine source of thumbnail
+            # determination should happen before creating manifest to include it there
+            # {
+            #     "file_uri": "",
+            #     "jsonmodel_type": "file_version",
+            #     "publish": True,
+            #     "xlink_show_attribute": "embed",
+            # },
+        ]
+
+        # load existing or create new digital_object with component_id
+        variables["archival_object"] = distillery.load_digital_object(
+            variables["archival_object"]
+        )
+
+        for instance in variables["archival_object"]["instances"]:
+            if "digital_object" in instance.keys():
+                # ASSUMPTION: only one digital_object exists per archival_object
+                # TODO handle multiple digital_objects per archival_object
+                if instance["digital_object"]["_resolved"]["file_versions"]:
+                    # TODO decide what to do with existing file_versions; unpublish? delete?
+                    logger.warning(
+                        f'🔥 EXISTING DIGITAL_OBJECT FILE_VERSIONS FOUND: {variables["archival_object"]["component_id"]}: {instance["digital_object"]["ref"]}'
+                    )
+                else:
+                    digital_object = instance["digital_object"]["_resolved"]
+
+        # NOTE this will fail if there are existing file_versions
+        digital_object["file_versions"] = file_versions
+        digital_object["publish"] = True
+
+        digital_object_post_response = distillery.update_digital_object(
+            digital_object["uri"], digital_object
+        ).json()

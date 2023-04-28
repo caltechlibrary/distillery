@@ -97,6 +97,9 @@ class DistilleryService(rpyc.Service):
     @rpyc.exposed
     def validate(self, collection_id, destinations):
         """Validate connections, files, and data."""
+        # TODO notify of empty directories
+        # TODO notify of existing digital_object["file_versions"]
+
         # reset status_logfile
         with open(status_logfile, "w") as f:
             pass
@@ -211,7 +214,9 @@ class DistilleryService(rpyc.Service):
             self._initiate_variables(collection_id, destinations)
             status_logger.info(f"🟢 BEGIN DISTILLING: {self.collection_id}")
             self._import_modules()
-            status_logger.info(f'☑️  DESTINATIONS: {self.destinations.replace("_", ", ")}')
+            status_logger.info(
+                f'☑️  DESTINATIONS: {self.destinations.replace("_", ", ")}'
+            )
 
             # retrieve collection data from ArchivesSpace
             collection_data = get_collection_data(self.collection_id)
@@ -224,9 +229,9 @@ class DistilleryService(rpyc.Service):
             cloudDistiller = None
             if self.onsite_medium or self.cloud_platform:
                 # validate WORK_PRESERVATION_FILES directory
-                work_preservation_files = Path(config("WORK_PRESERVATION_FILES")).resolve(
-                    strict=True
-                )
+                work_preservation_files = Path(
+                    config("WORK_PRESERVATION_FILES")
+                ).resolve(strict=True)
                 # save collection metadata
                 save_collection_datafile(collection_data, work_preservation_files)
                 # run collection-level preprocessing
@@ -482,6 +487,7 @@ def archivessnake_delete(uri):
     return response
 
 
+# TODO rename to something like "get_archival_object_with_digital_object"
 def load_digital_object(archival_object):
     digital_object_count = 0
     for instance in archival_object["instances"]:
