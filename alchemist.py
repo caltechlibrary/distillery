@@ -72,8 +72,7 @@ class AccessPlatform:
     def loop_over_derivative_structure(self, variables):
         logger.info(f"🐛 LOOP OVER DERIVATIVE STRUCTURE: {self.collection_id}")
         logger.info(f"🐛 variables.keys(): {variables.keys()}")
-        # TODO create digital object file versions in ArchivesSpace
-        create_file_versions(self.build_directory, variables)
+        create_digital_object_file_versions(self.build_directory, variables)
 
 
 def validate_connection():
@@ -443,7 +442,7 @@ def publish_access_files(build_directory, variables):
         raise
 
 
-def create_file_versions(build_directory, variables):
+def create_digital_object_file_versions(build_directory, variables):
     logger.info(f"🐛 BUILD DIRECTORY: {build_directory.name}")
 
     collection_directory = Path(build_directory.name).joinpath(
