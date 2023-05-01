@@ -5,6 +5,8 @@
 ; The BASE_URL is passed to the Bottle templates so that relative links
 ; work properly if the application is accessed at a specific path.
 ;BASE_URL=https://www.example.org/distillery
+;DISTILLERY_BASIC_AUTH_USERNAME=username
+;DISTILLERY_BASIC_AUTH_PASSWORD=password
 
 ; RPyC
 ; ----
@@ -24,6 +26,8 @@
 ;ASPACE_USERNAME=apiusername
 ;ASPACE_STAFF_URL=https://archivesspace.example.org/staff
 ;ASPACE_PUBLIC_URL=https://archivesspace.example.org/public
+;ASPACE_BASIC_AUTH_USERNAME=username
+;ASPACE_BASIC_AUTH_PASSWORD=password
 
 ; AWS
 ; ---
