@@ -132,7 +132,17 @@
       function reloadIframe() {
         log.contentDocument.location.reload();
         let text = log.contentDocument.body.innerText;
-        if (text.indexOf('🟡') != -1) {
+        if (text.indexOf('❌') !== -1) {
+          clearInterval(id);
+          if (p) {
+            console.log(p);
+            p.innerHTML = "❌ Something went wrong. View the details for more information.";
+          }
+          if (button) {
+            button.innerHTML = "❌ Failure";
+            button.setAttribute("aria-busy", false);
+          }
+        } else if (text.indexOf('🟡') != -1) {
           clearInterval(id);
           if (p) {
             // TODO 🐞 something here behaves unexpectedly in Chrome
@@ -145,12 +155,6 @@
             button.innerHTML = "Run 🚀";
             button.setAttribute("aria-busy", false);
             button.disabled = false;
-          }
-        } else if (text.indexOf('❌') !== -1) {
-          clearInterval(id);
-          if (button) {
-            button.innerHTML = "❌ Failure";
-            button.setAttribute("aria-busy", false);
           }
         }
         log.style.height = log.contentDocument.body.scrollHeight + 48 + 'px';
