@@ -22,6 +22,7 @@ def browser_context_args(browser_context_args):
 
 
 def test_distillery_0000_reset_db(page: Page):
+    # NOTE without page parameter test does not run in order
     subprocess.run(
         [
             "scp",
@@ -52,6 +53,7 @@ def test_distillery_0000_reset_db(page: Page):
 
 
 def test_distillery_0000_reset_files(page: Page):
+    # NOTE without page parameter test does not run in order
     for d in glob.glob(os.path.join(config("WORKING_ORIGINAL_FILES"), "*/")):
         shutil.move(d, config("INITIAL_ORIGINAL_FILES"))
     for d in glob.glob(os.path.join(config("STAGE_3_ORIGINAL_FILES"), "*/")):
@@ -63,7 +65,7 @@ def test_distillery_0000_reset_files(page: Page):
 
 
 def test_distillery_0001_setup(page: Page):
-    # NOTE without page parameter test does not run first
+    # NOTE without page parameter test does not run in order
 
     asnake_client = ASnakeClient(
         baseurl=config("ASPACE_API_URL"),
@@ -175,3 +177,17 @@ def test_distillery_0001_setup(page: Page):
 def test_distillery_landing(page: Page):
     page.goto(config("BASE_URL"))
     expect(page).to_have_title("Distillery")
+
+
+def test_distillery_cloud(page: Page):
+    page.goto(config("BASE_URL"))
+    page.get_by_label("Collection ID").fill("DistilleryTEST0001_collection")
+    page.get_by_text(
+        "Cloud preservation storage generate and send files to a remote storage provider"
+    ).click()
+    page.get_by_role("button", name="Validate").click()
+    page.get_by_text("Details").click()
+    expect(page.locator("p")).to_have_text("✅ Validated metadata, files, and destinations for DistilleryTEST0001_collection.")
+    page.get_by_role("button", name="Run").click()
+    page.get_by_text("Details").click()
+    expect(page.locator("p")).to_have_text("✅ Processed metadata and files for DistilleryTEST0001_collection.")
