@@ -1,5 +1,9 @@
 import datetime
+import glob
+import os
 import pytest
+import shutil
+import subprocess
 
 from asnake.client import ASnakeClient
 from decouple import config
@@ -15,6 +19,47 @@ def browser_context_args(browser_context_args):
             "password": config("DISTILLERY_BASIC_AUTH_PASSWORD", default=""),
         },
     }
+
+
+def test_distillery_0000_reset_db(page: Page):
+    subprocess.run(
+        [
+            "scp",
+            "-i",
+            config("ARCHIVESSPACE_SSH_KEY"),
+            "-P",
+            config("ARCHIVESSPACE_SSH_PORT"),
+            f"{os.path.dirname(__file__)}/assets/reset.sh",
+            f'{config("ARCHIVESSPACE_SSH_USER")}@{config("ARCHIVESSPACE_SSH_HOST")}:/tmp/reset.sh',
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "ssh",
+            "-t",
+            "-i",
+            config("ARCHIVESSPACE_SSH_KEY"),
+            f'{config("ARCHIVESSPACE_SSH_USER")}@{config("ARCHIVESSPACE_SSH_HOST")}',
+            f'-p{config("ARCHIVESSPACE_SSH_PORT")}',
+            "sudo",
+            "/bin/sh",
+            "/tmp/reset.sh",
+            f'{config("ARCHIVESSPACE_RESET_DB")}',
+        ],
+        check=True,
+    )
+
+
+def test_distillery_0000_reset_files(page: Page):
+    for d in glob.glob(os.path.join(config("WORKING_ORIGINAL_FILES"), "*/")):
+        shutil.move(d, config("INITIAL_ORIGINAL_FILES"))
+    for d in glob.glob(os.path.join(config("STAGE_3_ORIGINAL_FILES"), "*/")):
+        shutil.move(d, config("INITIAL_ORIGINAL_FILES"))
+    for d in glob.glob(os.path.join(config("WORK_PRESERVATION_FILES"), "*/")):
+        shutil.rmtree(d)
+    for d in glob.glob(os.path.join(config("COMPRESSED_ACCESS_FILES"), "*/")):
+        shutil.rmtree(d)
 
 
 def test_distillery_0001_setup(page: Page):
