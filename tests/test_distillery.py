@@ -21,37 +21,6 @@ def browser_context_args(browser_context_args):
     }
 
 
-def test_distillery_0000_reset_db(page: Page):
-    # NOTE without page parameter test does not run in order
-    subprocess.run(
-        [
-            "scp",
-            "-i",
-            config("ARCHIVESSPACE_SSH_KEY"),
-            "-P",
-            config("ARCHIVESSPACE_SSH_PORT"),
-            f"{os.path.dirname(__file__)}/assets/reset.sh",
-            f'{config("ARCHIVESSPACE_SSH_USER")}@{config("ARCHIVESSPACE_SSH_HOST")}:/tmp/reset.sh',
-        ],
-        check=True,
-    )
-    subprocess.run(
-        [
-            "ssh",
-            "-t",
-            "-i",
-            config("ARCHIVESSPACE_SSH_KEY"),
-            f'{config("ARCHIVESSPACE_SSH_USER")}@{config("ARCHIVESSPACE_SSH_HOST")}',
-            f'-p{config("ARCHIVESSPACE_SSH_PORT")}',
-            "sudo",
-            "/bin/sh",
-            "/tmp/reset.sh",
-            f'{config("ARCHIVESSPACE_RESET_DB")}',
-        ],
-        check=True,
-    )
-
-
 def test_distillery_0000_reset_files(page: Page):
     # NOTE without page parameter test does not run in order
     for d in glob.glob(os.path.join(config("WORKING_ORIGINAL_FILES"), "*/")):
@@ -187,7 +156,11 @@ def test_distillery_cloud(page: Page):
     ).click()
     page.get_by_role("button", name="Validate").click()
     page.get_by_text("Details").click()
-    expect(page.locator("p")).to_have_text("✅ Validated metadata, files, and destinations for DistilleryTEST0001_collection.")
+    expect(page.locator("p")).to_have_text(
+        "✅ Validated metadata, files, and destinations for DistilleryTEST0001_collection."
+    )
     page.get_by_role("button", name="Run").click()
     page.get_by_text("Details").click()
-    expect(page.locator("p")).to_have_text("✅ Processed metadata and files for DistilleryTEST0001_collection.")
+    expect(page.locator("p")).to_have_text(
+        "✅ Processed metadata and files for DistilleryTEST0001_collection."
+    )
