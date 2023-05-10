@@ -440,7 +440,9 @@ def create_derivative_structure(
             continue
 
         # get archival_object data via component_id from subdirectory name
-        variables["archival_object"] = find_archival_object(os.path.basename(subdirectory))
+        variables["archival_object"] = find_archival_object(
+            os.path.basename(subdirectory)
+        )
         if not variables["archival_object"]:
             logger.warning(f"⚠️  CONTINUING LOOP AT: {subdirectory}")
             continue
@@ -476,6 +478,7 @@ def archivessnake_post(uri, object):
     except Exception as e:
         logger.error(f"🐞: {e}")
         raise
+
 
 def archivessnake_delete(uri):
     response = asnake_client.delete(uri)
@@ -519,7 +522,10 @@ def reload_archival_object_with_digital_object_instance(archival_object):
     if digital_object_count < 1:
         # returns new archival_object with digital object info included
         archival_object = create_digital_object(archival_object)
-        archival_object, digital_object_ref = reload_archival_object_with_digital_object_instance(archival_object)
+        (
+            archival_object,
+            digital_object_ref,
+        ) = reload_archival_object_with_digital_object_instance(archival_object)
     return archival_object, digital_object_ref
 
 
@@ -723,10 +729,14 @@ def get_folder_arrangement(archival_object):
             folder_arrangement["collection_display"] = ancestor["_resolved"]["title"]
             folder_arrangement["collection_id"] = ancestor["_resolved"]["id_0"]
         elif ancestor["level"] == "series":
-            folder_arrangement["series_display"] = ancestor["_resolved"]["display_string"]
+            folder_arrangement["series_display"] = ancestor["_resolved"][
+                "display_string"
+            ]
             folder_arrangement["series_id"] = ancestor["_resolved"]["component_id"]
         elif ancestor["level"] == "subseries":
-            folder_arrangement["subseries_display"] = ancestor["_resolved"]["display_string"]
+            folder_arrangement["subseries_display"] = ancestor["_resolved"][
+                "display_string"
+            ]
             folder_arrangement["subseries_id"] = ancestor["_resolved"]["component_id"]
     logger.info("☑️  ARRANGEMENT LEVELS AGGREGATED")
     return folder_arrangement
@@ -984,7 +994,12 @@ def construct_digital_object_component(variables):
     if digital_object_uri:
         digital_object_component["digital_object"] = {"ref": digital_object_uri}
     else:
-        variables["archival_object"], digital_object_uri = reload_archival_object_with_digital_object_instance(variables["archival_object"])
+        (
+            variables["archival_object"],
+            digital_object_uri,
+        ) = reload_archival_object_with_digital_object_instance(
+            variables["archival_object"]
+        )
         digital_object_component["digital_object"] = {"ref": digital_object_uri}
     digital_object_component["file_versions"] = [construct_file_version(variables)]
     return digital_object_component
@@ -1368,9 +1383,7 @@ def loop_over_archival_object_datafiles(variables, collection_id, onsite, cloud)
     # {PRESERVATION_FILES}/HBF/HBF-s01-Organizational-Records/HBF_001_05-Annual-Meetings--1943
     variables["preservation_folders"] = []
 
-    for archival_object_datafile in preservation_collection_path.rglob(
-        "*/*.json"
-    ):
+    for archival_object_datafile in preservation_collection_path.rglob("*/*.json"):
         logger.info(f"🐞 archival_object_datafile: {archival_object_datafile}")
         variables["current_archival_object_datafile"] = archival_object_datafile
         variables["preservation_folders"].append(archival_object_datafile.parent)
