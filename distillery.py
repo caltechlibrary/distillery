@@ -698,46 +698,16 @@ def get_folder_arrangement(archival_object):
     ]
     folder_arrangement["folder_display"] = archival_object["display_string"]
     folder_arrangement["folder_title"] = archival_object["title"]
-    for instance in archival_object["instances"]:
-        if "sub_container" in instance:
-            if instance["sub_container"]["top_container"]["_resolved"].get(
-                "collection"
-            ):
-                folder_arrangement["collection_display"] = instance["sub_container"][
-                    "top_container"
-                ]["_resolved"]["collection"][0]["display_string"]
-                folder_arrangement["collection_id"] = instance["sub_container"][
-                    "top_container"
-                ]["_resolved"]["collection"][0]["identifier"]
-            else:
-                raise ValueError(
-                    f"Missing collection data for: {archival_object['component_id']}"
-                )
-            if instance["sub_container"]["top_container"]["_resolved"].get("series"):
-                folder_arrangement["series_display"] = instance["sub_container"][
-                    "top_container"
-                ]["_resolved"]["series"][0]["display_string"]
-                folder_arrangement["series_id"] = instance["sub_container"][
-                    "top_container"
-                ]["_resolved"]["series"][0]["identifier"]
-                for ancestor in archival_object["ancestors"]:
-                    if ancestor["level"] == "subseries":
-                        subseries = archivessnake_get(ancestor["ref"]).json()
-                        folder_arrangement["subseries_display"] = subseries[
-                            "display_string"
-                        ]
-                        if "component_id" in subseries:
-                            folder_arrangement["subseries_id"] = subseries[
-                                "component_id"
-                            ]
-                        else:
-                            raise ValueError(
-                                f"Sub-Series record is missing component_id: {subseries['display_string']} {ancestor['ref']}"
-                            )
-            else:
-                raise ValueError(
-                    f"Missing series data for: {archival_object['component_id']}"
-                )
+    for ancestor in archival_object["ancestors"]:
+        if ancestor["level"] == "collection":
+            folder_arrangement["collection_display"] = ancestor["_resolved"]["title"]
+            folder_arrangement["collection_id"] = ancestor["_resolved"]["id_0"]
+        elif ancestor["level"] == "series":
+            folder_arrangement["series_display"] = ancestor["_resolved"]["display_string"]
+            folder_arrangement["series_id"] = ancestor["_resolved"]["component_id"]
+        elif ancestor["level"] == "subseries":
+            folder_arrangement["subseries_display"] = ancestor["_resolved"]["display_string"]
+            folder_arrangement["subseries_id"] = ancestor["_resolved"]["component_id"]
     logger.info("☑️  ARRANGEMENT LEVELS AGGREGATED")
     return folder_arrangement
 
@@ -757,7 +727,11 @@ def find_archival_object(component_id):
     else:
         logger.info(f"☑️  ARCHIVAL OBJECT FOUND: {component_id}")
         return archivessnake_get(
-            f'{find_by_id_response.json()["archival_objects"][0]["ref"]}?resolve[]=digital_object&resolve[]=repository&resolve[]=top_container'
+            find_by_id_response.json()["archival_objects"][0]["ref"]
+            + "?resolve[]=ancestors"
+            + "&resolve[]=digital_object"
+            + "&resolve[]=repository"
+            + "&resolve[]=top_container"
         ).json()
 
 
