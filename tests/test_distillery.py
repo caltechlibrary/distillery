@@ -50,6 +50,45 @@ def test_distillery_0001_setup(page: Page):
             params={"identifier[]": ['["DistilleryTEST0001_collection"]']},
         ).json()
         print("🐞 resource_0001_find_by_id_results", resource_0001_find_by_id_results)
+        # delete digital objects
+        for resource in resource_0001_find_by_id_results["resources"]:
+            resource_0001_tree = asnake_client.get(
+                f'{resource["ref"]}/tree/root'
+            ).json()
+            print("🐞 resource_0001_tree", resource_0001_tree)
+            print(
+                "🐞 precomputed_waypoints",
+                resource_0001_tree["precomputed_waypoints"][""]["0"],
+            )
+            print(
+                "🐞 series",
+                resource_0001_tree["precomputed_waypoints"][""]["0"][0]["uri"],
+            )
+            series_uri = resource_0001_tree["precomputed_waypoints"][""]["0"][0]["uri"]
+            print("🐞 series_uri", series_uri)
+            series_0001_slice = asnake_client.get(
+                f'{resource["ref"]}/tree/waypoint?offset=0&parent_node={series_uri}'
+            ).json()
+            print("🐞 series_0001_slice", series_0001_slice)
+            subseries_0001_slice = asnake_client.get(
+                f'{resource["ref"]}/tree/waypoint?offset=0&parent_node={series_0001_slice[0]["uri"]}'
+            ).json()
+            print("🐞 subseries_0001_slice", subseries_0001_slice)
+            for child in subseries_0001_slice:
+                archival_object = asnake_client.get(
+                    child["uri"], params={"resolve[]": "digital_object"}
+                ).json()
+                print(f"🐞 archival_object", archival_object)
+                for instance in archival_object["instances"]:
+                    if instance.get("digital_object"):
+                        digital_object_delete_response = asnake_client.delete(
+                            instance["digital_object"]["_resolved"]["uri"]
+                        )
+                        print(
+                            f"🐞 digital_object_delete_response",
+                            digital_object_delete_response.json(),
+                        )
+        # delete resources
         for resource in resource_0001_find_by_id_results["resources"]:
             resource_0001_delete_response = asnake_client.delete(resource["ref"])
             print(
