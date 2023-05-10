@@ -361,8 +361,7 @@ def get_collection_uri(collection_id):
         raise ValueError(
             f"No collection found in ArchivesSpace with the ID: {collection_id}\n"
         )
-    else:
-        return search_results_json["resources"][0]["ref"]
+    return search_results_json["resources"][0]["ref"]
 
 
 def archivessnake_get(uri):
