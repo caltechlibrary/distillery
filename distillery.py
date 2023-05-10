@@ -1348,8 +1348,9 @@ def loop_over_archival_object_datafiles(variables, collection_id, onsite, cloud)
     variables["preservation_folders"] = []
 
     for archival_object_datafile in preservation_collection_path.rglob(
-        f"{collection_id}_*.json"
+        "*/*.json"
     ):
+        logger.info(f"🐞 archival_object_datafile: {archival_object_datafile}")
         variables["current_archival_object_datafile"] = archival_object_datafile
         variables["preservation_folders"].append(archival_object_datafile.parent)
 
