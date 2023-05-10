@@ -155,71 +155,32 @@ def test_distillery_0001_setup(page: Page):
             subseries_0001_parent_position_post_response.json(),
         )
 
-        item_0001_1 = {}
-        item_0001_1["title"] = "0001 DISTILLERY TEST ITEM 1"  # title or date required
-        item_0001_1["component_id"] = "DistilleryTEST0001_item1"
-        item_0001_1["level"] = "item"  # required
-        item_0001_1["resource"] = {
-            "ref": resource_0001_post_response.json()["uri"]
-        }  # required
-        item_0001_1_post_response = asnake_client.post(
-            "/repositories/2/archival_objects", json=item_0001_1
-        )
-        print("🐞 item_0001_1_post_response", item_0001_1_post_response.json())
-        # NOTE position 0 for all causes later items to be first;
-        # position 1 for all causes later items to be last
-        item_0001_1_parent_position_post_response = asnake_client.post(
-            f'{item_0001_1_post_response.json()["uri"]}/parent',
-            params={"parent": subseries_0001_post_response.json()["id"], "position": 1},
-        )
-        print(
-            "🐞 item_0001_1_parent_position_post_response",
-            item_0001_1_parent_position_post_response.json(),
-        )
-
-        item_0001_2 = {}
-        item_0001_2["title"] = "0001 DISTILLERY TEST ITEM 2"  # title or date required
-        item_0001_2["component_id"] = "DistilleryTEST0001_item2"
-        item_0001_2["level"] = "item"  # required
-        item_0001_2["resource"] = {
-            "ref": resource_0001_post_response.json()["uri"]
-        }  # required
-        item_0001_2_post_response = asnake_client.post(
-            "/repositories/2/archival_objects", json=item_0001_2
-        )
-        print("🐞 item_0001_2_post_response", item_0001_2_post_response.json())
-        # NOTE position 0 for all causes later items to be first;
-        # position 1 for all causes later items to be last
-        item_0001_2_parent_position_post_response = asnake_client.post(
-            f'{item_0001_2_post_response.json()["uri"]}/parent',
-            params={"parent": subseries_0001_post_response.json()["id"], "position": 1},
-        )
-        print(
-            "🐞 item_0001_2_parent_position_post_response",
-            item_0001_2_parent_position_post_response.json(),
-        )
-
-        item_0001_3 = {}
-        item_0001_3["title"] = "0001 DISTILLERY TEST ITEM 3"  # title or date required
-        item_0001_3["component_id"] = "DistilleryTEST0001_item3"
-        item_0001_3["level"] = "item"  # required
-        item_0001_3["resource"] = {
-            "ref": resource_0001_post_response.json()["uri"]
-        }  # required
-        item_0001_3_post_response = asnake_client.post(
-            "/repositories/2/archival_objects", json=item_0001_3
-        )
-        print("🐞 item_0001_3_post_response", item_0001_3_post_response.json())
-        # NOTE position 0 for all causes later items to be first;
-        # position 1 for all causes later items to be last
-        item_0001_3_parent_position_post_response = asnake_client.post(
-            f'{item_0001_3_post_response.json()["uri"]}/parent',
-            params={"parent": subseries_0001_post_response.json()["id"], "position": 1},
-        )
-        print(
-            "🐞 item_0001_3_parent_position_post_response",
-            item_0001_3_parent_position_post_response.json(),
-        )
+        items_0001 = ["item1", "item2", "item3"]
+        for i in items_0001:
+            item = {}
+            item[
+                "title"
+            ] = f"0001 DISTILLERY TEST {i}".upper()  # title or date required
+            item["component_id"] = f"DistilleryTEST0001_{i}"
+            item["level"] = "item"  # required
+            item["resource"] = {
+                "ref": resource_0001_post_response.json()["uri"]
+            }  # required
+            item_post_response = asnake_client.post(
+                "/repositories/2/archival_objects", json=item
+            )
+            print(f"🐞 {i}_post_response", item_post_response.json())
+            item_parent_position_post_response = asnake_client.post(
+                f'{item_post_response.json()["uri"]}/parent',
+                params={
+                    "parent": subseries_0001_post_response.json()["id"],
+                    "position": 1,
+                },
+            )
+            print(
+                f"🐞 {i}_parent_position_post_response",
+                item_parent_position_post_response.json(),
+            )
     except Exception:
         raise
 
