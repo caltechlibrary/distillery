@@ -441,10 +441,7 @@ def create_derivative_structure(
             continue
 
         # get archival_object data via component_id from subdirectory name
-        variables["archival_object"] = find_archival_object(
-            # TODO remove normalize function; must rely on strict naming convention
-            normalize_directory_component_id(subdirectory)
-        )
+        variables["archival_object"] = find_archival_object(os.path.basename(subdirectory))
         if not variables["archival_object"]:
             logger.warning(f"⚠️  CONTINUING LOOP AT: {subdirectory}")
             continue
@@ -890,28 +887,6 @@ def get_xmp_dc_metadata(
             if bool(note["subnotes"][0]["content"]) and note["subnotes"][0]["publish"]:
                 xmp_dc["rights"] = note["subnotes"][0]["content"]
     return xmp_dc
-
-
-def normalize_directory_component_id(folderpath):
-    component_id_parts = os.path.basename(folderpath).split("_")
-    if len(component_id_parts) > 3:
-        raise ValueError(
-            f"The component_id cannot be determined from the directory name: {os.path.basename(folderpath)}"
-        )
-    collection_id = component_id_parts[0]
-    if collection_id != os.path.basename(os.path.dirname(folderpath)):
-        raise ValueError(
-            f"The directory name does not correspond to the collection_id: {os.path.basename(folderpath)}"
-        )
-    box_number = component_id_parts[1].lstrip("0")
-    normalized_component_id = "_".join(
-        [collection_id, box_number.zfill(3), component_id_parts[2]]
-    )
-    logger.info(
-        f"⚙️  NORMALIZED: {os.path.basename(folderpath)} to {normalized_component_id}"
-    )
-    # TODO parse non-numeric folder identifiers, like: 03b
-    return normalized_component_id
 
 
 def post_digital_object_component(json_data):
