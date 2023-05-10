@@ -204,5 +204,6 @@ def test_distillery_cloud(page: Page):
     page.get_by_role("button", name="Run").click()
     page.get_by_text("Details").click()
     expect(page.locator("p")).to_have_text(
-        "✅ Processed metadata and files for DistilleryTEST0001_collection."
+        "✅ Processed metadata and files for DistilleryTEST0001_collection.",
+        timeout=60000,
     )
