@@ -468,13 +468,14 @@ def create_derivative_structure(
 
 
 def archivessnake_post(uri, object):
-    response = asnake_client.post(uri, json=object)
-    response.raise_for_status()
-    # TODO handle error responses
-    validation_logger.info(f'ARCHIVESSPACE: {response.json()["uri"]}')
-    logger.info(f"🐞: {response.json()}")
-    return response
-
+    try:
+        response = asnake_client.post(uri, json=object)
+        response.raise_for_status()
+        logger.info(f"🐞: {response.json()}")
+        return response
+    except Exception as e:
+        logger.error(f"🐞: {e}")
+        raise
 
 def archivessnake_delete(uri):
     response = asnake_client.delete(uri)
