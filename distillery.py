@@ -484,7 +484,7 @@ def archivessnake_delete(uri):
     return response
 
 
-# TODO rename to something like "get_archival_object_with_digital_object"
+# TODO replace all occurances with reload_archival_object_with_digital_object_instance()
 def load_digital_object(archival_object):
     digital_object_count = 0
     for instance in archival_object["instances"]:
@@ -501,6 +501,26 @@ def load_digital_object(archival_object):
         archival_object = create_digital_object(archival_object)
         archival_object = load_digital_object(archival_object)
     return archival_object
+
+
+# TODO replace load_digital_object() with this function
+def reload_archival_object_with_digital_object_instance(archival_object):
+    digital_object_count = 0
+    digital_object_ref = ""
+    for instance in archival_object["instances"]:
+        if "digital_object" in instance.keys():
+            digital_object_ref = instance["digital_object"]["ref"]
+            digital_object_count += 1
+            logger.info(f"☑️  DIGITAL OBJECT FOUND: {digital_object_ref}")
+    if digital_object_count > 1:
+        raise ValueError(
+            f"The ArchivesSpace record for {archival_object['component_id']} contains multiple digital objects."
+        )
+    if digital_object_count < 1:
+        # returns new archival_object with digital object info included
+        archival_object = create_digital_object(archival_object)
+        archival_object, digital_object_ref = reload_archival_object_with_digital_object_instance(archival_object)
+    return archival_object, digital_object_ref
 
 
 def confirm_digital_object_id(archival_object):
@@ -964,7 +984,8 @@ def construct_digital_object_component(variables):
     if digital_object_uri:
         digital_object_component["digital_object"] = {"ref": digital_object_uri}
     else:
-        variables["archival_object"] = load_digital_object(variables["archival_object"])
+        variables["archival_object"], digital_object_uri = reload_archival_object_with_digital_object_instance(variables["archival_object"])
+        digital_object_component["digital_object"] = {"ref": digital_object_uri}
     digital_object_component["file_versions"] = [construct_file_version(variables)]
     return digital_object_component
 
