@@ -21,8 +21,8 @@ def browser_context_args(browser_context_args):
     }
 
 
-def test_distillery_0000_reset_files(page: Page):
-    # NOTE without page parameter test does not run in order
+@pytest.fixture(autouse=True)
+def distillery_0000_reset_files():
     for d in glob.glob(os.path.join(config("WORKING_ORIGINAL_FILES"), "*/")):
         shutil.move(d, config("INITIAL_ORIGINAL_FILES"))
     for d in glob.glob(os.path.join(config("STAGE_3_ORIGINAL_FILES"), "*/")):
@@ -31,6 +31,7 @@ def test_distillery_0000_reset_files(page: Page):
         shutil.rmtree(d)
     for d in glob.glob(os.path.join(config("COMPRESSED_ACCESS_FILES"), "*/")):
         shutil.rmtree(d)
+    return
 
 
 # NOTE cleaning up previous tests and then setting up for new tests is not the
