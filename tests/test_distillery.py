@@ -111,16 +111,41 @@ def test_distillery_0001_setup_nonnumeric_sequence_gz36p(page: Page):
         )
         asnake_client.authorize()
         # DELETE ANY EXISTING TEST RECORDS
-        resource_gz36p_find_by_id_results = asnake_client.get(
+        resource_find_by_id_results = asnake_client.get(
             "/repositories/2/find_by_id/resources",
             params={"identifier[]": ['["DistilleryTEST-gz36p"]']},
         ).json()
-        print("🐞 resource_gz36p_find_by_id_results", resource_gz36p_find_by_id_results)
-        for resource in resource_gz36p_find_by_id_results["resources"]:
-            resource_gz36p_delete_response = asnake_client.delete(resource["ref"])
+        print("🐞 resource_find_by_id_results", resource_find_by_id_results)
+        for resource in resource_find_by_id_results["resources"]:
+            resource_tree = asnake_client.get(f'{resource["ref"]}/tree/root').json()
+            print("🐞 resource_tree", resource_tree)
             print(
-                "🐞 resource_gz36p_delete_response",
-                resource_gz36p_delete_response.json(),
+                "🐞 precomputed_waypoints",
+                resource_tree["precomputed_waypoints"][""]["0"],
+            )
+            print(
+                "🐞 item",
+                resource_tree["precomputed_waypoints"][""]["0"][0]["uri"],
+            )
+            item_uri = resource_tree["precomputed_waypoints"][""]["0"][0]["uri"]
+            print("🐞 item_uri", item_uri)
+            archival_object = asnake_client.get(
+                item_uri, params={"resolve[]": "digital_object"}
+            ).json()
+            print(f"🐞 archival_object", archival_object)
+            for instance in archival_object["instances"]:
+                if instance.get("digital_object"):
+                    digital_object_delete_response = asnake_client.delete(
+                        instance["digital_object"]["_resolved"]["uri"]
+                    )
+                    print(
+                        f"🐞 digital_object_delete_response",
+                        digital_object_delete_response.json(),
+                    )
+            resource_delete_response = asnake_client.delete(resource["ref"])
+            print(
+                "🐞 resource_delete_response",
+                resource_delete_response.json(),
             )
         # CREATE RESOURCE RECORD
         resource_gz36p = {}
@@ -365,6 +390,36 @@ def test_distillery_cloud_nonnumeric_sequence_gz36p(page: Page):
     page.get_by_role("button", name="Run").click()
     page.get_by_text("Details").click()
     expect(page.locator("p")).to_have_text(
-        "✅ Processed metadata and files for DistilleryTEST-gz36p."
+        "✅ Processed metadata and files for DistilleryTEST-gz36p.", timeout=60000
     )
     # TODO: test that the digital object component was created correctly
+    asnake_client = ASnakeClient(
+        baseurl=config("ASPACE_API_URL"),
+        username=config("ASPACE_USERNAME"),
+        password=config("ASPACE_PASSWORD"),
+    )
+    asnake_client.authorize()
+    digital_object_find_by_id_results = asnake_client.get(
+        "/repositories/2/find_by_id/digital_objects",
+        params={"digital_object_id[]": "item-gz36p"},
+    ).json()
+    print("🐞 digital_object_find_by_id_results", digital_object_find_by_id_results)
+    assert len(digital_object_find_by_id_results["digital_objects"]) == 1
+    for digital_object in digital_object_find_by_id_results["digital_objects"]:
+        digital_object_tree = asnake_client.get(
+            f'{digital_object["ref"]}/tree/root'
+        ).json()
+        print("🐞 digital_object_tree", digital_object_tree)
+        assert len(digital_object_tree["precomputed_waypoints"][""]["0"]) > 0
+        print(
+            "🐞 precomputed_waypoints",
+            digital_object_tree["precomputed_waypoints"][""]["0"],
+        )
+        print(
+            "🐞 component",
+            digital_object_tree["precomputed_waypoints"][""]["0"][0]["uri"],
+        )
+        component_uri = digital_object_tree["precomputed_waypoints"][""]["0"][0]["uri"]
+        print("🐞 component_uri", component_uri)
+        digital_object_component = asnake_client.get(component_uri).json()
+        print(f"🐞 digital_object_component", digital_object_component)
