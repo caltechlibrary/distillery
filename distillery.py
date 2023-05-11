@@ -679,27 +679,14 @@ def get_digital_object_component(digital_object_component_component_id):
     return digital_object_component_get_response.json()
 
 
+# TODO rename to get_filepath_components
 def get_file_parts(filepath):
-    # ASSUMPTION: path is like
-    # /path/to/WORKING_ORIGINAL_FILES/HBF/HBF_01_05/HBF_01_05_02.tif
-    # or
-    # /path/to/WORKING_ORIGINAL_FILES/HBF/HBF_001_05/HBF_001_05_0002.tif
     file_parts = {}
     file_parts["filepath"] = filepath
     file_parts["filename"] = file_parts["filepath"].split("/")[-1]
     file_parts["filestem"] = file_parts["filename"].split(".")[0]
     file_parts["extension"] = file_parts["filename"].split(".")[-1]
-    # TODO this should probably be called component_id everywhere, it’s confusing when not
-    # format like HBF_001_01
-    file_parts["folder_id"] = "_".join(
-        [
-            file_parts["filestem"].split("_")[0],
-            file_parts["filestem"].split("_")[1].zfill(3),
-            file_parts["filestem"].split("_")[2].zfill(2),
-        ]
-    )
-    # TODO rename 'sequence' because it is not always numeric
-    file_parts["sequence"] = file_parts["filestem"].split("_")[-1].zfill(4)
+    file_parts["sequence"] = file_parts["filestem"].split("_")[-1]
     file_parts["crockford_id"] = get_crockford_id()
     return file_parts
 
@@ -828,24 +815,22 @@ def get_archival_object_directory_prefix(folder_arrangement, archival_object):
 
 def get_digital_object_component_file_key(prefix, file_parts):
     """Return the key (file path) of a digital object component file."""
-    # NOTE: '.jp2' is hardcoded as the extension
     # file_parts: {
     #     "crockford_id": "me5v-z1yp",
     #     "extension": "tiff",
     #     "filename": "HaleGE_02_0B_056_07_0001.tiff",
     #     "filepath": "/path/to/archives/data/WORKING_ORIGINAL_FILES/HaleGE/HaleGE_02_0B_056_07_0001.tiff",
-    #     "folder_id": "HaleGE_02_0B_056_07",
     #     "filestem": "HaleGE_02_0B_056_07_0001",
     #     "sequence": "0001"
     # }
+    # NOTE the prefix includes a trailing slash
     return (
         prefix
-        + file_parts["folder_id"]
-        + "_"
-        + file_parts["sequence"]
+        + file_parts["filename"]
         + "/"
         + file_parts["crockford_id"]
-        + ".jp2"
+        + "."
+        + file_parts["extension"]
     )
 
 
@@ -1206,13 +1191,16 @@ def create_lossless_jpeg2000_image(variables, collection_data):
     filepath_components = get_file_parts(
         variables["original_image_path"]
     )  # TODO rename function
-    # Set up preservation structure.
-    preservation_image_key = get_digital_object_component_file_key(
-        get_archival_object_directory_prefix(
-            variables["folder_arrangement"], variables["archival_object"]
-        ),
-        filepath_components,
-    )  # TODO rename functions
+    # Replace the original extension with `jp2` and store
+    # `preservation_image_key` for the function to return as a string.
+    preservation_image_key = "jp2".join(
+        get_digital_object_component_file_key(
+            get_archival_object_directory_prefix(
+                variables["folder_arrangement"], variables["archival_object"]
+            ),
+            filepath_components,
+        ).rsplit(filepath_components["extension"], 1)
+    )
     preservation_image_path = (
         Path(config("WORK_PRESERVATION_FILES"))
         .joinpath(preservation_image_key)
