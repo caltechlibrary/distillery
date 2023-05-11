@@ -162,6 +162,11 @@ class DistilleryService(rpyc.Service):
         ):
             if dirnames:
                 for dirname in dirnames:
+                    # validate subdirectory/archival_object correspondence
+                    if not find_archival_object(dirname):
+                        message = f"❌ NO ARCHIVAL OBJECT FOUND FOR: {self.collection_id}/{dirname}"
+                        status_logger.error(message)
+                        raise RuntimeError(message)
                     # count and list subdirectories in the collection directory
                     initial_original_subdirectorycount += 1
                     status_logger.info(f"📁 {self.collection_id}/{dirname}")
