@@ -62,7 +62,7 @@ def test_distillery_0001_setup_wrong_component_id_948vk(page: Page):
             )
         # CREATE RESOURCE RECORD
         resource_948vk = {}
-        resource_948vk["title"] = "_DISTILLERY TEST RESOURCE"  # required
+        resource_948vk["title"] = "_DISTILLERY TEST RESOURCE 948vk"  # required
         resource_948vk["id_0"] = "DistilleryTEST-948vk"  # required
         resource_948vk["level"] = "collection"  # required
         resource_948vk["finding_aid_language"] = "eng"  # required
@@ -96,6 +96,68 @@ def test_distillery_0001_setup_wrong_component_id_948vk(page: Page):
             "/repositories/2/archival_objects", json=item_948vk
         )
         print("🐞 item_948vk_post_response", item_948vk_post_response.json())
+    except Exception:
+        raise
+
+
+def test_distillery_0001_setup_nonnumeric_sequence_gz36p(page: Page):
+    """Sequence strings on TIFF files are alphanumeric not numeric."""
+    # NOTE without page parameter test does not run in order
+    try:
+        asnake_client = ASnakeClient(
+            baseurl=config("ASPACE_API_URL"),
+            username=config("ASPACE_USERNAME"),
+            password=config("ASPACE_PASSWORD"),
+        )
+        asnake_client.authorize()
+        # DELETE ANY EXISTING TEST RECORDS
+        resource_gz36p_find_by_id_results = asnake_client.get(
+            "/repositories/2/find_by_id/resources",
+            params={"identifier[]": ['["DistilleryTEST-gz36p"]']},
+        ).json()
+        print("🐞 resource_gz36p_find_by_id_results", resource_gz36p_find_by_id_results)
+        for resource in resource_gz36p_find_by_id_results["resources"]:
+            resource_gz36p_delete_response = asnake_client.delete(resource["ref"])
+            print(
+                "🐞 resource_gz36p_delete_response",
+                resource_gz36p_delete_response.json(),
+            )
+        # CREATE RESOURCE RECORD
+        resource_gz36p = {}
+        resource_gz36p["title"] = "_DISTILLERY TEST RESOURCE gz36p"  # required
+        resource_gz36p["id_0"] = "DistilleryTEST-gz36p"  # required
+        resource_gz36p["level"] = "collection"  # required
+        resource_gz36p["finding_aid_language"] = "eng"  # required
+        resource_gz36p["finding_aid_script"] = "Latn"  # required
+        resource_gz36p["lang_materials"] = [
+            {"language_and_script": {"language": "eng", "script": "Latn"}}
+        ]  # required
+        resource_gz36p["dates"] = [
+            {
+                "label": "creation",
+                "date_type": "single",
+                "begin": str(datetime.date.today()),
+            }
+        ]  # required
+        resource_gz36p["extents"] = [
+            {"portion": "whole", "number": "1", "extent_type": "boxes"}
+        ]  # required
+        resource_gz36p_post_response = asnake_client.post(
+            "/repositories/2/resources", json=resource_gz36p
+        )
+        print("🐞 resource_gz36p_post_response", resource_gz36p_post_response.json())
+        # CREATE ITEM RECORD
+        item_gz36p = {}
+        item_gz36p["title"] = "_DISTILLERY TEST ITEM gz36p"  # title or date required
+        item_gz36p["component_id"] = "item-gz36p"
+        item_gz36p["level"] = "item"  # required
+        item_gz36p["resource"] = {
+            "ref": resource_gz36p_post_response.json()["uri"]
+        }  # required
+        item_gz36p_post_response = asnake_client.post(
+            "/repositories/2/archival_objects", json=item_gz36p
+        )
+        print("🐞 item_gz36p_post_response", item_gz36p_post_response.json())
     except Exception:
         raise
 
@@ -287,3 +349,22 @@ def test_distillery_cloud_wrong_component_id_948vk(page: Page):
     expect(page.locator("p")).to_have_text(
         "❌ Something went wrong. View the details for more information."
     )
+
+
+def test_distillery_cloud_nonnumeric_sequence_gz36p(page: Page):
+    page.goto(config("BASE_URL"))
+    page.get_by_label("Collection ID").fill("DistilleryTEST-gz36p")
+    page.get_by_text(
+        "Cloud preservation storage generate and send files to a remote storage provider"
+    ).click()
+    page.get_by_role("button", name="Validate").click()
+    page.get_by_text("Details").click()
+    expect(page.locator("p")).to_have_text(
+        "✅ Validated metadata, files, and destinations for DistilleryTEST-gz36p."
+    )
+    page.get_by_role("button", name="Run").click()
+    page.get_by_text("Details").click()
+    expect(page.locator("p")).to_have_text(
+        "✅ Processed metadata and files for DistilleryTEST-gz36p."
+    )
+    # TODO: test that the digital object component was created correctly
