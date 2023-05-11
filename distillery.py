@@ -839,7 +839,7 @@ def get_xmp_dc_metadata(
 ):
     xmp_dc = {}
     xmp_dc["title"] = (
-        folder_arrangement["folder_display"] + " [image " + file_parts["sequence"] + "]"
+        folder_arrangement["folder_display"] + " [" + file_parts["sequence"] + "]"
     )
     # TODO(tk) check extent type for pages/images/computer files/etc
     if len(archival_object["extents"]) == 1:
@@ -1063,90 +1063,6 @@ def construct_file_version(variables):
                 "standard"
             ]
     return file_version
-
-
-def prepare_digital_object_component(
-    archival_object, PRESERVATION_BUCKET, aip_image_data
-):
-    # MINIMAL REQUIREMENTS: digital_object and one of label, title, or date
-    # FILE VERSIONS MINIMAL REQUIREMENTS: file_uri
-    # 'publish': false is the default value
-    digital_object_component = {
-        "file_versions": [
-            {
-                "checksum_method": "md5",
-                "file_format_name": "JPEG 2000",
-                "use_statement": "image-master",
-            }
-        ]
-    }
-    for instance in archival_object["instances"]:
-        # not checking if there is more than one digital object
-        if "digital_object" in instance.keys():
-            digital_object_component["digital_object"] = {}
-            digital_object_component["digital_object"]["ref"] = instance[
-                "digital_object"
-            ]["ref"]
-    if digital_object_component["digital_object"]["ref"]:
-        pass
-    # else:
-    #     # TODO(tk) figure out what to do if the folder has no digital objects
-    #     logging.info("😶 no digital object")
-    digital_object_component["component_id"] = aip_image_data["component_id"]
-    if (
-        aip_image_data["transformation"] == "5-3 reversible"
-        and aip_image_data["quantization"] == "no quantization"
-    ):
-        digital_object_component["file_versions"][0]["caption"] = (
-            "width: "
-            + aip_image_data["width"]
-            + "; height: "
-            + aip_image_data["height"]
-            + "; compression: lossless"
-        )
-        digital_object_component["file_versions"][0]["file_format_version"] = (
-            aip_image_data["standard"]
-            + "; lossless (wavelet transformation: 5/3 reversible with no quantization)"
-        )
-    elif (
-        aip_image_data["transformation"] == "9-7 irreversible"
-        and aip_image_data["quantization"] == "scalar expounded"
-    ):
-        digital_object_component["file_versions"][0]["caption"] = (
-            "width: "
-            + aip_image_data["width"]
-            + "; height: "
-            + aip_image_data["height"]
-            + "; compression: lossy"
-        )
-        digital_object_component["file_versions"][0]["file_format_version"] = (
-            aip_image_data["standard"]
-            + "; lossy (wavelet transformation: 9/7 irreversible with scalar expounded quantization)"
-        )
-    else:
-        digital_object_component["file_versions"][0]["caption"] = (
-            "width: "
-            + aip_image_data["width"]
-            + "; height: "
-            + aip_image_data["height"]
-        )
-        digital_object_component["file_versions"][0][
-            "file_format_version"
-        ] = aip_image_data["standard"]
-    digital_object_component["file_versions"][0]["checksum"] = aip_image_data[
-        "md5"
-    ].hexdigest()
-    digital_object_component["file_versions"][0]["file_size_bytes"] = int(
-        aip_image_data["filesize"]
-    )
-    digital_object_component["file_versions"][0]["file_uri"] = (
-        "https://"
-        + PRESERVATION_BUCKET
-        + ".s3-us-west-2.amazonaws.com/"
-        + aip_image_data["s3key"]
-    )
-    digital_object_component["label"] = "Image " + aip_image_data["sequence"]
-    return digital_object_component
 
 
 def prepare_filepaths_list(folderpath):
@@ -1544,10 +1460,6 @@ def create_derivative_files(variables, collection_data, onsite, cloud, access):
                 logger.error(f"❌ {str(e)}")
                 continue
 
-            # TODO create digital_object_component
-            # TODO refactor based on mimetype
-            # TODO refactor and send to module for extra parameters
-            # digital_object_component = prepare_digital_object_component()
 
         if access:
             result = access.create_access_file(variables)
