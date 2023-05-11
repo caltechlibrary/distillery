@@ -115,74 +115,59 @@ def test_distillery_0001_setup_nonnumeric_sequence_gz36p(page: Page):
             "/repositories/2/find_by_id/resources",
             params={"identifier[]": ['["DistilleryTEST-gz36p"]']},
         ).json()
-        print("🐞 resource_find_by_id_results", resource_find_by_id_results)
         for resource in resource_find_by_id_results["resources"]:
             resource_tree = asnake_client.get(f'{resource["ref"]}/tree/root').json()
-            print("🐞 resource_tree", resource_tree)
-            print(
-                "🐞 precomputed_waypoints",
-                resource_tree["precomputed_waypoints"][""]["0"],
-            )
-            print(
-                "🐞 item",
-                resource_tree["precomputed_waypoints"][""]["0"][0]["uri"],
-            )
             item_uri = resource_tree["precomputed_waypoints"][""]["0"][0]["uri"]
-            print("🐞 item_uri", item_uri)
             archival_object = asnake_client.get(
                 item_uri, params={"resolve[]": "digital_object"}
             ).json()
-            print(f"🐞 archival_object", archival_object)
             for instance in archival_object["instances"]:
                 if instance.get("digital_object"):
                     digital_object_delete_response = asnake_client.delete(
                         instance["digital_object"]["_resolved"]["uri"]
                     )
-                    print(
-                        f"🐞 digital_object_delete_response",
-                        digital_object_delete_response.json(),
-                    )
             resource_delete_response = asnake_client.delete(resource["ref"])
-            print(
-                "🐞 resource_delete_response",
-                resource_delete_response.json(),
-            )
         # CREATE RESOURCE RECORD
-        resource_gz36p = {}
-        resource_gz36p["title"] = "_DISTILLERY TEST RESOURCE gz36p"  # required
-        resource_gz36p["id_0"] = "DistilleryTEST-gz36p"  # required
-        resource_gz36p["level"] = "collection"  # required
-        resource_gz36p["finding_aid_language"] = "eng"  # required
-        resource_gz36p["finding_aid_script"] = "Latn"  # required
-        resource_gz36p["lang_materials"] = [
+        resource = {}
+        # required
+        resource["title"] = "_DISTILLERY TEST RESOURCE gz36p"
+        resource["id_0"] = "DistilleryTEST-gz36p"
+        resource["level"] = "collection"
+        resource["finding_aid_language"] = "eng"
+        resource["finding_aid_script"] = "Latn"
+        resource["lang_materials"] = [
             {"language_and_script": {"language": "eng", "script": "Latn"}}
-        ]  # required
-        resource_gz36p["dates"] = [
+        ]
+        resource["dates"] = [
             {
                 "label": "creation",
                 "date_type": "single",
                 "begin": str(datetime.date.today()),
             }
-        ]  # required
-        resource_gz36p["extents"] = [
+        ]
+        resource["extents"] = [
             {"portion": "whole", "number": "1", "extent_type": "boxes"}
-        ]  # required
-        resource_gz36p_post_response = asnake_client.post(
-            "/repositories/2/resources", json=resource_gz36p
+        ]
+        # post
+        resource_post_response = asnake_client.post(
+            "/repositories/2/resources", json=resource
         )
-        print("🐞 resource_gz36p_post_response", resource_gz36p_post_response.json())
+        print(
+            "🐞 resource_post_response:DistilleryTEST-gz36p",
+            resource_post_response.json(),
+        )
         # CREATE ITEM RECORD
-        item_gz36p = {}
-        item_gz36p["title"] = "_DISTILLERY TEST ITEM gz36p"  # title or date required
-        item_gz36p["component_id"] = "item-gz36p"
-        item_gz36p["level"] = "item"  # required
-        item_gz36p["resource"] = {
-            "ref": resource_gz36p_post_response.json()["uri"]
-        }  # required
-        item_gz36p_post_response = asnake_client.post(
-            "/repositories/2/archival_objects", json=item_gz36p
+        item = {}
+        # required
+        item["title"] = "_DISTILLERY TEST ITEM gz36p"
+        item["level"] = "item"
+        item["resource"] = {"ref": resource_post_response.json()["uri"]}
+        # optional
+        item["component_id"] = "item-gz36p"
+        # post
+        item_post_response = asnake_client.post(
+            "/repositories/2/archival_objects", json=item
         )
-        print("🐞 item_gz36p_post_response", item_gz36p_post_response.json())
     except Exception:
         raise
 
@@ -392,34 +377,50 @@ def test_distillery_cloud_nonnumeric_sequence_gz36p(page: Page):
     expect(page.locator("p")).to_have_text(
         "✅ Processed metadata and files for DistilleryTEST-gz36p.", timeout=60000
     )
-    # TODO: test that the digital object component was created correctly
+    # ensure that the digital object components were created correctly
     asnake_client = ASnakeClient(
         baseurl=config("ASPACE_API_URL"),
         username=config("ASPACE_USERNAME"),
         password=config("ASPACE_PASSWORD"),
     )
     asnake_client.authorize()
-    digital_object_find_by_id_results = asnake_client.get(
+    results = asnake_client.get(
         "/repositories/2/find_by_id/digital_objects",
         params={"digital_object_id[]": "item-gz36p"},
     ).json()
-    print("🐞 digital_object_find_by_id_results", digital_object_find_by_id_results)
-    assert len(digital_object_find_by_id_results["digital_objects"]) == 1
-    for digital_object in digital_object_find_by_id_results["digital_objects"]:
-        digital_object_tree = asnake_client.get(
-            f'{digital_object["ref"]}/tree/root'
-        ).json()
-        print("🐞 digital_object_tree", digital_object_tree)
-        assert len(digital_object_tree["precomputed_waypoints"][""]["0"]) > 0
-        print(
-            "🐞 precomputed_waypoints",
-            digital_object_tree["precomputed_waypoints"][""]["0"],
+    print("🐞 find_by_id/digital_objects:item-gz36p", results)
+    assert len(results["digital_objects"]) == 1
+    for digital_object in results["digital_objects"]:
+        tree = asnake_client.get(f'{digital_object["ref"]}/tree/root').json()
+        print(f'🐞 {digital_object["ref"]}/tree/root', tree)
+        assert len(tree["precomputed_waypoints"][""]["0"]) > 0
+        assert (
+            tree["precomputed_waypoints"][""]["0"][0]["label"]
+            == "DistilleryTEST-gz36p-item_C.tiff"
         )
-        print(
-            "🐞 component",
-            digital_object_tree["precomputed_waypoints"][""]["0"][0]["uri"],
+        assert tree["precomputed_waypoints"][""]["0"][0]["file_uri_summary"].startswith(
+            f's3://{config("PRESERVATION_BUCKET")}/DistilleryTEST-gz36p/item-gz36p--DISTILLERY-TEST-ITEM-gz36p/DistilleryTEST-gz36p-item_C.tiff/'
         )
-        component_uri = digital_object_tree["precomputed_waypoints"][""]["0"][0]["uri"]
-        print("🐞 component_uri", component_uri)
-        digital_object_component = asnake_client.get(component_uri).json()
-        print(f"🐞 digital_object_component", digital_object_component)
+        assert tree["precomputed_waypoints"][""]["0"][0]["file_uri_summary"].endswith(
+            ".jp2"
+        )
+        assert (
+            tree["precomputed_waypoints"][""]["0"][1]["label"]
+            == "DistilleryTEST-gz36p-item_p001.tiff"
+        )
+        assert tree["precomputed_waypoints"][""]["0"][1]["file_uri_summary"].startswith(
+            f's3://{config("PRESERVATION_BUCKET")}/DistilleryTEST-gz36p/item-gz36p--DISTILLERY-TEST-ITEM-gz36p/DistilleryTEST-gz36p-item_p001.tiff/'
+        )
+        assert tree["precomputed_waypoints"][""]["0"][1]["file_uri_summary"].endswith(
+            ".jp2"
+        )
+        assert (
+            tree["precomputed_waypoints"][""]["0"][2]["label"]
+            == "DistilleryTEST-gz36p-item_p002.tiff"
+        )
+        assert tree["precomputed_waypoints"][""]["0"][2]["file_uri_summary"].startswith(
+            f's3://{config("PRESERVATION_BUCKET")}/DistilleryTEST-gz36p/item-gz36p--DISTILLERY-TEST-ITEM-gz36p/DistilleryTEST-gz36p-item_p002.tiff/'
+        )
+        assert tree["precomputed_waypoints"][""]["0"][2]["file_uri_summary"].endswith(
+            ".jp2"
+        )
