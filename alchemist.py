@@ -422,7 +422,9 @@ def publish_access_files(build_directory, variables):
         s5cmd_cmd = sh.Command(config("WORK_S5CMD_CMD"))
         # Sync each archival object directory separately to avoid deleting files
         # that are not in the build directory.
-        for child in Path(f'{build_directory.name}/{variables["folder_arrangement"]["collection_id"]}').iterdir():
+        for child in Path(
+            f'{build_directory.name}/{variables["folder_arrangement"]["collection_id"]}'
+        ).iterdir():
             if child.is_dir():
                 sync = s5cmd_cmd(
                     "sync",
@@ -431,7 +433,9 @@ def publish_access_files(build_directory, variables):
                     f's3://{config("ACCESS_BUCKET")}/{variables["folder_arrangement"]["collection_id"]}/{variables["archival_object"]["component_id"]}/',
                     _env={
                         "AWS_ACCESS_KEY_ID": config("DISTILLERY_AWS_ACCESS_KEY_ID"),
-                        "AWS_SECRET_ACCESS_KEY": config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
+                        "AWS_SECRET_ACCESS_KEY": config(
+                            "DISTILLERY_AWS_SECRET_ACCESS_KEY"
+                        ),
                     },
                     _out=sync_output,
                     _err=sync_output,

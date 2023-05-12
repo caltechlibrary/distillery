@@ -7,6 +7,32 @@
     <title>{display_string}</title>
     <script src="https://cdn.jsdelivr.net/npm/universalviewer@4.0.17/dist/umd/UV.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/universalviewer@4.0.17/dist/uv.min.css">
+    <style>
+      /* override pico styles for uv elements */
+      #uv button {
+        width: initial;
+      }
+      #uv [role="button"] {
+        background-color: initial;
+        border: initial;
+        border-radius: initial;
+        cursor: pointer;
+        opacity: initial;
+        padding: initial;
+        pointer-events: initial;
+      }
+      #uv h2 {
+        color: inherit;
+      }
+      #uv input {
+        background-color: revert;
+        border: initial;
+        border-radius: initial;
+      }
+      #uv label {
+        overflow-wrap: initial;
+      }
+    </style>
   </head>
   <body>
     <main class="container">
