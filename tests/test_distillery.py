@@ -185,10 +185,87 @@ def test_distillery_0001_setup_nonnumeric_sequence_gz36p(
         Bucket=config("PRESERVATION_BUCKET"), Prefix="DistilleryTEST-gz36p"
     )
     print("🐞 s3_client.list_objects_v2", s3_response)
-    s3_keys = [{"Key": s3_object["Key"]} for s3_object in s3_response["Contents"]]
-    s3_response = s3_client.delete_objects(
-        Bucket=config("PRESERVATION_BUCKET"), Delete={"Objects": s3_keys}
+    if s3_response.get("Contents"):
+        s3_keys = [{"Key": s3_object["Key"]} for s3_object in s3_response["Contents"]]
+        s3_response = s3_client.delete_objects(
+            Bucket=config("PRESERVATION_BUCKET"), Delete={"Objects": s3_keys}
+        )
+
+
+def test_distillery_0001_setup_access_nonnumeric_sequence_yw3ff(
+    page: Page, asnake_client, s3_client
+):
+    """Sequence strings on TIFF files are alphanumeric not numeric.
+
+    FILESYSTEM TREE:
+
+    DistilleryTEST-yw3ff
+    └── item-yw3ff
+        ├── DistilleryTEST-yw3ff-item_C.tiff
+        ├── DistilleryTEST-yw3ff-item_p000-p001.tiff
+        └── DistilleryTEST-yw3ff-item_p002-p003.tiff
+
+    1 directory, 3 files
+    """
+    # NOTE without page parameter test does not seem to run in order
+    # DELETE ANY EXISTING TEST RECORDS
+    resource_find_by_id_results = asnake_client.get(
+        "/repositories/2/find_by_id/resources",
+        params={"identifier[]": ['["DistilleryTEST-yw3ff"]']},
+    ).json()
+    for resource in resource_find_by_id_results["resources"]:
+        resource_tree = asnake_client.get(f'{resource["ref"]}/tree/root').json()
+        item_uri = resource_tree["precomputed_waypoints"][""]["0"][0]["uri"]
+        archival_object = asnake_client.get(
+            item_uri, params={"resolve[]": "digital_object"}
+        ).json()
+        for instance in archival_object["instances"]:
+            if instance.get("digital_object"):
+                digital_object_delete_response = asnake_client.delete(
+                    instance["digital_object"]["_resolved"]["uri"]
+                )
+        resource_delete_response = asnake_client.delete(resource["ref"])
+    # CREATE RESOURCE RECORD
+    resource = {}
+    # required
+    resource["title"] = "_DISTILLERY TEST RESOURCE yw3ff"
+    resource["id_0"] = "DistilleryTEST-yw3ff"
+    resource["level"] = "collection"
+    resource["finding_aid_language"] = "eng"
+    resource["finding_aid_script"] = "Latn"
+    resource["lang_materials"] = [
+        {"language_and_script": {"language": "eng", "script": "Latn"}}
+    ]
+    resource["dates"] = [
+        {
+            "label": "creation",
+            "date_type": "single",
+            "begin": str(datetime.date.today()),
+        }
+    ]
+    resource["extents"] = [{"portion": "whole", "number": "1", "extent_type": "boxes"}]
+    # post
+    resource_post_response = asnake_client.post(
+        "/repositories/2/resources", json=resource
     )
+    print(
+        "🐞 resource_post_response:DistilleryTEST-yw3ff",
+        resource_post_response.json(),
+    )
+    # CREATE ITEM RECORD
+    item = {}
+    # required
+    item["title"] = "_DISTILLERY TEST ITEM yw3ff"
+    item["level"] = "item"
+    item["resource"] = {"ref": resource_post_response.json()["uri"]}
+    # optional
+    item["component_id"] = "item-yw3ff"
+    # post
+    item_post_response = asnake_client.post(
+        "/repositories/2/archival_objects", json=item
+    )
+    # DELETE S3 OBJECTS
+    # NOTE deletion of relevant files is part of the production workflow
 
 
 def test_distillery_0001_setup(page: Page, asnake_client):
@@ -416,3 +493,37 @@ def test_distillery_cloud_nonnumeric_sequence_gz36p(
             assert waypoint["label"] in [
                 s3_object["Key"].split("/")[-2] for s3_object in s3_response["Contents"]
             ]
+
+
+def test_distillery_access_nonnumeric_sequence_yw3ff(page: Page, asnake_client):
+    access_uri = f'{config("ACCESS_SITE_BASE_URL").rstrip("/")}/DistilleryTEST-yw3ff/item-yw3ff/index.html'
+    page.goto(config("BASE_URL"))
+    page.get_by_label("Collection ID").fill("DistilleryTEST-yw3ff")
+    page.get_by_text(
+        "Public web access generate files & metadata and publish on the web"
+    ).click()
+    page.get_by_role("button", name="Validate").click()
+    page.get_by_text("Details").click()
+    expect(page.locator("p")).to_have_text(
+        "✅ Validated metadata, files, and destinations for DistilleryTEST-yw3ff."
+    )
+    page.get_by_role("button", name="Run").click()
+    page.get_by_text("Details").click()
+    expect(page.locator("p")).to_have_text(
+        "✅ Processed metadata and files for DistilleryTEST-yw3ff.", timeout=30000
+    )
+    # VALIDATE DIGITAL OBJECT
+    results = asnake_client.get(
+        "/repositories/2/find_by_id/digital_objects",
+        params={"digital_object_id[]": "item-yw3ff"},
+    ).json()
+    print("🐞 find_by_id/digital_objects:item-yw3ff", results)
+    assert len(results["digital_objects"]) == 1
+    for result in results["digital_objects"]:
+        digital_object = asnake_client.get(result["ref"]).json()
+        print("🐞 digital_object", digital_object)
+        assert digital_object["publish"] is True
+        assert digital_object["file_versions"][0]["file_uri"] == access_uri
+    # VALIDATE ACCESS HTML
+    page.goto(access_uri)
+    expect(page).to_have_title("_DISTILLERY TEST ITEM yw3ff")
