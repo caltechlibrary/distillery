@@ -159,10 +159,15 @@ def generate_archival_object_page(build_directory, variables):
             f.write(
                 template.render(
                     display_string=variables["archival_object"]["display_string"],
+                    collection=variables["folder_arrangement"].get(
+                        "collection_display"
+                    ),
+                    series=variables["folder_arrangement"].get("series_display"),
+                    subseries=variables["folder_arrangement"].get("subseries_display"),
                     dates=variables["archival_object"]["dates"],
                     notes=variables["archival_object"]["notes"],
                     uri=variables["archival_object"]["uri"],
-                    iiif_manifest=iiif_manifest_url,
+                    iiif_manifest_url=iiif_manifest_url,
                     iiif_manifest_json=json.dumps({"manifest": f"{iiif_manifest_url}"}),
                 )
             )

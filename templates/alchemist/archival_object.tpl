@@ -40,9 +40,11 @@
         <h1>
           {{ display_string }}
         </h1>
+        {% if collection %}
         <h2>
-          TODO: add ancestry
+          {{ collection }}{% if series %} / {{ series}}{% endif %}{% if subseries %} / {{ subseries}}{% endif %}
         </h2>
+        {% endif %}
       </header>
       <div class="uv" id="uv" style="width:100%;height:80vh"></div>
       <script>
@@ -57,7 +59,7 @@
         <dt>URI</dt>
         <dd>{{ uri }}</dd>
       </dl>
-      <div><a href="{{ iiif_manifest }}"><img alt="IIIF Manifest" src="https://iiif.io/assets/uploads/logos/logo-iiif-34x30.png"></a></div>
+      <div><a href="{{ iiif_manifest_url }}"><img alt="IIIF Manifest" src="https://iiif.io/assets/uploads/logos/logo-iiif-34x30.png"></a></div>
     </main>
   </body>
 </html>
