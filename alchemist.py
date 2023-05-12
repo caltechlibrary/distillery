@@ -11,6 +11,7 @@ from pathlib import Path
 
 import boto3
 import botocore
+import jinja2  # pypi: Jinja2
 import sh
 
 from decouple import config
@@ -118,15 +119,10 @@ def generate_archival_object_page(build_directory, variables):
         logger.info(
             f'🐛 variables["archival_object"]["uri"]: {variables["archival_object"]["uri"]}'
         )
-        with open(
-            Path(Path(__file__).resolve().parent).joinpath(
-                "templates",
-                "alchemist",
-                "archival_object.tpl",
-            ),
-            "r",
-        ) as f:
-            template = f.read()
+        environment = jinja2.Environment(
+            loader=jinja2.FileSystemLoader(f"{os.path.dirname(__file__)}/templates")
+        )
+        template = environment.get_template("alchemist/archival_object.tpl")
         logger.info(f"🐛 TEMPLATE: {template}")
         logger.info(f"🐛 BUILD DIRECTORY: {build_directory.name}")
         collection_directory = Path(build_directory.name).joinpath(
@@ -161,7 +157,7 @@ def generate_archival_object_page(build_directory, variables):
         ) as f:
             # supply data to template placeholders
             f.write(
-                template.format(
+                template.render(
                     display_string=variables["archival_object"]["display_string"],
                     dates=variables["archival_object"]["dates"],
                     notes=variables["archival_object"]["notes"],
