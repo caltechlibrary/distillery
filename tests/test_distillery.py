@@ -215,20 +215,27 @@ def test_distillery_0001_setup_access_nonnumeric_sequence_yw3ff(
     ).json()
     for resource in resource_find_by_id_results["resources"]:
         resource_tree = asnake_client.get(f'{resource["ref"]}/tree/root').json()
-        item_uri = resource_tree["precomputed_waypoints"][""]["0"][0]["uri"]
+        series_uri = resource_tree["precomputed_waypoints"][""]["0"][0]["uri"]
+        series_waypoint = asnake_client.get(
+            f'{resource["ref"]}/tree/waypoint?offset=0&parent_node={series_uri}'
+        ).json()
+        subseries_waypoint = asnake_client.get(
+            f'{resource["ref"]}/tree/waypoint?offset=0&parent_node={series_waypoint[0]["uri"]}'
+        ).json()
         archival_object = asnake_client.get(
-            item_uri, params={"resolve[]": "digital_object"}
+            subseries_waypoint[0]["uri"], params={"resolve[]": "digital_object"}
         ).json()
         for instance in archival_object["instances"]:
             if instance.get("digital_object"):
+                # delete digital object before deleting related archival object
                 digital_object_delete_response = asnake_client.delete(
                     instance["digital_object"]["_resolved"]["uri"]
                 )
         resource_delete_response = asnake_client.delete(resource["ref"])
-    # CREATE RESOURCE RECORD
+    # CREATE COLLECTION RECORD
     resource = {}
     # required
-    resource["title"] = "_DISTILLERY TEST RESOURCE yw3ff"
+    resource["title"] = "_DISTILLERY TEST COLLECTION yw3ff"
     resource["id_0"] = "DistilleryTEST-yw3ff"
     resource["level"] = "collection"
     resource["finding_aid_language"] = "eng"
@@ -252,6 +259,35 @@ def test_distillery_0001_setup_access_nonnumeric_sequence_yw3ff(
         "🐞 resource_post_response:DistilleryTEST-yw3ff",
         resource_post_response.json(),
     )
+    # CREATE SERIES RECORD
+    series = {}
+    series["title"] = "_DISTILLERY TEST SERIES yw3ff"  # title or date required
+    series["component_id"] = "DistilleryTEST-yw3ff-series"
+    series["level"] = "series"  # required
+    series["resource"] = {"ref": resource_post_response.json()["uri"]}  # required
+    series_post_response = asnake_client.post(
+        "/repositories/2/archival_objects", json=series
+    )
+    print("🐞 series_post_response", series_post_response.json())
+    # CREATE SUBSERIES RECORD
+    subseries = {}
+    subseries["title"] = "_DISTILLERY TEST SUBSERIES yw3ff"  # title or date required
+    subseries["component_id"] = "DistilleryTEST-yw3ff-subseries"
+    subseries["level"] = "subseries"  # required
+    subseries["resource"] = {"ref": resource_post_response.json()["uri"]}  # required
+    subseries_post_response = asnake_client.post(
+        "/repositories/2/archival_objects", json=subseries
+    )
+    print("🐞 subseries_post_response", subseries_post_response.json())
+    # set subseries as a child of series
+    subseries_parent_position_post_response = asnake_client.post(
+        f'{subseries_post_response.json()["uri"]}/parent',
+        params={"parent": series_post_response.json()["id"], "position": 0},
+    )
+    print(
+        "🐞 subseries_parent_position_post_response",
+        subseries_parent_position_post_response.json(),
+    )
     # CREATE ITEM RECORD
     item = {}
     # required
@@ -264,177 +300,25 @@ def test_distillery_0001_setup_access_nonnumeric_sequence_yw3ff(
     item_post_response = asnake_client.post(
         "/repositories/2/archival_objects", json=item
     )
+    # set item as a child of subseries
+    item_parent_position_post_response = asnake_client.post(
+        f'{item_post_response.json()["uri"]}/parent',
+        params={
+            "parent": subseries_post_response.json()["id"],
+            "position": 1,
+        },
+    )
+    print(
+        "🐞 item_parent_position_post_response",
+        item_parent_position_post_response.json(),
+    )
     # DELETE S3 OBJECTS
     # NOTE deletion of relevant files is part of the production workflow
-
-
-def test_distillery_0001_setup(page: Page, asnake_client):
-    # NOTE without page parameter test does not run in order
-
-    try:
-        # DELETE ANY EXISTING TEST RECORDS
-        # delete digital objects
-        resource_0001_find_by_id_results = asnake_client.get(
-            "/repositories/2/find_by_id/resources",
-            params={"identifier[]": ['["DistilleryTEST0001_collection"]']},
-        ).json()
-        print("🐞 resource_0001_find_by_id_results", resource_0001_find_by_id_results)
-        for resource in resource_0001_find_by_id_results["resources"]:
-            resource_0001_tree = asnake_client.get(
-                f'{resource["ref"]}/tree/root'
-            ).json()
-            print("🐞 resource_0001_tree", resource_0001_tree)
-            print(
-                "🐞 precomputed_waypoints",
-                resource_0001_tree["precomputed_waypoints"][""]["0"],
-            )
-            print(
-                "🐞 series",
-                resource_0001_tree["precomputed_waypoints"][""]["0"][0]["uri"],
-            )
-            series_uri = resource_0001_tree["precomputed_waypoints"][""]["0"][0]["uri"]
-            print("🐞 series_uri", series_uri)
-            series_0001_slice = asnake_client.get(
-                f'{resource["ref"]}/tree/waypoint?offset=0&parent_node={series_uri}'
-            ).json()
-            print("🐞 series_0001_slice", series_0001_slice)
-            subseries_0001_slice = asnake_client.get(
-                f'{resource["ref"]}/tree/waypoint?offset=0&parent_node={series_0001_slice[0]["uri"]}'
-            ).json()
-            print("🐞 subseries_0001_slice", subseries_0001_slice)
-            for child in subseries_0001_slice:
-                archival_object = asnake_client.get(
-                    child["uri"], params={"resolve[]": "digital_object"}
-                ).json()
-                print(f"🐞 archival_object", archival_object)
-                for instance in archival_object["instances"]:
-                    if instance.get("digital_object"):
-                        digital_object_delete_response = asnake_client.delete(
-                            instance["digital_object"]["_resolved"]["uri"]
-                        )
-                        print(
-                            f"🐞 digital_object_delete_response",
-                            digital_object_delete_response.json(),
-                        )
-        # delete resources
-        for resource in resource_0001_find_by_id_results["resources"]:
-            resource_0001_delete_response = asnake_client.delete(resource["ref"])
-            print(
-                "🐞 resource_0001_delete_response", resource_0001_delete_response.json()
-            )
-
-        # CREATE A RESOURCE
-        resource_0001 = {}
-        resource_0001["title"] = "0001 DISTILLERY TEST RESOURCE"  # required
-        resource_0001["id_0"] = "DistilleryTEST0001_collection"  # required
-        resource_0001["level"] = "collection"  # required
-        resource_0001["finding_aid_language"] = "eng"  # required
-        resource_0001["finding_aid_script"] = "Latn"  # required
-        resource_0001["lang_materials"] = [
-            {"language_and_script": {"language": "eng", "script": "Latn"}}
-        ]  # required
-        resource_0001["dates"] = [
-            {
-                "label": "creation",
-                "date_type": "single",
-                "begin": str(datetime.date.today()),
-            }
-        ]  # required
-        resource_0001["extents"] = [
-            {"portion": "whole", "number": "1", "extent_type": "boxes"}
-        ]  # required
-        resource_0001_post_response = asnake_client.post(
-            "/repositories/2/resources", json=resource_0001
-        )
-        print("🐞 resource_0001_post_response", resource_0001_post_response.json())
-
-        # CREATE ARCHIVAL OBJECT HIERARCHY
-        series_0001 = {}
-        series_0001["title"] = "0001 DISTILLERY TEST SERIES"  # title or date required
-        series_0001["component_id"] = "DistilleryTEST0001_series"
-        series_0001["level"] = "series"  # required
-        series_0001["resource"] = {
-            "ref": resource_0001_post_response.json()["uri"]
-        }  # required
-        series_0001_post_response = asnake_client.post(
-            "/repositories/2/archival_objects", json=series_0001
-        )
-        print("🐞 series_0001_post_response", series_0001_post_response.json())
-
-        subseries_0001 = {}
-        subseries_0001[
-            "title"
-        ] = "0001 DISTILLERY TEST SUB-SERIES"  # title or date required
-        subseries_0001["component_id"] = "DistilleryTEST0001_subseries"
-        subseries_0001["level"] = "subseries"  # required
-        subseries_0001["resource"] = {
-            "ref": resource_0001_post_response.json()["uri"]
-        }  # required
-        subseries_0001_post_response = asnake_client.post(
-            "/repositories/2/archival_objects", json=subseries_0001
-        )
-        print("🐞 subseries_0001_post_response", subseries_0001_post_response.json())
-        subseries_0001_parent_position_post_response = asnake_client.post(
-            f'{subseries_0001_post_response.json()["uri"]}/parent',
-            params={"parent": series_0001_post_response.json()["id"], "position": 0},
-        )
-        print(
-            "🐞 subseries_0001_parent_position_post_response",
-            subseries_0001_parent_position_post_response.json(),
-        )
-
-        items_0001 = ["item1", "item2", "item3"]
-        for i in items_0001:
-            item = {}
-            item[
-                "title"
-            ] = f"0001 DISTILLERY TEST {i}".upper()  # title or date required
-            item["component_id"] = f"DistilleryTEST0001_{i}"
-            item["level"] = "item"  # required
-            item["resource"] = {
-                "ref": resource_0001_post_response.json()["uri"]
-            }  # required
-            item_post_response = asnake_client.post(
-                "/repositories/2/archival_objects", json=item
-            )
-            print(f"🐞 {i}_post_response", item_post_response.json())
-            item_parent_position_post_response = asnake_client.post(
-                f'{item_post_response.json()["uri"]}/parent',
-                params={
-                    "parent": subseries_0001_post_response.json()["id"],
-                    "position": 1,
-                },
-            )
-            print(
-                f"🐞 {i}_parent_position_post_response",
-                item_parent_position_post_response.json(),
-            )
-    except Exception:
-        raise
 
 
 def test_distillery_landing(page: Page):
     page.goto(config("BASE_URL"))
     expect(page).to_have_title("Distillery")
-
-
-def test_distillery_cloud(page: Page):
-    page.goto(config("BASE_URL"))
-    page.get_by_label("Collection ID").fill("DistilleryTEST0001_collection")
-    page.get_by_text(
-        "Cloud preservation storage generate and send files to a remote storage provider"
-    ).click()
-    page.get_by_role("button", name="Validate").click()
-    page.get_by_text("Details").click()
-    expect(page.locator("p")).to_have_text(
-        "✅ Validated metadata, files, and destinations for DistilleryTEST0001_collection."
-    )
-    page.get_by_role("button", name="Run").click()
-    page.get_by_text("Details").click()
-    expect(page.locator("p")).to_have_text(
-        "✅ Processed metadata and files for DistilleryTEST0001_collection.",
-        timeout=60000,
-    )
 
 
 def test_distillery_cloud_wrong_component_id_948vk(page: Page):
