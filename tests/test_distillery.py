@@ -296,6 +296,36 @@ def test_distillery_0001_setup_access_nonnumeric_sequence_yw3ff(
     item["resource"] = {"ref": resource_post_response.json()["uri"]}
     # optional
     item["component_id"] = "item-yw3ff"
+    item["dates"] = [
+        {
+            "label": "creation",
+            "date_type": "inclusive",
+            "begin": "1999-12-31",
+            "end": "2001-01-01",
+        }
+    ]
+    item["notes"] = [
+        {
+            "jsonmodel_type": "note_multipart",
+            "publish": True,
+            "subnotes": [
+                {
+                    "content": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. (This is a Scope and Contents note set to published.)",
+                    "jsonmodel_type": "note_text",
+                    "publish": True,
+                }
+            ],
+            "type": "scopecontent",
+        },
+        {
+            "content": [
+                "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. (This is an Abstract note set to unpublished.)"
+            ],
+            "jsonmodel_type": "note_singlepart",
+            "publish": False,
+            "type": "abstract",
+        },
+    ]
     # post
     item_post_response = asnake_client.post(
         "/repositories/2/archival_objects", json=item
@@ -410,4 +440,4 @@ def test_distillery_access_nonnumeric_sequence_yw3ff(page: Page, asnake_client):
         assert digital_object["file_versions"][0]["file_uri"] == access_uri
     # VALIDATE ACCESS HTML
     page.goto(access_uri)
-    expect(page).to_have_title("_DISTILLERY TEST ITEM yw3ff")
+    expect(page).to_have_title("_DISTILLERY TEST ITEM yw3ff, 1999-12-31 - 2001-01-01")

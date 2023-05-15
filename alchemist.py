@@ -129,15 +129,25 @@ def generate_archival_object_page(build_directory, variables):
             variables["folder_arrangement"]["collection_id"]
         )
         logger.info(f"🐛 COLLECTION DIRECTORY: {collection_directory}")
-        iiif_manifest_url = (
-            config("ACCESS_SITE_BASE_URL").strip("/")
-            + "/"
-            + variables["folder_arrangement"]["collection_id"]
-            + "/"
-            + variables["archival_object"]["component_id"]
-            + "/"
-            + "manifest.json"
+        iiif_manifest_url = "/".join(
+            [
+                config("ACCESS_SITE_BASE_URL").rstrip("/"),
+                variables["folder_arrangement"]["collection_id"],
+                variables["archival_object"]["component_id"],
+                "manifest.json",
+            ]
         )
+        abstract_notes = []
+        for note in variables["archival_object"]["notes"]:
+            if note["type"] == "abstract" and note["publish"]:
+                for content in note["content"]:
+                    abstract_notes.append(content["content"])
+        scopecontent_notes = []
+        for note in variables["archival_object"]["notes"]:
+            if note["type"] == "scopecontent" and note["publish"]:
+                for subnote in note["subnotes"]:
+                    if subnote["jsonmodel_type"] == "note_text" and subnote["publish"]:
+                        scopecontent_notes.append(subnote["content"])
         archival_object_page_key = (
             Path(variables["folder_arrangement"]["collection_id"])
             .joinpath(f'{variables["archival_object"]["component_id"]}', "index.html")
@@ -164,9 +174,15 @@ def generate_archival_object_page(build_directory, variables):
                     ),
                     series=variables["folder_arrangement"].get("series_display"),
                     subseries=variables["folder_arrangement"].get("subseries_display"),
-                    dates=variables["archival_object"]["dates"],
-                    notes=variables["archival_object"]["notes"],
-                    uri=variables["archival_object"]["uri"],
+                    dates=variables["archival_object"].get("dates", []),
+                    abstract_notes=abstract_notes,
+                    scopecontent_notes=scopecontent_notes,
+                    archivesspace_url="/".join(
+                        [
+                            config("ASPACE_PUBLIC_URL").rstrip("/"),
+                            variables["archival_object"]["uri"],
+                        ]
+                    ),
                     iiif_manifest_url=iiif_manifest_url,
                     iiif_manifest_json=json.dumps({"manifest": f"{iiif_manifest_url}"}),
                 )
@@ -231,13 +247,14 @@ def generate_iiif_manifest(build_directory, variables):
         manifest = {
             "@context": "http://iiif.io/api/presentation/2/context.json",
             "@type": "sc:Manifest",
-            "@id": config("ACCESS_SITE_BASE_URL").strip("/")
-            + "/"
-            + variables["folder_arrangement"]["collection_id"]
-            + "/"
-            + variables["archival_object"]["component_id"]
-            + "/"
-            + "/manifest.json",
+            "@id": "/".join(
+                [
+                    config("ACCESS_SITE_BASE_URL").strip("/"),
+                    variables["folder_arrangement"]["collection_id"],
+                    variables["archival_object"]["component_id"],
+                    "/manifest.json",
+                ]
+            ),
             "label": variables["archival_object"]["display_string"],
             "sequences": [{"@type": "sc:Sequence", "canvases": []}],
         }
@@ -260,16 +277,14 @@ def generate_iiif_manifest(build_directory, variables):
             )
             logger.info(f"🐛 HEIGHT: {height}")
             sequence = filepath.split("_")[-1].split(".")[0].zfill(4)
-            canvas_id = (
-                config("ACCESS_SITE_BASE_URL").strip("/")
-                + "/"
-                + variables["folder_arrangement"]["collection_id"]
-                + "/"
-                + variables["archival_object"]["component_id"]
-                + "/"
-                + "canvas"
-                + "/"
-                + f'{variables["archival_object"]["component_id"]}_{sequence}'
+            canvas_id = "/".join(
+                [
+                    config("ACCESS_SITE_BASE_URL").strip("/"),
+                    variables["folder_arrangement"]["collection_id"],
+                    variables["archival_object"]["component_id"],
+                    "canvas",
+                    f'{variables["archival_object"]["component_id"]}_{sequence}',
+                ]
             )
             logger.info(f"🐛 CANVAS ID: {canvas_id}")
             escaped_identifier = f'{variables["folder_arrangement"]["collection_id"]}%2F{variables["archival_object"]["component_id"]}%2F{variables["archival_object"]["component_id"]}_{sequence}'
@@ -464,14 +479,13 @@ def create_digital_object_file_versions(build_directory, variables):
         if not archival_object_directory.is_dir():
             continue
 
-        archival_object_page_url = (
-            config("ACCESS_SITE_BASE_URL").strip("/")
-            + "/"
-            + variables["folder_arrangement"]["collection_id"]
-            + "/"
-            + variables["archival_object"]["component_id"]
-            + "/"
-            + "index.html"
+        archival_object_page_url = "/".join(
+            [
+                config("ACCESS_SITE_BASE_URL").strip("/"),
+                variables["folder_arrangement"]["collection_id"],
+                variables["archival_object"]["component_id"],
+                "index.html",
+            ]
         )
         logger.info(f"🐛 ARCHIVAL OBJECT PAGE URL: {archival_object_page_url}")
 
