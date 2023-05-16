@@ -239,11 +239,29 @@ def upload_archival_object_page(build_directory, variables):
         raise
 
 
+def get_thumbnail_url(variables):
+    thumbnail_file = Path(sorted(variables["filepaths"])[0])
+    thumbnail_id = "%2F".join(
+        [
+            thumbnail_file.parent.parent.name,
+            thumbnail_file.parent.name,
+            thumbnail_file.stem,
+        ]
+    )
+    return "/".join(
+        [
+            config("ACCESS_IIIF_ENDPOINT").rstrip("/"),
+            thumbnail_id,
+            "full",
+            "200,",
+            "0",
+            "default.jpg",
+        ]
+    )
+
+
 def generate_iiif_manifest(build_directory, variables):
     try:
-        logger.info(
-            f'🐛 GENERATE IIIF MANIFEST: {variables["archival_object"]["component_id"]}'
-        )
         manifest = {
             "@context": "http://iiif.io/api/presentation/2/context.json",
             "@type": "sc:Manifest",
@@ -256,12 +274,17 @@ def generate_iiif_manifest(build_directory, variables):
                 ]
             ),
             "label": variables["archival_object"]["display_string"],
+            "thumbnail": {
+                "@id": get_thumbnail_url(variables),
+                "service": {
+                    "@context": "http://iiif.io/api/image/2/context.json",
+                    "@id": get_thumbnail_url(variables).rsplit("/", maxsplit=4)[0],
+                    "profile": "http://iiif.io/api/image/2/level1.json",
+                },
+            },
             "sequences": [{"@type": "sc:Sequence", "canvases": []}],
         }
-        logger.info(f"🐛 MANIFEST: {manifest}")
-        logger.info(f"🐛 FILEPATHS: {variables['filepaths']}")
         for filepath in sorted(variables["filepaths"]):
-            logger.info(f"🐛 FILEPATH: {filepath}")
             # create canvas metadata
             # HACK the binaries for `vips` and `vipsheader` should be in the same place
             width = (
@@ -269,36 +292,35 @@ def generate_iiif_manifest(build_directory, variables):
                 .read()
                 .strip()
             )
-            logger.info(f"🐛 WIDTH: {width}")
             height = (
                 os.popen(f'{config("WORK_VIPS_CMD")}header -f height {filepath}')
                 .read()
                 .strip()
             )
-            logger.info(f"🐛 HEIGHT: {height}")
-            sequence = filepath.split("_")[-1].split(".")[0].zfill(4)
             canvas_id = "/".join(
                 [
                     config("ACCESS_SITE_BASE_URL").strip("/"),
                     variables["folder_arrangement"]["collection_id"],
                     variables["archival_object"]["component_id"],
                     "canvas",
-                    f'{variables["archival_object"]["component_id"]}_{sequence}',
+                    f'{Path(filepath).stem}',
                 ]
             )
-            logger.info(f"🐛 CANVAS ID: {canvas_id}")
-            escaped_identifier = f'{variables["folder_arrangement"]["collection_id"]}%2F{variables["archival_object"]["component_id"]}%2F{variables["archival_object"]["component_id"]}_{sequence}'
-            logger.info(f"🐛 ESCAPED IDENTIFIER: {escaped_identifier}")
+            escaped_identifier = "/".join(
+                [
+                    variables["folder_arrangement"]["collection_id"],
+                    variables["archival_object"]["component_id"],
+                    f'{Path(filepath).stem}',
+                ]
+            )
             service_id = (
                 config("ACCESS_IIIF_ENDPOINT").strip("/") + "/" + escaped_identifier
             )
-            logger.info(f"🐛 SERVICE ID: {service_id}")
             resource_id = service_id + "/full/max/0/default.jpg"
-            logger.info(f"🐛 RESOURCE ID: {resource_id}")
             canvas = {
                 "@type": "sc:Canvas",
                 "@id": canvas_id,
-                "label": sequence.lstrip("0"),
+                "label": Path(filepath).stem.split("_")[-1].lstrip("0"),
                 "width": width,
                 "height": height,
                 "images": [
@@ -318,20 +340,15 @@ def generate_iiif_manifest(build_directory, variables):
                     }
                 ],
             }
-            logger.info(f"🐛 CANVAS: {canvas}")
             # add canvas to sequences
             manifest["sequences"][0]["canvases"].append(canvas)
-        logger.info(f"🐛 MANIFEST: {manifest}")
 
         # save manifest file
-        logger.info(f"🐛 BUILD DIRECTORY: {build_directory}")
-        logger.info(f"🐛 BUILD DIRECTORY NAME: {build_directory.name}")
         manifest_file = Path(build_directory.name).joinpath(
             variables["folder_arrangement"]["collection_id"],
             variables["archival_object"]["component_id"],
             "manifest.json",
         )
-        logger.info(f"🐛 MANIFEST FILE: {manifest_file}")
         manifest_file.parent.mkdir(parents=True, exist_ok=True)
         with open(
             manifest_file,
@@ -384,25 +401,19 @@ def upload_iiif_manifest(build_directory, variables):
 
 def create_pyramid_tiff(build_directory, variables):
     try:
-        logger.info(f"🐛 CREATE PYRAMID TIFF: {variables['filepaths']}")
-        sequence = (
-            variables["original_image_path"].split("_")[-1].split(".")[0].zfill(4)
-        )
-        pyramid_tiff_key = (
-            Path(variables["folder_arrangement"]["collection_id"])
-            .joinpath(
+        pyramid_tiff_key = "/".join(
+            [
+                variables["folder_arrangement"]["collection_id"],
                 variables["archival_object"]["component_id"],
-                f'{variables["archival_object"]["component_id"]}_{sequence}.ptif',
-            )
-            .as_posix()
+                f'{Path(variables["original_image_path"]).stem}.ptif',
+            ]
         )
         pyramid_tiff_file = (
             Path(build_directory.name).joinpath(pyramid_tiff_key).as_posix()
         )
-        # output = subprocess.run('<command>', shell=True, capture_output=True, text=True).stdout
         output = subprocess.run(
             [
-                "vips",
+                config("WORK_VIPS_CMD"),
                 "tiffsave",
                 variables["original_image_path"],
                 pyramid_tiff_file,
@@ -418,12 +429,10 @@ def create_pyramid_tiff(build_directory, variables):
             capture_output=True,
             text=True,
         ).stdout
-        # f"{VIPS_CMD} tiffsave {f} {PROCESSED_IIIF_DIR}/{barcode}/{page_num}.tif --tile --pyramid --compression jpeg --tile-width 256 --tile-height 256"
-        logger.info(f"🐛 VIPS OUTPUT: {output}")
     except Exception as e:
         import traceback
 
-        logger.error(f"❌ EXCEPTION: {e}")
+        logger.error(f"❌ INSIDE create_pyramid_tiff(): {e}")
         logger.error(f"❌ TRACEBACK: {traceback.format_exc()}")
         raise
 
@@ -485,32 +494,6 @@ def create_digital_object_file_versions(build_directory, variables):
                 "index.html",
             ]
         )
-        logger.info(f"🐛 ARCHIVAL OBJECT PAGE URL: {archival_object_page_url}")
-
-        thumbnail_file = sorted(
-            [
-                f
-                for f in archival_object_directory.iterdir()
-                if f.suffix.lower() == ".ptif"
-            ]
-        )[0]
-        thumbnail_id = "%2F".join(
-            [
-                thumbnail_file.parent.parent.name,
-                thumbnail_file.parent.name,
-                thumbnail_file.stem,
-            ]
-        )
-        thumbnail_url = "/".join(
-            [
-                config("ACCESS_IIIF_ENDPOINT").rstrip("/"),
-                thumbnail_id,
-                "full",
-                "200,",
-                "0",
-                "default.jpg",
-            ]
-        )
 
         file_versions = [
             {
@@ -519,7 +502,7 @@ def create_digital_object_file_versions(build_directory, variables):
                 "publish": True,
             },
             {
-                "file_uri": thumbnail_url,
+                "file_uri": get_thumbnail_url(variables),
                 "jsonmodel_type": "file_version",
                 "publish": True,
                 "xlink_show_attribute": "embed",
