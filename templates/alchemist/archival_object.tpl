@@ -89,6 +89,7 @@
           <li>What format should be used for date and date range display?</li>
           <li>Which note types are available for display?</li>
           <li>How much note content should be displayed? (Multiple notes of each type can be repeated and each note can contain multiple content fields.)</li>
+          <li>What pixel dimensions should be used for the thumbnail in ArchivesSpace?</li>
         </ul>
       </article>
     </main>

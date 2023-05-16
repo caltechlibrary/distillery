@@ -467,12 +467,10 @@ def publish_access_files(build_directory, variables):
 
 
 def create_digital_object_file_versions(build_directory, variables):
-    logger.info(f"🐛 BUILD DIRECTORY: {build_directory.name}")
 
     collection_directory = Path(build_directory.name).joinpath(
         variables["folder_arrangement"]["collection_id"]
     )
-    logger.info(f"🐛 COLLECTION DIRECTORY: {collection_directory}")
 
     for archival_object_directory in collection_directory.iterdir():
 
@@ -489,20 +487,43 @@ def create_digital_object_file_versions(build_directory, variables):
         )
         logger.info(f"🐛 ARCHIVAL OBJECT PAGE URL: {archival_object_page_url}")
 
+        thumbnail_file = sorted(
+            [
+                f
+                for f in archival_object_directory.iterdir()
+                if f.suffix.lower() == ".ptif"
+            ]
+        )[0]
+        thumbnail_id = "%2F".join(
+            [
+                thumbnail_file.parent.parent.name,
+                thumbnail_file.parent.name,
+                thumbnail_file.stem,
+            ]
+        )
+        thumbnail_url = "/".join(
+            [
+                config("ACCESS_IIIF_ENDPOINT").rstrip("/"),
+                thumbnail_id,
+                "full",
+                "200,",
+                "0",
+                "default.jpg",
+            ]
+        )
+
         file_versions = [
             {
                 "file_uri": archival_object_page_url,
                 "jsonmodel_type": "file_version",
                 "publish": True,
             },
-            # TODO determine source of thumbnail
-            # determination should happen before creating manifest to include it there
-            # {
-            #     "file_uri": "",
-            #     "jsonmodel_type": "file_version",
-            #     "publish": True,
-            #     "xlink_show_attribute": "embed",
-            # },
+            {
+                "file_uri": thumbnail_url,
+                "jsonmodel_type": "file_version",
+                "publish": True,
+                "xlink_show_attribute": "embed",
+            },
         ]
 
         # load existing or create new digital_object with component_id
