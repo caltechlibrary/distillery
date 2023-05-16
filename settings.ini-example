@@ -2,9 +2,9 @@
 
 ; Application Base URL
 ; --------------------
-; The BASE_URL is passed to the Bottle templates so that relative links
+; The DISTILLERY_BASE_URL is passed to the Bottle templates so that relative links
 ; work properly if the application is accessed at a specific path.
-;BASE_URL=https://www.example.org/distillery
+;DISTILLERY_BASE_URL=https://www.example.org/distillery
 ;DISTILLERY_BASIC_AUTH_USERNAME=username
 ;DISTILLERY_BASIC_AUTH_PASSWORD=password
 

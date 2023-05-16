@@ -347,12 +347,12 @@ def test_distillery_0001_setup_access_nonnumeric_sequence_yw3ff(
 
 
 def test_distillery_landing(page: Page):
-    page.goto(config("BASE_URL"))
+    page.goto(config("DISTILLERY_BASE_URL"))
     expect(page).to_have_title("Distillery")
 
 
 def test_distillery_cloud_wrong_component_id_948vk(page: Page):
-    page.goto(config("BASE_URL"))
+    page.goto(config("DISTILLERY_BASE_URL"))
     page.get_by_label("Collection ID").fill("DistilleryTEST-948vk")
     page.get_by_text(
         "Cloud preservation storage generate and send files to a remote storage provider"
@@ -367,7 +367,7 @@ def test_distillery_cloud_wrong_component_id_948vk(page: Page):
 def test_distillery_cloud_nonnumeric_sequence_gz36p(
     page: Page, asnake_client, s3_client
 ):
-    page.goto(config("BASE_URL"))
+    page.goto(config("DISTILLERY_BASE_URL"))
     page.get_by_label("Collection ID").fill("DistilleryTEST-gz36p")
     page.get_by_text(
         "Cloud preservation storage generate and send files to a remote storage provider"
@@ -411,7 +411,7 @@ def test_distillery_cloud_nonnumeric_sequence_gz36p(
 
 def test_distillery_access_nonnumeric_sequence_yw3ff(page: Page, asnake_client):
     access_uri = f'{config("ACCESS_SITE_BASE_URL").rstrip("/")}/DistilleryTEST-yw3ff/item-yw3ff/index.html'
-    page.goto(config("BASE_URL"))
+    page.goto(config("DISTILLERY_BASE_URL"))
     page.get_by_label("Collection ID").fill("DistilleryTEST-yw3ff")
     page.get_by_text(
         "Public web access generate files & metadata and publish on the web"
