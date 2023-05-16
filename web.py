@@ -41,7 +41,7 @@ def distillery_get():
     step = "collecting"
     return bottle.template(
         "distillery",
-        distillery_base_url=config("BASE_URL").rstrip("/"),
+        distillery_base_url=config("DISTILLERY_BASE_URL").rstrip("/"),
         user=authorize_user(),
         step=step,
     )
@@ -72,7 +72,7 @@ def distillery_post():
         async_result = distillery_run(collection_id, destinations)
     return bottle.template(
         "distillery",
-        distillery_base_url=config("BASE_URL").rstrip("/"),
+        distillery_base_url=config("DISTILLERY_BASE_URL").rstrip("/"),
         user=authorize_user(),
         step=step,
         collection_id=collection_id,
@@ -93,7 +93,7 @@ def log():
 def oralhistories_form():
     return bottle.template(
         "oralhistories",
-        distillery_base_url=config("BASE_URL").rstrip("/"),
+        distillery_base_url=config("DISTILLERY_BASE_URL").rstrip("/"),
         user=authorize_user(),
         archivesspace_staff_url=config("ASPACE_STAFF_URL"),
         github_repo=config("ORALHISTORIES_GITHUB_REPO"),
@@ -129,7 +129,7 @@ def oralhistories_post():
             )
             return bottle.template(
                 "oralhistories_post",
-                distillery_base_url=config("BASE_URL").rstrip("/"),
+                distillery_base_url=config("DISTILLERY_BASE_URL").rstrip("/"),
                 github_repo=config("ORALHISTORIES_GITHUB_REPO"),
                 archivesspace_staff_url=config("ASPACE_STAFF_URL"),
                 user=authorize_user(),
@@ -154,7 +154,7 @@ def oralhistories_post():
             )
             return bottle.template(
                 "oralhistories_post",
-                distillery_base_url=config("BASE_URL").rstrip("/"),
+                distillery_base_url=config("DISTILLERY_BASE_URL").rstrip("/"),
                 archivesspace_staff_url=config("ASPACE_STAFF_URL"),
                 user=authorize_user(),
                 component_id=component_id,
@@ -171,7 +171,7 @@ def oralhistories_post():
             async_result = oralhistories_run(publish=True, logfile=str(logfile))
             return bottle.template(
                 "oralhistories_post",
-                distillery_base_url=config("BASE_URL").rstrip("/"),
+                distillery_base_url=config("DISTILLERY_BASE_URL").rstrip("/"),
                 user=authorize_user(),
                 component_id="_",
                 timestamp=timestamp,
@@ -192,7 +192,7 @@ def oralhistories_post():
             )
             return bottle.template(
                 "oralhistories_post",
-                distillery_base_url=config("BASE_URL").rstrip("/"),
+                distillery_base_url=config("DISTILLERY_BASE_URL").rstrip("/"),
                 github_repo=config("ORALHISTORIES_GITHUB_REPO"),
                 user=authorize_user(),
                 component_id=component_id,
@@ -207,7 +207,7 @@ def oralhistories_post():
             async_result = oralhistories_run(update=True, logfile=str(logfile))
             return bottle.template(
                 "oralhistories_post",
-                distillery_base_url=config("BASE_URL").rstrip("/"),
+                distillery_base_url=config("DISTILLERY_BASE_URL").rstrip("/"),
                 github_repo=config("ORALHISTORIES_GITHUB_REPO"),
                 user=authorize_user(),
                 component_id="_",
