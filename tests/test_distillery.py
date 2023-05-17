@@ -441,3 +441,169 @@ def test_distillery_access_nonnumeric_sequence_yw3ff(page: Page, asnake_client):
     # VALIDATE ACCESS HTML
     page.goto(access_uri)
     expect(page).to_have_title("_DISTILLERY TEST ITEM yw3ff, 1999-12-31 - 2001-01-01")
+
+
+def test_distillery_cloud_video_7b3px(page: Page, asnake_client, s3_client):
+    """Test scenario with no TIFFs, but video and supplementary files."""
+    # DELETE ANY EXISTING TEST RECORDS
+    resource_find_by_id_results = asnake_client.get(
+        "/repositories/2/find_by_id/resources",
+        params={"identifier[]": ['["DistilleryTEST-7b3px"]']},
+    ).json()
+    for resource in resource_find_by_id_results["resources"]:
+        resource_tree = asnake_client.get(f'{resource["ref"]}/tree/root').json()
+        series_uri = resource_tree["precomputed_waypoints"][""]["0"][0]["uri"]
+        series_waypoint = asnake_client.get(
+            f'{resource["ref"]}/tree/waypoint?offset=0&parent_node={series_uri}'
+        ).json()
+        subseries_waypoint = asnake_client.get(
+            f'{resource["ref"]}/tree/waypoint?offset=0&parent_node={series_waypoint[0]["uri"]}'
+        ).json()
+        archival_object = asnake_client.get(
+            subseries_waypoint[0]["uri"], params={"resolve[]": "digital_object"}
+        ).json()
+        for instance in archival_object["instances"]:
+            if instance.get("digital_object"):
+                # delete digital object before deleting related archival object
+                digital_object_delete_response = asnake_client.delete(
+                    instance["digital_object"]["_resolved"]["uri"]
+                )
+        resource_delete_response = asnake_client.delete(resource["ref"])
+    # CREATE COLLECTION RECORD
+    resource = {}
+    # required
+    resource["title"] = "_DISTILLERY TEST COLLECTION 7b3px"
+    resource["id_0"] = "DistilleryTEST-7b3px"
+    resource["level"] = "collection"
+    resource["finding_aid_language"] = "eng"
+    resource["finding_aid_script"] = "Latn"
+    resource["lang_materials"] = [
+        {"language_and_script": {"language": "eng", "script": "Latn"}}
+    ]
+    resource["dates"] = [
+        {
+            "label": "creation",
+            "date_type": "single",
+            "begin": str(datetime.date.today()),
+        }
+    ]
+    resource["extents"] = [{"portion": "whole", "number": "1", "extent_type": "boxes"}]
+    # post
+    resource_post_response = asnake_client.post(
+        "/repositories/2/resources", json=resource
+    )
+    print(
+        "🐞 resource_post_response:DistilleryTEST-7b3px",
+        resource_post_response.json(),
+    )
+    # CREATE SERIES RECORD
+    series = {}
+    series["title"] = "_DISTILLERY TEST SERIES 7b3px"  # title or date required
+    series["component_id"] = "DistilleryTEST-7b3px-series"
+    series["level"] = "series"  # required
+    series["resource"] = {"ref": resource_post_response.json()["uri"]}  # required
+    series_post_response = asnake_client.post(
+        "/repositories/2/archival_objects", json=series
+    )
+    print("🐞 series_post_response", series_post_response.json())
+    # CREATE SUBSERIES RECORD
+    subseries = {}
+    subseries["title"] = "_DISTILLERY TEST SUBSERIES 7b3px"  # title or date required
+    subseries["component_id"] = "DistilleryTEST-7b3px-subseries"
+    subseries["level"] = "subseries"  # required
+    subseries["resource"] = {"ref": resource_post_response.json()["uri"]}  # required
+    subseries_post_response = asnake_client.post(
+        "/repositories/2/archival_objects", json=subseries
+    )
+    print("🐞 subseries_post_response", subseries_post_response.json())
+    # set subseries as a child of series
+    subseries_parent_position_post_response = asnake_client.post(
+        f'{subseries_post_response.json()["uri"]}/parent',
+        params={"parent": series_post_response.json()["id"], "position": 0},
+    )
+    print(
+        "🐞 subseries_parent_position_post_response",
+        subseries_parent_position_post_response.json(),
+    )
+    # CREATE ITEM RECORD
+    item = {}
+    # required
+    item["title"] = "_DISTILLERY TEST ITEM dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt 7b3px"
+    item["level"] = "item"
+    item["resource"] = {"ref": resource_post_response.json()["uri"]}
+    # optional
+    item["component_id"] = "distillery_test_item_7b3px"
+    item["dates"] = [
+        {
+            "label": "creation",
+            "date_type": "single",
+            "begin": "1999-12-31",
+        }
+    ]
+    # post
+    item_post_response = asnake_client.post(
+        "/repositories/2/archival_objects", json=item
+    )
+    # set item as a child of subseries
+    item_parent_position_post_response = asnake_client.post(
+        f'{item_post_response.json()["uri"]}/parent',
+        params={
+            "parent": subseries_post_response.json()["id"],
+            "position": 1,
+        },
+    )
+    print(
+        "🐞 item_parent_position_post_response",
+        item_parent_position_post_response.json(),
+    )
+    # DELETE S3 OBJECTS
+    s3_response = s3_client.list_objects_v2(
+        Bucket=config("PRESERVATION_BUCKET"), Prefix="DistilleryTEST-7b3px"
+    )
+    print("🐞 s3_client.list_objects_v2", s3_response)
+    if s3_response.get("Contents"):
+        s3_keys = [{"Key": s3_object["Key"]} for s3_object in s3_response["Contents"]]
+        s3_response = s3_client.delete_objects(
+            Bucket=config("PRESERVATION_BUCKET"), Delete={"Objects": s3_keys}
+        )
+    # DISTILLERY CLOUD WORKFLOW
+    page.goto(config("DISTILLERY_BASE_URL"))
+    page.get_by_label("Collection ID").fill("DistilleryTEST-7b3px")
+    page.get_by_text(
+        "Cloud preservation storage generate and send files to a remote storage provider"
+    ).click()
+    page.get_by_role("button", name="Validate").click()
+    page.get_by_text("Details").click()
+    expect(page.locator("p")).to_have_text(
+        "✅ Validated metadata, files, and destinations for DistilleryTEST-7b3px."
+    )
+    page.get_by_role("button", name="Run").click()
+    page.get_by_text("Details").click()
+    expect(page.locator("p")).to_have_text(
+        "✅ Processed metadata and files for DistilleryTEST-7b3px.", timeout=60000
+    )
+    # get a list of s3 objects under this test prefix
+    s3_response = s3_client.list_objects_v2(
+        Bucket=config("PRESERVATION_BUCKET"), Prefix="DistilleryTEST-7b3px"
+    )
+    print("🐞 s3_client.list_objects_v2", s3_response)
+    # ensure that the digital object components were created correctly
+    results = asnake_client.get(
+        "/repositories/2/find_by_id/digital_objects",
+        params={"digital_object_id[]": "distillery_test_item_7b3px"},
+    ).json()
+    print("🐞 find_by_id/digital_objects", results)
+    assert len(results["digital_objects"]) == 1
+    for digital_object in results["digital_objects"]:
+        tree = asnake_client.get(f'{digital_object["ref"]}/tree/root').json()
+        print(f'🐞 {digital_object["ref"]}/tree/root', tree)
+        assert len(tree["precomputed_waypoints"][""]["0"]) > 0
+        for waypoint in tree["precomputed_waypoints"][""]["0"]:
+            # split the s3 key from the file_uri_summary and ensure it matches
+            assert waypoint["file_uri_summary"].split(
+                f's3://{config("PRESERVATION_BUCKET")}/'
+            )[-1] in [s3_object["Key"] for s3_object in s3_response["Contents"]]
+            # split the original filename from the s3 key and match the label
+            assert waypoint["label"] in [
+                s3_object["Key"].split("/")[-2] for s3_object in s3_response["Contents"]
+            ]
