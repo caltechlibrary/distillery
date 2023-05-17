@@ -172,25 +172,17 @@ class DistilleryService(rpyc.Service):
                     status_logger.info(f"📁 {self.collection_id}/{dirname}")
             if filenames:
                 for filename in filenames:
-                    # TODO remove mimetype checking
-                    type, encoding = mimetypes.guess_type(
-                        Path(dirpath).joinpath(filename)
-                    )
-                    # NOTE additional mimetypes TBD
-                    if type == "image/tiff":
-                        # count files
-                        initial_original_filecount += 1
+                    # count files
+                    initial_original_filecount += 1
         if not initial_original_subdirectorycount:
             message = f"❌ No subdirectories found under {self.collection_id} directory"
             status_logger.error(message)
             raise FileNotFoundError(message)
         if initial_original_filecount:
-            # TODO update wording
-            logger.info(f"☑️  TIFF FILE COUNT: {initial_original_filecount}")
-            status_logger.info(f"📄 TIFF file count: {initial_original_filecount}")
+            logger.info(f"☑️  FILE COUNT: {initial_original_filecount}")
+            status_logger.info(f"📄 File count: {initial_original_filecount}")
         else:
-            # TODO update wording
-            message = f"❌ No TIFF files found for {self.collection_id}"
+            message = f"❌ No files found for {self.collection_id}"
             status_logger.error(message)
             raise FileNotFoundError(message)
 
@@ -431,13 +423,17 @@ def create_derivative_structure(
     ][::-1]
     for _ in range(len(subdirectories)):
         # Using pop() (and/or range(len()) above) maybe helps to be sure that if
-        # archival object metadata fails to process properly, it and its images
+        # archival object metadata fails to process properly, it and its files
         # are skipped completely and the script moves on to the next directory.
         subdirectory = subdirectories.pop()
         logger.info(f"▶️  PROCESSING DIRECTORY: {subdirectory}")
 
         # Set up list of file paths for the current directory.
-        variables["filepaths"] = prepare_filepaths_list(subdirectory)
+        variables["filepaths"] = [
+            f.path
+            for f in os.scandir(subdirectory)
+            if f.is_file() and f.name not in [".DS_Store", "Thumbs.db"]
+        ]
 
         # Avoid processing directory when there are no files.
         if not variables["filepaths"]:
@@ -937,7 +933,7 @@ def save_digital_object_component_record(variables):
         return
     digital_object_component_component_id = Path(
         variables["preservation_file_info"]["filepath"]
-    ).stem
+    ).name
     digital_object_component = get_digital_object_component(
         digital_object_component_component_id
     )
@@ -1063,16 +1059,6 @@ def construct_file_version(variables):
                 "standard"
             ]
     return file_version
-
-
-def prepare_filepaths_list(folderpath):
-    filepaths = []
-    with os.scandir(folderpath) as contents:
-        for entry in contents:
-            # TODO remove TIFF-specific condition
-            if entry.is_file() and os.path.splitext(entry.path)[1] in [".tif", ".tiff"]:
-                filepaths.append(entry.path)
-    return filepaths
 
 
 def create_lossless_jpeg2000_image(variables, collection_data):
@@ -1293,7 +1279,6 @@ def loop_over_archival_object_datafiles(variables, collection_id, onsite, cloud)
     variables["preservation_folders"] = []
 
     for archival_object_datafile in preservation_collection_path.rglob("*/*.json"):
-        logger.info(f"🐞 archival_object_datafile: {archival_object_datafile}")
         variables["current_archival_object_datafile"] = archival_object_datafile
         variables["preservation_folders"].append(archival_object_datafile.parent)
 
@@ -1350,6 +1335,7 @@ def loop_over_preservation_files(variables, onsite, cloud):
         for dirpath, dirnames, filenames in sorted(os.walk(preservation_folder)):
             # preservation_foldername = Path(dirpath).name
             for filename in filenames:
+                filepath = Path(dirpath).joinpath(filename)
                 # logger.info(f'🐞 str(dirpath): {str(dirpath)}')
                 # logger.info(f'🐞 str(Path(dirpath).name): {str(Path(dirpath).name)}')
                 # logger.info(f'🐞 str(filename): {str(filename)}')
@@ -1360,13 +1346,24 @@ def loop_over_preservation_files(variables, onsite, cloud):
                     # do not analyze preservation_folder JSON metadata
                     continue
                 logger.info(f"▶️  PROCESSING FILE: {filename}")
-                # TODO get file info
-                type, encoding = mimetypes.guess_type(Path(dirpath).joinpath(filename))
-                # NOTE additional mimetypes TBD
+
+                type, encoding = mimetypes.guess_type(filepath)
+
                 if type == "image/jp2":
                     variables["preservation_file_info"] = get_preservation_image_data(
-                        Path(dirpath).joinpath(filename)
+                        filepath
                     )
+                    variables["preservation_file_info"]["mimetype"] = type
+                else:
+                    variables["preservation_file_info"] = {}
+                    variables["preservation_file_info"]["filepath"] = filepath
+                    variables["preservation_file_info"][
+                        "filesize"
+                    ] = filepath.stat().st_size
+                    with open(filepath, "rb") as fb:
+                        variables["preservation_file_info"]["md5"] = hashlib.md5(
+                            fb.read()
+                        )
                     variables["preservation_file_info"]["mimetype"] = type
 
                 if onsite:
@@ -1435,34 +1432,63 @@ def create_derivative_files(variables, collection_data, onsite, cloud, access):
     variables["filepaths_popped"] = sorted(variables["filepaths"], reverse=True)
     variables["filepaths_count_initial"] = len(variables["filepaths"])
     for f in range(variables["filepaths_count_initial"]):
-        # logger.debug(
-        #     f'🐞 len(variables["filepaths_popped"]): {len(variables["filepaths_popped"])}'
-        # )
+        # TODO rename variable to original_file_path
         variables["original_image_path"] = variables["filepaths_popped"].pop()
         logger.info(
             f'▶️  PROCESSING ITEM: {variables["original_image_path"][len(config("WORKING_ORIGINAL_FILES")) + 1:]}'
         )
-        # logger.debug(
-        #     f'🐞 len(variables["filepaths_popped"]): {len(variables["filepaths_popped"])}'
-        # )
+
+        type, encoding = mimetypes.guess_type(variables["original_image_path"])
 
         # TODO check for existing derivative structure
         if onsite or cloud:
-            # TODO import mimetypes; mimetypes.guess_type(filepath)
-            # TODO find out the appropriate conditions for creating JPEG 2000 images
-            try:
-                # Create lossless JPEG 2000 image from original.
-                preservation_image_key = create_lossless_jpeg2000_image(
-                    variables, collection_data
+            if type and type.startswith("image/"):
+                try:
+                    # Create lossless JPEG 2000 image from original.
+                    preservation_image_key = create_lossless_jpeg2000_image(
+                        variables, collection_data
+                    )
+                except Exception as e:
+                    logger.exception(e)
+                    continue
+                else:
+                    status_logger.info(
+                        f"☑️  LOSSLESS JPEG 2000 DERIVATIVE CREATED: {preservation_image_key}"
+                    )
+            else:
+                filepath_components = get_file_parts(variables["original_image_path"])
+                preservation_file_key = get_digital_object_component_file_key(
+                    get_archival_object_directory_prefix(
+                        variables["folder_arrangement"],
+                        variables["archival_object"],
+                    ),
+                    filepath_components,
                 )
-                status_logger.info(f"☑️  FILE CREATED: {preservation_image_key}")
-            except Exception as e:
-                logger.error(f"❌ {str(e)}")
-                continue
-
+                preservation_file_path = Path(
+                    config("WORK_PRESERVATION_FILES")
+                ).joinpath(preservation_file_key)
+                try:
+                    # Make necessary destination directory path and copy file.
+                    preservation_file_path.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(
+                        variables["original_image_path"],
+                        preservation_file_path,
+                    )
+                except Exception as e:
+                    logger.exception(e)
+                    continue
+                else:
+                    status_logger.info(
+                        f"☑️  ORIGINAL FILE COPIED: {preservation_file_key}"
+                    )
 
         if access:
-            result = access.create_access_file(variables)
+            if type.startswith("image/"):
+                result = access.create_access_file(variables)
+            else:
+                raise NotImplementedError(
+                    "Only image files are supported at this time."
+                )
 
 
 if __name__ == "__main__":
