@@ -443,32 +443,46 @@ def test_distillery_access_nonnumeric_sequence_yw3ff(page: Page, asnake_client):
     expect(page).to_have_title("_DISTILLERY TEST ITEM yw3ff, 1999-12-31 - 2001-01-01")
 
 
-def test_distillery_cloud_video_7b3px(page: Page, asnake_client, s3_client):
-    """Test scenario with no TIFFs, but video and supplementary files."""
-    # DELETE ANY EXISTING TEST RECORDS
-    resource_find_by_id_results = asnake_client.get(
-        "/repositories/2/find_by_id/resources",
-        params={"identifier[]": ['["DistilleryTEST-7b3px"]']},
-    ).json()
-    for resource in resource_find_by_id_results["resources"]:
-        resource_tree = asnake_client.get(f'{resource["ref"]}/tree/root').json()
-        series_uri = resource_tree["precomputed_waypoints"][""]["0"][0]["uri"]
-        series_waypoint = asnake_client.get(
-            f'{resource["ref"]}/tree/waypoint?offset=0&parent_node={series_uri}'
-        ).json()
-        subseries_waypoint = asnake_client.get(
-            f'{resource["ref"]}/tree/waypoint?offset=0&parent_node={series_waypoint[0]["uri"]}'
-        ).json()
-        archival_object = asnake_client.get(
-            subseries_waypoint[0]["uri"], params={"resolve[]": "digital_object"}
-        ).json()
-        for instance in archival_object["instances"]:
+def delete_archivesspace_test_records(asnake_client, resource_identifer):
+    """Delete any existing test records."""
+
+    def delete_digital_objects(uri):
+        result = asnake_client.get(uri, params={"resolve[]": "digital_object"}).json()
+        for instance in result["instances"]:
             if instance.get("digital_object"):
-                # delete digital object before deleting related archival object
                 digital_object_delete_response = asnake_client.delete(
                     instance["digital_object"]["_resolved"]["uri"]
                 )
-        resource_delete_response = asnake_client.delete(resource["ref"])
+
+    def recursive_delete(node, resource_ref):
+        if node["child_count"] > 0:
+            children = asnake_client.get(
+                f'{resource_ref}/tree/waypoint?offset=0&parent_node={node["uri"]}'
+            ).json()
+            for child in children:
+                delete_digital_objects(child["uri"])
+                recursive_delete(child, resource_ref)
+
+    resource_find_by_id_results = asnake_client.get(
+        "/repositories/2/find_by_id/resources",
+        params={"identifier[]": [f'["{resource_identifer}"]']},
+    ).json()
+    for result in resource_find_by_id_results["resources"]:
+        delete_digital_objects(result["ref"])
+        resource_tree = asnake_client.get(f'{result["ref"]}/tree/root').json()
+        if resource_tree["waypoints"] > 1:
+            raise Exception("Test resource has more than one waypoint.")
+        resource_children = resource_tree["precomputed_waypoints"][""]["0"]
+        for child in resource_children:
+            delete_digital_objects(child["uri"])
+            recursive_delete(child, result["ref"])
+        asnake_client.delete(result["ref"])
+
+
+def test_distillery_cloud_video_7b3px(page: Page, asnake_client, s3_client):
+    """Test scenario with no TIFFs, but video and supplementary files."""
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, "DistilleryTEST-7b3px")
     # CREATE COLLECTION RECORD
     resource = {}
     # required
@@ -528,7 +542,9 @@ def test_distillery_cloud_video_7b3px(page: Page, asnake_client, s3_client):
     # CREATE ITEM RECORD
     item = {}
     # required
-    item["title"] = "_DISTILLERY TEST ITEM dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt 7b3px"
+    item[
+        "title"
+    ] = "_DISTILLERY TEST ITEM dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt 7b3px"
     item["level"] = "item"
     item["resource"] = {"ref": resource_post_response.json()["uri"]}
     # optional
