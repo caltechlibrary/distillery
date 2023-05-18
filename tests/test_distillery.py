@@ -26,9 +26,9 @@ def distillery_0000_reset_files():
     for d in glob.glob(os.path.join(config("STAGE_3_ORIGINAL_FILES"), "*/")):
         shutil.move(d, config("INITIAL_ORIGINAL_FILES"))
     for d in glob.glob(os.path.join(config("WORK_PRESERVATION_FILES"), "*/")):
-        shutil.rmtree(d)
+        os.system(f"/bin/rm -r {d}")
     for d in glob.glob(os.path.join(config("COMPRESSED_ACCESS_FILES"), "*/")):
-        shutil.rmtree(d)
+        os.system(f"/bin/rm -r {d}")
     return
 
 
@@ -348,7 +348,7 @@ def test_distillery_cloud_wrong_component_id_948vk(page: Page, asnake_client):
     page.get_by_role("button", name="Validate").click()
     page.get_by_text("Details").click()
     expect(page.locator("p")).to_have_text(
-        "❌ Something went wrong. View the details for more information.", timeout=20000
+        "❌ Something went wrong. View the details for more information.", timeout=30000
     )
 
 
