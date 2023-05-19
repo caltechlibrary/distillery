@@ -63,6 +63,151 @@ def s3_client():
 # viewing the outcome of tests in ArchivesSpace
 
 
+def delete_archivesspace_test_records(asnake_client, resource_identifer):
+    """Delete any existing test records."""
+
+    def delete_digital_objects(uri):
+        result = asnake_client.get(uri, params={"resolve[]": "digital_object"}).json()
+        for instance in result["instances"]:
+            if instance.get("digital_object"):
+                digital_object_delete_response = asnake_client.delete(
+                    instance["digital_object"]["_resolved"]["uri"]
+                )
+
+    def recursive_delete(node, resource_ref):
+        if node["child_count"] > 0:
+            children = asnake_client.get(
+                f'{resource_ref}/tree/waypoint?offset=0&parent_node={node["uri"]}'
+            ).json()
+            for child in children:
+                delete_digital_objects(child["uri"])
+                recursive_delete(child, resource_ref)
+
+    resource_find_by_id_results = asnake_client.get(
+        "/repositories/2/find_by_id/resources",
+        params={"identifier[]": [f'["{resource_identifer}"]']},
+    ).json()
+    for result in resource_find_by_id_results["resources"]:
+        delete_digital_objects(result["ref"])
+        resource_tree = asnake_client.get(f'{result["ref"]}/tree/root').json()
+        if resource_tree["waypoints"] > 1:
+            raise Exception("Test resource has more than one waypoint.")
+        resource_children = resource_tree["precomputed_waypoints"][""]["0"]
+        for child in resource_children:
+            delete_digital_objects(child["uri"])
+            recursive_delete(child, result["ref"])
+        asnake_client.delete(result["ref"])
+
+
+def test_distillery_alchemist_date_output_x2edw(page: Page, asnake_client):
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, "DistilleryTEST-x2edw")
+    # CREATE COLLECTION RECORD
+    resource = {}
+    # NOTE required
+    resource["title"] = "_Minim exercitation enim nulla x2edw"
+    resource["id_0"] = "DistilleryTEST-x2edw"
+    resource["level"] = "collection"
+    resource["finding_aid_language"] = "eng"
+    resource["finding_aid_script"] = "Latn"
+    resource["lang_materials"] = [
+        {"language_and_script": {"language": "eng", "script": "Latn"}}
+    ]
+    resource["dates"] = [
+        {
+            "label": "creation",
+            "date_type": "single",
+            "begin": str(datetime.date.today()),
+        }
+    ]
+    resource["extents"] = [{"portion": "whole", "number": "1", "extent_type": "boxes"}]
+    # NOTE post
+    resource_post_response = asnake_client.post(
+        "/repositories/2/resources", json=resource
+    )
+    print(
+        "🐞 resource_post_response:DistilleryTEST-x2edw",
+        resource_post_response.json(),
+    )
+    # CREATE ITEM RECORD
+    item = {}
+    # NOTE required
+    item["title"] = "_Velit quis et adipisicing commodo x2edw"
+    item["level"] = "item"
+    item["resource"] = {"ref": resource_post_response.json()["uri"]}
+    # NOTE optional
+    item["component_id"] = "item-x2edw"
+    item["dates"] = [
+        {
+            "label": "digitized",
+            "date_type": "single",
+            "begin": "2022-02-22",
+        },
+        {
+            "label": "creation",
+            "date_type": "single",
+            "begin": "1584-02-29",
+        },
+        {
+            "label": "creation",
+            "date_type": "inclusive",
+            "begin": "1969-12-31",
+            "end": "1970-01-01",
+        },
+        {
+            "label": "creation",
+            "date_type": "bulk",
+            "begin": "1999-12-31",
+            "end": "2000-01-01",
+        },
+        {
+            "label": "creation",
+            "date_type": "single",
+            "expression": "ongoing into the future",
+        },
+    ]
+    # NOTE post
+    item_post_response = asnake_client.post(
+        "/repositories/2/archival_objects", json=item
+    )
+    print("🐞 item_post_response:x2edw", item_post_response.json())
+    # RUN ALCHEMIST PROCESS
+    access_uri = f'{config("ACCESS_SITE_BASE_URL").rstrip("/")}/DistilleryTEST-x2edw/item-x2edw/index.html'
+    page.goto(config("DISTILLERY_BASE_URL"))
+    page.get_by_label("Collection ID").fill("DistilleryTEST-x2edw")
+    page.get_by_text(
+        "Public web access generate files & metadata and publish on the web"
+    ).click()
+    page.get_by_role("button", name="Validate").click()
+    page.get_by_text("Details").click()
+    expect(page.locator("p")).to_have_text(
+        "✅ Validated metadata, files, and destinations for DistilleryTEST-x2edw."
+    )
+    page.get_by_role("button", name="Run").click()
+    page.get_by_text("Details").click()
+    expect(page.locator("p")).to_have_text(
+        "✅ Processed metadata and files for DistilleryTEST-x2edw.", timeout=10000
+    )
+    # VALIDATE DIGITAL OBJECT
+    results = asnake_client.get(
+        "/repositories/2/find_by_id/digital_objects",
+        params={"digital_object_id[]": "item-x2edw"},
+    ).json()
+    print("🐞 find_by_id/digital_objects:item-x2edw", results)
+    assert len(results["digital_objects"]) == 1
+    for result in results["digital_objects"]:
+        digital_object = asnake_client.get(result["ref"]).json()
+        print("🐞 digital_object", digital_object)
+        assert digital_object["publish"] is True
+        assert digital_object["file_versions"][0]["file_uri"] == access_uri
+    # VALIDATE ALCHEMIST HTML
+    page.goto(access_uri)
+    expect(page).to_have_title("_Velit quis et adipisicing commodo x2edw")
+    expect(page.locator("#dates")).to_have_text(
+        "1584 February 29; 1969 December 31 to 1970 January 1; 1999 December 31 to 2000 January 1; ongoing into the future"
+    )
+
+
 def test_distillery_0001_setup_nonnumeric_sequence_gz36p(
     page: Page, asnake_client, s3_client
 ):
@@ -429,42 +574,6 @@ def test_distillery_access_nonnumeric_sequence_yw3ff(page: Page, asnake_client):
     # VALIDATE ACCESS HTML
     page.goto(access_uri)
     expect(page).to_have_title("_DISTILLERY TEST ITEM yw3ff, 1999-12-31 - 2001-01-01")
-
-
-def delete_archivesspace_test_records(asnake_client, resource_identifer):
-    """Delete any existing test records."""
-
-    def delete_digital_objects(uri):
-        result = asnake_client.get(uri, params={"resolve[]": "digital_object"}).json()
-        for instance in result["instances"]:
-            if instance.get("digital_object"):
-                digital_object_delete_response = asnake_client.delete(
-                    instance["digital_object"]["_resolved"]["uri"]
-                )
-
-    def recursive_delete(node, resource_ref):
-        if node["child_count"] > 0:
-            children = asnake_client.get(
-                f'{resource_ref}/tree/waypoint?offset=0&parent_node={node["uri"]}'
-            ).json()
-            for child in children:
-                delete_digital_objects(child["uri"])
-                recursive_delete(child, resource_ref)
-
-    resource_find_by_id_results = asnake_client.get(
-        "/repositories/2/find_by_id/resources",
-        params={"identifier[]": [f'["{resource_identifer}"]']},
-    ).json()
-    for result in resource_find_by_id_results["resources"]:
-        delete_digital_objects(result["ref"])
-        resource_tree = asnake_client.get(f'{result["ref"]}/tree/root').json()
-        if resource_tree["waypoints"] > 1:
-            raise Exception("Test resource has more than one waypoint.")
-        resource_children = resource_tree["precomputed_waypoints"][""]["0"]
-        for child in resource_children:
-            delete_digital_objects(child["uri"])
-            recursive_delete(child, result["ref"])
-        asnake_client.delete(result["ref"])
 
 
 def test_distillery_cloud_video_7b3px(page: Page, asnake_client, s3_client):
