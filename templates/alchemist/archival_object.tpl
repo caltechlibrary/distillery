@@ -40,6 +40,19 @@
         <h1>
           {{ title }}
         </h1>
+        {% if dates %}
+        <div id="dates">
+          {% for date in dates %}
+          {% if date.end %}
+          <span>{{ date.begin }} to {{ date.end }}</span>{{ "; " if not loop.last else "" }}
+          {% elif date.begin %}
+          <span>{{ date.begin }}</span>{{ "; " if not loop.last else "" }}
+          {% else %}
+          <span>{{ date.expression }}</span>{{ "; " if not loop.last else "" }}
+          {% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
         {% if collection %}
         <h2>
           {{ collection }}{% if series %} / {{ series}}{% endif %}{% if subseries %} / {{ subseries}}{% endif %}
@@ -54,7 +67,7 @@
       </script>
       <dl>
         {% if dates %}
-        <dt>Dates # TODO tests needed for each date situation</dt>
+        <dt>Dates</dt>
         {% for date in dates %}
         {% if date.end %}
         <dd>{{ date.begin }} to {{ date.end }}</dd>
@@ -85,7 +98,6 @@
           <li>Must an archival object and its ancestors be set to published in ArchivesSpace before we create an HTML page for the record?</li>
           <li>Any preferences for hierarchy separators? (Currently set to a / character.)</li>
           <li>What should the link text to ArchivesSpace say?</li>
-          <li>What format should be used for date and date range display?</li>
           <li>Which note types are available for display?</li>
           <li>How much note content should be displayed? (Multiple notes of each type can be repeated and each note can contain multiple content fields.)</li>
           <li>What pixel dimensions should be used for the thumbnail in ArchivesSpace?</li>

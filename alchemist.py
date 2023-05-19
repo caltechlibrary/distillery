@@ -9,6 +9,7 @@ import tempfile
 
 from pathlib import Path
 
+import arrow
 import boto3
 import botocore
 import jinja2  # pypi: Jinja2
@@ -120,7 +121,9 @@ def generate_archival_object_page(build_directory, variables):
             f'🐛 variables["archival_object"]["uri"]: {variables["archival_object"]["uri"]}'
         )
         environment = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(f"{os.path.dirname(__file__)}/templates")
+            loader=jinja2.FileSystemLoader(f"{os.path.dirname(__file__)}/templates"),
+            trim_blocks=True,
+            lstrip_blocks=True,
         )
         template = environment.get_template("alchemist/archival_object.tpl")
         logger.info(f"🐛 TEMPLATE: {template}")
@@ -137,6 +140,22 @@ def generate_archival_object_page(build_directory, variables):
                 "manifest.json",
             ]
         )
+        dates_display = []
+        for date in variables["archival_object"]["dates"]:
+            if date["label"] == "creation":
+                if date.get("end"):
+                    dates_display.append(
+                        {
+                            "begin": arrow.get(date["begin"]).format("YYYY MMMM D"),
+                            "end": arrow.get(date["end"]).format("YYYY MMMM D"),
+                        }
+                    )
+                elif date.get("begin"):
+                    dates_display.append(
+                        {"begin": arrow.get(date["begin"]).format("YYYY MMMM D")}
+                    )
+                else:
+                    dates_display.append({"expression": date["expression"]})
         abstract_notes = []
         for note in variables["archival_object"]["notes"]:
             if note["type"] == "abstract" and note["publish"]:
@@ -174,7 +193,7 @@ def generate_archival_object_page(build_directory, variables):
                     ),
                     series=variables["folder_arrangement"].get("series_display"),
                     subseries=variables["folder_arrangement"].get("subseries_display"),
-                    dates=variables["archival_object"].get("dates", []),
+                    dates=dates_display,
                     abstract_notes=abstract_notes,
                     scopecontent_notes=scopecontent_notes,
                     archivesspace_url="/".join(
