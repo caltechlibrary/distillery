@@ -168,7 +168,7 @@ def generate_archival_object_page(build_directory, variables):
             # supply data to template placeholders
             f.write(
                 template.render(
-                    display_string=variables["archival_object"]["display_string"],
+                    title=variables["archival_object"]["title"],
                     collection=variables["folder_arrangement"].get(
                         "collection_display"
                     ),

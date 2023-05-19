@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
-    <title>{{ display_string }}</title>
+    <title>{{ title }}</title>
     <script src="https://cdn.jsdelivr.net/npm/universalviewer@4.0.17/dist/umd/UV.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/universalviewer@4.0.17/dist/uv.min.css">
     <style>
@@ -38,7 +38,7 @@
     <main class="container">
       <header class="headings">
         <h1>
-          {{ display_string }}
+          {{ title }}
         </h1>
         {% if collection %}
         <h2>
@@ -46,7 +46,7 @@
         </h2>
         {% endif %}
       </header>
-      <p><a href="{{ archivesspace_url }}">Open the {{ display_string }} record in its archival context</a></p>
+      <p><a href="{{ archivesspace_url }}">Open the {{ title }} record in its archival context</a></p>
       <div class="uv" id="uv" style="width:100%;height:80vh"></div>
       <script>
         const data = {{ iiif_manifest_json }}
@@ -83,7 +83,6 @@
         <h2>❓ Development Questions</h2>
         <ul style="list-style-type:none!important">
           <li>Must an archival object and its ancestors be set to published in ArchivesSpace before we create an HTML page for the record?</li>
-          <li>For the page title should we use the <code>display_string</code> that includes appended dates or just the <code>title</code> string?</li>
           <li>Any preferences for hierarchy separators? (Currently set to a / character.)</li>
           <li>What should the link text to ArchivesSpace say?</li>
           <li>What format should be used for date and date range display?</li>
