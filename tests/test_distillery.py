@@ -99,6 +99,50 @@ def delete_archivesspace_test_records(asnake_client, resource_identifer):
         asnake_client.delete(result["ref"])
 
 
+def create_archivesspace_test_resource(asnake_client, test_id):
+    resource = {}
+    # required
+    resource["title"] = f"_A resource record for Distillery testing {test_id}"
+    resource["id_0"] = f"DistilleryTEST-{test_id}"
+    resource["level"] = "collection"
+    resource["finding_aid_language"] = "eng"
+    resource["finding_aid_script"] = "Latn"
+    resource["lang_materials"] = [
+        {"language_and_script": {"language": "eng", "script": "Latn"}}
+    ]
+    resource["dates"] = [
+        {
+            "label": "creation",
+            "date_type": "single",
+            "begin": str(datetime.date.today()),
+        }
+    ]
+    resource["extents"] = [{"portion": "whole", "number": "1", "extent_type": "boxes"}]
+    # post
+    resource_post_response = asnake_client.post(
+        "/repositories/2/resources", json=resource
+    )
+    return resource_post_response
+
+
+def run_distillery_access(page: Page, resource_identifier):
+    page.goto(config("DISTILLERY_BASE_URL"))
+    page.get_by_label("Collection ID").fill(resource_identifier)
+    page.get_by_text(
+        "Public web access generate files & metadata and publish on the web"
+    ).click()
+    page.get_by_role("button", name="Validate").click()
+    page.get_by_text("Details").click()
+    expect(page.locator("p")).to_have_text(
+        f"✅ Validated metadata, files, and destinations for {resource_identifier}."
+    )
+    page.get_by_role("button", name="Run").click()
+    page.get_by_text("Details").click()
+    expect(page.locator("p")).to_have_text(
+        f"✅ Processed metadata and files for {resource_identifier}.", timeout=10000
+    )
+
+
 def test_distillery_alchemist_date_output_x2edw(page: Page, asnake_client):
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, "DistilleryTEST-x2edw")
@@ -206,6 +250,283 @@ def test_distillery_alchemist_date_output_x2edw(page: Page, asnake_client):
     expect(page.locator("#dates")).to_have_text(
         "1584 February 29; 1969 December 31 to 1970 January 1; 1999 December 31 to 2000 January 1; ongoing into the future"
     )
+
+
+def test_distillery_alchemist_note_output_u8vvf(page: Page, asnake_client):
+    test_id = "u8vvf"
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, f"DistilleryTEST-{test_id}")
+    # CREATE COLLECTION RECORD
+    resource_post_response = create_archivesspace_test_resource(asnake_client, test_id)
+    print(
+        f"🐞 resource_post_response:{test_id}",
+        resource_post_response.json(),
+    )
+    # CREATE ITEM RECORD
+    item = {}
+    # NOTE required
+    item["title"] = f"Exercitation culpa nostrud voluptate {test_id}"
+    item["level"] = "item"
+    item["resource"] = {"ref": resource_post_response.json()["uri"]}
+    # NOTE optional
+    item["component_id"] = f"item-{test_id}"
+    item["notes"] = [
+        {
+            "jsonmodel_type": "note_singlepart",
+            "type": "abstract",
+            "content": [
+                "Published note. One content item. Sint nulla ea nostrud est tempor non exercitation tempor ad consectetur nisi voluptate consequat."
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_singlepart",
+            "type": "materialspec",
+            "content": [
+                "Published note. Multiple content items: One. Veniam enim ullamco non commodo enim ad incididunt quis.",
+                "Published note. Multiple content items: Two. Enim tempor ea nulla voluptate incididunt voluptate.",
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_singlepart",
+            "type": "abstract",
+            "label": "Foo Note",
+            "content": [
+                "Published note. One content item. Laborum labore irure consequat dolore aute minim deserunt nostrud amet."
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_singlepart",
+            "type": "abstract",
+            "label": "Foo Note",
+            "content": [
+                "Published note. Multiple content items: One. Consequat cupidatat enim duis Lorem ipsum.",
+                "Published note. Multiple content items: Two. Lorem ipsum velit cillum ex do officia pariatur pariatur duis est dolor.",
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_singlepart",
+            "type": "abstract",
+            "content": [
+                "Unpublished note. One content item. Enim aute Lorem tempor exercitation enim adipisicing occaecat veniam ad duis excepteur culpa ut consectetur."
+            ],
+            "publish": False,
+        },
+        {
+            "jsonmodel_type": "note_singlepart",
+            "type": "abstract",
+            "content": [
+                "Unpublished note. Multiple content items: One. Consectetur cupidatat ea sunt sit enim minim officia ea ut tempor aute.",
+                "Unpublished note. Multiple content items: Two. Cillum dolore amet dolor labore do deserunt adipisicing dolore in aliquip nulla.",
+            ],
+            "publish": False,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. One published text subnote. Consequat nostrud ipsum irure reprehenderit qui veniam pariatur.",
+                    "publish": True,
+                },
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "odd",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. Multiple published text subnotes: One. Officia nisi nisi incididunt excepteur nisi.",
+                    "publish": True,
+                },
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. Multiple published text subnotes: Two. Laborum commodo exercitation deserunt velit.",
+                    "publish": True,
+                },
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Unpublished note. One published text subnote. Laboris ipsum cupidatat consequat velit.",
+                    "publish": True,
+                },
+            ],
+            "publish": False,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Unpublished note. Multiple published text subnotes: One. Laborum anim laborum est laborum.",
+                    "publish": True,
+                },
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Unpublished note. Multiple published text subnotes: Two. Consectetur laborum laborum quis.",
+                    "publish": True,
+                },
+            ],
+            "publish": False,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. One unpublished text subnote. Laborum cupidatat adipisicing cillum deserunt.",
+                    "publish": False,
+                },
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "label": "Baz Note",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. One unpublished text subnote. Aliqua consequat mollit reprehenderit pariatur exercitation nisi culpa incididunt.",
+                    "publish": False,
+                },
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. Multiple unpublished text subnotes: One. Aliquip culpa pariatur consequat.",
+                    "publish": False,
+                },
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. Multiple unpublished text subnotes: Two. Tempor exercitation sunt.",
+                    "publish": False,
+                },
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Unpublished note. One unpublished text subnote. Esse in proident.",
+                    "publish": False,
+                },
+            ],
+            "publish": False,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Unpublished note. Multiple unpublished text subnotes: One. Laborum laborum sunt.",
+                    "publish": False,
+                },
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Unpublished note. Multiple unpublished text subnotes: Two. Sint adipisicing.",
+                    "publish": False,
+                },
+            ],
+            "publish": False,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "label": "Bar Note",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. Mixed publication status text subnotes: Published. Laboris id cupidatat.",
+                    "publish": True,
+                },
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. Mixed publication status text subnotes: Unpublished. Nostrud anim dolore anim consequat quis sit laborum non.",
+                    "publish": False,
+                },
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Unpublished note. Mixed publication status text subnotes: Published. Est nostrud laboris id sint amet proident officia commodo ut sint amet sint dolore sunt.",
+                    "publish": True,
+                },
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Unpublished note. Mixed publication status text subnotes: Unpublished. Fugiat irure sunt magna nulla minim commodo dolor ea dolor aliquip enim magna fugiat.",
+                    "publish": False,
+                },
+            ],
+            "publish": False,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "label": "Bar Note",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. One published text subnote. Minim aute nulla laborum ullamco do incididunt nostrud irure eiusmod laborum elit deserunt.",
+                    "publish": True,
+                },
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "label": "Foo Note",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. One published text subnote. Eiusmod irure laboris eu reprehenderit proident exercitation qui nulla irure amet.",
+                    "publish": True,
+                },
+            ],
+            "publish": True,
+        },
+    ]
+    # NOTE post
+    item_post_response = asnake_client.post(
+        "/repositories/2/archival_objects", json=item
+    )
+    print(f"🐞 item_post_response:{test_id}", item_post_response.json())
+    # RUN ALCHEMIST PROCESS
+    run_distillery_access(page, f"DistilleryTEST-{test_id}")
+    # VALIDATE ALCHEMIST HTML
+    alchemist_item_uri = f'{config("ACCESS_SITE_BASE_URL").rstrip("/")}/DistilleryTEST-{test_id}/item-{test_id}/index.html'
+    page.goto(alchemist_item_uri)
+    expect(page).to_have_title(f'{item["title"]}')
+    expect(page.locator("body")).not_to_contain_text("unpublished", ignore_case=True)
 
 
 def test_distillery_0001_setup_nonnumeric_sequence_gz36p(

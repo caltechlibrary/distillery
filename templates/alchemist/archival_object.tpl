@@ -78,16 +78,12 @@
         {% endif %}
         {% endfor %}
         {% endif %}
-        {% if abstract_notes %}
-        <dt>Abstract</dt>
-        {% for abstract in abstract_notes %}
-        <dd>{{ abstract }}</dd>
+        {% if notes %}
+        {% for note_label, note_contents in notes.items() if note_contents %}
+        <dt>{{ note_label }}</dt>
+        {% for note_content in note_contents %}
+        <dd>{{ note_content }}</dd>
         {% endfor %}
-        {% endif %}
-        {% if scopecontent_notes %}
-        <dt>Scope and Contents</dt>
-        {% for scopecontent in scopecontent_notes %}
-        <dd>{{ scopecontent }}</dd>
         {% endfor %}
         {% endif %}
       </dl>
@@ -98,8 +94,6 @@
           <li>Must an archival object and its ancestors be set to published in ArchivesSpace before we create an HTML page for the record?</li>
           <li>Any preferences for hierarchy separators? (Currently set to a / character.)</li>
           <li>What should the link text to ArchivesSpace say?</li>
-          <li>Which note types are available for display?</li>
-          <li>How much note content should be displayed? (Multiple notes of each type can be repeated and each note can contain multiple content fields.)</li>
           <li>What pixel dimensions should be used for the thumbnail in ArchivesSpace?</li>
           <li>What metadata should be available in the More Information sidebar of the viewer, if any?</li>
         </ul>
