@@ -156,17 +156,72 @@ def generate_archival_object_page(build_directory, variables):
                     )
                 else:
                     dates_display.append({"expression": date["expression"]})
-        abstract_notes = []
+        singlepart_note_types = {
+            "abstract": "Abstract",
+            "materialspec": "Materials Specific Details",
+            "physdesc": "Physical Description",
+            "physfacet": "Physical Facet",
+            "physloc": "Physical Location",
+        }
+        multipart_note_types = {
+            "accessrestrict": "Conditions Governing Access",
+            "accruals": "Accruals",
+            "acqinfo": "Immediate Source of Acquisition",
+            "altformavail": "Existence and Location of Copies",
+            "appraisal": "Appraisal",
+            "arrangement": "Arrangement",
+            "bioghist": "Biographical / Historical",
+            "custodhist": "Custodial History",
+            "dimensions": "Dimensions",
+            "fileplan": "File Plan",
+            "legalstatus": "Legal Status",
+            "odd": "General",
+            "originalsloc": "Existence and Location of Originals",
+            "otherfindaid": "Other Finding Aids",
+            "phystech": "Physical Characteristics and Technical Requirements",
+            "prefercite": "Preferred Citation",
+            "processinfo": "Processing Information",
+            "relatedmaterial": "Related Materials",
+            "scopecontent": "Scope and Contents",
+            "separatedmaterial": "Separated Materials",
+            "userestrict": "Conditions Governing Use",
+        }
+        notes_display = {}
+        # iterate over the notes
         for note in variables["archival_object"]["notes"]:
-            if note["type"] == "abstract" and note["publish"]:
-                for content in note["content"]:
-                    abstract_notes.append(content["content"])
-        scopecontent_notes = []
-        for note in variables["archival_object"]["notes"]:
-            if note["type"] == "scopecontent" and note["publish"]:
-                for subnote in note["subnotes"]:
-                    if subnote["jsonmodel_type"] == "note_text" and subnote["publish"]:
-                        scopecontent_notes.append(subnote["content"])
+            if note["publish"]:
+                if note["jsonmodel_type"] == "note_singlepart":
+                    if note["type"] in singlepart_note_types.keys():
+                        if note.get("label"):
+                            note_label = note["label"]
+                        else:
+                            note_label = singlepart_note_types[note["type"]]
+                        if note_label not in notes_display.keys():
+                            notes_display[note_label] = []
+                        for content in note["content"]:
+                            # group all same-type or -label notes together
+                            notes_display[note_label].append(content)
+                elif note["jsonmodel_type"] == "note_multipart":
+                    if note["type"] in multipart_note_types.keys():
+                        if note.get("label"):
+                            note_label = note["label"]
+                        else:
+                            note_label = multipart_note_types[note["type"]]
+                        if note_label not in notes_display.keys():
+                            # NOTE this could end up remaining empty
+                            notes_display[note_label] = []
+                        for subnote in note["subnotes"]:
+                            if (
+                                subnote["publish"]
+                                and subnote["jsonmodel_type"] == "note_text"
+                            ):
+                                # group all same-type or -label notes together
+                                notes_display[note_label].append(subnote["content"])
+                            # TODO elif subnote["jsonmodel_type"] == "note_chronology":
+                            # TODO elif subnote["jsonmodel_type"] == "note_definedlist":
+                            # TODO elif subnote["jsonmodel_type"] == "note_orderedlist":
+                # TODO elif note["jsonmodel_type"] == "note_bibliography":
+                # TODO elif note["jsonmodel_type"] == "note_index":
         archival_object_page_key = (
             Path(variables["folder_arrangement"]["collection_id"])
             .joinpath(f'{variables["archival_object"]["component_id"]}', "index.html")
@@ -194,8 +249,7 @@ def generate_archival_object_page(build_directory, variables):
                     series=variables["folder_arrangement"].get("series_display"),
                     subseries=variables["folder_arrangement"].get("subseries_display"),
                     dates=dates_display,
-                    abstract_notes=abstract_notes,
-                    scopecontent_notes=scopecontent_notes,
+                    notes=notes_display,
                     archivesspace_url="/".join(
                         [
                             config("ASPACE_PUBLIC_URL").rstrip("/"),
