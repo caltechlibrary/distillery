@@ -118,11 +118,29 @@ def create_archivesspace_test_resource(asnake_client, test_id):
         }
     ]
     resource["extents"] = [{"portion": "whole", "number": "1", "extent_type": "boxes"}]
+    # optional
+    resource["publish"] = True
     # post
     resource_post_response = asnake_client.post(
         "/repositories/2/resources", json=resource
     )
     return resource_post_response
+
+
+def create_archivesspace_test_archival_object(asnake_client, test_id, resource_uri):
+    item = {}
+    # required
+    item["title"] = f"_An item record for Distillery testing {test_id}"
+    item["level"] = "item"
+    item["resource"] = {"ref": resource_uri}
+    # optional
+    item["component_id"] = f"item-{test_id}"
+    item["publish"] = True
+    # post
+    item_post_response = asnake_client.post(
+        "/repositories/2/archival_objects", json=item
+    )
+    return item_post_response
 
 
 def run_distillery_access(page: Page, resource_identifier):
@@ -141,6 +159,96 @@ def run_distillery_access(page: Page, resource_identifier):
     expect(page.locator("p")).to_have_text(
         f"✅ Processed metadata and files for {resource_identifier}.", timeout=10000
     )
+
+
+def test_distillery_access_unpublished_archival_object_sjex6(page: Page, asnake_client):
+    test_id = "sjex6"
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, f"DistilleryTEST-{test_id}")
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_id
+    )
+    print(
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT RECORD
+    archival_object_create_response = create_archivesspace_test_archival_object(
+        asnake_client, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 archival_object_create_response:{test_id}",
+        archival_object_create_response.json(),
+    )
+    # CUSTOMIZE ARCHIVAL OBJECT RECORD
+    # set publish to False
+    archival_object = asnake_client.get(
+        archival_object_create_response.json()["uri"]
+    ).json()
+    archival_object["publish"] = False
+    archival_object_update_response = asnake_client.post(
+        archival_object["uri"], json=archival_object
+    )
+    print(
+        f"🐞 archival_object_update_response:{test_id}",
+        archival_object_update_response.json(),
+    )
+    # DISTILLERY ACCESS WORKFLOW
+    page.goto(config("DISTILLERY_BASE_URL"))
+    page.get_by_label("Collection ID").fill(f"DistilleryTEST-{test_id}")
+    page.get_by_text(
+        "Public web access generate files & metadata and publish on the web"
+    ).click()
+    page.get_by_role("button", name="Validate").click()
+    page.get_by_text("Details").click()
+    expect(page.locator("p")).to_have_text(
+        "❌ Something went wrong. View the details for more information.", timeout=10000
+    )
+    # TODO check contents of iframe
+
+
+def test_distillery_access_unpublished_ancestor_jvycv(page: Page, asnake_client):
+    test_id = "jvycv"
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, f"DistilleryTEST-{test_id}")
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_id
+    )
+    print(
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CUSTOMIZE RESOURCE RECORD
+    # set publish to False
+    resource = asnake_client.get(resource_create_response.json()["uri"]).json()
+    resource["publish"] = False
+    resource_update_response = asnake_client.post(resource["uri"], json=resource)
+    print(
+        f"🐞 resource_update_response:{test_id}",
+        resource_update_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT RECORD
+    archival_object_create_response = create_archivesspace_test_archival_object(
+        asnake_client, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 archival_object_create_response:{test_id}",
+        archival_object_create_response.json(),
+    )
+    # DISTILLERY ACCESS WORKFLOW
+    page.goto(config("DISTILLERY_BASE_URL"))
+    page.get_by_label("Collection ID").fill(f"DistilleryTEST-{test_id}")
+    page.get_by_text(
+        "Public web access generate files & metadata and publish on the web"
+    ).click()
+    page.get_by_role("button", name="Validate").click()
+    page.get_by_text("Details").click()
+    expect(page.locator("p")).to_have_text(
+        "❌ Something went wrong. View the details for more information.", timeout=10000
+    )
+    # TODO check contents of iframe
 
 
 def test_distillery_alchemist_date_output_x2edw(page: Page, asnake_client):
