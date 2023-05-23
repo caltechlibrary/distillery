@@ -59,7 +59,7 @@
         </h2>
         {% endif %}
       </header>
-      <p><a href="{{ archivesspace_url }}">Open the {{ title }} record in its archival context</a></p>
+      <p><a href="{{ archivesspace_url }}">Open the <cite>{{ title }}</cite> record in its archival context</a></p>
       <div class="uv" id="uv" style="width:100%;height:80vh"></div>
       <script>
         const data = {{ iiif_manifest_json }}
@@ -88,16 +88,6 @@
         {% endif %}
       </dl>
       <div><a href="{{ iiif_manifest_url }}"><img alt="IIIF Manifest" src="https://iiif.io/assets/uploads/logos/logo-iiif-34x30.png"></a></div>
-      <article>
-        <h2>❓ Development Questions</h2>
-        <ul style="list-style-type:none!important">
-          <li>Must an archival object and its ancestors be set to published in ArchivesSpace before we create an HTML page for the record?</li>
-          <li>Any preferences for hierarchy separators? (Currently set to a / character.)</li>
-          <li>What should the link text to ArchivesSpace say?</li>
-          <li>What pixel dimensions should be used for the thumbnail in ArchivesSpace?</li>
-          <li>What metadata should be available in the More Information sidebar of the viewer, if any?</li>
-        </ul>
-      </article>
     </main>
   </body>
 </html>
