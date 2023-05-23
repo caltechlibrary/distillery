@@ -229,6 +229,18 @@ def get_thumbnail_url(variables):
 
 def generate_iiif_manifest(build_directory, variables):
     metadata = []
+    if variables["folder_arrangement"].get("collection_display"):
+        metadata.append(
+            {"label": "Collection", "value": variables["folder_arrangement"]["collection_display"]}
+        )
+    if variables["folder_arrangement"].get("series_display"):
+        metadata.append(
+            {"label": "Series", "value": variables["folder_arrangement"]["series_display"]}
+        )
+    if variables["folder_arrangement"].get("subseries_display"):
+        metadata.append(
+            {"label": "Sub-Series", "value": variables["folder_arrangement"]["subseries_display"]}
+        )
     dates = format_archival_object_dates_display(variables["archival_object"])
     if dates:
         date_values = []
@@ -258,7 +270,7 @@ def generate_iiif_manifest(build_directory, variables):
                 ]
             ),
             "label": variables["archival_object"]["title"],
-            "description": "…",
+            "description": "¯\_(ツ)_/¯",
             "thumbnail": {
                 "@id": get_thumbnail_url(variables),
                 "service": {
@@ -267,6 +279,7 @@ def generate_iiif_manifest(build_directory, variables):
                     "profile": "http://iiif.io/api/image/2/level1.json",
                 },
             },
+            "attribution": variables["folder_arrangement"]["repository_name"],
             "sequences": [{"@type": "sc:Sequence", "canvases": []}],
         }
         if metadata:
