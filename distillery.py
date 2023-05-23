@@ -162,11 +162,23 @@ class DistilleryService(rpyc.Service):
         ):
             if dirnames:
                 for dirname in dirnames:
-                    # validate subdirectory/archival_object correspondence
-                    if not find_archival_object(dirname):
+                    # check archival_object status
+                    archival_object = find_archival_object(dirname)
+                    if not archival_object:
                         message = f"❌ NO ARCHIVAL OBJECT FOUND FOR: {self.collection_id}/{dirname}"
                         status_logger.error(message)
                         raise RuntimeError(message)
+                    elif not archival_object["publish"] and self.access_platform:
+                        message = f'❌ ARCHIVAL OBJECT NOT PUBLISHED: [**{archival_object["title"]}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={archival_object["uri"]})'
+                        status_logger.error(message)
+                        raise ValueError(message)
+                    elif (
+                        archival_object["has_unpublished_ancestor"]
+                        and self.access_platform
+                    ):
+                        message = f'❌ ARCHIVAL OBJECT HAS UNPUBLISHED ANCESTOR: [**{archival_object["title"]}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={archival_object["uri"]})'
+                        status_logger.error(message)
+                        raise ValueError(message)
                     # count and list subdirectories in the collection directory
                     initial_original_subdirectorycount += 1
                     status_logger.info(f"📁 {self.collection_id}/{dirname}")
