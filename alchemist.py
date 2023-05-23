@@ -264,10 +264,7 @@ def generate_archival_object_page(build_directory, variables):
             f"🐛 ARCHIVAL OBJECT PAGE FILE GENERATED: {archival_object_page_file}"
         )
     except Exception as e:
-        import traceback
-
-        logger.error(f"❌ EXCEPTION: {e}")
-        logger.error(f"❌ TRACEBACK: {traceback.format_exc()}")
+        logger.exception(e)
         raise
 
 
@@ -305,10 +302,7 @@ def upload_archival_object_page(build_directory, variables):
         except Exception as e:
             logger.error(f"❌ EXCEPTION: {str(e)}")
     except Exception as e:
-        import traceback
-
-        logger.error(f"❌ EXCEPTION: {e}")
-        logger.error(f"❌ TRACEBACK: {traceback.format_exc()}")
+        logger.exception(e)
         raise
 
 
@@ -346,7 +340,7 @@ def generate_iiif_manifest(build_directory, variables):
                     "/manifest.json",
                 ]
             ),
-            "label": variables["archival_object"]["display_string"],
+            "label": variables["archival_object"]["title"],
             "thumbnail": {
                 "@id": get_thumbnail_url(variables),
                 "service": {
@@ -376,14 +370,14 @@ def generate_iiif_manifest(build_directory, variables):
                     variables["folder_arrangement"]["collection_id"],
                     variables["archival_object"]["component_id"],
                     "canvas",
-                    f'{Path(filepath).stem}',
+                    f"{Path(filepath).stem}",
                 ]
             )
             escaped_identifier = "/".join(
                 [
                     variables["folder_arrangement"]["collection_id"],
                     variables["archival_object"]["component_id"],
-                    f'{Path(filepath).stem}',
+                    f"{Path(filepath).stem}",
                 ]
             )
             service_id = (
@@ -428,11 +422,8 @@ def generate_iiif_manifest(build_directory, variables):
             "w",
         ) as f:
             f.write(json.dumps(manifest, indent=4))
-    except Exception as error:
-        import traceback
-
-        logger.error(f"❌ ERROR: {error}")
-        logger.error(f"❌ TRACEBACK: {traceback.format_exc()}")
+    except Exception as e:
+        logger.exception(e)
         raise
 
 
@@ -465,10 +456,7 @@ def upload_iiif_manifest(build_directory, variables):
         except Exception as e:
             logger.error(f"❌ EXCEPTION: {str(e)}")
     except Exception as e:
-        import traceback
-
-        logger.error(f"❌ EXCEPTION: {e}")
-        logger.error(f"❌ TRACEBACK: {traceback.format_exc()}")
+        logger.exception(e)
         raise
 
 
@@ -503,10 +491,7 @@ def create_pyramid_tiff(build_directory, variables):
             text=True,
         ).stdout
     except Exception as e:
-        import traceback
-
-        logger.error(f"❌ INSIDE create_pyramid_tiff(): {e}")
-        logger.error(f"❌ TRACEBACK: {traceback.format_exc()}")
+        logger.exception(e)
         raise
 
 
@@ -541,10 +526,7 @@ def publish_access_files(build_directory, variables):
                 )
                 sync.wait()
     except Exception as e:
-        import traceback
-
-        logger.error(f"❌ EXCEPTION: {e}")
-        logger.error(f"❌ TRACEBACK: {traceback.format_exc()}")
+        logger.exception(e)
         raise
 
 
