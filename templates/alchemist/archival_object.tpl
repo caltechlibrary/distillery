@@ -64,6 +64,12 @@
       <script>
         const data = {{ iiif_manifest_json }}
         uv = UV.init("uv", data);
+        // override config using an inline json object
+        uv.on("configure", function ({ config, cb }) {
+          cb({
+            options: { rightPanelEnabled: false }
+          });
+        });
       </script>
       <dl>
         {% if dates %}
