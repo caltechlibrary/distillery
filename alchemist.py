@@ -96,30 +96,6 @@ def validate_connection():
 
 def generate_archival_object_page(build_directory, variables):
     try:
-        logger.info(
-            f'🐛 GENERATE ARCHIVAL OBJECT PAGE: {variables["archival_object"]["component_id"]}'
-        )
-        # logger.info(f"🐛 VARIABLES.keys(): {variables.keys()}")
-        # dict_keys(['filepaths', 'archival_object', 'folder_arrangement'])
-        # logger.info(f'🐛 variables["archival_object"].keys(): {variables["archival_object"].keys()}')
-        # dict_keys(['lock_version', 'position', 'publish', 'ref_id',
-        # 'component_id', 'title', 'display_string', 'restrictions_apply',
-        # 'created_by', 'last_modified_by', 'create_time', 'system_mtime',
-        # 'user_mtime', 'suppressed', 'is_slug_auto', 'level', 'jsonmodel_type',
-        # 'external_ids', 'subjects', 'linked_events', 'extents', 'lang_materials',
-        # 'dates', 'external_documents', 'rights_statements', 'linked_agents',
-        # 'import_previous_arks', 'ancestors', 'instances', 'notes',
-        # 'accession_links', 'uri', 'repository', 'resource', 'parent',
-        # 'has_unpublished_ancestor'])
-        logger.info(
-            f'🐛 variables["archival_object"]["dates"]: {variables["archival_object"]["dates"]}'
-        )
-        logger.info(
-            f'🐛 variables["archival_object"]["notes"]: {variables["archival_object"]["notes"]}'
-        )
-        logger.info(
-            f'🐛 variables["archival_object"]["uri"]: {variables["archival_object"]["uri"]}'
-        )
         environment = jinja2.Environment(
             loader=jinja2.FileSystemLoader(f"{os.path.dirname(__file__)}/templates"),
             trim_blocks=True,
@@ -140,88 +116,12 @@ def generate_archival_object_page(build_directory, variables):
                 "manifest.json",
             ]
         )
-        dates_display = []
-        for date in variables["archival_object"]["dates"]:
-            if date["label"] == "creation":
-                if date.get("end"):
-                    dates_display.append(
-                        {
-                            "begin": arrow.get(date["begin"]).format("YYYY MMMM D"),
-                            "end": arrow.get(date["end"]).format("YYYY MMMM D"),
-                        }
-                    )
-                elif date.get("begin"):
-                    dates_display.append(
-                        {"begin": arrow.get(date["begin"]).format("YYYY MMMM D")}
-                    )
-                else:
-                    dates_display.append({"expression": date["expression"]})
-        singlepart_note_types = {
-            "abstract": "Abstract",
-            "materialspec": "Materials Specific Details",
-            "physdesc": "Physical Description",
-            "physfacet": "Physical Facet",
-            "physloc": "Physical Location",
-        }
-        multipart_note_types = {
-            "accessrestrict": "Conditions Governing Access",
-            "accruals": "Accruals",
-            "acqinfo": "Immediate Source of Acquisition",
-            "altformavail": "Existence and Location of Copies",
-            "appraisal": "Appraisal",
-            "arrangement": "Arrangement",
-            "bioghist": "Biographical / Historical",
-            "custodhist": "Custodial History",
-            "dimensions": "Dimensions",
-            "fileplan": "File Plan",
-            "legalstatus": "Legal Status",
-            "odd": "General",
-            "originalsloc": "Existence and Location of Originals",
-            "otherfindaid": "Other Finding Aids",
-            "phystech": "Physical Characteristics and Technical Requirements",
-            "prefercite": "Preferred Citation",
-            "processinfo": "Processing Information",
-            "relatedmaterial": "Related Materials",
-            "scopecontent": "Scope and Contents",
-            "separatedmaterial": "Separated Materials",
-            "userestrict": "Conditions Governing Use",
-        }
-        notes_display = {}
-        # iterate over the notes
-        for note in variables["archival_object"]["notes"]:
-            if note["publish"]:
-                if note["jsonmodel_type"] == "note_singlepart":
-                    if note["type"] in singlepart_note_types.keys():
-                        if note.get("label"):
-                            note_label = note["label"]
-                        else:
-                            note_label = singlepart_note_types[note["type"]]
-                        if note_label not in notes_display.keys():
-                            notes_display[note_label] = []
-                        for content in note["content"]:
-                            # group all same-type or -label notes together
-                            notes_display[note_label].append(content)
-                elif note["jsonmodel_type"] == "note_multipart":
-                    if note["type"] in multipart_note_types.keys():
-                        if note.get("label"):
-                            note_label = note["label"]
-                        else:
-                            note_label = multipart_note_types[note["type"]]
-                        if note_label not in notes_display.keys():
-                            # NOTE this could end up remaining empty
-                            notes_display[note_label] = []
-                        for subnote in note["subnotes"]:
-                            if (
-                                subnote["publish"]
-                                and subnote["jsonmodel_type"] == "note_text"
-                            ):
-                                # group all same-type or -label notes together
-                                notes_display[note_label].append(subnote["content"])
-                            # TODO elif subnote["jsonmodel_type"] == "note_chronology":
-                            # TODO elif subnote["jsonmodel_type"] == "note_definedlist":
-                            # TODO elif subnote["jsonmodel_type"] == "note_orderedlist":
-                # TODO elif note["jsonmodel_type"] == "note_bibliography":
-                # TODO elif note["jsonmodel_type"] == "note_index":
+        dates_display = format_archival_object_dates_display(
+            variables["archival_object"]
+        )
+        notes_display = format_archival_object_notes_display(
+            variables["archival_object"]
+        )
         archival_object_page_key = (
             Path(variables["folder_arrangement"]["collection_id"])
             .joinpath(f'{variables["archival_object"]["component_id"]}', "index.html")
@@ -328,6 +228,23 @@ def get_thumbnail_url(variables):
 
 
 def generate_iiif_manifest(build_directory, variables):
+    metadata = []
+    dates = format_archival_object_dates_display(variables["archival_object"])
+    if dates:
+        date_values = []
+        for date in dates:
+            if date.get("end"):
+                date_values.append(f'{date["begin"]} to {date["end"]}')
+            elif date.get("begin"):
+                date_values.append(date["begin"])
+            else:
+                date_values.append(date["expression"])
+        metadata.append({"label": "Dates", "value": date_values})
+    notes = format_archival_object_notes_display(variables["archival_object"])
+    if notes:
+        for note_label, note_contents in notes.items():
+            if note_contents:
+                metadata.append({"label": note_label, "value": note_contents})
     try:
         manifest = {
             "@context": "http://iiif.io/api/presentation/2/context.json",
@@ -341,6 +258,7 @@ def generate_iiif_manifest(build_directory, variables):
                 ]
             ),
             "label": variables["archival_object"]["title"],
+            "description": "…",
             "thumbnail": {
                 "@id": get_thumbnail_url(variables),
                 "service": {
@@ -351,6 +269,8 @@ def generate_iiif_manifest(build_directory, variables):
             },
             "sequences": [{"@type": "sc:Sequence", "canvases": []}],
         }
+        if metadata:
+            manifest["metadata"] = metadata
         for filepath in sorted(variables["filepaths"]):
             # create canvas metadata
             # HACK the binaries for `vips` and `vipsheader` should be in the same place
@@ -588,3 +508,92 @@ def create_digital_object_file_versions(build_directory, variables):
         digital_object_post_response = distillery.update_digital_object(
             digital_object["uri"], digital_object
         ).json()
+
+
+def format_archival_object_dates_display(archival_object):
+    dates_display = []
+    for date in archival_object["dates"]:
+        if date["label"] == "creation":
+            if date.get("end"):
+                dates_display.append(
+                    {
+                        "begin": arrow.get(date["begin"]).format("YYYY MMMM D"),
+                        "end": arrow.get(date["end"]).format("YYYY MMMM D"),
+                    }
+                )
+            elif date.get("begin"):
+                dates_display.append(
+                    {"begin": arrow.get(date["begin"]).format("YYYY MMMM D")}
+                )
+            else:
+                dates_display.append({"expression": date["expression"]})
+    return dates_display
+
+
+def format_archival_object_notes_display(archival_object):
+    singlepart_note_types = {
+        "abstract": "Abstract",
+        "materialspec": "Materials Specific Details",
+        "physdesc": "Physical Description",
+        "physfacet": "Physical Facet",
+        "physloc": "Physical Location",
+    }
+    multipart_note_types = {
+        "accessrestrict": "Conditions Governing Access",
+        "accruals": "Accruals",
+        "acqinfo": "Immediate Source of Acquisition",
+        "altformavail": "Existence and Location of Copies",
+        "appraisal": "Appraisal",
+        "arrangement": "Arrangement",
+        "bioghist": "Biographical / Historical",
+        "custodhist": "Custodial History",
+        "dimensions": "Dimensions",
+        "fileplan": "File Plan",
+        "legalstatus": "Legal Status",
+        "odd": "General",
+        "originalsloc": "Existence and Location of Originals",
+        "otherfindaid": "Other Finding Aids",
+        "phystech": "Physical Characteristics and Technical Requirements",
+        "prefercite": "Preferred Citation",
+        "processinfo": "Processing Information",
+        "relatedmaterial": "Related Materials",
+        "scopecontent": "Scope and Contents",
+        "separatedmaterial": "Separated Materials",
+        "userestrict": "Conditions Governing Use",
+    }
+    notes_display = {}
+    for note in archival_object["notes"]:
+        if note["publish"]:
+            if note["jsonmodel_type"] == "note_singlepart":
+                if note["type"] in singlepart_note_types.keys():
+                    if note.get("label"):
+                        note_label = note["label"]
+                    else:
+                        note_label = singlepart_note_types[note["type"]]
+                    if note_label not in notes_display.keys():
+                        notes_display[note_label] = []
+                    for content in note["content"]:
+                        # group all same-type or -label notes together
+                        notes_display[note_label].append(content)
+            elif note["jsonmodel_type"] == "note_multipart":
+                if note["type"] in multipart_note_types.keys():
+                    if note.get("label"):
+                        note_label = note["label"]
+                    else:
+                        note_label = multipart_note_types[note["type"]]
+                    if note_label not in notes_display.keys():
+                        # NOTE this could end up remaining empty
+                        notes_display[note_label] = []
+                    for subnote in note["subnotes"]:
+                        if (
+                            subnote["publish"]
+                            and subnote["jsonmodel_type"] == "note_text"
+                        ):
+                            # group all same-type or -label notes together
+                            notes_display[note_label].append(subnote["content"])
+                        # TODO elif subnote["jsonmodel_type"] == "note_chronology":
+                        # TODO elif subnote["jsonmodel_type"] == "note_definedlist":
+                        # TODO elif subnote["jsonmodel_type"] == "note_orderedlist":
+            # TODO elif note["jsonmodel_type"] == "note_bibliography":
+            # TODO elif note["jsonmodel_type"] == "note_index":
+    return notes_display
