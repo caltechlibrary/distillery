@@ -25,12 +25,69 @@
         color: inherit;
       }
       #uv input {
+        border-radius: initial;
+      }
+      #uv .headerPanel .mode label {
+        width: auto;
+      }
+      #uv .headerPanel input {
         background-color: revert;
         border: initial;
-        border-radius: initial;
+        text-align: center;
+      }
+      #uv .headerPanel .search {
+        width: auto;
+      }
+      #uv .headerPanel .search .btn {
+        padding-block-start: 4px;
+        padding-block-end: 0;
       }
       #uv label {
         overflow-wrap: initial;
+      }
+      #uv .overlays {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #uv .overlay .btn {
+        padding: 10px 15px;
+      }
+      #uv .overlay.settings {
+        height: auto;
+        position: unset;
+      }
+      #uv .overlay.settings .scroll {
+        height: auto;
+        margin-block-end: var(--form-element-spacing-vertical);
+      }
+      #uv .overlay.settings .setting select {
+        height: auto;
+        padding: var(--form-element-spacing-vertical) var(--form-element-spacing-horizontal);
+        padding-inline-end: calc(var(--form-element-spacing-horizontal) + 1.5rem);
+      }
+      #uv .overlay.settings .setting input[type="checkbox"] {
+        margin-inline-start: var(--outline-width);
+      }
+      /* many elements need font-size adjustments */
+      #uv .overlay .heading {
+        font-size: 20px;
+      }
+      #uv .overlay h2 {
+        font-size: 18px;
+      }
+      #uv .headerPanel .mode label,
+      #uv .headerPanel input,
+      #uv .headerPanel .total,
+      #uv .headerPanel .search .btn,
+      #uv .overlay.settings .setting,
+      #uv .overlay.settings .setting select,
+      #uv .overlay button {
+        font-size: 16px;
+      }
+      #uv .overlay.settings .version,
+      #uv .overlay.settings .website {
+        font-size: 14px;
       }
     </style>
   </head>
