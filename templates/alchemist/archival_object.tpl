@@ -163,6 +163,18 @@
         {% endif %}
         {% endfor %}
         {% endif %}
+        {% if extents %}
+        <dt>Extents</dt>
+        {% for extent in extents %}
+        <dd>{{ extent }}</dd>
+        {% endfor %}
+        {% endif %}
+        {% if subjects %}
+        <dt>Subjects</dt>
+        {% for subject in subjects %}
+        <dd>{{ subject }}</dd>
+        {% endfor %}
+        {% endif %}
         {% if notes %}
         {% for note_label, note_contents in notes.items() if note_contents %}
         <dt>{{ note_label }}</dt>

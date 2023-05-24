@@ -353,6 +353,100 @@ def test_distillery_alchemist_date_output_x2edw(page: Page, asnake_client):
     )
 
 
+def test_distillery_alchemist_extent_output_77cjj(page: Page, asnake_client):
+    test_id = "77cjj"
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, f"DistilleryTEST-{test_id}")
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_id
+    )
+    print(
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD
+    item_create_response = create_archivesspace_test_archival_object_item(
+        asnake_client, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 item_create_response:{test_id}",
+        item_create_response.json(),
+    )
+    # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
+    # add extents
+    item = asnake_client.get(item_create_response.json()["uri"]).json()
+    item["extents"] = [
+        {
+            "portion": "whole",
+            "number": "1",
+            "extent_type": "books",
+        },
+        {
+            "portion": "part",
+            "number": "2",
+            "extent_type": "photographs",
+        },
+    ]
+    item_update_response = asnake_client.post(item["uri"], json=item)
+    print(
+        f"🐞 item_update_response:{test_id}",
+        item_update_response.json(),
+    )
+    # RUN ALCHEMIST PROCESS
+    run_distillery_access(page, f"DistilleryTEST-{test_id}")
+    alchemist_item_uri = f'{config("ACCESS_SITE_BASE_URL").rstrip("/")}/DistilleryTEST-{test_id}/item-{test_id}/index.html'
+    # VALIDATE ALCHEMIST HTML
+    page.goto(alchemist_item_uri)
+    expect(page.locator("body")).to_contain_text("1 books", ignore_case=True)
+    expect(page.locator("body")).to_contain_text("2 photographs", ignore_case=True)
+
+
+def test_distillery_alchemist_subject_output_28s3q(page: Page, asnake_client):
+    test_id = "28s3q"
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, f"DistilleryTEST-{test_id}")
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_id
+    )
+    print(
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD
+    item_create_response = create_archivesspace_test_archival_object_item(
+        asnake_client, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 item_create_response:{test_id}",
+        item_create_response.json(),
+    )
+    # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
+    # add extents
+    item = asnake_client.get(item_create_response.json()["uri"]).json()
+    item["subjects"] = [
+        {
+            "ref": "/subjects/1",
+        },
+        {
+            "ref": "/subjects/2",
+        },
+    ]
+    item_update_response = asnake_client.post(item["uri"], json=item)
+    print(
+        f"🐞 item_update_response:{test_id}",
+        item_update_response.json(),
+    )
+    # RUN ALCHEMIST PROCESS
+    run_distillery_access(page, f"DistilleryTEST-{test_id}")
+    alchemist_item_uri = f'{config("ACCESS_SITE_BASE_URL").rstrip("/")}/DistilleryTEST-{test_id}/item-{test_id}/index.html'
+    # VALIDATE ALCHEMIST HTML
+    page.goto(alchemist_item_uri)
+    expect(page.locator("body")).to_contain_text("Commencement")
+    expect(page.locator("body")).to_contain_text("Conferences")
+
+
 def test_distillery_alchemist_note_output_u8vvf(page: Page, asnake_client):
     test_id = "u8vvf"
     # DELETE ANY EXISTING TEST RECORDS
