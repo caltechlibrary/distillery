@@ -348,7 +348,7 @@ def test_distillery_alchemist_date_output_x2edw(page: Page, asnake_client):
     alchemist_item_uri = f'{config("ACCESS_SITE_BASE_URL").rstrip("/")}/DistilleryTEST-{test_id}/item-{test_id}/index.html'
     page.goto(alchemist_item_uri)
     expect(page).to_have_title(item["title"])
-    expect(page.locator(".headings")).to_have_text(
+    expect(page.locator(".headings div")).to_have_text(
         "1584 February 29; 1969 December 31 to 1970 January 1; 1999 December 31 to 2000 January 1; ongoing into the future"
     )
 
