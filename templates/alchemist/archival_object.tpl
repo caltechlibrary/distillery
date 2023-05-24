@@ -67,7 +67,11 @@
         // override config using an inline json object
         uv.on("configure", function ({ config, cb }) {
           cb({
-            options: { rightPanelEnabled: false }
+            options: { rightPanelEnabled: false, termsOfUseEnabled: false },
+            modules: {
+              footerPanel: { options: { shareEnabled: false } },
+              openSeadragonCenterPanel: { options: { requiredStatementEnabled: false } },
+            },
           });
         });
       </script>
