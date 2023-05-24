@@ -104,13 +104,7 @@
         {% if dates %}
         <div id="dates">
           {% for date in dates %}
-          {% if date.end %}
-          <span>{{ date.begin }} to {{ date.end }}</span>{{ "; " if not loop.last else "" }}
-          {% elif date.begin %}
-          <span>{{ date.begin }}</span>{{ "; " if not loop.last else "" }}
-          {% else %}
-          <span>{{ date.expression }}</span>{{ "; " if not loop.last else "" }}
-          {% endif %}
+          <span>{{ date }}</span>{{ "; " if not loop.last else "" }}
           {% endfor %}
         </div>
         {% endif %}
@@ -154,13 +148,7 @@
         {% if dates %}
         <dt>Dates</dt>
         {% for date in dates %}
-        {% if date.end %}
-        <dd>{{ date.begin }} to {{ date.end }}</dd>
-        {% elif date.begin %}
-        <dd>{{ date.begin }}</dd>
-        {% else %}
-        <dd>{{ date.expression }}</dd>
-        {% endif %}
+        <dd>{{ date }}</dd>
         {% endfor %}
         {% endif %}
         {% if extents %}

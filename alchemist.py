@@ -260,15 +260,7 @@ def generate_iiif_manifest(build_directory, variables):
         )
     dates = format_archival_object_dates_display(variables["archival_object"])
     if dates:
-        date_values = []
-        for date in dates:
-            if date.get("end"):
-                date_values.append(f'{date["begin"]} to {date["end"]}')
-            elif date.get("begin"):
-                date_values.append(date["begin"])
-            else:
-                date_values.append(date["expression"])
-        metadata.append({"label": "Dates", "value": date_values})
+        metadata.append({"label": "Dates", "value": dates})
     extents = format_archival_object_extents_display(variables["archival_object"])
     if extents:
         metadata.append({"label": "Extents", "value": extents})
@@ -302,11 +294,10 @@ def generate_iiif_manifest(build_directory, variables):
                     "profile": "http://iiif.io/api/image/2/level1.json",
                 },
             },
+            "metadata": metadata,
             "attribution": variables["folder_arrangement"]["repository_name"],
             "sequences": [{"@type": "sc:Sequence", "canvases": []}],
         }
-        if metadata:
-            manifest["metadata"] = metadata
         for filepath in sorted(variables["filepaths"]):
             # create canvas metadata
             # HACK the binaries for `vips` and `vipsheader` should be in the same place
@@ -552,17 +543,12 @@ def format_archival_object_dates_display(archival_object):
         if date["label"] == "creation":
             if date.get("end"):
                 dates_display.append(
-                    {
-                        "begin": arrow.get(date["begin"]).format("YYYY MMMM D"),
-                        "end": arrow.get(date["end"]).format("YYYY MMMM D"),
-                    }
+                    f'{arrow.get(date["begin"]).format("YYYY MMMM D")} to {arrow.get(date["end"]).format("YYYY MMMM D")}'
                 )
             elif date.get("begin"):
-                dates_display.append(
-                    {"begin": arrow.get(date["begin"]).format("YYYY MMMM D")}
-                )
+                dates_display.append(arrow.get(date["begin"]).format("YYYY MMMM D"))
             else:
-                dates_display.append({"expression": date["expression"]})
+                dates_display.append(date["expression"])
     return dates_display
 
 
