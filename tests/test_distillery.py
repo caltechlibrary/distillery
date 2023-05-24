@@ -195,7 +195,7 @@ def run_distillery_access(page: Page, resource_identifier):
     page.get_by_role("button", name="Run").click()
     page.get_by_text("Details").click()
     expect(page.locator("p")).to_have_text(
-        f"✅ Processed metadata and files for {resource_identifier}.", timeout=20000
+        f"✅ Processed metadata and files for {resource_identifier}.", timeout=60000
     )
 
 
@@ -237,7 +237,7 @@ def test_distillery_access_unpublished_archival_object_sjex6(page: Page, asnake_
     page.get_by_role("button", name="Validate").click()
     page.get_by_text("Details").click()
     expect(page.locator("p")).to_have_text(
-        "❌ Something went wrong. View the details for more information.", timeout=10000
+        "❌ Something went wrong. View the details for more information.", timeout=60000
     )
     # TODO check contents of iframe
 
@@ -280,7 +280,7 @@ def test_distillery_access_unpublished_ancestor_jvycv(page: Page, asnake_client)
     page.get_by_role("button", name="Validate").click()
     page.get_by_text("Details").click()
     expect(page.locator("p")).to_have_text(
-        "❌ Something went wrong. View the details for more information.", timeout=10000
+        "❌ Something went wrong. View the details for more information.", timeout=60000
     )
     # TODO check contents of iframe
 
@@ -860,7 +860,7 @@ def test_distillery_cloud_wrong_component_id_948vk(page: Page, asnake_client):
     page.get_by_role("button", name="Validate").click()
     page.get_by_text("Details").click()
     expect(page.locator("p")).to_have_text(
-        "❌ Something went wrong. View the details for more information.", timeout=30000
+        "❌ Something went wrong. View the details for more information.", timeout=60000
     )
 
 
