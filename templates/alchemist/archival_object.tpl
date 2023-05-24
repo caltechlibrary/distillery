@@ -102,7 +102,7 @@
           {{ title }}
         </h1>
         {% if dates %}
-        <div id="dates">
+        <div>
           {% for date in dates %}
           <span>{{ date }}</span>{{ "; " if not loop.last else "" }}
           {% endfor %}
@@ -130,7 +130,7 @@
           });
         });
       </script>
-      <dl>
+      <dl id="metadata">
         <dt>Title</dt>
         <dl>{{ title }}</dl>
         {% if collection %}
