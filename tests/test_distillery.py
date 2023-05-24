@@ -348,7 +348,7 @@ def test_distillery_alchemist_date_output_x2edw(page: Page, asnake_client):
     alchemist_item_uri = f'{config("ACCESS_SITE_BASE_URL").rstrip("/")}/DistilleryTEST-{test_id}/item-{test_id}/index.html'
     page.goto(alchemist_item_uri)
     expect(page).to_have_title(item["title"])
-    expect(page.locator("#dates")).to_have_text(
+    expect(page.locator(".headings")).to_have_text(
         "1584 February 29; 1969 December 31 to 1970 January 1; 1999 December 31 to 2000 January 1; ongoing into the future"
     )
 
@@ -398,8 +398,8 @@ def test_distillery_alchemist_extent_output_77cjj(page: Page, asnake_client):
     alchemist_item_uri = f'{config("ACCESS_SITE_BASE_URL").rstrip("/")}/DistilleryTEST-{test_id}/item-{test_id}/index.html'
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
-    expect(page.locator("body")).to_contain_text("1 books", ignore_case=True)
-    expect(page.locator("body")).to_contain_text("2 photographs", ignore_case=True)
+    expect(page.locator("#metadata")).to_contain_text("1 books", ignore_case=True)
+    expect(page.locator("#metadata")).to_contain_text("2 photographs", ignore_case=True)
 
 
 def test_distillery_alchemist_subject_output_28s3q(page: Page, asnake_client):
@@ -443,8 +443,8 @@ def test_distillery_alchemist_subject_output_28s3q(page: Page, asnake_client):
     alchemist_item_uri = f'{config("ACCESS_SITE_BASE_URL").rstrip("/")}/DistilleryTEST-{test_id}/item-{test_id}/index.html'
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
-    expect(page.locator("body")).to_contain_text("Commencement")
-    expect(page.locator("body")).to_contain_text("Conferences")
+    expect(page.locator("#metadata")).to_contain_text("Commencement")
+    expect(page.locator("#metadata")).to_contain_text("Conferences")
 
 
 def test_distillery_alchemist_note_output_u8vvf(page: Page, asnake_client):
@@ -726,7 +726,7 @@ def test_distillery_alchemist_note_output_u8vvf(page: Page, asnake_client):
     alchemist_item_uri = f'{config("ACCESS_SITE_BASE_URL").rstrip("/")}/DistilleryTEST-{test_id}/item-{test_id}/index.html'
     page.goto(alchemist_item_uri)
     expect(page).to_have_title(f'{item["title"]}')
-    expect(page.locator("body")).not_to_contain_text("unpublished", ignore_case=True)
+    expect(page.locator("#metadata")).not_to_contain_text("unpublished", ignore_case=True)
 
 
 def test_distillery_0001_setup_nonnumeric_sequence_gz36p(
