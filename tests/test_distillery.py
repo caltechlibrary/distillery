@@ -20,6 +20,12 @@ def browser_context_args(browser_context_args):
 
 
 @pytest.fixture(autouse=True)
+def set_timeout(page: Page):
+    page.set_default_timeout(60000)
+    return page
+
+
+@pytest.fixture(autouse=True)
 def distillery_0000_reset_files():
     for d in glob.glob(os.path.join(config("WORKING_ORIGINAL_FILES"), "*/")):
         shutil.move(d, config("INITIAL_ORIGINAL_FILES"))
@@ -195,7 +201,7 @@ def run_distillery_access(page: Page, resource_identifier):
     page.get_by_role("button", name="Run").click()
     page.get_by_text("Details").click()
     expect(page.locator("p")).to_have_text(
-        f"✅ Processed metadata and files for {resource_identifier}.", timeout=60000
+        f"✅ Processed metadata and files for {resource_identifier}."
     )
 
 
@@ -237,7 +243,7 @@ def test_distillery_access_unpublished_archival_object_sjex6(page: Page, asnake_
     page.get_by_role("button", name="Validate").click()
     page.get_by_text("Details").click()
     expect(page.locator("p")).to_have_text(
-        "❌ Something went wrong. View the details for more information.", timeout=60000
+        "❌ Something went wrong. View the details for more information."
     )
     # TODO check contents of iframe
 
@@ -280,7 +286,7 @@ def test_distillery_access_unpublished_ancestor_jvycv(page: Page, asnake_client)
     page.get_by_role("button", name="Validate").click()
     page.get_by_text("Details").click()
     expect(page.locator("p")).to_have_text(
-        "❌ Something went wrong. View the details for more information.", timeout=60000
+        "❌ Something went wrong. View the details for more information."
     )
     # TODO check contents of iframe
 
@@ -726,7 +732,9 @@ def test_distillery_alchemist_note_output_u8vvf(page: Page, asnake_client):
     alchemist_item_uri = f'{config("ACCESS_SITE_BASE_URL").rstrip("/")}/DistilleryTEST-{test_id}/item-{test_id}/index.html'
     page.goto(alchemist_item_uri)
     expect(page).to_have_title(f'{item["title"]}')
-    expect(page.locator("#metadata")).not_to_contain_text("unpublished", ignore_case=True)
+    expect(page.locator("#metadata")).not_to_contain_text(
+        "unpublished", ignore_case=True
+    )
 
 
 def test_distillery_0001_setup_nonnumeric_sequence_gz36p(
@@ -860,7 +868,7 @@ def test_distillery_cloud_wrong_component_id_948vk(page: Page, asnake_client):
     page.get_by_role("button", name="Validate").click()
     page.get_by_text("Details").click()
     expect(page.locator("p")).to_have_text(
-        "❌ Something went wrong. View the details for more information.", timeout=60000
+        "❌ Something went wrong. View the details for more information."
     )
 
 
@@ -880,7 +888,7 @@ def test_distillery_cloud_nonnumeric_sequence_gz36p(
     page.get_by_role("button", name="Run").click()
     page.get_by_text("Details").click()
     expect(page.locator("p")).to_have_text(
-        "✅ Processed metadata and files for DistilleryTEST-gz36p.", timeout=60000
+        "✅ Processed metadata and files for DistilleryTEST-gz36p."
     )
     # get a list of s3 objects under this test prefix
     s3_response = s3_client.list_objects_v2(
@@ -1103,7 +1111,7 @@ def test_distillery_cloud_video_7b3px(page: Page, asnake_client, s3_client):
     page.get_by_role("button", name="Run").click()
     page.get_by_text("Details").click()
     expect(page.locator("p")).to_have_text(
-        "✅ Processed metadata and files for DistilleryTEST-7b3px.", timeout=60000
+        "✅ Processed metadata and files for DistilleryTEST-7b3px."
     )
     # get a list of s3 objects under this test prefix
     s3_response = s3_client.list_objects_v2(
