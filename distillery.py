@@ -761,6 +761,7 @@ def find_archival_object(component_id):
             + "?resolve[]=ancestors"
             + "&resolve[]=digital_object"
             + "&resolve[]=repository"
+            + "&resolve[]=subjects"
             + "&resolve[]=top_container"
         ).json()
 

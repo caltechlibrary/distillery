@@ -119,6 +119,12 @@ def generate_archival_object_page(build_directory, variables):
         dates_display = format_archival_object_dates_display(
             variables["archival_object"]
         )
+        extents_display = format_archival_object_extents_display(
+            variables["archival_object"]
+        )
+        subjects_display = format_archival_object_subjects_display(
+            variables["archival_object"]
+        )
         notes_display = format_archival_object_notes_display(
             variables["archival_object"]
         )
@@ -149,6 +155,8 @@ def generate_archival_object_page(build_directory, variables):
                     series=variables["folder_arrangement"].get("series_display"),
                     subseries=variables["folder_arrangement"].get("subseries_display"),
                     dates=dates_display,
+                    extents=extents_display,
+                    subjects=subjects_display,
                     notes=notes_display,
                     archivesspace_url="/".join(
                         [
@@ -231,15 +239,24 @@ def generate_iiif_manifest(build_directory, variables):
     metadata = []
     if variables["folder_arrangement"].get("collection_display"):
         metadata.append(
-            {"label": "Collection", "value": variables["folder_arrangement"]["collection_display"]}
+            {
+                "label": "Collection",
+                "value": variables["folder_arrangement"]["collection_display"],
+            }
         )
     if variables["folder_arrangement"].get("series_display"):
         metadata.append(
-            {"label": "Series", "value": variables["folder_arrangement"]["series_display"]}
+            {
+                "label": "Series",
+                "value": variables["folder_arrangement"]["series_display"],
+            }
         )
     if variables["folder_arrangement"].get("subseries_display"):
         metadata.append(
-            {"label": "Sub-Series", "value": variables["folder_arrangement"]["subseries_display"]}
+            {
+                "label": "Sub-Series",
+                "value": variables["folder_arrangement"]["subseries_display"],
+            }
         )
     dates = format_archival_object_dates_display(variables["archival_object"])
     if dates:
@@ -252,6 +269,12 @@ def generate_iiif_manifest(build_directory, variables):
             else:
                 date_values.append(date["expression"])
         metadata.append({"label": "Dates", "value": date_values})
+    extents = format_archival_object_extents_display(variables["archival_object"])
+    if extents:
+        metadata.append({"label": "Extents", "value": extents})
+    subjects = format_archival_object_subjects_display(variables["archival_object"])
+    if subjects:
+        metadata.append({"label": "Subjects", "value": subjects})
     notes = format_archival_object_notes_display(variables["archival_object"])
     if notes:
         for note_label, note_contents in notes.items():
@@ -541,6 +564,21 @@ def format_archival_object_dates_display(archival_object):
             else:
                 dates_display.append({"expression": date["expression"]})
     return dates_display
+
+
+def format_archival_object_extents_display(archival_object):
+    extents_display = []
+    for extent in archival_object["extents"]:
+        extents_display.append(f'{extent["number"].strip()} {extent["extent_type"]}')
+    return extents_display
+
+
+def format_archival_object_subjects_display(archival_object):
+    subjects_display = []
+    for subject in archival_object["subjects"]:
+        if subject["_resolved"]["publish"]:
+            subjects_display.append(subject["_resolved"]["title"])
+    return subjects_display
 
 
 def format_archival_object_notes_display(archival_object):
