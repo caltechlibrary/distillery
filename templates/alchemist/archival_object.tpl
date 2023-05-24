@@ -69,6 +69,9 @@
       #uv .overlay.settings .setting input[type="checkbox"] {
         margin-inline-start: var(--outline-width);
       }
+      #uv .iiif-gallery-component input[type="range"]::-moz-range-track {
+        width: auto;
+      }
       /* many elements need font-size adjustments */
       #uv .overlay .heading {
         font-size: 20px;
@@ -76,6 +79,7 @@
       #uv .overlay h2 {
         font-size: 18px;
       }
+      #uv .iiif-gallery-component .thumb .label,
       #uv .headerPanel .mode label,
       #uv .headerPanel input,
       #uv .headerPanel .total,
