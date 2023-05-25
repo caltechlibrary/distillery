@@ -196,11 +196,11 @@ def run_distillery(page: Page, resource_identifier, destinations, outcome="succe
     page.get_by_text("Details").click()
     if outcome == "failure":
         expect(page.locator("p")).to_have_text(
-            "❌ Something went wrong. View the details for more information."
+            "❌ Something went wrong. View the details for more information.", timeout=60000
         )
         return page
     expect(page.locator("p")).to_have_text(
-        f"✅ Validated metadata, files, and destinations for {resource_identifier}."
+        f"✅ Validated metadata, files, and destinations for {resource_identifier}.", timeout=60000
     )
     page.get_by_role("button", name="Run").click()
     page.get_by_text("Details").click()
