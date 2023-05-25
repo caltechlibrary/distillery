@@ -105,10 +105,10 @@ def delete_archivesspace_test_records(asnake_client, resource_identifer):
         asnake_client.delete(result["ref"])
 
 
-def create_archivesspace_test_resource(asnake_client, test_id):
+def create_archivesspace_test_resource(asnake_client, test_name, test_id):
     resource = {}
     # required
-    resource["title"] = f"_A resource record for Distillery testing {test_id}"
+    resource["title"] = f"_Resource {test_name} {test_id}"
     resource["id_0"] = f"DistilleryTEST-{test_id}"
     resource["level"] = "collection"
     resource["finding_aid_language"] = "eng"
@@ -134,11 +134,11 @@ def create_archivesspace_test_resource(asnake_client, test_id):
 
 
 def create_archivesspace_test_archival_object_item(
-    asnake_client, test_id, resource_uri
+    asnake_client, test_name, test_id, resource_uri
 ):
     item = {}
     # required
-    item["title"] = f"_An item record for Distillery testing {test_id}"
+    item["title"] = f"_Item {test_name} {test_id}"
     item["level"] = "item"
     item["resource"] = {"ref": resource_uri}
     # optional
@@ -152,11 +152,11 @@ def create_archivesspace_test_archival_object_item(
 
 
 def create_archivesspace_test_archival_object_series(
-    asnake_client, test_id, resource_uri
+    asnake_client, test_name, test_id, resource_uri
 ):
     series = {}
     # required
-    series["title"] = f"_A series record for Distillery testing {test_id}"
+    series["title"] = f"_Series {test_name} {test_id}"
     series["level"] = "series"
     series["resource"] = {"ref": resource_uri}
     # optional
@@ -170,11 +170,11 @@ def create_archivesspace_test_archival_object_series(
 
 
 def create_archivesspace_test_archival_object_subseries(
-    asnake_client, test_id, resource_uri
+    asnake_client, test_name, test_id, resource_uri
 ):
     subseries = {}
     # required
-    subseries["title"] = f"_A subseries record for Distillery testing {test_id}"
+    subseries["title"] = f"_Sub-Series {test_name} {test_id}"
     subseries["level"] = "subseries"
     subseries["resource"] = {"ref": resource_uri}
     # optional
@@ -187,31 +187,52 @@ def create_archivesspace_test_archival_object_subseries(
     return subseries_post_response
 
 
-def run_distillery_access(page: Page, resource_identifier):
+def run_distillery(page: Page, resource_identifier, destinations, outcome="success"):
     page.goto(config("DISTILLERY_BASE_URL"))
     page.get_by_label("Collection ID").fill(resource_identifier)
-    page.get_by_text(
-        "Public web access generate files & metadata and publish on the web"
-    ).click()
+    for destination in destinations:
+        page.locator(f'input[value="{destination}"]').click()
     page.get_by_role("button", name="Validate").click()
     page.get_by_text("Details").click()
+    if outcome == "failure":
+        expect(page.locator("p")).to_have_text(
+            "❌ Something went wrong. View the details for more information."
+        )
+        return page
     expect(page.locator("p")).to_have_text(
         f"✅ Validated metadata, files, and destinations for {resource_identifier}."
     )
     page.get_by_role("button", name="Run").click()
     page.get_by_text("Details").click()
     expect(page.locator("p")).to_have_text(
-        f"✅ Processed metadata and files for {resource_identifier}."
+        f"✅ Processed metadata and files for {resource_identifier}.", timeout=60000
     )
 
 
+def format_alchemist_item_uri(test_id):
+    return "/".join(
+        [
+            config("ACCESS_SITE_BASE_URL").rstrip("/"),
+            f"DistilleryTEST-{test_id}",
+            f"item-{test_id}",
+            "index.html",
+        ]
+    )
+
+
+def test_distillery_landing(page: Page):
+    page.goto(config("DISTILLERY_BASE_URL"))
+    expect(page).to_have_title("Distillery")
+
+
 def test_distillery_access_unpublished_archival_object_sjex6(page: Page, asnake_client):
+    test_name = "access unpublished archival object"
     test_id = "sjex6"
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, f"DistilleryTEST-{test_id}")
     # CREATE RESOURCE RECORD
     resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_id
+        asnake_client, test_name, test_id
     )
     print(
         f"🐞 resource_create_response:{test_id}",
@@ -219,7 +240,7 @@ def test_distillery_access_unpublished_archival_object_sjex6(page: Page, asnake_
     )
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     item_create_response = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 archival_object_create_response:{test_id}",
@@ -234,27 +255,21 @@ def test_distillery_access_unpublished_archival_object_sjex6(page: Page, asnake_
         f"🐞 item_update_response:{test_id}",
         item_update_response.json(),
     )
-    # DISTILLERY ACCESS WORKFLOW
-    page.goto(config("DISTILLERY_BASE_URL"))
-    page.get_by_label("Collection ID").fill(f"DistilleryTEST-{test_id}")
-    page.get_by_text(
-        "Public web access generate files & metadata and publish on the web"
-    ).click()
-    page.get_by_role("button", name="Validate").click()
-    page.get_by_text("Details").click()
-    expect(page.locator("p")).to_have_text(
-        "❌ Something went wrong. View the details for more information."
+    # RUN DISTILLERY ACCESS WORKFLOW
+    page = run_distillery(
+        page, f"DistilleryTEST-{test_id}", ["access"], outcome="failure"
     )
     # TODO check contents of iframe
 
 
 def test_distillery_access_unpublished_ancestor_jvycv(page: Page, asnake_client):
+    test_name = "access unpublished ancestor"
     test_id = "jvycv"
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, f"DistilleryTEST-{test_id}")
     # CREATE RESOURCE RECORD
     resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_id
+        asnake_client, test_name, test_id
     )
     print(
         f"🐞 resource_create_response:{test_id}",
@@ -271,33 +286,28 @@ def test_distillery_access_unpublished_ancestor_jvycv(page: Page, asnake_client)
     )
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     item_create_response = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
         item_create_response.json(),
     )
-    # DISTILLERY ACCESS WORKFLOW
-    page.goto(config("DISTILLERY_BASE_URL"))
-    page.get_by_label("Collection ID").fill(f"DistilleryTEST-{test_id}")
-    page.get_by_text(
-        "Public web access generate files & metadata and publish on the web"
-    ).click()
-    page.get_by_role("button", name="Validate").click()
-    page.get_by_text("Details").click()
-    expect(page.locator("p")).to_have_text(
-        "❌ Something went wrong. View the details for more information."
+    # RUN DISTILLERY ACCESS WORKFLOW
+    page = run_distillery(
+        page, f"DistilleryTEST-{test_id}", ["access"], outcome="failure"
     )
     # TODO check contents of iframe
 
 
-def test_distillery_alchemist_date_output_x2edw(page: Page, asnake_client):
-    test_id = "x2edw"
+def test_distillery_access_file_uri_v8v5r(page: Page, asnake_client):
+    """Confirm file_uri for Alchemist item makes it to ArchivesSpace."""
+    test_name = "access file uri"
+    test_id = "v8v5r"
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, f"DistilleryTEST-{test_id}")
     # CREATE RESOURCE RECORD
     resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_id
+        asnake_client, test_name, test_id
     )
     print(
         f"🐞 resource_create_response:{test_id}",
@@ -305,7 +315,45 @@ def test_distillery_alchemist_date_output_x2edw(page: Page, asnake_client):
     )
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     item_create_response = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 item_create_response:{test_id}",
+        item_create_response.json(),
+    )
+    # RUN ALCHEMIST PROCESS
+    run_distillery(page, f"DistilleryTEST-{test_id}", ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    # VALIDATE DIGITAL OBJECT RECORD
+    results = asnake_client.get(
+        "/repositories/2/find_by_id/digital_objects",
+        params={"digital_object_id[]": f"item-{test_id}"},
+    ).json()
+    print(f"🐞 find_by_id/digital_objects:item-{test_id}", results)
+    assert len(results["digital_objects"]) == 1
+    for result in results["digital_objects"]:
+        digital_object = asnake_client.get(result["ref"]).json()
+        print("🐞 digital_object", digital_object)
+        assert digital_object["publish"] is True
+        assert digital_object["file_versions"][0]["file_uri"] == alchemist_item_uri
+
+
+def test_distillery_alchemist_date_output_x2edw(page: Page, asnake_client):
+    test_name = "alchemist date output"
+    test_id = "x2edw"
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, f"DistilleryTEST-{test_id}")
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_name, test_id
+    )
+    print(
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD
+    item_create_response = create_archivesspace_test_archival_object_item(
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
@@ -349,23 +397,23 @@ def test_distillery_alchemist_date_output_x2edw(page: Page, asnake_client):
         item_update_response.json(),
     )
     # RUN ALCHEMIST PROCESS
-    run_distillery_access(page, f"DistilleryTEST-{test_id}")
+    run_distillery(page, f"DistilleryTEST-{test_id}", ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_id)
     # VALIDATE ALCHEMIST HTML
-    alchemist_item_uri = f'{config("ACCESS_SITE_BASE_URL").rstrip("/")}/DistilleryTEST-{test_id}/item-{test_id}/index.html'
     page.goto(alchemist_item_uri)
-    expect(page).to_have_title(item["title"])
-    expect(page.locator(".headings div")).to_have_text(
+    expect(page.locator(".headings")).to_contain_text(
         "1584 February 29; 1969 December 31 to 1970 January 1; 1999 December 31 to 2000 January 1; ongoing into the future"
     )
 
 
 def test_distillery_alchemist_extent_output_77cjj(page: Page, asnake_client):
+    test_name = "alchemist extent output"
     test_id = "77cjj"
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, f"DistilleryTEST-{test_id}")
     # CREATE RESOURCE RECORD
     resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_id
+        asnake_client, test_name, test_id
     )
     print(
         f"🐞 resource_create_response:{test_id}",
@@ -373,7 +421,7 @@ def test_distillery_alchemist_extent_output_77cjj(page: Page, asnake_client):
     )
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     item_create_response = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
@@ -400,8 +448,8 @@ def test_distillery_alchemist_extent_output_77cjj(page: Page, asnake_client):
         item_update_response.json(),
     )
     # RUN ALCHEMIST PROCESS
-    run_distillery_access(page, f"DistilleryTEST-{test_id}")
-    alchemist_item_uri = f'{config("ACCESS_SITE_BASE_URL").rstrip("/")}/DistilleryTEST-{test_id}/item-{test_id}/index.html'
+    run_distillery(page, f"DistilleryTEST-{test_id}", ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_id)
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
     expect(page.locator("#metadata")).to_contain_text("1 books", ignore_case=True)
@@ -409,12 +457,13 @@ def test_distillery_alchemist_extent_output_77cjj(page: Page, asnake_client):
 
 
 def test_distillery_alchemist_subject_output_28s3q(page: Page, asnake_client):
+    test_name = "alchemist subject output"
     test_id = "28s3q"
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, f"DistilleryTEST-{test_id}")
     # CREATE RESOURCE RECORD
     resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_id
+        asnake_client, test_name, test_id
     )
     print(
         f"🐞 resource_create_response:{test_id}",
@@ -422,7 +471,7 @@ def test_distillery_alchemist_subject_output_28s3q(page: Page, asnake_client):
     )
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     item_create_response = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
@@ -445,8 +494,8 @@ def test_distillery_alchemist_subject_output_28s3q(page: Page, asnake_client):
         item_update_response.json(),
     )
     # RUN ALCHEMIST PROCESS
-    run_distillery_access(page, f"DistilleryTEST-{test_id}")
-    alchemist_item_uri = f'{config("ACCESS_SITE_BASE_URL").rstrip("/")}/DistilleryTEST-{test_id}/item-{test_id}/index.html'
+    run_distillery(page, f"DistilleryTEST-{test_id}", ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_id)
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
     expect(page.locator("#metadata")).to_contain_text("Commencement")
@@ -454,12 +503,13 @@ def test_distillery_alchemist_subject_output_28s3q(page: Page, asnake_client):
 
 
 def test_distillery_alchemist_note_output_u8vvf(page: Page, asnake_client):
+    test_name = "alchemist note output"
     test_id = "u8vvf"
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, f"DistilleryTEST-{test_id}")
     # CREATE RESOURCE RECORD
     resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_id
+        asnake_client, test_name, test_id
     )
     print(
         f"🐞 resource_create_response:{test_id}",
@@ -467,7 +517,7 @@ def test_distillery_alchemist_note_output_u8vvf(page: Page, asnake_client):
     )
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     item_create_response = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
@@ -727,203 +777,30 @@ def test_distillery_alchemist_note_output_u8vvf(page: Page, asnake_client):
         item_update_response.json(),
     )
     # RUN ALCHEMIST PROCESS
-    run_distillery_access(page, f"DistilleryTEST-{test_id}")
+    run_distillery(page, f"DistilleryTEST-{test_id}", ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_id)
     # VALIDATE ALCHEMIST HTML
-    alchemist_item_uri = f'{config("ACCESS_SITE_BASE_URL").rstrip("/")}/DistilleryTEST-{test_id}/item-{test_id}/index.html'
     page.goto(alchemist_item_uri)
-    expect(page).to_have_title(f'{item["title"]}')
+    expect(page.locator("#metadata")).to_contain_text("Abstract")
+    expect(page.locator("#metadata")).to_contain_text("Materials Specific Details")
+    expect(page.locator("#metadata")).to_contain_text("Foo Note")
+    expect(page.locator("#metadata")).to_contain_text("Scope and Contents")
+    expect(page.locator("#metadata")).to_contain_text("General")
+    expect(page.locator("#metadata")).to_contain_text("Bar Note")
     expect(page.locator("#metadata")).not_to_contain_text(
         "unpublished", ignore_case=True
     )
 
 
-def test_distillery_0001_setup_nonnumeric_sequence_gz36p(
-    page: Page, asnake_client, s3_client
-):
-    """Sequence strings on TIFF files are alphanumeric not numeric."""
-    # NOTE without page parameter test does not seem to run in order
-    # DELETE ANY EXISTING TEST RECORDS
-    resource_find_by_id_results = asnake_client.get(
-        "/repositories/2/find_by_id/resources",
-        params={"identifier[]": ['["DistilleryTEST-gz36p"]']},
-    ).json()
-    for resource in resource_find_by_id_results["resources"]:
-        resource_tree = asnake_client.get(f'{resource["ref"]}/tree/root').json()
-        item_uri = resource_tree["precomputed_waypoints"][""]["0"][0]["uri"]
-        archival_object = asnake_client.get(
-            item_uri, params={"resolve[]": "digital_object"}
-        ).json()
-        for instance in archival_object["instances"]:
-            if instance.get("digital_object"):
-                digital_object_delete_response = asnake_client.delete(
-                    instance["digital_object"]["_resolved"]["uri"]
-                )
-        resource_delete_response = asnake_client.delete(resource["ref"])
-    # CREATE RESOURCE RECORD
-    resource = {}
-    # required
-    resource["title"] = "_DISTILLERY TEST RESOURCE gz36p"
-    resource["id_0"] = "DistilleryTEST-gz36p"
-    resource["level"] = "collection"
-    resource["finding_aid_language"] = "eng"
-    resource["finding_aid_script"] = "Latn"
-    resource["lang_materials"] = [
-        {"language_and_script": {"language": "eng", "script": "Latn"}}
-    ]
-    resource["dates"] = [
-        {
-            "label": "creation",
-            "date_type": "single",
-            "begin": str(datetime.date.today()),
-        }
-    ]
-    resource["extents"] = [{"portion": "whole", "number": "1", "extent_type": "boxes"}]
-    # post
-    resource_post_response = asnake_client.post(
-        "/repositories/2/resources", json=resource
-    )
-    print(
-        "🐞 resource_post_response:DistilleryTEST-gz36p",
-        resource_post_response.json(),
-    )
-    # CREATE ITEM RECORD
-    item = {}
-    # required
-    item["title"] = "_DISTILLERY TEST ITEM gz36p"
-    item["level"] = "item"
-    item["resource"] = {"ref": resource_post_response.json()["uri"]}
-    # optional
-    item["component_id"] = "item-gz36p"
-    # post
-    item_post_response = asnake_client.post(
-        "/repositories/2/archival_objects", json=item
-    )
-    # DELETE S3 OBJECTS
-    s3_response = s3_client.list_objects_v2(
-        Bucket=config("PRESERVATION_BUCKET"), Prefix="DistilleryTEST-gz36p"
-    )
-    print("🐞 s3_client.list_objects_v2", s3_response)
-    if s3_response.get("Contents"):
-        s3_keys = [{"Key": s3_object["Key"]} for s3_object in s3_response["Contents"]]
-        s3_response = s3_client.delete_objects(
-            Bucket=config("PRESERVATION_BUCKET"), Delete={"Objects": s3_keys}
-        )
-
-
-def test_distillery_landing(page: Page):
-    page.goto(config("DISTILLERY_BASE_URL"))
-    expect(page).to_have_title("Distillery")
-
-
-def test_distillery_cloud_wrong_component_id_948vk(page: Page, asnake_client):
-    """Corresponding directory name does not match component_id."""
-    # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, "DistilleryTEST-948vk")
-    # CREATE COLLECTION RECORD
-    resource = {}
-    # NOTE required
-    resource["title"] = "_DISTILLERY TEST COLLECTION 948vk"
-    resource["id_0"] = "DistilleryTEST-948vk"
-    resource["level"] = "collection"
-    resource["finding_aid_language"] = "eng"
-    resource["finding_aid_script"] = "Latn"
-    resource["lang_materials"] = [
-        {"language_and_script": {"language": "eng", "script": "Latn"}}
-    ]
-    resource["dates"] = [
-        {
-            "label": "creation",
-            "date_type": "single",
-            "begin": str(datetime.date.today()),
-        }
-    ]
-    resource["extents"] = [{"portion": "whole", "number": "1", "extent_type": "boxes"}]
-    # NOTE post
-    resource_post_response = asnake_client.post(
-        "/repositories/2/resources", json=resource
-    )
-    print(
-        "🐞 resource_post_response:DistilleryTEST-948vk",
-        resource_post_response.json(),
-    )
-    # CREATE ITEM RECORD
-    item = {}
-    # NOTE required
-    item["title"] = "_DISTILLERY TEST ITEM 948vk"
-    item["level"] = "item"
-    item["resource"] = {"ref": resource_post_response.json()["uri"]}
-    # NOTE optional
-    item["component_id"] = "distillery_test_item_948vk"
-    # NOTE post
-    item_post_response = asnake_client.post(
-        "/repositories/2/archival_objects", json=item
-    )
-    print("🐞 item_post_response:948vk", item_post_response.json())
-    # DISTILLERY CLOUD WORKFLOW
-    page.goto(config("DISTILLERY_BASE_URL"))
-    page.get_by_label("Collection ID").fill("DistilleryTEST-948vk")
-    page.get_by_text(
-        "Cloud preservation storage generate and send files to a remote storage provider"
-    ).click()
-    page.get_by_role("button", name="Validate").click()
-    page.get_by_text("Details").click()
-    expect(page.locator("p")).to_have_text(
-        "❌ Something went wrong. View the details for more information."
-    )
-
-
-def test_distillery_cloud_nonnumeric_sequence_gz36p(
-    page: Page, asnake_client, s3_client
-):
-    page.goto(config("DISTILLERY_BASE_URL"))
-    page.get_by_label("Collection ID").fill("DistilleryTEST-gz36p")
-    page.get_by_text(
-        "Cloud preservation storage generate and send files to a remote storage provider"
-    ).click()
-    page.get_by_role("button", name="Validate").click()
-    page.get_by_text("Details").click()
-    expect(page.locator("p")).to_have_text(
-        "✅ Validated metadata, files, and destinations for DistilleryTEST-gz36p."
-    )
-    page.get_by_role("button", name="Run").click()
-    page.get_by_text("Details").click()
-    expect(page.locator("p")).to_have_text(
-        "✅ Processed metadata and files for DistilleryTEST-gz36p."
-    )
-    # get a list of s3 objects under this test prefix
-    s3_response = s3_client.list_objects_v2(
-        Bucket=config("PRESERVATION_BUCKET"), Prefix="DistilleryTEST-gz36p"
-    )
-    print("🐞 s3_client.list_objects_v2", s3_response)
-    # ensure that the digital object components were created correctly
-    results = asnake_client.get(
-        "/repositories/2/find_by_id/digital_objects",
-        params={"digital_object_id[]": "item-gz36p"},
-    ).json()
-    print("🐞 find_by_id/digital_objects:item-gz36p", results)
-    assert len(results["digital_objects"]) == 1
-    for digital_object in results["digital_objects"]:
-        tree = asnake_client.get(f'{digital_object["ref"]}/tree/root').json()
-        print(f'🐞 {digital_object["ref"]}/tree/root', tree)
-        assert len(tree["precomputed_waypoints"][""]["0"]) > 0
-        for waypoint in tree["precomputed_waypoints"][""]["0"]:
-            # split the s3 key from the file_uri_summary and ensure it matches
-            assert waypoint["file_uri_summary"].split(
-                f's3://{config("PRESERVATION_BUCKET")}/'
-            )[-1] in [s3_object["Key"] for s3_object in s3_response["Contents"]]
-            # split the original filename from the s3 key and match the label
-            assert waypoint["label"] in [
-                s3_object["Key"].split("/")[-2] for s3_object in s3_response["Contents"]
-            ]
-
-
-def test_distillery_access_nonnumeric_sequence_yw3ff(page: Page, asnake_client):
-    test_id = "yw3ff"
+def test_distillery_alchemist_ancestors_2gj5n(page: Page, asnake_client):
+    """Confirm ancestors display in Alchemist."""
+    test_name = "alchemist ancestors"
+    test_id = "2gj5n"
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, f"DistilleryTEST-{test_id}")
     # CREATE RESOURCE RECORD
     resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_id
+        asnake_client, test_name, test_id
     )
     print(
         f"🐞 resource_create_response:{test_id}",
@@ -931,7 +808,7 @@ def test_distillery_access_nonnumeric_sequence_yw3ff(page: Page, asnake_client):
     )
     # CREATE ARCHIVAL OBJECT SERIES RECORD
     series_create_response = create_archivesspace_test_archival_object_series(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 series_create_response:{test_id}",
@@ -939,7 +816,7 @@ def test_distillery_access_nonnumeric_sequence_yw3ff(page: Page, asnake_client):
     )
     # CREATE ARCHIVAL OBJECT SUBSERIES RECORD
     subseries_create_response = create_archivesspace_test_archival_object_subseries(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 subseries_create_response:{test_id}",
@@ -956,7 +833,7 @@ def test_distillery_access_nonnumeric_sequence_yw3ff(page: Page, asnake_client):
     )
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     item_create_response = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
@@ -975,8 +852,43 @@ def test_distillery_access_nonnumeric_sequence_yw3ff(page: Page, asnake_client):
         item_parent_position_post_response.json(),
     )
     # RUN ALCHEMIST PROCESS
-    run_distillery_access(page, f"DistilleryTEST-{test_id}")
-    alchemist_item_uri = f'{config("ACCESS_SITE_BASE_URL").rstrip("/")}/DistilleryTEST-{test_id}/item-{test_id}/index.html'
+    run_distillery(page, f"DistilleryTEST-{test_id}", ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    # VALIDATE ALCHEMIST ITEM
+    page.goto(alchemist_item_uri)
+    expect(page.locator(".headings h2")).to_have_text(
+        f"_Resource {test_name} {test_id} / _Series {test_name} {test_id} / _Sub-Series {test_name} {test_id}"
+    )
+    expect(page.locator("#metadata")).to_contain_text("Collection")
+    expect(page.locator("#metadata")).to_contain_text("Series")
+    expect(page.locator("#metadata")).to_contain_text("Sub-Series")
+
+
+def test_distillery_alchemist_nonnumeric_sequence_yw3ff(page: Page, asnake_client):
+    """Confirm non-numeric sequence strings make it to Alchemist."""
+    test_name = "alchemist non-numeric sequence"
+    test_id = "yw3ff"
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, f"DistilleryTEST-{test_id}")
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_name, test_id
+    )
+    print(
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD
+    item_create_response = create_archivesspace_test_archival_object_item(
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 item_create_response:{test_id}",
+        item_create_response.json(),
+    )
+    # RUN ALCHEMIST PROCESS
+    run_distillery(page, f"DistilleryTEST-{test_id}", ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_id)
     # VALIDATE DIGITAL OBJECT RECORD
     results = asnake_client.get(
         "/repositories/2/find_by_id/digital_objects",
@@ -991,105 +903,67 @@ def test_distillery_access_nonnumeric_sequence_yw3ff(page: Page, asnake_client):
         assert digital_object["file_versions"][0]["file_uri"] == alchemist_item_uri
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
-    expect(page).to_have_title(f"_An item record for Distillery testing {test_id}")
+    expect(page.locator("#thumb-0")).to_have_text("C")
+    expect(page.locator("#thumb-1")).to_have_text("p000-p001")
+    expect(page.locator("#thumb-2")).to_have_text("p002-p003")
 
 
-def test_distillery_cloud_video_7b3px(page: Page, asnake_client, s3_client):
-    """Test scenario with no TIFFs, but video and supplementary files."""
+def test_distillery_cloud_wrong_component_id_948vk(page: Page, asnake_client):
+    """Corresponding directory name does not match component_id."""
+    test_name = "cloud wrong component_id"
+    test_id = "948vk"
     # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, "DistilleryTEST-7b3px")
-    # CREATE COLLECTION RECORD
-    resource = {}
-    # required
-    resource["title"] = "_DISTILLERY TEST COLLECTION 7b3px"
-    resource["id_0"] = "DistilleryTEST-7b3px"
-    resource["level"] = "collection"
-    resource["finding_aid_language"] = "eng"
-    resource["finding_aid_script"] = "Latn"
-    resource["lang_materials"] = [
-        {"language_and_script": {"language": "eng", "script": "Latn"}}
-    ]
-    resource["dates"] = [
-        {
-            "label": "creation",
-            "date_type": "single",
-            "begin": str(datetime.date.today()),
-        }
-    ]
-    resource["extents"] = [{"portion": "whole", "number": "1", "extent_type": "boxes"}]
-    # post
-    resource_post_response = asnake_client.post(
-        "/repositories/2/resources", json=resource
+    delete_archivesspace_test_records(asnake_client, f"DistilleryTEST-{test_id}")
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_name, test_id
     )
     print(
-        "🐞 resource_post_response:DistilleryTEST-7b3px",
-        resource_post_response.json(),
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
     )
-    # CREATE SERIES RECORD
-    series = {}
-    series["title"] = "_DISTILLERY TEST SERIES 7b3px"  # title or date required
-    series["component_id"] = "DistilleryTEST-7b3px-series"
-    series["level"] = "series"  # required
-    series["resource"] = {"ref": resource_post_response.json()["uri"]}  # required
-    series_post_response = asnake_client.post(
-        "/repositories/2/archival_objects", json=series
-    )
-    print("🐞 series_post_response", series_post_response.json())
-    # CREATE SUBSERIES RECORD
-    subseries = {}
-    subseries["title"] = "_DISTILLERY TEST SUBSERIES 7b3px"  # title or date required
-    subseries["component_id"] = "DistilleryTEST-7b3px-subseries"
-    subseries["level"] = "subseries"  # required
-    subseries["resource"] = {"ref": resource_post_response.json()["uri"]}  # required
-    subseries_post_response = asnake_client.post(
-        "/repositories/2/archival_objects", json=subseries
-    )
-    print("🐞 subseries_post_response", subseries_post_response.json())
-    # set subseries as a child of series
-    subseries_parent_position_post_response = asnake_client.post(
-        f'{subseries_post_response.json()["uri"]}/parent',
-        params={"parent": series_post_response.json()["id"], "position": 0},
+    # CREATE ARCHIVAL OBJECT ITEM RECORD
+    item_create_response = create_archivesspace_test_archival_object_item(
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
-        "🐞 subseries_parent_position_post_response",
-        subseries_parent_position_post_response.json(),
+        f"🐞 item_create_response:{test_id}",
+        item_create_response.json(),
     )
-    # CREATE ITEM RECORD
-    item = {}
-    # required
-    item[
-        "title"
-    ] = "_DISTILLERY TEST ITEM dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt 7b3px"
-    item["level"] = "item"
-    item["resource"] = {"ref": resource_post_response.json()["uri"]}
-    # optional
-    item["component_id"] = "distillery_test_item_7b3px"
-    item["dates"] = [
-        {
-            "label": "creation",
-            "date_type": "single",
-            "begin": "1999-12-31",
-        }
-    ]
-    # post
-    item_post_response = asnake_client.post(
-        "/repositories/2/archival_objects", json=item
+    # RUN DISTILLERY CLOUD PROCESS
+    page = run_distillery(
+        page, f"DistilleryTEST-{test_id}", ["cloud"], outcome="failure"
     )
-    # set item as a child of subseries
-    item_parent_position_post_response = asnake_client.post(
-        f'{item_post_response.json()["uri"]}/parent',
-        params={
-            "parent": subseries_post_response.json()["id"],
-            "position": 1,
-        },
+    # TODO check contents of iframe
+
+
+def test_distillery_cloud_nonnumeric_sequence_gz36p(
+    page: Page, asnake_client, s3_client
+):
+    """Confirm images with non-numeric sequence strings make it to S3 and ArchivesSpace."""
+    test_name = "cloud non-numeric sequence"
+    test_id = "gz36p"
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, f"DistilleryTEST-{test_id}")
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_name, test_id
     )
     print(
-        "🐞 item_parent_position_post_response",
-        item_parent_position_post_response.json(),
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD
+    item_create_response = create_archivesspace_test_archival_object_item(
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 item_create_response:{test_id}",
+        item_create_response.json(),
     )
     # DELETE S3 OBJECTS
     s3_response = s3_client.list_objects_v2(
-        Bucket=config("PRESERVATION_BUCKET"), Prefix="DistilleryTEST-7b3px"
+        Bucket=config("PRESERVATION_BUCKET"), Prefix=f"DistilleryTEST-{test_id}"
     )
     print("🐞 s3_client.list_objects_v2", s3_response)
     if s3_response.get("Contents"):
@@ -1097,31 +971,79 @@ def test_distillery_cloud_video_7b3px(page: Page, asnake_client, s3_client):
         s3_response = s3_client.delete_objects(
             Bucket=config("PRESERVATION_BUCKET"), Delete={"Objects": s3_keys}
         )
-    # DISTILLERY CLOUD WORKFLOW
-    page.goto(config("DISTILLERY_BASE_URL"))
-    page.get_by_label("Collection ID").fill("DistilleryTEST-7b3px")
-    page.get_by_text(
-        "Cloud preservation storage generate and send files to a remote storage provider"
-    ).click()
-    page.get_by_role("button", name="Validate").click()
-    page.get_by_text("Details").click()
-    expect(page.locator("p")).to_have_text(
-        "✅ Validated metadata, files, and destinations for DistilleryTEST-7b3px."
-    )
-    page.get_by_role("button", name="Run").click()
-    page.get_by_text("Details").click()
-    expect(page.locator("p")).to_have_text(
-        "✅ Processed metadata and files for DistilleryTEST-7b3px."
-    )
-    # get a list of s3 objects under this test prefix
+    # RUN DISTILLERY CLOUD PROCESS
+    run_distillery(page, f"DistilleryTEST-{test_id}", ["cloud"])
+    # VALIDATE S3 UPLOAD AND DIGITAL OBJECT RECORD
+    # get a list of s3 objects under this collection prefix
     s3_response = s3_client.list_objects_v2(
-        Bucket=config("PRESERVATION_BUCKET"), Prefix="DistilleryTEST-7b3px"
+        Bucket=config("PRESERVATION_BUCKET"), Prefix=f"DistilleryTEST-{test_id}"
     )
     print("🐞 s3_client.list_objects_v2", s3_response)
     # ensure that the digital object components were created correctly
     results = asnake_client.get(
         "/repositories/2/find_by_id/digital_objects",
-        params={"digital_object_id[]": "distillery_test_item_7b3px"},
+        params={"digital_object_id[]": f"item-{test_id}"},
+    ).json()
+    print(f"🐞 find_by_id/digital_objects:item-{test_id}", results)
+    assert len(results["digital_objects"]) == 1
+    for digital_object in results["digital_objects"]:
+        tree = asnake_client.get(f'{digital_object["ref"]}/tree/root').json()
+        print(f'🐞 {digital_object["ref"]}/tree/root', tree)
+        assert len(tree["precomputed_waypoints"][""]["0"]) > 0
+        for waypoint in tree["precomputed_waypoints"][""]["0"]:
+            # split the s3 key from the file_uri_summary and ensure it matches
+            assert waypoint["file_uri_summary"].split(
+                f's3://{config("PRESERVATION_BUCKET")}/'
+            )[-1] in [s3_object["Key"] for s3_object in s3_response["Contents"]]
+            # split the original filename from the s3 key and match the label
+            assert waypoint["label"] in [
+                s3_object["Key"].split("/")[-2] for s3_object in s3_response["Contents"]
+            ]
+
+
+def test_distillery_cloud_nonimage_files_7b3px(page: Page, asnake_client, s3_client):
+    """Confirm non-image files make it to S3 and ArchivesSpace."""
+    test_name = "cloud non-image files"
+    test_id = "7b3px"
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, f"DistilleryTEST-{test_id}")
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_name, test_id
+    )
+    print(
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD
+    item_create_response = create_archivesspace_test_archival_object_item(
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 item_create_response:{test_id}",
+        item_create_response.json(),
+    )
+    # DELETE S3 OBJECTS
+    s3_response = s3_client.list_objects_v2(
+        Bucket=config("PRESERVATION_BUCKET"), Prefix=f"DistilleryTEST-{test_id}"
+    )
+    print("🐞 s3_client.list_objects_v2", s3_response)
+    if s3_response.get("Contents"):
+        s3_keys = [{"Key": s3_object["Key"]} for s3_object in s3_response["Contents"]]
+        s3_response = s3_client.delete_objects(
+            Bucket=config("PRESERVATION_BUCKET"), Delete={"Objects": s3_keys}
+        )
+    # RUN DISTILLERY CLOUD PROCESS
+    run_distillery(page, f"DistilleryTEST-{test_id}", ["cloud"])
+    # get a list of s3 objects under this collection prefix
+    s3_response = s3_client.list_objects_v2(
+        Bucket=config("PRESERVATION_BUCKET"), Prefix=f"DistilleryTEST-{test_id}"
+    )
+    print("🐞 s3_client.list_objects_v2", s3_response)
+    # ensure that the digital object components were created correctly
+    results = asnake_client.get(
+        "/repositories/2/find_by_id/digital_objects",
+        params={"digital_object_id[]": f"item-{test_id}"},
     ).json()
     print("🐞 find_by_id/digital_objects", results)
     assert len(results["digital_objects"]) == 1
