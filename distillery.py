@@ -155,6 +155,8 @@ class DistilleryService(rpyc.Service):
             # re-raise the exception because we cannot continue without the files
             raise
 
+        # TODO confirm any PRESERVATION_FILES/{collection_id} directory is empty
+
         initial_original_subdirectorycount = 0
         initial_original_filecount = 0
         for dirpath, dirnames, filenames in os.walk(
@@ -179,6 +181,20 @@ class DistilleryService(rpyc.Service):
                         message = f'❌ ARCHIVAL OBJECT HAS UNPUBLISHED ANCESTOR: [**{archival_object["title"]}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={archival_object["uri"]})'
                         status_logger.error(message)
                         raise ValueError(message)
+                    # raise for existing digital_object["file_versions"]
+                    elif (
+                        bool(archival_object.get("instances")) and self.access_platform
+                    ):
+                        for instance in archival_object["instances"]:
+                            if "digital_object" in instance.keys():
+                                if bool(
+                                    instance["digital_object"]["_resolved"].get(
+                                        "file_versions"
+                                    )
+                                ):
+                                    message = f'❌ DIGITAL OBJECT ALREADY HAS FILE VERSIONS: [**{instance["digital_object"]["_resolved"]["title"]}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={instance["digital_object"]["ref"]})'
+                                    status_logger.error(message)
+                                    raise ValueError(message)
                     # count and list subdirectories in the collection directory
                     initial_original_subdirectorycount += 1
                     status_logger.info(f"📁 {self.collection_id}/{dirname}")
@@ -448,6 +464,7 @@ def create_derivative_structure(
         ]
 
         # Avoid processing directory when there are no files.
+        # TODO check for empty directories in validate()
         if not variables["filepaths"]:
             logger.warning(f"⚠️  NO FILES IN DIRECTORY: {subdirectory}")
             continue
