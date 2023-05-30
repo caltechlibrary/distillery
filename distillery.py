@@ -792,50 +792,21 @@ def get_archival_object_datafile_key(prefix, archival_object):
 def get_archival_object_directory_prefix(folder_arrangement, archival_object):
     """Return the prefix (directory path) of an archival object.
 
-    The directory hierarchy is based on the identifiers and display
-    strings from the collection, series, subseries, and archival object,
-    including a trailing slash.
+    Non-alphanumeric characters are replaced with hyphens. The prefix includes a
+    trailing slash.
 
-    Non-alphanumeric characters are replaced with hyphens.
+    FORMAT: resource:id_0/archival_object:component_id--archival_object:title/
     """
-
-    prefix = folder_arrangement["collection_id"] + "/"
-    if "series_id" in folder_arrangement.keys():
-        prefix += (
-            folder_arrangement["collection_id"]
-            + "-s"
-            + folder_arrangement["series_id"].zfill(2)
-            + "-"
-        )
-        if "series_display" in folder_arrangement.keys():
-            series_display = "".join(
-                [
-                    c if c.isalnum() else "-"
-                    for c in folder_arrangement["series_display"]
-                ]
-            )
-            prefix += series_display + "/"
-            if "subseries_id" in folder_arrangement.keys():
-                prefix += (
-                    folder_arrangement["collection_id"]
-                    + "-s"
-                    + folder_arrangement["series_id"].zfill(2)
-                    + "-ss"
-                    + folder_arrangement["subseries_id"].zfill(2)
-                    + "-"
-                )
-                if "subseries_display" in folder_arrangement.keys():
-                    subseries_display = "".join(
-                        [
-                            c if c.isalnum() else "-"
-                            for c in folder_arrangement["subseries_display"]
-                        ]
-                    )
-                    prefix += subseries_display + "/"
-    folder_display = "".join(
-        [c if c.isalnum() else "-" for c in folder_arrangement["folder_display"]]
+    archival_object_title = "".join(
+        [c if c.isalnum() else "-" for c in folder_arrangement["folder_title"]]
     )
-    prefix += archival_object["component_id"] + "-" + folder_display + "/"
+    prefix = "/".join(
+        [
+            folder_arrangement["collection_id"],
+            f'{archival_object["component_id"]}--{archival_object_title}',
+            "",
+        ]
+    )
     return prefix
 
 
@@ -1206,32 +1177,6 @@ def create_lossless_jpeg2000_image(variables, collection_data):
         f'☑️  IMAGE SIGNATURES MATCH:\n{original_image_signature.strip()} {variables["original_image_path"].split("/")[-1]}\n{preservation_image_signature.strip()} {preservation_image_path.split("/")[-1]}'
     )
     return preservation_image_key
-
-
-def process_folder_metadata(folderpath):
-    try:
-        archival_object = find_archival_object(
-            normalize_directory_component_id(folderpath)
-        )
-    except ValueError as e:
-        raise RuntimeError(str(e))
-
-    try:
-        archival_object = load_digital_object(archival_object)
-    except ValueError as e:
-        raise RuntimeError(str(e))
-
-    try:
-        archival_object = confirm_digital_object_id(archival_object)
-    except HTTPError as e:
-        raise RuntimeError(str(e))
-
-    try:
-        folder_arrangement = get_folder_arrangement(archival_object)
-    except HTTPError as e:
-        raise RuntimeError(str(e))
-
-    return folder_arrangement, archival_object
 
 
 def save_archival_object_datafile(folder_arrangement, archival_object, directory):
