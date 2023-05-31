@@ -107,7 +107,7 @@
     % if step == "validating" or step == "running":
     <details>
       <summary>Details</summary>
-      <iframe id="log" src="{{distillery_base_url}}/log"></iframe>
+      <iframe src="{{distillery_base_url}}/log"></iframe>
     </details>
     % if step == "validating":
     <form action="{{distillery_base_url}}" method="post">
@@ -124,14 +124,14 @@
     % end
     <script>
       const p = document.getElementsByTagName('p')[0];
-      const log = document.getElementById('log');
+      const iframe = document.getElementsByTagName('iframe')[0];
       const button = document.getElementsByTagName('button')[0];
       const details = document.getElementsByTagName('details')[0];
       let id;
 
       function reloadIframe() {
-        log.contentDocument.location.reload();
-        let text = log.contentDocument.body.innerText;
+        iframe.contentDocument.location.reload();
+        let text = iframe.contentDocument.body.innerText;
         if (text.indexOf('❌') !== -1) {
           clearInterval(id);
           if (p) {
@@ -145,8 +145,8 @@
         } else if (text.indexOf('🟡') != -1) {
           clearInterval(id);
           if (p) {
-            // TODO 🐞 something here behaves unexpectedly in Chrome
-            // the paragraph is updated before the 🟡 emoji is in the log
+            // TODO 🐞 something here behaves unexpectedly in Chrome; the
+            // paragraph is updated before the 🟡 emoji is in the status log
             console.log(p);
             p.innerHTML = p.innerHTML.replace("Validating", "✅ Validated");
             p.innerHTML = p.innerHTML.replace("Processing", "✅ Processed");
@@ -157,8 +157,8 @@
             button.disabled = false;
           }
         }
-        log.style.height = log.contentDocument.body.scrollHeight + 48 + 'px';
-        log.contentWindow.scrollTo(0, log.contentDocument.body.scrollHeight);
+        iframe.style.height = iframe.contentDocument.body.scrollHeight + 48 + 'px';
+        iframe.contentWindow.scrollTo(0, iframe.contentDocument.body.scrollHeight);
       }
 
       function updateIframe() {
