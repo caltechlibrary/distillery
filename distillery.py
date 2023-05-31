@@ -517,46 +517,27 @@ def archivessnake_delete(uri):
     return response
 
 
-# TODO replace all occurances with reload_archival_object_with_digital_object_instance()
-def load_digital_object(archival_object):
-    digital_object_count = 0
-    for instance in archival_object["instances"]:
-        if "digital_object" in instance.keys():
-            digital_object_ref = instance["digital_object"]["ref"]
-            digital_object_count += 1
-            logger.info(f"☑️  DIGITAL OBJECT FOUND: {digital_object_ref}")
-    if digital_object_count > 1:
-        raise ValueError(
-            f"The ArchivesSpace record for {archival_object['component_id']} contains multiple digital objects."
-        )
-    if digital_object_count < 1:
-        # returns new archival_object with digital object info included
-        archival_object = create_digital_object(archival_object)
-        archival_object = load_digital_object(archival_object)
-    return archival_object
-
-
-# TODO replace load_digital_object() with this function
-def reload_archival_object_with_digital_object_instance(archival_object):
-    digital_object_count = 0
-    digital_object_ref = ""
-    for instance in archival_object["instances"]:
-        if "digital_object" in instance.keys():
-            digital_object_ref = instance["digital_object"]["ref"]
-            digital_object_count += 1
-            logger.info(f"☑️  DIGITAL OBJECT FOUND: {digital_object_ref}")
-    if digital_object_count > 1:
-        raise ValueError(
-            f"The ArchivesSpace record for {archival_object['component_id']} contains multiple digital objects."
-        )
-    if digital_object_count < 1:
-        # returns new archival_object with digital object info included
-        archival_object = create_digital_object(archival_object)
-        (
-            archival_object,
-            digital_object_ref,
-        ) = reload_archival_object_with_digital_object_instance(archival_object)
-    return archival_object, digital_object_ref
+def add_digital_object_file_versions(archival_object, file_versions):
+    try:
+        for instance in archival_object["instances"]:
+            if "digital_object" in instance.keys():
+                # ASSUMPTION: only one digital_object exists per archival_object
+                # TODO handle multiple digital_objects per archival_object
+                if instance["digital_object"]["_resolved"].get("file_versions"):
+                    # TODO decide what to do with existing file_versions; unpublish? delete?
+                    raise Exception(
+                        f'❌ EXISTING DIGITAL_OBJECT FILE_VERSIONS FOUND: {archival_object["component_id"]}: {instance["digital_object"]["ref"]}'
+                    )
+                else:
+                    digital_object = instance["digital_object"]["_resolved"]
+                    digital_object["file_versions"] = file_versions
+                    digital_object["publish"] = True
+                    digital_object_post_response = update_digital_object(
+                        digital_object["uri"], digital_object
+                    ).json()
+    except:
+        logger.exception("‼️")
+        raise
 
 
 def confirm_digital_object_id(archival_object):
@@ -612,16 +593,16 @@ def create_digital_object(archival_object):
                 in digital_object_post_response.json()["error"]["digital_object_id"]
             ):
                 raise ValueError(
-                    f" ⚠️\t non-unique digital_object_id: {archival_object['component_id']}"
+                    f"⚠️  NON-UNIQUE DIGITAL_OBJECT_ID: {archival_object['component_id']}"
                 )
-    logger.info(
-        f'✳️  DIGITAL OBJECT CREATED: {digital_object_post_response.json()["uri"]}'
-    )
+    else:
+        digital_object_uri = digital_object_post_response.json()["uri"]
+        logger.info(f"✳️  DIGITAL OBJECT CREATED: {digital_object_uri}")
 
     # set up a digital object instance to add to the archival object
     digital_object_instance = {
         "instance_type": "digital_object",
-        "digital_object": {"ref": digital_object_post_response.json()["uri"]},
+        "digital_object": {"ref": digital_object_uri},
     }
     # add digital object instance to archival object
     archival_object["instances"].append(digital_object_instance)
@@ -638,7 +619,7 @@ def create_digital_object(archival_object):
     # find_archival_object() again to include digital object instance
     archival_object = find_archival_object(archival_object["component_id"])
 
-    return archival_object
+    return digital_object_uri, archival_object
 
 
 def directory_setup(directory):
@@ -731,32 +712,42 @@ def get_folder_arrangement(archival_object):
     folder_arrangement["subseries_display"]
     folder_arrangement["subseries_id"]
     """
-    # TODO document assumptions about arrangement
-    folder_arrangement = {}
-    folder_arrangement["repository_name"] = archival_object["repository"]["_resolved"][
-        "name"
-    ]
-    folder_arrangement["repository_code"] = archival_object["repository"]["_resolved"][
-        "repo_code"
-    ]
-    folder_arrangement["folder_display"] = archival_object["display_string"]
-    folder_arrangement["folder_title"] = archival_object["title"]
-    for ancestor in archival_object["ancestors"]:
-        if ancestor["level"] == "collection":
-            folder_arrangement["collection_display"] = ancestor["_resolved"]["title"]
-            folder_arrangement["collection_id"] = ancestor["_resolved"]["id_0"]
-        elif ancestor["level"] == "series":
-            folder_arrangement["series_display"] = ancestor["_resolved"][
-                "display_string"
-            ]
-            folder_arrangement["series_id"] = ancestor["_resolved"]["component_id"]
-        elif ancestor["level"] == "subseries":
-            folder_arrangement["subseries_display"] = ancestor["_resolved"][
-                "display_string"
-            ]
-            folder_arrangement["subseries_id"] = ancestor["_resolved"]["component_id"]
-    logger.info("☑️  ARRANGEMENT LEVELS AGGREGATED")
-    return folder_arrangement
+    try:
+        # TODO document assumptions about arrangement
+        folder_arrangement = {}
+        folder_arrangement["repository_name"] = archival_object["repository"][
+            "_resolved"
+        ]["name"]
+        folder_arrangement["repository_code"] = archival_object["repository"][
+            "_resolved"
+        ]["repo_code"]
+        folder_arrangement["folder_display"] = archival_object["display_string"]
+        folder_arrangement["folder_title"] = archival_object.get("title")
+        for ancestor in archival_object["ancestors"]:
+            if ancestor["level"] == "collection":
+                folder_arrangement["collection_display"] = ancestor["_resolved"][
+                    "title"
+                ]
+                folder_arrangement["collection_id"] = ancestor["_resolved"]["id_0"]
+            elif ancestor["level"] == "series":
+                folder_arrangement["series_display"] = ancestor["_resolved"][
+                    "display_string"
+                ]
+                folder_arrangement["series_id"] = ancestor["_resolved"].get(
+                    "component_id"
+                )
+            elif ancestor["level"] == "subseries":
+                folder_arrangement["subseries_display"] = ancestor["_resolved"][
+                    "display_string"
+                ]
+                folder_arrangement["subseries_id"] = ancestor["_resolved"].get(
+                    "component_id"
+                )
+        logger.info("☑️  ARRANGEMENT LEVELS AGGREGATED")
+        return folder_arrangement
+    except:
+        logger.exception()
+        raise
 
 
 def find_archival_object(component_id):
@@ -772,15 +763,20 @@ def find_archival_object(component_id):
         logger.warning(f"⚠️  MULTIPLE ARCHIVAL OBJECTS FOUND: {component_id}")
         return None
     else:
-        logger.info(f"☑️  ARCHIVAL OBJECT FOUND: {component_id}")
-        return archivessnake_get(
-            find_by_id_response.json()["archival_objects"][0]["ref"]
-            + "?resolve[]=ancestors"
-            + "&resolve[]=digital_object"
-            + "&resolve[]=repository"
-            + "&resolve[]=subjects"
-            + "&resolve[]=top_container"
-        ).json()
+        try:
+            archival_object = archivessnake_get(
+                find_by_id_response.json()["archival_objects"][0]["ref"]
+                + "?resolve[]=ancestors"
+                + "&resolve[]=digital_object"
+                + "&resolve[]=repository"
+                + "&resolve[]=subjects"
+                + "&resolve[]=top_container"
+            ).json()
+            logger.info(f"☑️  ARCHIVAL OBJECT FOUND: {component_id}")
+            return archival_object
+        except Exception as e:
+            logger.exception(e)
+            raise
 
 
 def get_archival_object_datafile_key(prefix, archival_object):
@@ -974,17 +970,19 @@ def construct_digital_object_component(variables):
     digital_object_component["label"] = Path(
         Path(variables["preservation_file_info"]["filepath"]).parent
     ).name
+    logger.debug(f"🐞 DIGITAL_OBJECT_COMPONENT: {digital_object_component}")
     digital_object_digital_object_id = Path(
         Path(variables["preservation_file_info"]["filepath"]).parent
     ).name.rsplit("_", maxsplit=1)[0]
+    logger.debug(
+        f"🐞 DIGITAL_OBJECT_DIGITAL_OBJECT_ID: {digital_object_digital_object_id}"
+    )
     digital_object_uri = find_digital_object(digital_object_digital_object_id)
+    logger.debug(f"🐞 DIGITAL_OBJECT_URI: {digital_object_uri}")
     if digital_object_uri:
         digital_object_component["digital_object"] = {"ref": digital_object_uri}
     else:
-        (
-            variables["archival_object"],
-            digital_object_uri,
-        ) = reload_archival_object_with_digital_object_instance(
+        digital_object_uri, archival_object = create_digital_object(
             variables["archival_object"]
         )
         digital_object_component["digital_object"] = {"ref": digital_object_uri}
@@ -1257,11 +1255,33 @@ def loop_over_archival_object_datafiles(variables, collection_id, onsite, cloud)
         variables["current_archival_object_datafile"] = archival_object_datafile
         variables["preservation_folders"].append(archival_object_datafile.parent)
 
+        logger.debug(f"🐞 ARCHIVAL OBJECT DATAFILE: {archival_object_datafile}")
         variables["archival_object"] = find_archival_object(
             Path(archival_object_datafile).stem
         )
         # confirm existing or create digital_object with component_id
-        variables["archival_object"] = load_digital_object(variables["archival_object"])
+        try:
+            digital_object_count = len(
+                [
+                    i
+                    for i in variables["archival_object"]["instances"]
+                    if "digital_object" in i.keys()
+                ]
+            )
+            logger.debug(f"🐞 DIGITAL OBJECT COUNT: {digital_object_count}")
+            if digital_object_count > 1:
+                raise ValueError(
+                    f'❌ MULTIPLE DIGITAL OBJECTS FOUND: {variables["archival_object"]["component_id"]}'
+                )
+            elif digital_object_count < 1:
+                # returns new archival_object with digital_object instance included
+                (
+                    digital_object_uri,
+                    variables["archival_object"],
+                ) = create_digital_object(variables["archival_object"])
+        except:
+            logger.exception("‼️")
+            raise
 
         # logger.info(" ".join(variables.keys()))
         # onsite_medium
