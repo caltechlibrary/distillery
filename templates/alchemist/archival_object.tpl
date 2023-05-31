@@ -132,18 +132,18 @@
       </script>
       <dl id="metadata">
         <dt>Title</dt>
-        <dl>{{ title }}</dl>
+        <dd>{{ title }}</dd>
         {% if collection %}
         <dt>Collection</dt>
-        <dl>{{ collection }}</dl>
+        <dd>{{ collection }}</dd>
         {% endif %}
         {% if series %}
         <dt>Series</dt>
-        <dl>{{ series}}</dl>
+        <dd>{{ series}}</dd>
         {% endif %}
         {% if subseries %}
         <dt>Sub-Series</dt>
-        <dl>{{ subseries }}</dl>
+        <dd>{{ subseries }}</dd>
         {% endif %}
         {% if dates %}
         <dt>Dates</dt>
