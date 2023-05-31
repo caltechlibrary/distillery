@@ -135,19 +135,15 @@
         if (text.indexOf('❌') !== -1) {
           clearInterval(id);
           if (p) {
-            console.log(p);
             p.innerHTML = "❌ Something went wrong. View the details for more information.";
           }
           if (button) {
             button.innerHTML = "❌ Failure";
             button.setAttribute("aria-busy", false);
           }
-        } else if (text.indexOf('🟡') != -1) {
+        } else if (text.indexOf('🈺') != -1 || text.indexOf('🏁') != -1) {
           clearInterval(id);
           if (p) {
-            // TODO 🐞 something here behaves unexpectedly in Chrome; the
-            // paragraph is updated before the 🟡 emoji is in the status log
-            console.log(p);
             p.innerHTML = p.innerHTML.replace("Validating", "✅ Validated");
             p.innerHTML = p.innerHTML.replace("Processing", "✅ Processed");
           }
