@@ -97,8 +97,6 @@ class DistilleryService(rpyc.Service):
     @rpyc.exposed
     def validate(self, collection_id, destinations):
         """Validate connections, files, and data."""
-        # TODO notify of empty directories
-        # TODO notify of existing digital_object["file_versions"]
 
         # reset status_logfile
         with open(status_logfile, "w") as f:
@@ -106,7 +104,7 @@ class DistilleryService(rpyc.Service):
 
         self._initiate_variables(collection_id, destinations)
 
-        status_logger.info(f"🟢 BEGIN VALIDATING COMPONENTS FOR {self.collection_id}")
+        status_logger.info(f"🟢 BEGIN VALIDATING COMPONENTS: {self.collection_id}")
 
         self._import_modules()
 
@@ -221,7 +219,7 @@ class DistilleryService(rpyc.Service):
         )
 
         # send the character that stops javascript reloading in the web ui
-        status_logger.info(f"🟡")
+        status_logger.info(f"🈺")
         # copy the status_logfile to the logs directory
         logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(
             f"{self.collection_id}.{str(int(time.time()))}.validate.log"
@@ -330,16 +328,19 @@ class DistilleryService(rpyc.Service):
         except Exception as e:
             status_logger.error("❌ SOMETHING WENT WRONG")
             status_logger.error(e)
+            logger.exception("‼️")
             raise
-        finally:
+        # complete the process if there is no error
+        else:
             # send the character that stops javascript reloading in the web ui
-            status_logger.info(f"🟡")
+            status_logger.info(f"🏁")
             # copy the status_logfile to the logs directory
             logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(
                 f"{self.collection_id}.{str(int(time.time()))}.run.log"
             )
             shutil.copy2(status_logfile, logfile_dst)
             logger.info(f"☑️  COPIED RUN LOG FILE: {logfile_dst}")
+            # TODO delete PRESERVATION_FILES/CollectionID directory
 
 
 def confirm_collection_directory(collection_id, parent_directory):
