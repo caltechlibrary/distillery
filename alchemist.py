@@ -472,69 +472,91 @@ def publish_access_files(build_directory, variables):
                     _bg=True,
                 )
                 sync.wait()
-    except Exception as e:
-        logger.exception(e)
+    except:
+        logger.exception("‼️")
         raise
 
 
 def create_digital_object_file_versions(build_directory, variables):
+    try:
 
-    collection_directory = Path(build_directory.name).joinpath(
-        variables["folder_arrangement"]["collection_id"]
-    )
+        collection_directory = Path(build_directory.name).joinpath(
+            variables["folder_arrangement"]["collection_id"]
+        )
+        logger.debug(f"🐞 COLLECTION_DIRECTORY: {collection_directory}")
 
-    for archival_object_directory in collection_directory.iterdir():
+        for archival_object_directory in collection_directory.iterdir():
 
-        if not archival_object_directory.is_dir():
-            continue
+            if not archival_object_directory.is_dir():
+                continue
+            logger.debug(f"🐞 ARCHIVAL_OBJECT_DIRECTORY: {archival_object_directory}")
 
-        archival_object_page_url = "/".join(
-            [
-                config("ACCESS_SITE_BASE_URL").strip("/"),
-                variables["folder_arrangement"]["collection_id"],
-                variables["archival_object"]["component_id"],
-                "index.html",
+            variables["archival_object"] = distillery.find_archival_object(
+                archival_object_directory.name
+            )
+            logger.debug(
+                f'🐞 ARCHIVAL_OBJECT: {variables["archival_object"]["component_id"]}'
+            )
+
+            archival_object_page_url = "/".join(
+                [
+                    config("ACCESS_SITE_BASE_URL").strip("/"),
+                    variables["folder_arrangement"]["collection_id"],
+                    variables["archival_object"]["component_id"],
+                    "index.html",
+                ]
+            )
+            logger.debug(f"🐞 ARCHIVAL_OBJECT_PAGE_URL: {archival_object_page_url}")
+
+            variables["filepaths"] = [
+                f.absolute()
+                for f in archival_object_directory.iterdir()
+                if f.is_file() and f.name not in [".DS_Store", "Thumbs.db"]
             ]
-        )
+            logger.debug(f'🐞 FILEPATHS[0]: {sorted(variables["filepaths"])[0]}')
 
-        file_versions = [
-            {
-                "file_uri": archival_object_page_url,
-                "jsonmodel_type": "file_version",
-                "publish": True,
-            },
-            {
-                "file_uri": get_thumbnail_url(variables),
-                "jsonmodel_type": "file_version",
-                "publish": True,
-                "xlink_show_attribute": "embed",
-            },
-        ]
+            file_versions = [
+                {
+                    "file_uri": archival_object_page_url,
+                    "jsonmodel_type": "file_version",
+                    "publish": True,
+                },
+                {
+                    "file_uri": get_thumbnail_url(variables),
+                    "jsonmodel_type": "file_version",
+                    "publish": True,
+                    "xlink_show_attribute": "embed",
+                },
+            ]
 
-        # load existing or create new digital_object with component_id
-        variables["archival_object"] = distillery.load_digital_object(
-            variables["archival_object"]
-        )
-
-        for instance in variables["archival_object"]["instances"]:
-            if "digital_object" in instance.keys():
-                # ASSUMPTION: only one digital_object exists per archival_object
-                # TODO handle multiple digital_objects per archival_object
-                if instance["digital_object"]["_resolved"]["file_versions"]:
-                    # TODO decide what to do with existing file_versions; unpublish? delete?
-                    logger.warning(
-                        f'🔥 EXISTING DIGITAL_OBJECT FILE_VERSIONS FOUND: {variables["archival_object"]["component_id"]}: {instance["digital_object"]["ref"]}'
-                    )
-                else:
-                    digital_object = instance["digital_object"]["_resolved"]
-
-        # NOTE this will fail if there are existing file_versions
-        digital_object["file_versions"] = file_versions
-        digital_object["publish"] = True
-
-        digital_object_post_response = distillery.update_digital_object(
-            digital_object["uri"], digital_object
-        ).json()
+            digital_object_count = len(
+                [
+                    i
+                    for i in variables["archival_object"]["instances"]
+                    if "digital_object" in i.keys()
+                ]
+            )
+            logger.debug(f"🐞 DIGITAL OBJECT COUNT: {digital_object_count}")
+            if digital_object_count > 1:
+                raise ValueError(
+                    f'❌ MULTIPLE DIGITAL OBJECTS FOUND: {variables["archival_object"]["component_id"]}'
+                )
+            elif digital_object_count == 1:
+                distillery.add_digital_object_file_versions(
+                    variables["archival_object"], file_versions
+                )
+            elif digital_object_count < 1:
+                # returns new archival_object with digital_object instance included
+                (
+                    digital_object_uri,
+                    variables["archival_object"],
+                ) = distillery.create_digital_object(variables["archival_object"])
+                distillery.add_digital_object_file_versions(
+                    variables["archival_object"], file_versions
+                )
+    except:
+        logger.exception("‼️")
+        raise
 
 
 def format_archival_object_dates_display(archival_object):

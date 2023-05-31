@@ -297,25 +297,28 @@ def islandora_loop_over_derivative_structure(variables):
         variables["archival_object"] = distillery.find_archival_object(
             book_pid.split(":")[-1]
         )
-        # load existing or create new digital_object with component_id
-        variables["archival_object"] = distillery.load_digital_object(
-            variables["archival_object"]
+
+        digital_object_count = len(
+            [
+                i
+                for i in variables["archival_object"]["instances"]
+                if "digital_object" in i.keys()
+            ]
         )
-
-        for instance in variables["archival_object"]["instances"]:
-            if "digital_object" in instance.keys():
-                if instance["digital_object"]["_resolved"]["file_versions"]:
-                    raise RuntimeError(
-                        f'⚠️ uh oh, digital_object file_versions for {variables["archival_object"]["component_id"]} has data: {instance["digital_object"]["ref"]}'
-                    )
-                else:
-                    digital_object = instance["digital_object"]["_resolved"]
-
-        digital_object["file_versions"] = file_versions
-
-        digital_object_post_response = distillery.update_digital_object(
-            digital_object["uri"], digital_object
-        ).json()
+        logger.debug(f"🐞 DIGITAL OBJECT COUNT: {digital_object_count}")
+        if digital_object_count > 1:
+            raise ValueError(
+                f'❌ MULTIPLE DIGITAL OBJECTS FOUND: {variables["archival_object"]["component_id"]}'
+            )
+        elif digital_object_count == 1:
+            distillery.add_file_versions(variables["archival_object"], file_versions)
+        elif digital_object_count < 1:
+            # returns new archival_object with digital_object instance included
+            (
+                digital_object_uri,
+                variables["archival_object"],
+            ) = distillery.create_digital_object(variables["archival_object"])
+            distillery.add_file_versions(variables["archival_object"], file_versions)
 
 
 def construct_book_mods_xml(variables):
