@@ -109,11 +109,30 @@
       body > header > nav > ul {
         align-items: flex-end;
       }
+      body > header > nav > ul:first-of-type > li > svg {
+        overflow: visible;
+      }
+      body > header > nav > ul:first-of-type > li > svg > a:focus > rect {
+        fill: var(--background-color);
+        rx: var(--border-radius);
+        ry: var(--border-radius);
+      }
       body > header > nav > ul:first-of-type > li > svg > a > path {
         fill: var(--h1-color);
+        stroke: var(--h1-color);
+      }
+      body > header > nav > ul:first-of-type > li > svg > a:focus > path,
+      body > header > nav > ul:first-of-type > li > svg > a:hover > path {
+        stroke-width: 2;
       }
       body > header > nav > ul:first-of-type > li > svg > a:first-of-type > path {
         fill: #ff6c0c;
+        stroke: none;
+      }
+      body > header > nav > ul:first-of-type > li > svg > a:first-of-type:focus > path,
+      body > header > nav > ul:first-of-type > li > svg > a:first-of-type:hover > path {
+        stroke: #ff6c0c;
+        stroke-width: initial;
       }
     </style>
   </head>
