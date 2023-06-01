@@ -161,7 +161,7 @@ def generate_archival_object_page(build_directory, variables):
                     archivesspace_url="/".join(
                         [
                             config("ASPACE_PUBLIC_URL").rstrip("/"),
-                            variables["archival_object"]["uri"],
+                            variables["archival_object"]["uri"].lstrip("/"),
                         ]
                     ),
                     iiif_manifest_url=iiif_manifest_url,
