@@ -164,12 +164,8 @@ def generate_archival_object_page(build_directory, variables):
                     extents=extents_display,
                     subjects=subjects_display,
                     notes=notes_display,
-                    archivesspace_url="/".join(
-                        [
-                            config("ASPACE_PUBLIC_URL").rstrip("/"),
-                            variables["archival_object"]["uri"].lstrip("/"),
-                        ]
-                    ),
+                    archivesspace_public_url=config("ASPACE_PUBLIC_URL"),
+                    archival_object_uri=variables["archival_object"]["uri"],
                     iiif_manifest_url=iiif_manifest_url,
                     iiif_manifest_json=json.dumps({"manifest": f"{iiif_manifest_url}"}),
                 )
