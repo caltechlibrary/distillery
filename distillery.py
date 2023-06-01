@@ -705,12 +705,14 @@ def get_arrangement(archival_object):
     arrangement["repository_code"]
     arrangement["folder_display"]
     arrangement["folder_title"]
-    arrangement["collection_display"]
+    arrangement["collection_title"]
     arrangement["collection_id"]
     arrangement["series_display"]
     arrangement["series_id"]
+    arrangement["series_title"]
     arrangement["subseries_display"]
     arrangement["subseries_id"]
+    arrangement["subseries_title"]
     """
     try:
         # TODO document assumptions about arrangement
@@ -725,20 +727,22 @@ def get_arrangement(archival_object):
         arrangement["folder_title"] = archival_object.get("title")
         for ancestor in archival_object["ancestors"]:
             if ancestor["level"] == "collection":
-                arrangement["collection_display"] = ancestor["_resolved"]["title"]
+                arrangement["collection_title"] = ancestor["_resolved"]["title"]
                 arrangement["collection_id"] = ancestor["_resolved"]["id_0"]
             elif ancestor["level"] == "series":
                 arrangement["series_display"] = ancestor["_resolved"]["display_string"]
                 arrangement["series_id"] = ancestor["_resolved"].get("component_id")
+                arrangement["series_title"] = ancestor["_resolved"].get("title")
             elif ancestor["level"] == "subseries":
                 arrangement["subseries_display"] = ancestor["_resolved"][
                     "display_string"
                 ]
                 arrangement["subseries_id"] = ancestor["_resolved"].get("component_id")
+                arrangement["subseries_title"] = ancestor["_resolved"].get("title")
         logger.info("☑️  ARRANGEMENT LEVELS AGGREGATED")
         return arrangement
     except:
-        logger.exception()
+        logger.exception("‼️")
         raise
 
 
@@ -835,7 +839,7 @@ def get_xmp_dc_metadata(arrangement, file_parts, archival_object, collection_dat
     xmp_dc["identifier"] = file_parts["crockford_id"]
     xmp_dc["publisher"] = arrangement["repository_name"]
     xmp_dc["source"] = (
-        arrangement["repository_code"] + ": " + arrangement["collection_display"]
+        arrangement["repository_code"] + ": " + arrangement["collection_title"]
     )
     for instance in archival_object["instances"]:
         if "sub_container" in instance.keys():

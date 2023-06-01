@@ -355,9 +355,7 @@ def construct_book_mods_xml(variables):
     relatedItem = E.relatedItem(type="host")
     book_mods_xml.append(relatedItem)
     relatedItem_titleInfo = E.titleInfo()
-    relatedItem_titleInfo.append(
-        E.title(variables["arrangement"]["collection_display"])
-    )
+    relatedItem_titleInfo.append(E.title(variables["arrangement"]["collection_title"]))
     if "series_id" in variables["arrangement"]:
         relatedItem_titleInfo.append(
             E.partNumber(f'Series {variables["arrangement"]["series_id"]}')
