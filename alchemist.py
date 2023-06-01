@@ -105,13 +105,13 @@ def generate_archival_object_page(build_directory, variables):
         logger.info(f"🐛 TEMPLATE: {template}")
         logger.info(f"🐛 BUILD DIRECTORY: {build_directory.name}")
         collection_directory = Path(build_directory.name).joinpath(
-            variables["folder_arrangement"]["collection_id"]
+            variables["arrangement"]["collection_id"]
         )
         logger.info(f"🐛 COLLECTION DIRECTORY: {collection_directory}")
         iiif_manifest_url = "/".join(
             [
                 config("ACCESS_SITE_BASE_URL").rstrip("/"),
-                variables["folder_arrangement"]["collection_id"],
+                variables["arrangement"]["collection_id"],
                 variables["archival_object"]["component_id"],
                 "manifest.json",
             ]
@@ -129,7 +129,7 @@ def generate_archival_object_page(build_directory, variables):
             variables["archival_object"]
         )
         archival_object_page_key = (
-            Path(variables["folder_arrangement"]["collection_id"])
+            Path(variables["arrangement"]["collection_id"])
             .joinpath(f'{variables["archival_object"]["component_id"]}', "index.html")
             .as_posix()
         )
@@ -149,11 +149,11 @@ def generate_archival_object_page(build_directory, variables):
             f.write(
                 template.render(
                     title=variables["archival_object"]["title"],
-                    collection=variables["folder_arrangement"].get(
+                    collection=variables["arrangement"].get(
                         "collection_display"
                     ),
-                    series=variables["folder_arrangement"].get("series_display"),
-                    subseries=variables["folder_arrangement"].get("subseries_display"),
+                    series=variables["arrangement"].get("series_display"),
+                    subseries=variables["arrangement"].get("subseries_display"),
                     dates=dates_display,
                     extents=extents_display,
                     subjects=subjects_display,
@@ -180,11 +180,11 @@ def upload_archival_object_page(build_directory, variables):
     try:
         # TODO generalize with upload_iiif_manifest
         logger.info(
-            f'🐛 UPLOAD ARCHIVAL OBJECT PAGE: {variables["folder_arrangement"]["collection_id"]}/{variables["archival_object"]["component_id"]}/index.html'
+            f'🐛 UPLOAD ARCHIVAL OBJECT PAGE: {variables["arrangement"]["collection_id"]}/{variables["archival_object"]["component_id"]}/index.html'
         )
         logger.info(f"🐛 BUILD DIRECTORY: {build_directory.name}")
         archival_object_page_key = (
-            Path(variables["folder_arrangement"]["collection_id"])
+            Path(variables["arrangement"]["collection_id"])
             .joinpath(f'{variables["archival_object"]["component_id"]}', "index.html")
             .as_posix()
         )
@@ -237,25 +237,25 @@ def get_thumbnail_url(variables):
 
 def generate_iiif_manifest(build_directory, variables):
     metadata = []
-    if variables["folder_arrangement"].get("collection_display"):
+    if variables["arrangement"].get("collection_display"):
         metadata.append(
             {
                 "label": "Collection",
-                "value": variables["folder_arrangement"]["collection_display"],
+                "value": variables["arrangement"]["collection_display"],
             }
         )
-    if variables["folder_arrangement"].get("series_display"):
+    if variables["arrangement"].get("series_display"):
         metadata.append(
             {
                 "label": "Series",
-                "value": variables["folder_arrangement"]["series_display"],
+                "value": variables["arrangement"]["series_display"],
             }
         )
-    if variables["folder_arrangement"].get("subseries_display"):
+    if variables["arrangement"].get("subseries_display"):
         metadata.append(
             {
                 "label": "Sub-Series",
-                "value": variables["folder_arrangement"]["subseries_display"],
+                "value": variables["arrangement"]["subseries_display"],
             }
         )
     dates = format_archival_object_dates_display(variables["archival_object"])
@@ -279,7 +279,7 @@ def generate_iiif_manifest(build_directory, variables):
             "@id": "/".join(
                 [
                     config("ACCESS_SITE_BASE_URL").strip("/"),
-                    variables["folder_arrangement"]["collection_id"],
+                    variables["arrangement"]["collection_id"],
                     variables["archival_object"]["component_id"],
                     "/manifest.json",
                 ]
@@ -295,7 +295,7 @@ def generate_iiif_manifest(build_directory, variables):
                 },
             },
             "metadata": metadata,
-            "attribution": variables["folder_arrangement"]["repository_name"],
+            "attribution": variables["arrangement"]["repository_name"],
             "sequences": [{"@type": "sc:Sequence", "canvases": []}],
         }
         for filepath in sorted(variables["filepaths"]):
@@ -314,7 +314,7 @@ def generate_iiif_manifest(build_directory, variables):
             canvas_id = "/".join(
                 [
                     config("ACCESS_SITE_BASE_URL").strip("/"),
-                    variables["folder_arrangement"]["collection_id"],
+                    variables["arrangement"]["collection_id"],
                     variables["archival_object"]["component_id"],
                     "canvas",
                     f"{Path(filepath).stem}",
@@ -322,7 +322,7 @@ def generate_iiif_manifest(build_directory, variables):
             )
             escaped_identifier = "/".join(
                 [
-                    variables["folder_arrangement"]["collection_id"],
+                    variables["arrangement"]["collection_id"],
                     variables["archival_object"]["component_id"],
                     f"{Path(filepath).stem}",
                 ]
@@ -359,7 +359,7 @@ def generate_iiif_manifest(build_directory, variables):
 
         # save manifest file
         manifest_file = Path(build_directory.name).joinpath(
-            variables["folder_arrangement"]["collection_id"],
+            variables["arrangement"]["collection_id"],
             variables["archival_object"]["component_id"],
             "manifest.json",
         )
@@ -378,11 +378,11 @@ def upload_iiif_manifest(build_directory, variables):
     try:
         # TODO generalize with upload_archival_object_page
         logger.info(
-            f'🐛 UPLOAD IIIF MANIFEST: {variables["folder_arrangement"]["collection_id"]}/{variables["archival_object"]["component_id"]}/manifest.json'
+            f'🐛 UPLOAD IIIF MANIFEST: {variables["arrangement"]["collection_id"]}/{variables["archival_object"]["component_id"]}/manifest.json'
         )
         logger.info(f"🐛 BUILD DIRECTORY: {build_directory.name}")
         manifest_key = (
-            Path(variables["folder_arrangement"]["collection_id"])
+            Path(variables["arrangement"]["collection_id"])
             .joinpath(
                 variables["archival_object"]["component_id"],
                 "manifest.json",
@@ -411,7 +411,7 @@ def create_pyramid_tiff(build_directory, variables):
     try:
         pyramid_tiff_key = "/".join(
             [
-                variables["folder_arrangement"]["collection_id"],
+                variables["arrangement"]["collection_id"],
                 variables["archival_object"]["component_id"],
                 f'{Path(variables["original_image_path"]).stem}.ptif',
             ]
@@ -453,14 +453,14 @@ def publish_access_files(build_directory, variables):
         # Sync each archival object directory separately to avoid deleting files
         # that are not in the build directory.
         for child in Path(
-            f'{build_directory.name}/{variables["folder_arrangement"]["collection_id"]}'
+            f'{build_directory.name}/{variables["arrangement"]["collection_id"]}'
         ).iterdir():
             if child.is_dir():
                 sync = s5cmd_cmd(
                     "sync",
                     "--delete",
                     f"{child.as_posix()}/*",
-                    f's3://{config("ACCESS_BUCKET")}/{variables["folder_arrangement"]["collection_id"]}/{variables["archival_object"]["component_id"]}/',
+                    f's3://{config("ACCESS_BUCKET")}/{variables["arrangement"]["collection_id"]}/{variables["archival_object"]["component_id"]}/',
                     _env={
                         "AWS_ACCESS_KEY_ID": config("DISTILLERY_AWS_ACCESS_KEY_ID"),
                         "AWS_SECRET_ACCESS_KEY": config(
@@ -481,7 +481,7 @@ def create_digital_object_file_versions(build_directory, variables):
     try:
 
         collection_directory = Path(build_directory.name).joinpath(
-            variables["folder_arrangement"]["collection_id"]
+            variables["arrangement"]["collection_id"]
         )
         logger.debug(f"🐞 COLLECTION_DIRECTORY: {collection_directory}")
 
@@ -501,7 +501,7 @@ def create_digital_object_file_versions(build_directory, variables):
             archival_object_page_url = "/".join(
                 [
                     config("ACCESS_SITE_BASE_URL").strip("/"),
-                    variables["folder_arrangement"]["collection_id"],
+                    variables["arrangement"]["collection_id"],
                     variables["archival_object"]["component_id"],
                     "index.html",
                 ]

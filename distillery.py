@@ -433,7 +433,6 @@ def save_collection_datafile(collection_data, directory):
 def create_derivative_structure(
     variables, collection_directory, collection_data, onsite, cloud, access
 ):
-    # TODO variables["folder_arrangement"]
     """Loop over subdirectories inside ORIGINAL_FILES/CollectionID directory.
 
     Example:
@@ -477,25 +476,27 @@ def create_derivative_structure(
         if not variables["archival_object"]:
             logger.warning(f"⚠️  CONTINUING LOOP AT: {subdirectory}")
             continue
-        variables["folder_arrangement"] = get_folder_arrangement(
+        variables["arrangement"] = get_arrangement(
             variables["archival_object"]
         )
 
         if onsite or cloud:
             archival_object_datafile_key = save_archival_object_datafile(
-                variables["folder_arrangement"],
+                variables["arrangement"],
                 variables["archival_object"],
                 config("WORK_PRESERVATION_FILES"),
             )
             status_logger.info(
                 f"☑️  ARCHIVAL OBJECT DATA FILE CREATED: {archival_object_datafile_key}"
             )
+            # TODO check for file type and create derivatives or copy originals
 
         if access:
             access.archival_object_level_processing(variables)
             status_logger.info(
-                f'☑️  ARCHIVAL OBJECT PAGE CREATED: [**{variables["archival_object"]["component_id"]}**]({config("ACCESS_SITE_BASE_URL").rstrip("/")}/{variables["folder_arrangement"]["collection_id"]}/{variables["archival_object"]["component_id"]}/index.html)'
+                f'☑️  ARCHIVAL OBJECT PAGE CREATED: [**{variables["archival_object"]["component_id"]}**]({config("ACCESS_SITE_BASE_URL").rstrip("/")}/{variables["arrangement"]["collection_id"]}/{variables["archival_object"]["component_id"]}/index.html)'
             )
+            # TODO check for file type and create derivatives or copy originals
 
         create_derivative_files(variables, collection_data, onsite, cloud, access)
 
@@ -698,54 +699,54 @@ def get_file_parts(filepath):
     return file_parts
 
 
-def get_folder_arrangement(archival_object):
-    """Return names and identifers of the arragement levels for a folder.
+def get_arrangement(archival_object):
+    """Return a dictionary of the arragement levels for an archival object.
 
     EXAMPLES:
-    folder_arrangement["repository_name"]
-    folder_arrangement["repository_code"]
-    folder_arrangement["folder_display"]
-    folder_arrangement["folder_title"]
-    folder_arrangement["collection_display"]
-    folder_arrangement["collection_id"]
-    folder_arrangement["series_display"]
-    folder_arrangement["series_id"]
-    folder_arrangement["subseries_display"]
-    folder_arrangement["subseries_id"]
+    arrangement["repository_name"]
+    arrangement["repository_code"]
+    arrangement["folder_display"]
+    arrangement["folder_title"]
+    arrangement["collection_display"]
+    arrangement["collection_id"]
+    arrangement["series_display"]
+    arrangement["series_id"]
+    arrangement["subseries_display"]
+    arrangement["subseries_id"]
     """
     try:
         # TODO document assumptions about arrangement
-        folder_arrangement = {}
-        folder_arrangement["repository_name"] = archival_object["repository"][
+        arrangement = {}
+        arrangement["repository_name"] = archival_object["repository"][
             "_resolved"
         ]["name"]
-        folder_arrangement["repository_code"] = archival_object["repository"][
+        arrangement["repository_code"] = archival_object["repository"][
             "_resolved"
         ]["repo_code"]
-        folder_arrangement["folder_display"] = archival_object["display_string"]
-        folder_arrangement["folder_title"] = archival_object.get("title")
+        arrangement["folder_display"] = archival_object["display_string"]
+        arrangement["folder_title"] = archival_object.get("title")
         for ancestor in archival_object["ancestors"]:
             if ancestor["level"] == "collection":
-                folder_arrangement["collection_display"] = ancestor["_resolved"][
+                arrangement["collection_display"] = ancestor["_resolved"][
                     "title"
                 ]
-                folder_arrangement["collection_id"] = ancestor["_resolved"]["id_0"]
+                arrangement["collection_id"] = ancestor["_resolved"]["id_0"]
             elif ancestor["level"] == "series":
-                folder_arrangement["series_display"] = ancestor["_resolved"][
+                arrangement["series_display"] = ancestor["_resolved"][
                     "display_string"
                 ]
-                folder_arrangement["series_id"] = ancestor["_resolved"].get(
+                arrangement["series_id"] = ancestor["_resolved"].get(
                     "component_id"
                 )
             elif ancestor["level"] == "subseries":
-                folder_arrangement["subseries_display"] = ancestor["_resolved"][
+                arrangement["subseries_display"] = ancestor["_resolved"][
                     "display_string"
                 ]
-                folder_arrangement["subseries_id"] = ancestor["_resolved"].get(
+                arrangement["subseries_id"] = ancestor["_resolved"].get(
                     "component_id"
                 )
         logger.info("☑️  ARRANGEMENT LEVELS AGGREGATED")
-        return folder_arrangement
+        return arrangement
     except:
         logger.exception()
         raise
@@ -786,7 +787,7 @@ def get_archival_object_datafile_key(prefix, archival_object):
     return f'{prefix}{archival_object["component_id"]}.json'
 
 
-def get_archival_object_directory_prefix(folder_arrangement, archival_object):
+def get_archival_object_directory_prefix(arrangement, archival_object):
     """Return the prefix (directory path) of an archival object.
 
     Non-alphanumeric characters are replaced with hyphens. The prefix includes a
@@ -795,11 +796,11 @@ def get_archival_object_directory_prefix(folder_arrangement, archival_object):
     FORMAT: resource:id_0/archival_object:component_id--archival_object:title/
     """
     archival_object_title = "".join(
-        [c if c.isalnum() else "-" for c in folder_arrangement["folder_title"]]
+        [c if c.isalnum() else "-" for c in arrangement["folder_title"]]
     )
     prefix = "/".join(
         [
-            folder_arrangement["collection_id"],
+            arrangement["collection_id"],
             f'{archival_object["component_id"]}--{archival_object_title}',
             "",
         ]
@@ -829,11 +830,11 @@ def get_digital_object_component_file_key(prefix, file_parts):
 
 
 def get_xmp_dc_metadata(
-    folder_arrangement, file_parts, archival_object, collection_data
+    arrangement, file_parts, archival_object, collection_data
 ):
     xmp_dc = {}
     xmp_dc["title"] = (
-        folder_arrangement["folder_display"] + " [" + file_parts["sequence"] + "]"
+        arrangement["folder_display"] + " [" + file_parts["sequence"] + "]"
     )
     # TODO(tk) check extent type for pages/images/computer files/etc
     if len(archival_object["extents"]) == 1:
@@ -844,11 +845,11 @@ def get_xmp_dc_metadata(
             + "]"
         )
     xmp_dc["identifier"] = file_parts["crockford_id"]
-    xmp_dc["publisher"] = folder_arrangement["repository_name"]
+    xmp_dc["publisher"] = arrangement["repository_name"]
     xmp_dc["source"] = (
-        folder_arrangement["repository_code"]
+        arrangement["repository_code"]
         + ": "
-        + folder_arrangement["collection_display"]
+        + arrangement["collection_display"]
     )
     for instance in archival_object["instances"]:
         if "sub_container" in instance.keys():
@@ -865,7 +866,7 @@ def get_xmp_dc_metadata(
                 for ancestor in archival_object["ancestors"]:
                     if ancestor["level"] == "subseries":
                         xmp_dc["source"] += (
-                            " / " + folder_arrangement["subseries_display"]
+                            " / " + arrangement["subseries_display"]
                         )
     xmp_dc[
         "rights"
@@ -929,6 +930,7 @@ def save_digital_object_component_record(variables):
     if variables.get("file_uri_scheme") == None:
         logger.warning('⚠️  MISSING variables["file_uri_scheme"]')
         return
+    # TODO be sure id is unique
     digital_object_component_component_id = Path(
         variables["preservation_file_info"]["filepath"]
     ).name
@@ -1098,7 +1100,7 @@ def create_lossless_jpeg2000_image(variables, collection_data):
     preservation_image_key = "jp2".join(
         get_digital_object_component_file_key(
             get_archival_object_directory_prefix(
-                variables["folder_arrangement"], variables["archival_object"]
+                variables["arrangement"], variables["archival_object"]
             ),
             filepath_components,
         ).rsplit(filepath_components["extension"], 1)
@@ -1121,7 +1123,7 @@ def create_lossless_jpeg2000_image(variables, collection_data):
     )
     # Gather metadata for embedding into the JPEG 2000.
     xmp_dc = get_xmp_dc_metadata(
-        variables["folder_arrangement"],
+        variables["arrangement"],
         filepath_components,
         variables["archival_object"],
         collection_data,
@@ -1178,11 +1180,11 @@ def create_lossless_jpeg2000_image(variables, collection_data):
     return preservation_image_key
 
 
-def save_archival_object_datafile(folder_arrangement, archival_object, directory):
+def save_archival_object_datafile(arrangement, archival_object, directory):
     """Save the archival object data to a JSON file."""
     # TODO rename functions to be more abstract
     archival_object_datafile_key = get_archival_object_datafile_key(
-        get_archival_object_directory_prefix(folder_arrangement, archival_object),
+        get_archival_object_directory_prefix(arrangement, archival_object),
         archival_object,
     )
     filename = os.path.join(
@@ -1284,26 +1286,6 @@ def loop_over_archival_object_datafiles(variables, collection_id, onsite, cloud)
             logger.exception("‼️")
             raise
 
-        # logger.info(" ".join(variables.keys()))
-        # onsite_medium
-        # onsite
-        # cloud_platform
-        # cloud
-        # collection_id
-        # stream_path
-        # collection_data
-        # WORK_LOSSLESS_PRESERVATION_FILES
-        # WORKING_ORIGINAL_FILES
-        # collection_directory
-        # folders
-        # filecount
-        # folderpath
-        # filepaths
-        # archival_object
-        # folder_arrangement
-        # original_image_path
-        # preservation_folders
-        # current_archival_object_datafile
         if onsite:
             onsite.process_archival_object_datafile(variables)
         if cloud:
@@ -1421,6 +1403,9 @@ def create_derivative_files(variables, collection_data, onsite, cloud, access):
     │   ├── CollectionID_001_02_03.tif
     │   └── CollectionID_001_02_04.tif
     └── CollectionID_007_08
+
+    Create derivative files for implemented mime types or copy the original file
+    to the appropriate directory.
     """
     # NOTE We use a reversed list so the components will be ingested in
     # the correct order for the digital object tree and use it with pop() so the
@@ -1455,7 +1440,7 @@ def create_derivative_files(variables, collection_data, onsite, cloud, access):
                 filepath_components = get_file_parts(variables["original_image_path"])
                 preservation_file_key = get_digital_object_component_file_key(
                     get_archival_object_directory_prefix(
-                        variables["folder_arrangement"],
+                        variables["arrangement"],
                         variables["archival_object"],
                     ),
                     filepath_components,
