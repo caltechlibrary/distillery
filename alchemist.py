@@ -149,9 +149,7 @@ def generate_archival_object_page(build_directory, variables):
             f.write(
                 template.render(
                     title=variables["archival_object"]["title"],
-                    collection=variables["arrangement"].get(
-                        "collection_display"
-                    ),
+                    collection=variables["arrangement"].get("collection_display"),
                     series=variables["arrangement"].get("series_display"),
                     subseries=variables["arrangement"].get("subseries_display"),
                     dates=dates_display,

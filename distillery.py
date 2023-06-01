@@ -476,9 +476,7 @@ def create_derivative_structure(
         if not variables["archival_object"]:
             logger.warning(f"⚠️  CONTINUING LOOP AT: {subdirectory}")
             continue
-        variables["arrangement"] = get_arrangement(
-            variables["archival_object"]
-        )
+        variables["arrangement"] = get_arrangement(variables["archival_object"])
 
         if onsite or cloud:
             archival_object_datafile_key = save_archival_object_datafile(
@@ -717,34 +715,26 @@ def get_arrangement(archival_object):
     try:
         # TODO document assumptions about arrangement
         arrangement = {}
-        arrangement["repository_name"] = archival_object["repository"][
-            "_resolved"
-        ]["name"]
-        arrangement["repository_code"] = archival_object["repository"][
-            "_resolved"
-        ]["repo_code"]
+        arrangement["repository_name"] = archival_object["repository"]["_resolved"][
+            "name"
+        ]
+        arrangement["repository_code"] = archival_object["repository"]["_resolved"][
+            "repo_code"
+        ]
         arrangement["folder_display"] = archival_object["display_string"]
         arrangement["folder_title"] = archival_object.get("title")
         for ancestor in archival_object["ancestors"]:
             if ancestor["level"] == "collection":
-                arrangement["collection_display"] = ancestor["_resolved"][
-                    "title"
-                ]
+                arrangement["collection_display"] = ancestor["_resolved"]["title"]
                 arrangement["collection_id"] = ancestor["_resolved"]["id_0"]
             elif ancestor["level"] == "series":
-                arrangement["series_display"] = ancestor["_resolved"][
-                    "display_string"
-                ]
-                arrangement["series_id"] = ancestor["_resolved"].get(
-                    "component_id"
-                )
+                arrangement["series_display"] = ancestor["_resolved"]["display_string"]
+                arrangement["series_id"] = ancestor["_resolved"].get("component_id")
             elif ancestor["level"] == "subseries":
                 arrangement["subseries_display"] = ancestor["_resolved"][
                     "display_string"
                 ]
-                arrangement["subseries_id"] = ancestor["_resolved"].get(
-                    "component_id"
-                )
+                arrangement["subseries_id"] = ancestor["_resolved"].get("component_id")
         logger.info("☑️  ARRANGEMENT LEVELS AGGREGATED")
         return arrangement
     except:
@@ -829,9 +819,7 @@ def get_digital_object_component_file_key(prefix, file_parts):
     )
 
 
-def get_xmp_dc_metadata(
-    arrangement, file_parts, archival_object, collection_data
-):
+def get_xmp_dc_metadata(arrangement, file_parts, archival_object, collection_data):
     xmp_dc = {}
     xmp_dc["title"] = (
         arrangement["folder_display"] + " [" + file_parts["sequence"] + "]"
@@ -847,9 +835,7 @@ def get_xmp_dc_metadata(
     xmp_dc["identifier"] = file_parts["crockford_id"]
     xmp_dc["publisher"] = arrangement["repository_name"]
     xmp_dc["source"] = (
-        arrangement["repository_code"]
-        + ": "
-        + arrangement["collection_display"]
+        arrangement["repository_code"] + ": " + arrangement["collection_display"]
     )
     for instance in archival_object["instances"]:
         if "sub_container" in instance.keys():
@@ -865,9 +851,7 @@ def get_xmp_dc_metadata(
                 )
                 for ancestor in archival_object["ancestors"]:
                     if ancestor["level"] == "subseries":
-                        xmp_dc["source"] += (
-                            " / " + arrangement["subseries_display"]
-                        )
+                        xmp_dc["source"] += " / " + arrangement["subseries_display"]
     xmp_dc[
         "rights"
     ] = "Caltech Archives has not determined the copyright in this image."
