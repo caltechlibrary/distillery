@@ -188,7 +188,7 @@ def create_access_files(variables):
                     sequence,
                     config("COMPRESSED_ACCESS_FILES"),
                     variables["collection_data"],
-                    variables["folder_arrangement"],
+                    variables["arrangement"],
                     variables["archival_object"],
                 )
                 # copy first page thumbnail to book-level thumbnail
@@ -331,7 +331,7 @@ def construct_book_mods_xml(variables):
     book_mods_xml.attrib["{{{pre}}}schemaLocation".format(pre=xsi)] = f"{ns} {xsd}"
     titleInfo = E.titleInfo()
     book_mods_xml.append(titleInfo)
-    titleInfo.append(E.title(variables["folder_arrangement"]["folder_title"]))
+    titleInfo.append(E.title(variables["arrangement"]["folder_title"]))
     originInfo = E.originInfo()
     book_mods_xml.append(originInfo)
     for date in variables["archival_object"]["dates"]:
@@ -356,21 +356,21 @@ def construct_book_mods_xml(variables):
     book_mods_xml.append(relatedItem)
     relatedItem_titleInfo = E.titleInfo()
     relatedItem_titleInfo.append(
-        E.title(variables["folder_arrangement"]["collection_display"])
+        E.title(variables["arrangement"]["collection_display"])
     )
-    if "series_id" in variables["folder_arrangement"]:
+    if "series_id" in variables["arrangement"]:
         relatedItem_titleInfo.append(
-            E.partNumber(f'Series {variables["folder_arrangement"]["series_id"]}')
+            E.partNumber(f'Series {variables["arrangement"]["series_id"]}')
         )
         relatedItem_titleInfo.append(
-            E.partName(variables["folder_arrangement"]["series_display"])
+            E.partName(variables["arrangement"]["series_display"])
         )
-    if "subseries_id" in variables["folder_arrangement"]:
+    if "subseries_id" in variables["arrangement"]:
         relatedItem_titleInfo.append(
-            E.partNumber(f'Subseries {variables["folder_arrangement"]["subseries_id"]}')
+            E.partNumber(f'Subseries {variables["arrangement"]["subseries_id"]}')
         )
         relatedItem_titleInfo.append(
-            E.partName(variables["folder_arrangement"]["subseries_display"])
+            E.partName(variables["arrangement"]["subseries_display"])
         )
     relatedItem.append(relatedItem_titleInfo)
     book_mods_xml.append(
@@ -500,7 +500,7 @@ def generate_islandora_page_datastreams(
     page_sequence,
     COMPRESSED_ACCESS_FILES,
     collection_data,
-    folder_arrangement,
+    arrangement,
     archival_object,
 ):
     magick_cmd = sh.Command(config("WORK_MAGICK_CMD"))
@@ -553,7 +553,7 @@ def generate_islandora_page_datastreams(
 
     file_parts = distillery.get_file_parts(filepath)
     xmp_dc = distillery.get_xmp_dc_metadata(
-        folder_arrangement, file_parts, archival_object, collection_data
+        arrangement, file_parts, archival_object, collection_data
     )
     modsxml = create_page_mods_xml(xmp_dc)
     mods_path = os.path.join(page_datastreams_directory, "MODS.xml")
@@ -609,11 +609,11 @@ def process_folder_metadata(folderpath):
         raise RuntimeError(str(e))
 
     try:
-        folder_arrangement = distillery.get_folder_arrangement(archival_object)
+        arrangement = distillery.get_arrangement(archival_object)
     except HTTPError as e:
         raise RuntimeError(str(e))
 
-    return folder_arrangement, archival_object
+    return arrangement, archival_object
 
 
 def save_xml_file(destination_filepath, xml):
