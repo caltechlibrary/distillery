@@ -114,7 +114,7 @@
         </h2>
         {% endif %}
       </header>
-      <p><a href="{{ archivesspace_url }}">Open the <cite>{{ title }}</cite> record in its archival context</a></p>
+      <p><a href="{{ archivesspace_public_url | trim('/') }}{{ archival_object_uri }}">Open the <cite>{{ title }}</cite> record in its archival context</a></p>
       <div class="uv" id="uv" style="width:100%;height:80vh"></div>
       <script>
         const data = {{ iiif_manifest_json }}
