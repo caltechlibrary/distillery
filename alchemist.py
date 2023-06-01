@@ -116,6 +116,14 @@ def generate_archival_object_page(build_directory, variables):
                 "manifest.json",
             ]
         )
+        if variables["arrangement"].get("series_title"):
+            series_display = variables["arrangement"]["series_title"]
+        else:
+            series_display = variables["arrangement"].get("series_display")
+        if variables["arrangement"].get("subseries_title"):
+            subseries_display = variables["arrangement"]["subseries_title"]
+        else:
+            subseries_display = variables["arrangement"].get("subseries_display")
         dates_display = format_archival_object_dates_display(
             variables["archival_object"]
         )
@@ -149,9 +157,9 @@ def generate_archival_object_page(build_directory, variables):
             f.write(
                 template.render(
                     title=variables["archival_object"]["title"],
-                    series=variables["arrangement"].get("series_display"),
-                    subseries=variables["arrangement"].get("subseries_display"),
                     collection=variables["arrangement"].get("collection_title"),
+                    series=series_display,
+                    subseries=subseries_display,
                     dates=dates_display,
                     extents=extents_display,
                     subjects=subjects_display,
@@ -242,14 +250,28 @@ def generate_iiif_manifest(build_directory, variables):
                 "value": variables["arrangement"]["collection_title"],
             }
         )
-    if variables["arrangement"].get("series_display"):
+    if variables["arrangement"].get("series_title"):
+        metadata.append(
+            {
+                "label": "Series",
+                "value": variables["arrangement"]["series_title"],
+            }
+        )
+    elif variables["arrangement"].get("series_display"):
         metadata.append(
             {
                 "label": "Series",
                 "value": variables["arrangement"]["series_display"],
             }
         )
-    if variables["arrangement"].get("subseries_display"):
+    elif variables["arrangement"].get("subseries_title"):
+        metadata.append(
+            {
+                "label": "Sub-Series",
+                "value": variables["arrangement"]["subseries_title"],
+            }
+        )
+    elif variables["arrangement"].get("subseries_display"):
         metadata.append(
             {
                 "label": "Sub-Series",
