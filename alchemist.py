@@ -149,9 +149,9 @@ def generate_archival_object_page(build_directory, variables):
             f.write(
                 template.render(
                     title=variables["archival_object"]["title"],
-                    collection=variables["arrangement"].get("collection_display"),
                     series=variables["arrangement"].get("series_display"),
                     subseries=variables["arrangement"].get("subseries_display"),
+                    collection=variables["arrangement"].get("collection_title"),
                     dates=dates_display,
                     extents=extents_display,
                     subjects=subjects_display,
@@ -235,11 +235,11 @@ def get_thumbnail_url(variables):
 
 def generate_iiif_manifest(build_directory, variables):
     metadata = []
-    if variables["arrangement"].get("collection_display"):
+    if variables["arrangement"].get("collection_title"):
         metadata.append(
             {
                 "label": "Collection",
-                "value": variables["arrangement"]["collection_display"],
+                "value": variables["arrangement"]["collection_title"],
             }
         )
     if variables["arrangement"].get("series_display"):
