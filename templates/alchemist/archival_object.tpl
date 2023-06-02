@@ -8,6 +8,29 @@
     <script src="https://cdn.jsdelivr.net/npm/universalviewer@4.0.17/dist/umd/UV.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/universalviewer@4.0.17/dist/uv.min.css">
     <style>
+      /* reset progressive block spacing */
+      @media (min-width: 1280px) {
+        body > footer, body > header, body > main, section {
+          --pico-block-spacing-vertical: calc(var(--pico-spacing) * 2);
+        }
+      }
+      @media (min-width: 1024px) {
+        body > footer, body > header, body > main, section {
+          --pico-block-spacing-vertical: calc(var(--pico-spacing) * 2);
+        }
+      }
+      @media (min-width: 768px) {
+        body > footer, body > header, body > main, section {
+          --pico-block-spacing-vertical: calc(var(--pico-spacing) * 2);
+        }
+      }
+      @media (min-width: 576px) {
+        body > footer, body > header, body > main, section {
+          --pico-block-spacing-vertical: calc(var(--pico-spacing) * 2);
+        }
+      }
+    </style>
+    <style>
       /* override pico styles for uv elements */
       #uv button {
         width: initial;
@@ -98,6 +121,7 @@
       }
     </style>
     <style>
+      /* header with logo and menu */
       body > header > nav {
         flex-wrap: wrap;
       }
@@ -137,6 +161,38 @@
         stroke: #ff6c0c;
         stroke-width: initial;
       }
+      body > header > nav > ul:last-child {
+        margin-inline-start: auto;
+      }
+    </style>
+    <style>
+      /* content */
+      :root {
+        --pico-nav-breadcrumb-divider: "/";
+      }
+      hgroup h1 {
+        margin-block-end: var(--pico-typography-spacing-vertical);
+      }
+      hgroup p:last-child span {
+        padding: var(--pico-nav-element-spacing-vertical) var(--pico-nav-element-spacing-horizontal);
+      }
+      hgroup p:last-child span:first-child {
+        padding-inline-start: 0;
+      }
+      hgroup p:last-child span:not(:first-child) {
+        -webkit-margin-start: var(--pico-nav-link-spacing-horizontal);
+        margin-inline-start: var(--pico-nav-link-spacing-horizontal);
+      }
+      hgroup p:last-child span:not(:last-child)::after {
+        position: absolute;
+        width: calc(var(--pico-nav-link-spacing-horizontal) * 2);
+        -webkit-margin-start: calc(var(--pico-nav-link-spacing-horizontal) / 2);
+        margin-inline-start: calc(var(--pico-nav-link-spacing-horizontal) / 2);
+        content: var(--pico-nav-breadcrumb-divider);
+        color: var(--pico-muted-color);
+        text-align: center;
+        text-decoration: none;
+      }
     </style>
   </head>
   <body>
@@ -169,23 +225,23 @@
       </nav>
     </header>
     <main class="container">
-      <header class="headings">
+      <hgroup>
         <h1>
           {{ title }}
         </h1>
         {% if dates %}
-        <div>
+        <p>
           {% for date in dates %}
           <span>{{ date }}</span>{{ "; " if not loop.last else "" }}
           {% endfor %}
-        </div>
+        </p>
         {% endif %}
         {% if collection %}
-        <h2>
-          {{ collection }}{% if series %} / {{ series }}{% endif %}{% if subseries %} / {{ subseries }}{% endif %}
-        </h2>
+        <p>
+          <span>{{ collection }}</span>{% if series %}<span>{{ series }}</span>{% endif %}{% if subseries %}<span>{{ subseries }}</span>{% endif %}
+        </p>
         {% endif %}
-      </header>
+      </hgroup>
       <p><a href="{{ archivesspace_public_url | trim('/') }}{{ archival_object_uri }}">Open the <cite>{{ title }}</cite> record in its archival context</a></p>
       <div class="uv" id="uv" style="width:100%;height:80vh"></div>
       <script>

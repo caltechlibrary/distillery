@@ -401,7 +401,7 @@ def test_distillery_alchemist_date_output_x2edw(page: Page, asnake_client):
     alchemist_item_uri = format_alchemist_item_uri(test_id)
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
-    expect(page.locator(".headings")).to_contain_text(
+    expect(page.locator("hgroup p:first-of-type")).to_have_text(
         "1584 February 29; 1969 December 31 to 1970 January 1; 1999 December 31 to 2000 January 1; ongoing into the future"
     )
 
@@ -856,8 +856,8 @@ def test_distillery_alchemist_ancestors_2gj5n(page: Page, asnake_client):
     alchemist_item_uri = format_alchemist_item_uri(test_id)
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
-    expect(page.locator(".headings h2")).to_have_text(
-        f"_Resource {test_name} {test_id} / _Series {test_name} {test_id} / _Sub-Series {test_name} {test_id}"
+    expect(page.locator("hgroup p:last-child")).to_have_text(
+        f"_Resource {test_name} {test_id}_Series {test_name} {test_id}_Sub-Series {test_name} {test_id}"
     )
     expect(page.locator("#metadata")).to_contain_text("Collection")
     expect(page.locator("#metadata")).to_contain_text("Series")
