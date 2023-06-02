@@ -260,7 +260,7 @@ def generate_iiif_manifest(build_directory, variables):
                 "value": variables["arrangement"]["series_display"],
             }
         )
-    elif variables["arrangement"].get("subseries_title"):
+    if variables["arrangement"].get("subseries_title"):
         metadata.append(
             {
                 "label": "Sub-Series",
