@@ -108,7 +108,7 @@ def delete_archivesspace_test_records(asnake_client, resource_identifer):
 def create_archivesspace_test_resource(asnake_client, test_name, test_id):
     resource = {}
     # required
-    resource["title"] = f"_Resource {test_name} {test_id}"
+    resource["title"] = f"{test_name.capitalize()} Resource {test_id}"
     resource["id_0"] = f"DistilleryTEST-{test_id}"
     resource["level"] = "collection"
     resource["finding_aid_language"] = "eng"
@@ -138,7 +138,7 @@ def create_archivesspace_test_archival_object_item(
 ):
     item = {}
     # required
-    item["title"] = f"_Item {test_name} {test_id}"
+    item["title"] = f"{test_name.capitalize()} Item {test_id}"
     item["level"] = "item"
     item["resource"] = {"ref": resource_uri}
     # optional
@@ -156,7 +156,7 @@ def create_archivesspace_test_archival_object_series(
 ):
     series = {}
     # required
-    series["title"] = f"_Series {test_name} {test_id}"
+    series["title"] = f"{test_name.capitalize()} Series {test_id}"
     series["level"] = "series"
     series["resource"] = {"ref": resource_uri}
     # optional
@@ -174,7 +174,7 @@ def create_archivesspace_test_archival_object_subseries(
 ):
     subseries = {}
     # required
-    subseries["title"] = f"_Sub-Series {test_name} {test_id}"
+    subseries["title"] = f"{test_name.capitalize()} Sub-Series {test_id}"
     subseries["level"] = "subseries"
     subseries["resource"] = {"ref": resource_uri}
     # optional
@@ -360,8 +360,8 @@ def test_distillery_alchemist_date_output_x2edw(page: Page, asnake_client):
         item_create_response.json(),
     )
     # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
-    # add dates
     item = asnake_client.get(item_create_response.json()["uri"]).json()
+    # add dates
     item["dates"] = [
         {
             "label": "digitized",
@@ -428,8 +428,8 @@ def test_distillery_alchemist_extent_output_77cjj(page: Page, asnake_client):
         item_create_response.json(),
     )
     # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
-    # add extents
     item = asnake_client.get(item_create_response.json()["uri"]).json()
+    # add extents
     item["extents"] = [
         {
             "portion": "whole",
@@ -478,8 +478,8 @@ def test_distillery_alchemist_subject_output_28s3q(page: Page, asnake_client):
         item_create_response.json(),
     )
     # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
-    # add extents
     item = asnake_client.get(item_create_response.json()["uri"]).json()
+    # add subjects
     item["subjects"] = [
         {
             "ref": "/subjects/1",
@@ -524,8 +524,8 @@ def test_distillery_alchemist_note_output_u8vvf(page: Page, asnake_client):
         item_create_response.json(),
     )
     # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
-    # add notes
     item = asnake_client.get(item_create_response.json()["uri"]).json()
+    # add notes
     item["notes"] = [
         {
             "jsonmodel_type": "note_singlepart",
@@ -857,7 +857,7 @@ def test_distillery_alchemist_ancestors_2gj5n(page: Page, asnake_client):
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     expect(page.locator("hgroup p:last-child")).to_have_text(
-        f"_Resource {test_name} {test_id}_Series {test_name} {test_id}_Sub-Series {test_name} {test_id}"
+        f"{test_name.capitalize()} Resource {test_id}{test_name.capitalize()} Series {test_id}{test_name.capitalize()} Sub-Series {test_id}"
     )
     expect(page.locator("#metadata")).to_contain_text("Collection")
     expect(page.locator("#metadata")).to_contain_text("Series")
@@ -906,6 +906,510 @@ def test_distillery_alchemist_nonnumeric_sequence_yw3ff(page: Page, asnake_clien
     expect(page.locator("#thumb-0")).to_have_text("C")
     expect(page.locator("#thumb-1")).to_have_text("p000-p001")
     expect(page.locator("#thumb-2")).to_have_text("p002-p003")
+
+
+def test_distillery_alchemist_kitchen_sink_pd4s3(page: Page, asnake_client):
+    """Attempt to test every ArchivesSpace field."""
+    test_name = "kitchen sink"
+    test_id = "pd4s3"
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, f"DistilleryTEST-{test_id}")
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_name, test_id
+    )
+    print(
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CUSTOMIZE ARCHIVAL OBJECT RESOURCE RECORD
+    resource = asnake_client.get(resource_create_response.json()["uri"]).json()
+    # add dates
+    resource["dates"] = [
+        {
+            "label": "digitized",
+            "date_type": "single",
+            "begin": "2022-02-22",
+        },
+        {
+            "label": "creation",
+            "date_type": "single",
+            "begin": "1584-02-29",
+        },
+        {
+            "label": "creation",
+            "date_type": "inclusive",
+            "begin": "1969-12-31",
+            "end": "1970-01-01",
+        },
+        {
+            "label": "creation",
+            "date_type": "bulk",
+            "begin": "1999-12-31",
+            "end": "2000-01-01",
+        },
+        {
+            "label": "creation",
+            "date_type": "single",
+            "expression": "ongoing into the future",
+        },
+    ]
+    resource_update_response = asnake_client.post(resource["uri"], json=resource)
+    print(
+        f"🐞 resource_update_response:{test_id}",
+        resource_update_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT SERIES RECORD
+    series_create_response = create_archivesspace_test_archival_object_series(
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 series_create_response:{test_id}",
+        series_create_response.json(),
+    )
+    # CUSTOMIZE ARCHIVAL OBJECT SERIES RECORD
+    series = asnake_client.get(series_create_response.json()["uri"]).json()
+    # add dates
+    series["dates"] = [
+        {
+            "label": "digitized",
+            "date_type": "single",
+            "begin": "2022-02-22",
+        },
+        {
+            "label": "creation",
+            "date_type": "single",
+            "begin": "1584-02-29",
+        },
+        {
+            "label": "creation",
+            "date_type": "inclusive",
+            "begin": "1969-12-31",
+            "end": "1970-01-01",
+        },
+        {
+            "label": "creation",
+            "date_type": "bulk",
+            "begin": "1999-12-31",
+            "end": "2000-01-01",
+        },
+        {
+            "label": "creation",
+            "date_type": "single",
+            "expression": "ongoing into the future",
+        },
+    ]
+    series_update_response = asnake_client.post(series["uri"], json=series)
+    print(
+        f"🐞 series_update_response:{test_id}",
+        series_update_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT SUBSERIES RECORD
+    subseries_create_response = create_archivesspace_test_archival_object_subseries(
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 subseries_create_response:{test_id}",
+        subseries_create_response.json(),
+    )
+    # set subseries as a child of series
+    subseries_parent_position_post_response = asnake_client.post(
+        f'{subseries_create_response.json()["uri"]}/parent',
+        params={"parent": series_create_response.json()["id"], "position": 1},
+    )
+    print(
+        "🐞 subseries_parent_position_post_response",
+        subseries_parent_position_post_response.json(),
+    )
+    # CUSTOMIZE ARCHIVAL OBJECT SUBSERIES RECORD
+    subseries = asnake_client.get(subseries_create_response.json()["uri"]).json()
+    # add dates
+    subseries["dates"] = [
+        {
+            "label": "digitized",
+            "date_type": "single",
+            "begin": "2022-02-22",
+        },
+        {
+            "label": "creation",
+            "date_type": "single",
+            "begin": "1584-02-29",
+        },
+        {
+            "label": "creation",
+            "date_type": "inclusive",
+            "begin": "1969-12-31",
+            "end": "1970-01-01",
+        },
+        {
+            "label": "creation",
+            "date_type": "bulk",
+            "begin": "1999-12-31",
+            "end": "2000-01-01",
+        },
+        {
+            "label": "creation",
+            "date_type": "single",
+            "expression": "ongoing into the future",
+        },
+    ]
+    subseries_update_response = asnake_client.post(subseries["uri"], json=subseries)
+    print(
+        f"🐞 subseries_update_response:{test_id}",
+        subseries_update_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD
+    item_create_response = create_archivesspace_test_archival_object_item(
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 item_create_response:{test_id}",
+        item_create_response.json(),
+    )
+    # set item as a child of subseries
+    item_parent_position_post_response = asnake_client.post(
+        f'{item_create_response.json()["uri"]}/parent',
+        params={
+            "parent": subseries_create_response.json()["id"],
+            "position": 1,
+        },
+    )
+    print(
+        "🐞 item_parent_position_post_response",
+        item_parent_position_post_response.json(),
+    )
+    # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
+    item = asnake_client.get(item_create_response.json()["uri"]).json()
+    # add dates
+    item["dates"] = [
+        {
+            "label": "digitized",
+            "date_type": "single",
+            "begin": "2022-02-22",
+        },
+        {
+            "label": "creation",
+            "date_type": "single",
+            "begin": "1584-02-29",
+        },
+        {
+            "label": "creation",
+            "date_type": "inclusive",
+            "begin": "1969-12-31",
+            "end": "1970-01-01",
+        },
+        {
+            "label": "creation",
+            "date_type": "bulk",
+            "begin": "1999-12-31",
+            "end": "2000-01-01",
+        },
+        {
+            "label": "creation",
+            "date_type": "single",
+            "expression": "ongoing into the future",
+        },
+    ]
+    # add extents
+    item["extents"] = [
+        {
+            "portion": "whole",
+            "number": "1",
+            "extent_type": "books",
+        },
+        {
+            "portion": "part",
+            "number": "2",
+            "extent_type": "photographs",
+        },
+    ]
+    # add subjects
+    item["subjects"] = [
+        {
+            "ref": "/subjects/1",
+        },
+        {
+            "ref": "/subjects/2",
+        },
+    ]
+    # add notes
+    item["notes"] = [
+        {
+            "jsonmodel_type": "note_singlepart",
+            "type": "abstract",
+            "content": [
+                "Published note. One content item. Sint nulla ea nostrud est tempor non exercitation tempor ad consectetur nisi voluptate consequat."
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_singlepart",
+            "type": "materialspec",
+            "content": [
+                "Published note. Multiple content items: One. Veniam enim ullamco non commodo enim ad incididunt quis.",
+                "Published note. Multiple content items: Two. Enim tempor ea nulla voluptate incididunt voluptate.",
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_singlepart",
+            "type": "abstract",
+            "label": "Foo Note",
+            "content": [
+                "Published note. One content item. Laborum labore irure consequat dolore aute minim deserunt nostrud amet."
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_singlepart",
+            "type": "abstract",
+            "label": "Foo Note",
+            "content": [
+                "Published note. Multiple content items: One. Consequat cupidatat enim duis Lorem ipsum.",
+                "Published note. Multiple content items: Two. Lorem ipsum velit cillum ex do officia pariatur pariatur duis est dolor.",
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_singlepart",
+            "type": "abstract",
+            "content": [
+                "Unpublished note. One content item. Enim aute Lorem tempor exercitation enim adipisicing occaecat veniam ad duis excepteur culpa ut consectetur."
+            ],
+            "publish": False,
+        },
+        {
+            "jsonmodel_type": "note_singlepart",
+            "type": "abstract",
+            "content": [
+                "Unpublished note. Multiple content items: One. Consectetur cupidatat ea sunt sit enim minim officia ea ut tempor aute.",
+                "Unpublished note. Multiple content items: Two. Cillum dolore amet dolor labore do deserunt adipisicing dolore in aliquip nulla.",
+            ],
+            "publish": False,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. One published text subnote. Consequat nostrud ipsum irure reprehenderit qui veniam pariatur.",
+                    "publish": True,
+                },
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "odd",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. Multiple published text subnotes: One. Officia nisi nisi incididunt excepteur nisi.",
+                    "publish": True,
+                },
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. Multiple published text subnotes: Two. Laborum commodo exercitation deserunt velit.",
+                    "publish": True,
+                },
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Unpublished note. One published text subnote. Laboris ipsum cupidatat consequat velit.",
+                    "publish": True,
+                },
+            ],
+            "publish": False,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Unpublished note. Multiple published text subnotes: One. Laborum anim laborum est laborum.",
+                    "publish": True,
+                },
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Unpublished note. Multiple published text subnotes: Two. Consectetur laborum laborum quis.",
+                    "publish": True,
+                },
+            ],
+            "publish": False,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. One unpublished text subnote. Laborum cupidatat adipisicing cillum deserunt.",
+                    "publish": False,
+                },
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "label": "Baz Note",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. One unpublished text subnote. Aliqua consequat mollit reprehenderit pariatur exercitation nisi culpa incididunt.",
+                    "publish": False,
+                },
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. Multiple unpublished text subnotes: One. Aliquip culpa pariatur consequat.",
+                    "publish": False,
+                },
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. Multiple unpublished text subnotes: Two. Tempor exercitation sunt.",
+                    "publish": False,
+                },
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Unpublished note. One unpublished text subnote. Esse in proident.",
+                    "publish": False,
+                },
+            ],
+            "publish": False,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Unpublished note. Multiple unpublished text subnotes: One. Laborum laborum sunt.",
+                    "publish": False,
+                },
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Unpublished note. Multiple unpublished text subnotes: Two. Sint adipisicing.",
+                    "publish": False,
+                },
+            ],
+            "publish": False,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "label": "Bar Note",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. Mixed publication status text subnotes: Published. Laboris id cupidatat.",
+                    "publish": True,
+                },
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. Mixed publication status text subnotes: Unpublished. Nostrud anim dolore anim consequat quis sit laborum non.",
+                    "publish": False,
+                },
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Unpublished note. Mixed publication status text subnotes: Published. Est nostrud laboris id sint amet proident officia commodo ut sint amet sint dolore sunt.",
+                    "publish": True,
+                },
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Unpublished note. Mixed publication status text subnotes: Unpublished. Fugiat irure sunt magna nulla minim commodo dolor ea dolor aliquip enim magna fugiat.",
+                    "publish": False,
+                },
+            ],
+            "publish": False,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "label": "Bar Note",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. One published text subnote. Minim aute nulla laborum ullamco do incididunt nostrud irure eiusmod laborum elit deserunt.",
+                    "publish": True,
+                },
+            ],
+            "publish": True,
+        },
+        {
+            "jsonmodel_type": "note_multipart",
+            "type": "scopecontent",
+            "label": "Foo Note",
+            "subnotes": [
+                {
+                    "jsonmodel_type": "note_text",
+                    "content": "Published note. One published text subnote. Eiusmod irure laboris eu reprehenderit proident exercitation qui nulla irure amet.",
+                    "publish": True,
+                },
+            ],
+            "publish": True,
+        },
+    ]
+    item_update_response = asnake_client.post(item["uri"], json=item)
+    print(
+        f"🐞 item_update_response:{test_id}",
+        item_update_response.json(),
+    )
+    # RUN ALCHEMIST PROCESS
+    run_distillery(page, f"DistilleryTEST-{test_id}", ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    # VALIDATE ALCHEMIST ITEM
+    page.goto(alchemist_item_uri)
+    expect(page.locator("hgroup p:first-of-type")).to_have_text(
+        "1584 February 29; 1969 December 31 to 1970 January 1; 1999 December 31 to 2000 January 1; ongoing into the future"
+    )
+    expect(page.locator("hgroup p:last-child")).to_have_text(
+        f"{test_name.capitalize()} Resource {test_id}{test_name.capitalize()} Series {test_id}{test_name.capitalize()} Sub-Series {test_id}"
+    )
+    expect(page.locator("#metadata")).to_contain_text("Collection")
+    expect(page.locator("#metadata")).to_contain_text("Series")
+    expect(page.locator("#metadata")).to_contain_text("Sub-Series")
+    expect(page.locator("#metadata")).to_contain_text("Commencement")
+    expect(page.locator("#metadata")).to_contain_text("Conferences")
+    expect(page.locator("#metadata")).to_contain_text("1 books", ignore_case=True)
+    expect(page.locator("#metadata")).to_contain_text("2 photographs", ignore_case=True)
+    expect(page.locator("#metadata")).to_contain_text("Abstract")
+    expect(page.locator("#metadata")).to_contain_text("Materials Specific Details")
+    expect(page.locator("#metadata")).to_contain_text("Foo Note")
+    expect(page.locator("#metadata")).to_contain_text("Scope and Contents")
+    expect(page.locator("#metadata")).to_contain_text("General")
+    expect(page.locator("#metadata")).to_contain_text("Bar Note")
+    expect(page.locator("#metadata")).not_to_contain_text(
+        "unpublished", ignore_case=True
+    )
 
 
 def test_distillery_cloud_wrong_component_id_948vk(page: Page, asnake_client):
