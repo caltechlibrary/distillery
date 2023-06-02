@@ -139,10 +139,12 @@
       body > header > nav > ul:first-of-type > li > svg {
         overflow: visible;
       }
-      body > header > nav > ul:first-of-type > li > svg > a:focus > rect {
-        fill: var(--pico-background-color);
-        rx: var(--pico-border-radius);
-        ry: var(--pico-border-radius);
+      body > header > nav > ul:first-of-type > li > svg > a:focus-visible > rect {
+        stroke: var(--pico-primary-focus);
+        stroke-width: calc(var(--pico-outline-width) * 1.5);
+      }
+      body > header > nav > ul:first-of-type > li > svg > a:hover > rect {
+        fill: var(--pico-primary-focus);
       }
       body > header > nav > ul:first-of-type > li > svg > a > path {
         fill: var(--pico-h1-color);
@@ -156,13 +158,11 @@
         fill: #ff6c0c;
         stroke: none;
       }
-      body > header > nav > ul:first-of-type > li > svg > a:first-of-type:focus > path,
-      body > header > nav > ul:first-of-type > li > svg > a:first-of-type:hover > path {
-        stroke: #ff6c0c;
-        stroke-width: initial;
-      }
       body > header > nav > ul:last-child {
         margin-inline-start: auto;
+      }
+      body > header > nav > ul:last-child > li :where(a, [role="link"]) {
+        border-radius: 0;
       }
     </style>
     <style>
@@ -192,6 +192,54 @@
         color: var(--pico-muted-color);
         text-align: center;
         text-decoration: none;
+      }
+      #manifest {
+        border: var(--pico-outline-width) solid transparent;
+        display: inline-block;
+      }
+      #manifest:hover {
+        background-color: rgba(40, 115, 171, 0.25); /* translucent blue in IIIF logo */
+      }
+    </style>
+    <style>
+      /* Orange color for light color scheme (Default) */
+      /* Can be forced with data-theme="light" */
+      [data-theme=light],
+      :root:not([data-theme=dark]) {
+        --pico-text-selection-color: rgba(244, 93, 44, 0.25);
+        --pico-primary: #bd3c13;
+        --pico-primary-background: #d24317;
+        --pico-primary-underline: rgba(189, 60, 19, 0.5);
+        --pico-primary-hover: #942d0d;
+        --pico-primary-hover-background: #bd3c13;
+        --pico-primary-focus: rgba(244, 93, 44, 0.25);
+        --pico-primary-inverse: #fff;
+      }
+      /* Orange color for dark color scheme (Auto) */
+      /* Automatically enabled if user has Dark mode enabled */
+      @media only screen and (prefers-color-scheme: dark) {
+        :root:not([data-theme]) {
+          --pico-text-selection-color: rgba(245, 107, 61, 0.1875);
+          --pico-primary: #f56b3d;
+          --pico-primary-background: #d24317;
+          --pico-primary-underline: rgba(245, 107, 61, 0.5);
+          --pico-primary-hover: #f8a283;
+          --pico-primary-hover-background: #e74b1a;
+          --pico-primary-focus: rgba(245, 107, 61, 0.25);
+          --pico-primary-inverse: #fff;
+        }
+      }
+      /* Orange color for dark color scheme (Forced) */
+      /* Enabled if forced with data-theme="dark" */
+      [data-theme=dark] {
+        --pico-text-selection-color: rgba(245, 107, 61, 0.1875);
+        --pico-primary: #f56b3d;
+        --pico-primary-background: #d24317;
+        --pico-primary-underline: rgba(245, 107, 61, 0.5);
+        --pico-primary-hover: #f8a283;
+        --pico-primary-hover-background: #e74b1a;
+        --pico-primary-focus: rgba(245, 107, 61, 0.25);
+        --pico-primary-inverse: #fff;
       }
     </style>
   </head>
@@ -300,7 +348,7 @@
         {% endfor %}
         {% endif %}
       </dl>
-      <div><a href="{{ iiif_manifest_url }}">
+      <div><a id="manifest" href="{{ iiif_manifest_url }}">
         <svg width="32" viewBox="0 0 493.36 441.33" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="iiif">
           <title id="iiif">IIIF Manifest</title>
           <g transform="matrix(1.3333 0 0 -1.3333 0 441.33)"><g transform="scale(.1)"><path d="m65.242 2178.8 710-263.75-1.25-1900-708.75 261.25v1902.5" fill="#2873ab"/><path d="m804.14 2640.1c81.441-240.91-26.473-436.2-241.04-436.2-214.56 0-454.51 195.29-535.95 436.2-81.434 240.89 26.48 436.18 241.04 436.18 214.57 0 454.51-195.29 535.95-436.18" fill="#2873ab"/><path d="m1678.6 2178.8-710-263.75 1.25-1900 708.75 261.25v1902.5" fill="#ed1d33"/><path d="m935.08 2640.1c-81.437-240.91 26.477-436.2 241.04-436.2 214.56 0 454.51 195.29 535.96 436.2 81.43 240.89-26.48 436.18-241.04 436.18-214.57 0-454.52-195.29-535.96-436.18" fill="#ed1d33"/><path d="m1860.2 2178.8 710-263.75-1.25-1900-708.75 261.25v1902.5" fill="#2873ab"/><path d="m2603.7 2640.1c81.45-240.91-26.47-436.2-241.03-436.2-214.58 0-454.52 195.29-535.96 436.2-81.44 240.89 26.48 436.18 241.03 436.18 214.57 0 454.51-195.29 535.96-436.18" fill="#2873ab"/><path d="m3700.2 3310v-652.5s-230 90-257.5-142.5c-2.5-247.5 0-336.25 0-336.25l257.5 83.75v-572.5l-258.61-92.5v-1335l-706.39-262.5v2360s-15 850 965 950" fill="#ed1d33"/></g></g>
