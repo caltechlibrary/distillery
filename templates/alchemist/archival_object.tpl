@@ -53,6 +53,9 @@
       #uv .overlay .btn {
         padding: 10px 15px;
       }
+      #uv .overlay.download {
+        width: 300px;
+      }
       #uv .overlay.settings {
         height: auto;
         position: unset;
