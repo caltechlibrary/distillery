@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@next/css/pico.min.css">
     <title>{{ title }}</title>
     <script src="https://cdn.jsdelivr.net/npm/universalviewer@4.0.17/dist/umd/UV.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/universalviewer@4.0.17/dist/uv.min.css">
@@ -59,15 +59,15 @@
       }
       #uv .overlay.settings .scroll {
         height: auto;
-        margin-block-end: var(--form-element-spacing-vertical);
+        margin-block-end: var(--pico-form-element-spacing-vertical);
       }
       #uv .overlay.settings .setting select {
         height: auto;
-        padding: var(--form-element-spacing-vertical) var(--form-element-spacing-horizontal);
-        padding-inline-end: calc(var(--form-element-spacing-horizontal) + 1.5rem);
+        padding: var(--pico-form-element-spacing-vertical) var(--pico-form-element-spacing-horizontal);
+        padding-inline-end: calc(var(--pico-form-element-spacing-horizontal) + 1.5rem);
       }
       #uv .overlay.settings .setting input[type="checkbox"] {
-        margin-inline-start: var(--outline-width);
+        margin-inline-start: var(--pico-outline-width);
       }
       #uv .iiif-gallery-component input[type="range"]::-moz-range-track {
         width: auto;
@@ -113,13 +113,13 @@
         overflow: visible;
       }
       body > header > nav > ul:first-of-type > li > svg > a:focus > rect {
-        fill: var(--background-color);
-        rx: var(--border-radius);
-        ry: var(--border-radius);
+        fill: var(--pico-background-color);
+        rx: var(--pico-border-radius);
+        ry: var(--pico-border-radius);
       }
       body > header > nav > ul:first-of-type > li > svg > a > path {
-        fill: var(--h1-color);
-        stroke: var(--h1-color);
+        fill: var(--pico-h1-color);
+        stroke: var(--pico-h1-color);
       }
       body > header > nav > ul:first-of-type > li > svg > a:focus > path,
       body > header > nav > ul:first-of-type > li > svg > a:hover > path {
