@@ -502,11 +502,10 @@ def create_derivative_structure(
 def archivessnake_post(uri, object):
     try:
         response = asnake_client.post(uri, json=object)
-        response.raise_for_status()
-        logger.info(f"🐞: {response.json()}")
+        logger.debug(f"🐞 RESPONSE: {response.json()}")
         return response
-    except Exception as e:
-        logger.error(f"🐞: {e}")
+    except:
+        logger.exception("‼️")
         raise
 
 
@@ -585,7 +584,7 @@ def create_digital_object(archival_object):
     #         ]
     #     }
     # }
-    # skip folder processing if digital_object_id already exists
+    # TODO check for existing digital_object_id in validate()
     if "error" in digital_object_post_response.json():
         if "digital_object_id" in digital_object_post_response.json()["error"]:
             if (
@@ -593,8 +592,12 @@ def create_digital_object(archival_object):
                 in digital_object_post_response.json()["error"]["digital_object_id"]
             ):
                 raise ValueError(
-                    f"⚠️  NON-UNIQUE DIGITAL_OBJECT_ID: {archival_object['component_id']}"
+                    f"❌ NON-UNIQUE DIGITAL_OBJECT_ID: {archival_object['component_id']}"
                 )
+        else:
+            raise RuntimeError(
+                f"❌ UNEXPECTED ERROR: {digital_object_post_response.json()}"
+            )
     else:
         digital_object_uri = digital_object_post_response.json()["uri"]
         logger.info(f"✳️  DIGITAL OBJECT CREATED: {digital_object_uri}")
@@ -962,9 +965,17 @@ def construct_digital_object_component(variables):
         Path(variables["preservation_file_info"]["filepath"]).parent
     ).name
     logger.debug(f"🐞 DIGITAL_OBJECT_COMPONENT: {digital_object_component}")
-    digital_object_digital_object_id = Path(
-        Path(variables["preservation_file_info"]["filepath"]).parent
-    ).name.rsplit("_", maxsplit=1)[0]
+    # NOTE digital_object_digital_object_id will be the same as the component_id
+    # of the corresponding archival_object; this should be the same as the name
+    # of the JSON file that is a sibling of the preservation_file parent
+    found_archival_object_datafiles = sorted(Path(variables["preservation_file_info"]["filepath"]).parent.parent.glob("*.json"))
+    logger.debug(f"🐞 FOUND_ARCHIVAL_OBJECT_DATAFILES: {found_archival_object_datafiles}")
+    if len(found_archival_object_datafiles) == 1:
+        digital_object_digital_object_id = found_archival_object_datafiles[0].stem
+    else:
+        raise RuntimeError(
+            f"❌ {len(found_archival_object_datafiles)} JSON FILES FOUND IN: {Path(variables['preservation_file_info']['filepath']).parent.parent.name}"
+        )
     logger.debug(
         f"🐞 DIGITAL_OBJECT_DIGITAL_OBJECT_ID: {digital_object_digital_object_id}"
     )
@@ -1286,15 +1297,14 @@ def loop_over_archival_object_datafiles(variables, collection_id, onsite, cloud)
 
 def loop_over_preservation_files(variables, onsite, cloud):
     """
-    {PRESERVATION_FILES}/CollectionID
-    ├── CollectionID.json
-    └── CollectionID-s01-Organizational-Records
-        └── CollectionID_001_05-Annual-Meetings--1943  <-- preservation_folder
-            ├── CollectionID_001_05_0001               <-- dirname
-            │   └── ek7b_sk6n.jp2                      <-- filename
-            ├── CollectionID_001_05_0002
-            │   └── 34at_tzc3.jp2
-            └── CollectionID_001_05.json
+    {PRESERVATION_FILES}/DistilleryABC
+    ├── DistilleryABC.json
+    └── item-123--Title-of-Record       <-- preservation_folder
+        ├── original-filename-1.tif     <-- dirname
+        │   └── ek7b_sk6n.jp2           <-- filename
+        ├── some-other-filename.jpg
+        │   └── 34at_tzc3.jp2
+        └── item-123.json
     """
     for preservation_folder in variables["preservation_folders"]:
         # see https://stackoverflow.com/a/54790514 for os.walk explainer
