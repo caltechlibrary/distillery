@@ -150,10 +150,6 @@
         fill: var(--pico-h1-color);
         stroke: var(--pico-h1-color);
       }
-      body > header > nav > ul:first-of-type > li > svg > a:focus > path,
-      body > header > nav > ul:first-of-type > li > svg > a:hover > path {
-        stroke-width: 2;
-      }
       body > header > nav > ul:first-of-type > li > svg > a:first-of-type > path {
         fill: #ff6c0c;
         stroke: none;
