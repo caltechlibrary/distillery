@@ -139,6 +139,11 @@
       body > header > nav > ul:first-of-type > li > svg {
         overflow: visible;
       }
+      body > header > nav > ul:first-of-type > li > svg > a > rect {
+        fill: transparent;
+        stroke: transparent;
+        transition: fill var(--pico-transition), stroke var(--pico-transition);
+      }
       body > header > nav > ul:first-of-type > li > svg > a:focus-visible > rect {
         stroke: var(--pico-primary-focus);
         stroke-width: calc(var(--pico-outline-width) * 1.5);
