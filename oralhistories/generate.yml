@@ -66,18 +66,19 @@ jobs:
           then
             git ls-files --others | xargs git add --all;
             git commit -m "🟢 add generated files";
+            git push;
           fi
       - name: Commit deleted files
         run: if [ -n "$(git ls-files --deleted)" ];
           then
             git ls-files --deleted | xargs git add --all;
             git commit -m "🔴 remove generated files";
+            git push;
           fi
       - name: Commit modified files
         run: if [ -n "$(git ls-files --modified)" ];
           then
             git ls-files --modified | xargs git add --all;
             git commit -m "🟡 update generated files";
+            git push;
           fi
-      - name: Push changes
-        run: git push
