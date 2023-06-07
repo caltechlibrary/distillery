@@ -5,6 +5,8 @@ import sys
 
 def main(file):
     print(f"🐞 file: {file}")
+    if not os.path.exists(file):
+        return
     # TODO think through handling of _closed files
     if file.startswith("transcripts/"):
         # file_segments[1] will be component_id
