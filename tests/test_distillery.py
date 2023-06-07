@@ -17,6 +17,7 @@ def browser_context_args(browser_context_args):
             "username": config("DISTILLERY_BASIC_AUTH_USERNAME", default=""),
             "password": config("DISTILLERY_BASIC_AUTH_PASSWORD", default=""),
         },
+        # "record_video_dir": "tests/_output/",
     }
 
 

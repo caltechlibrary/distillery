@@ -5,3 +5,7 @@ users.csv
 # DEVELOPMENT
 __pycache__
 .vscode
+tests/_output
+
+# TEMPORARY
+~$*
