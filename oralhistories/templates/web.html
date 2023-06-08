@@ -154,34 +154,48 @@ $endif$
     fill: #ff6c0c;
   }
   </style>
-  <style>/* colors & fonts */
-  [data-theme="light"],
-  :root:not([data-theme="dark"]) {
-    /*
-    see formulas here:
-    https://github.com/picocss/pico/blob/master/scss/themes/default/_colors.scss
-    and defaults here:
-    https://github.com/picocss/pico/blob/master/scss/themes/default/_light.scss
-    with a tool here:
-    https://www.hexcolortool.com/#c75000
-    */
-    --pico-primary: hsl(24, 100%, 39%, 1); /* #c75000 */
-    --pico-primary-hover: hsl(24, 100%, 30%, 1);
-    --pico-primary-focus: hsl(24, 100%, 39%, 0.125);
-    --pico-primary-inverse: #FFF;
+  <style>/* colors */
+  /* Orange color for light color scheme (Default) */
+  /* Can be forced with data-theme="light" */
+  [data-theme=light],
+  :root:not([data-theme=dark]) {
+    --pico-text-selection-color: rgba(244, 93, 44, 0.25);
+    --pico-primary: #bd3c13;
+    --pico-primary-background: #d24317;
+    --pico-primary-underline: rgba(189, 60, 19, 0.5);
+    --pico-primary-hover: #942d0d;
+    --pico-primary-hover-background: #bd3c13;
+    --pico-primary-focus: rgba(244, 93, 44, 0.25);
+    --pico-primary-inverse: #fff;
   }
+  /* Orange color for dark color scheme (Auto) */
+  /* Automatically enabled if user has Dark mode enabled */
   @media only screen and (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      /*
-      see defaults here:
-      https://github.com/picocss/pico/blob/master/scss/themes/default/_dark.scss
-      */
-      --pico-primary: hsl(24, 100%, 39%, 1); /* #c75000 */
-      --pico-primary-hover: hsl(24, 95%, 48%, 1);
-      --pico-primary-focus: hsl(24, 100%, 39%, 0.25);
-      --pico-primary-inverse: #FFF;
+    :root:not([data-theme]) {
+      --pico-text-selection-color: rgba(245, 107, 61, 0.1875);
+      --pico-primary: #f56b3d;
+      --pico-primary-background: #d24317;
+      --pico-primary-underline: rgba(245, 107, 61, 0.5);
+      --pico-primary-hover: #f8a283;
+      --pico-primary-hover-background: #e74b1a;
+      --pico-primary-focus: rgba(245, 107, 61, 0.25);
+      --pico-primary-inverse: #fff;
     }
   }
+  /* Orange color for dark color scheme (Forced) */
+  /* Enabled if forced with data-theme="dark" */
+  [data-theme=dark] {
+    --pico-text-selection-color: rgba(245, 107, 61, 0.1875);
+    --pico-primary: #f56b3d;
+    --pico-primary-background: #d24317;
+    --pico-primary-underline: rgba(245, 107, 61, 0.5);
+    --pico-primary-hover: #f8a283;
+    --pico-primary-hover-background: #e74b1a;
+    --pico-primary-focus: rgba(245, 107, 61, 0.25);
+    --pico-primary-inverse: #fff;
+  }
+  </style>
+  <style>/* typography */
   :root {
     --pico-font-family: 'Montserrat', sans-serif;
     /* disable responsive typography */
