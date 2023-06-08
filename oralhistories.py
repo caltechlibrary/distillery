@@ -82,7 +82,7 @@ class OralHistoriesService(rpyc.Service):
                 )
                 s3sync_output = self.publish_transcripts()
                 self.status_logger.info(
-                    f'☑️ published [**{component_id}** transcript]({config("ORALHISTORIES_PUBLIC_BASE_URL")}/{component_id}/{component_id}.html) to the web'
+                    f'☑️  published [**{component_id}** transcript]({config("ORALHISTORIES_PUBLIC_BASE_URL")}/{component_id}/{component_id}.html) to the web'
                 )
             else:
                 # (re)publish all records (example case: interviewer name change)
@@ -200,10 +200,10 @@ class OralHistoriesService(rpyc.Service):
                             )
             if component_id:
                 self.status_logger.info(
-                    f'☑️ created [**{component_id}** persistant URL entry]({config("RESOLVER_BASE_URL")}/{component_id}) in resolver'
+                    f'☑️  created [**{component_id}** persistant URL entry]({config("RESOLVER_BASE_URL")}/{component_id}) in resolver'
                 )
                 self.status_logger.info(
-                    f'☑️ published [**{component_id}** Digital Object record]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={self.digital_object_uri}) in ArchivesSpace'
+                    f'☑️  published [**{component_id}** Digital Object record]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={self.digital_object_uri}) in ArchivesSpace'
                 )
             else:
                 self.status_logger.info(f"☑️ (re)published all resolver links")
