@@ -1,3 +1,6 @@
+$--
+$-- this is a pandoc template; literal $ characters must be escaped as $$
+$--
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,8 +12,7 @@ $endif$
   <title>$pagetitle$</title>
   <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Montserrat:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
-  <style>
-  /* layout */
+  <style>/* layout */
   figure {
     text-align: center;
   }
@@ -49,8 +51,7 @@ $endif$
     }
   }
   </style>
-  <style>
-  /* table of contents */
+  <style>/* table of contents */
   html {
     scroll-behavior: smooth;
   }
@@ -106,8 +107,7 @@ $endif$
     display: inline;
   }
   </style>
-  <style>
-  /* scrollspy */
+  <style>/* scrollspy */
   nav[role="doc-toc"] li.active {
     list-style-type: "◂\00a0\00a0";
   }
@@ -115,7 +115,7 @@ $endif$
     color: var(--primary-hover);
   }
   </style>
-  <style>
+  <style>/* header with logo and menu */
   body > header > nav {
     flex-wrap: wrap;
   }
@@ -154,7 +154,7 @@ $endif$
     fill: #ff6c0c;
   }
   </style>
-  <style>
+  <style>/* colors & fonts */
   [data-theme="light"],
   :root:not([data-theme="dark"]) {
     /*
@@ -322,7 +322,6 @@ $body$
   const pdf_link = document.getElementById("pdf");
   fetch(pdf_link.href, {method: "HEAD"}).then((response) => {
     const bytes = response.headers.get('content-length');
-    // NOTE: double dollar sign because this is a pandoc template
     pdf_link.insertAdjacentText("beforeend", ` [$${humanFileSize(bytes)}]`);
   });
   function humanFileSize(size) {

@@ -1,3 +1,6 @@
+{##}
+{# this is a Jinja template #}
+{##}
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -7,8 +10,7 @@
     <title>{{ title }}</title>
     <script src="https://cdn.jsdelivr.net/npm/universalviewer@4.0.17/dist/umd/UV.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/universalviewer@4.0.17/dist/uv.min.css">
-    <style>
-      /* reset progressive block spacing */
+    <style>/* reset progressive block spacing */
       @media (min-width: 1280px) {
         body > footer, body > header, body > main, section {
           --pico-block-spacing-vertical: calc(var(--pico-spacing) * 2);
@@ -30,8 +32,7 @@
         }
       }
     </style>
-    <style>
-      /* override pico styles for uv elements */
+    <style>/* override pico styles for uv elements */
       #uv button {
         width: initial;
       }
@@ -120,8 +121,7 @@
         font-size: 14px;
       }
     </style>
-    <style>
-      /* header with logo and menu */
+    <style>/* header with logo and menu */
       body > header > nav {
         flex-wrap: wrap;
       }
@@ -169,8 +169,7 @@
         border-radius: 0;
       }
     </style>
-    <style>
-      /* content */
+    <style>/* content */
       :root {
         --pico-nav-breadcrumb-divider: "/";
       }
@@ -205,7 +204,7 @@
         background-color: rgba(40, 115, 171, 0.25); /* translucent blue in IIIF logo */
       }
     </style>
-    <style>
+    <style>/* colors */
       /* Orange color for light color scheme (Default) */
       /* Can be forced with data-theme="light" */
       [data-theme=light],
