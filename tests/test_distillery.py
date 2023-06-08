@@ -1750,6 +1750,7 @@ def test_oralhistories_add_publish_one_transcript_2d4ja(
     )
     expect(page).to_have_title(f"Item {test_id}")
     expect(page.locator("#frontispiece")).not_to_be_attached()
+    expect(page.locator("body")).not_to_contain_text("[NaN undefined]")
 
 
 def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
@@ -1878,3 +1879,4 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
     )
     expect(page).to_have_title("Faculty Member Oral History Interview")
     expect(page.locator("#frontispiece img")).to_have_attribute("alt", "purple bird")
+    expect(page.locator("body")).not_to_contain_text("[NaN undefined]")
