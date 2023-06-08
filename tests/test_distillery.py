@@ -267,6 +267,27 @@ def wait_for_oralhistories_generated_files(git_repo, attempts=3, sleep_time=30):
         attempts -= 1
 
 
+def copy_oralhistories_asset(test_id, filename, tmp_oralhistories, item_component_id):
+    shutil.copyfile(
+        "/".join(
+            [
+                "tests",
+                "oralhistories",
+                test_id,
+                filename,
+            ]
+        ),
+        "/".join(
+            [
+                tmp_oralhistories,
+                "transcripts",
+                item_component_id,
+                filename,
+            ]
+        ),
+    )
+
+
 def test_distillery_landing(page: Page):
     page.goto(config("DISTILLERY_BASE_URL"))
     expect(page).to_have_title("Distillery")
@@ -1729,3 +1750,131 @@ def test_oralhistories_add_publish_one_transcript_2d4ja(
     )
     expect(page).to_have_title(f"Item {test_id}")
     expect(page.locator("#frontispiece")).not_to_be_attached()
+
+
+def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
+    page: Page, asnake_client, s3_client
+):
+    """Upload a docx file, edit markdown, and publish a transcript."""
+    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
+    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, test_id)
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_name, test_id
+    )
+    print(
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD
+    (
+        item_create_response,
+        item_component_id,
+    ) = create_archivesspace_test_archival_object_item(
+        asnake_client, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 item_create_response:{item_component_id}",
+        item_create_response.json(),
+    )
+    # DELETE GITHUB TRANSCRIPTS
+    # https://stackoverflow.com/a/72553300
+    tmp_oralhistories = tempfile.mkdtemp()
+    git_repo = git.Repo.clone_from(
+        f'git@github.com:{config("ORALHISTORIES_GITHUB_REPO")}.git',
+        tmp_oralhistories,
+        env={"GIT_SSH_COMMAND": f'ssh -i {config("ORALHISTORIES_GITHUB_SSH_KEY")}'},
+    )
+    if os.path.exists(f"{tmp_oralhistories}/transcripts/{item_component_id}"):
+        git_repo.index.remove(
+            [f"transcripts/{item_component_id}"],
+            working_tree=True,
+            r=True,
+        )
+        git_repo.index.commit(f"🤖 delete {item_component_id}")
+        git_repo.remotes.origin.push()
+    # DELETE S3 OBJECTS
+    s3_response = s3_client.list_objects_v2(
+        Bucket=config("ORALHISTORIES_BUCKET"), Prefix=item_component_id
+    )
+    print("🐞 s3_client.list_objects_v2", s3_response)
+    if s3_response.get("Contents"):
+        s3_keys = [{"Key": s3_object["Key"]} for s3_object in s3_response["Contents"]]
+        s3_response = s3_client.delete_objects(
+            Bucket=config("ORALHISTORIES_BUCKET"), Delete={"Objects": s3_keys}
+        )
+    # RUN ORALHISTORIES PROCESSES
+    # add transcript
+    run_oralhistories_add(
+        page,
+        "/".join(
+            [
+                "tests",
+                "oralhistories",
+                test_id,
+                f"{item_component_id}.docx",
+            ]
+        ),
+    )
+    # wait for files to be updated by GitHub Actions
+    assert wait_for_oralhistories_generated_files(git_repo, 6, 15)
+    # edit markdown
+    with open(
+        "/".join(
+            [
+                "tests",
+                "oralhistories",
+                test_id,
+                f"{item_component_id}.tpl",
+            ]
+        ),
+        "r",
+    ) as f:
+        template = f.read()
+    markdown = template.format(
+        archival_object_uri=item_create_response.json()["uri"],
+        archivesspace_public_url=config("ASPACE_PUBLIC_URL"),
+        component_id=item_component_id,
+        resolver_base_url=config("RESOLVER_BASE_URL"),
+        title="Faculty Member Oral History Interview",
+    )
+    with open(
+        f"{tmp_oralhistories}/transcripts/{item_component_id}/{item_component_id}.md",
+        "w",
+    ) as f:
+        f.write(markdown)
+    assets = [
+        "perfectmirror-emACtMlnYos-unsplash.jpg",
+        "rodrigo-lemos-SPvvAbD686E-unsplash.jpg",
+        "lola-rose-3_qkCtmsEMk-unsplash.jpg",
+    ]
+    for filename in assets:
+        copy_oralhistories_asset(
+            test_id, filename, tmp_oralhistories, item_component_id
+        )
+    files_to_add = []
+    for filename in assets:
+        files_to_add.append(f"transcripts/{item_component_id}/{filename}")
+    files_to_add.append(f"transcripts/{item_component_id}/{item_component_id}.md")
+    git_repo.index.add(files_to_add)
+    git_repo.index.commit(f"🤖 edit {item_component_id}.md & add assets")
+    git_repo.remotes.origin.push()
+    # wait for files to be updated by GitHub Actions
+    assert wait_for_oralhistories_generated_files(git_repo, 6, 15)
+    # publish transcript
+    run_oralhistories_publish(page, item_component_id)
+    # VALIDATE RESOLVER URL & WEB TRANSCRIPT
+    page.goto("/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id]))
+    expect(page).to_have_url(
+        "/".join(
+            [
+                config("ORALHISTORIES_PUBLIC_BASE_URL").rstrip("/"),
+                item_component_id,
+                f"{item_component_id}.html",
+            ]
+        )
+    )
+    expect(page).to_have_title("Faculty Member Oral History Interview")
+    expect(page.locator("#frontispiece img")).to_have_attribute("alt", "purple bird")
