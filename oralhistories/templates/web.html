@@ -10,7 +10,7 @@ $if(description-meta)$
   <meta name="description" content="$description-meta$">
 $endif$
   <title>$pagetitle$</title>
-  <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@next/css/pico.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Montserrat:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <style>/* layout */
   figure {
@@ -20,13 +20,13 @@ $endif$
     main > *:not(header, #contents-toggle, nav, h3) {
       margin-inline: 20%;
       max-width: 55%;
-      padding-inline: var(--spacing);
+      padding-inline: var(--pico-spacing);
     }
     main > header {
       overflow: auto;
     }
     main > header > :not(h1, figure) {
-      margin-inline-start: calc(33% + var(--block-spacing-horizontal) * 2);
+      margin-inline-start: calc(33% + var(--pico-block-spacing-horizontal) * 2);
       margin-inline-end: auto;
       max-width: fit-content;
     }
@@ -44,7 +44,7 @@ $endif$
       clear: left;
       float: left;
       max-width: 15%;
-      padding-inline-end: var(--block-spacing-horizontal);
+      padding-inline-end: var(--pico-block-spacing-horizontal);
     }
     main :where(address, blockquote, dl, figure, form, ol, p, pre, table, ul) ~ :is(h1, h2, h3, h4, h5, h6) {
       margin-block-start: 0;
@@ -67,7 +67,7 @@ $endif$
   }
   @media (min-width: 992px) {
     nav[role="doc-toc"] {
-      border-inline-start: thin solid var(--accordion-border-color);
+      border-inline-start: thin solid var(--pico-accordion-border-color);
     }
   }
   /* sticky */
@@ -84,7 +84,7 @@ $endif$
   /* https://www.w3.org/TR/dpub-aria-1.1/#doc-toc */
   nav[role="doc-toc"] ul {
     display: block;
-    padding-inline-start: var(--spacing);
+    padding-inline-start: var(--pico-spacing);
   }
   nav[role="doc-toc"] ul:first-of-type {
     margin-inline-start: 0;
@@ -98,7 +98,7 @@ $endif$
     padding: 0;
   }
   nav[role="doc-toc"] li > * {
-    --spacing: 1rem;
+    --pico-spacing: 1rem;
   }
   nav[role="doc-toc"] li li {
     list-style-type: circle;
@@ -112,7 +112,7 @@ $endif$
     list-style-type: "◂\00a0\00a0";
   }
   nav[role="doc-toc"] li.active > a {
-    color: var(--primary-hover);
+    color: var(--pico-primary-hover);
   }
   </style>
   <style>/* header with logo and menu */
@@ -148,7 +148,7 @@ $endif$
     stroke-width: 4px;
   }
   #logo path {
-    fill: var(--h1-color);
+    fill: var(--pico-h1-color);
   }
   #logo .caltech-logotype {
     fill: #ff6c0c;
@@ -165,10 +165,10 @@ $endif$
     with a tool here:
     https://www.hexcolortool.com/#c75000
     */
-    --primary: hsl(24, 100%, 39%, 1); /* #c75000 */
-    --primary-hover: hsl(24, 100%, 30%, 1);
-    --primary-focus: hsl(24, 100%, 39%, 0.125);
-    --primary-inverse: #FFF;
+    --pico-primary: hsl(24, 100%, 39%, 1); /* #c75000 */
+    --pico-primary-hover: hsl(24, 100%, 30%, 1);
+    --pico-primary-focus: hsl(24, 100%, 39%, 0.125);
+    --pico-primary-inverse: #FFF;
   }
   @media only screen and (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -176,16 +176,16 @@ $endif$
       see defaults here:
       https://github.com/picocss/pico/blob/master/scss/themes/default/_dark.scss
       */
-      --primary: hsl(24, 100%, 39%, 1); /* #c75000 */
-      --primary-hover: hsl(24, 95%, 48%, 1);
-      --primary-focus: hsl(24, 100%, 39%, 0.25);
-      --primary-inverse: #FFF;
+      --pico-primary: hsl(24, 100%, 39%, 1); /* #c75000 */
+      --pico-primary-hover: hsl(24, 95%, 48%, 1);
+      --pico-primary-focus: hsl(24, 100%, 39%, 0.25);
+      --pico-primary-inverse: #FFF;
     }
   }
   :root {
-    --font-family: 'Montserrat', sans-serif;
+    --pico-font-family: 'Montserrat', sans-serif;
     /* disable responsive typography */
-    --font-size: 18px;
+    --pico-font-size: 18px;
   }
   h1, h2, h3, #contents-toggle, nav {
     font-family: 'Merriweather', serif;
