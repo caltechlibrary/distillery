@@ -241,6 +241,15 @@ def run_oralhistories_publish(page: Page, item_component_id):
     )
 
 
+def run_oralhistories_update(page: Page, item_component_id):
+    page.goto("/".join([config("DISTILLERY_BASE_URL").rstrip("/"), "oralhistories"]))
+    page.locator("#component_id_update").fill(item_component_id)
+    page.get_by_role("button", name="Update Metadata").click()
+    expect(page.frame_locator("iframe").locator("body")).to_contain_text(
+        "✅", timeout=60000
+    )
+
+
 def format_alchemist_item_uri(test_id):
     return "/".join(
         [
@@ -1880,3 +1889,106 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
     expect(page).to_have_title("Faculty Member Oral History Interview")
     expect(page.locator("#frontispiece img")).to_have_attribute("alt", "purple bird")
     expect(page.locator("body")).not_to_contain_text("[NaN undefined]")
+
+
+def test_oralhistories_add_update_one_publish_one_transcript_4hete(
+    page: Page, asnake_client, s3_client
+):
+    """Upload a docx file, update metadata, and publish a transcript."""
+    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
+    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, test_id)
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_name, test_id
+    )
+    print(
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD
+    (
+        item_create_response,
+        item_component_id,
+    ) = create_archivesspace_test_archival_object_item(
+        asnake_client, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 item_create_response:{item_component_id}",
+        item_create_response.json(),
+    )
+    # DELETE GITHUB TRANSCRIPTS
+    tmp_oralhistories = tempfile.mkdtemp()
+    git_repo = git.Repo.clone_from(
+        f'git@github.com:{config("ORALHISTORIES_GITHUB_REPO")}.git',
+        tmp_oralhistories,
+        env={"GIT_SSH_COMMAND": f'ssh -i {config("ORALHISTORIES_GITHUB_SSH_KEY")}'},
+    )
+    if os.path.exists(f"{tmp_oralhistories}/transcripts/{item_component_id}"):
+        git_repo.index.remove(
+            [f"transcripts/{item_component_id}"],
+            working_tree=True,
+            r=True,
+        )
+        git_repo.index.commit(f"🤖 delete {item_component_id}")
+        git_repo.remotes.origin.push()
+    # DELETE S3 OBJECTS
+    s3_response = s3_client.list_objects_v2(
+        Bucket=config("ORALHISTORIES_BUCKET"), Prefix=item_component_id
+    )
+    print("🐞 s3_client.list_objects_v2", s3_response)
+    if s3_response.get("Contents"):
+        s3_keys = [{"Key": s3_object["Key"]} for s3_object in s3_response["Contents"]]
+        s3_response = s3_client.delete_objects(
+            Bucket=config("ORALHISTORIES_BUCKET"), Delete={"Objects": s3_keys}
+        )
+    # RUN ORALHISTORIES PROCESSES
+    # add transcript
+    run_oralhistories_add(
+        page,
+        "/".join(
+            [
+                "tests",
+                "oralhistories",
+                test_id,
+                f"{item_component_id}.docx",
+            ]
+        ),
+    )
+    # wait for files to be updated by GitHub Actions
+    assert wait_for_oralhistories_generated_files(git_repo, attempts=9, sleep_time=10)
+    # update metadata
+    item = asnake_client.get(item_create_response.json()["uri"]).json()
+    item["notes"] = [
+        {
+            "jsonmodel_type": "note_singlepart",
+            "type": "abstract",
+            "content": [
+                "Magna excepteur culpa ut culpa culpa labore id eu id dolor ut tempor esse ea. Sint incididunt reprehenderit eu consequat minim. Id in officia culpa sit. Minim eiusmod laboris ullamco esse nostrud. Excepteur occaecat ex reprehenderit labore elit aliqua. Labore labore proident cupidatat occaecat esse.\n\nNon consequat aliqua voluptate aute duis fugiat aliquip anim aute sunt minim dolore officia. Dolore magna laborum aliquip aliquip ut pariatur culpa veniam Lorem ad duis pariatur. Minim pariatur eiusmod id tempor dolor.\n\nQui veniam sunt ex cillum ullamco aliquip excepteur magna. Dolore nulla nulla laboris proident ea sint velit deserunt ullamco. Reprehenderit consectetur nulla consectetur et tempor tempor deserunt. Culpa quis anim tempor nostrud nulla commodo qui dolor quis duis enim aliquip."
+            ],
+            "publish": True,
+        },
+    ]
+    item_update_response = asnake_client.post(item["uri"], json=item)
+    print(
+        f"🐞 item_update_response:{test_id}",
+        item_update_response.json(),
+    )
+    run_oralhistories_update(page, item_component_id)
+    # wait for files to be updated by GitHub Actions
+    assert wait_for_oralhistories_generated_files(git_repo, attempts=9, sleep_time=10)
+    # publish transcript
+    run_oralhistories_publish(page, item_component_id)
+    # VALIDATE RESOLVER URL & WEB TRANSCRIPT
+    page.goto("/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id]))
+    expect(page).to_have_url(
+        "/".join(
+            [
+                config("ORALHISTORIES_PUBLIC_BASE_URL").rstrip("/"),
+                item_component_id,
+                f"{item_component_id}.html",
+            ]
+        )
+    )
+    expect(page.locator("body")).to_contain_text("Id in officia culpa sit.")
