@@ -288,6 +288,12 @@ def generate_iiif_manifest(build_directory, variables):
         for note_label, note_contents in notes.items():
             if note_contents:
                 metadata.append({"label": note_label, "value": note_contents})
+            if note_label == "Scope and Contents":
+                description = note_contents
+            if note_label == "Conditions Governing Use":
+                # TODO check for note upwards in the hierarchy
+                # TODO validate against Restriction End date
+                attribution = note_contents
     try:
         manifest = {
             "@context": "http://iiif.io/api/presentation/2/context.json",
@@ -301,19 +307,30 @@ def generate_iiif_manifest(build_directory, variables):
                 ]
             ),
             "label": variables["archival_object"]["title"],
-            "description": "¯\_(ツ)_/¯",
-            "thumbnail": {
-                "@id": get_thumbnail_url(variables),
-                "service": {
-                    "@context": "http://iiif.io/api/image/2/context.json",
-                    "@id": get_thumbnail_url(variables).rsplit("/", maxsplit=4)[0],
-                    "profile": "http://iiif.io/api/image/2/level1.json",
-                },
-            },
-            "metadata": metadata,
-            "attribution": variables["arrangement"]["repository_name"],
-            "sequences": [{"@type": "sc:Sequence", "canvases": []}],
         }
+        # maintain order of keys
+        if description:
+            manifest["description"] = description
+        manifest.update(
+            {
+                "thumbnail": {
+                    "@id": get_thumbnail_url(variables),
+                    "service": {
+                        "@context": "http://iiif.io/api/image/2/context.json",
+                        "@id": get_thumbnail_url(variables).rsplit("/", maxsplit=4)[0],
+                        "profile": "http://iiif.io/api/image/2/level1.json",
+                    },
+                },
+                "metadata": metadata,
+            }
+        )
+        if attribution:
+            manifest["attribution"] = attribution
+        manifest.update(
+            {
+                "sequences": [{"@type": "sc:Sequence", "canvases": []}],
+            }
+        )
         for filepath in sorted(variables["filepaths"]):
             # create canvas metadata
             # HACK the binaries for `vips` and `vipsheader` should be in the same place
