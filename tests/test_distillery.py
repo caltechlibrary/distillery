@@ -1309,7 +1309,7 @@ def test_distillery_alchemist_kitchen_sink_pd4s3(page: Page, asnake_client):
         },
         {
             "jsonmodel_type": "note_multipart",
-            "type": "odd",
+            "type": "userestrict",
             "subnotes": [
                 {
                     "jsonmodel_type": "note_text",
@@ -1513,7 +1513,7 @@ def test_distillery_alchemist_kitchen_sink_pd4s3(page: Page, asnake_client):
     expect(page.locator("#metadata")).to_contain_text("Materials Specific Details")
     expect(page.locator("#metadata")).to_contain_text("Foo Note")
     expect(page.locator("#metadata")).to_contain_text("Scope and Contents")
-    expect(page.locator("#metadata")).to_contain_text("General")
+    expect(page.locator("#metadata")).to_contain_text("Conditions Governing Use")
     expect(page.locator("#metadata")).to_contain_text("Bar Note")
     expect(page.locator("#metadata")).not_to_contain_text(
         "unpublished", ignore_case=True
