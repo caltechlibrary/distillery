@@ -692,7 +692,7 @@ def test_distillery_alchemist_note_output_u8vvf(page: Page, asnake_client):
         },
         {
             "jsonmodel_type": "note_multipart",
-            "type": "odd",
+            "type": "userestrict",
             "subnotes": [
                 {
                     "jsonmodel_type": "note_text",
@@ -877,13 +877,14 @@ def test_distillery_alchemist_note_output_u8vvf(page: Page, asnake_client):
     # RUN ALCHEMIST PROCESS
     run_distillery(page, test_id, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_id)
+    print(f"🐞 {alchemist_item_uri}")
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
     expect(page.locator("#metadata")).to_contain_text("Abstract")
     expect(page.locator("#metadata")).to_contain_text("Materials Specific Details")
     expect(page.locator("#metadata")).to_contain_text("Foo Note")
     expect(page.locator("#metadata")).to_contain_text("Scope and Contents")
-    expect(page.locator("#metadata")).to_contain_text("General")
+    expect(page.locator("#metadata")).to_contain_text("Conditions Governing Use")
     expect(page.locator("#metadata")).to_contain_text("Bar Note")
     expect(page.locator("#metadata")).not_to_contain_text(
         "unpublished", ignore_case=True
