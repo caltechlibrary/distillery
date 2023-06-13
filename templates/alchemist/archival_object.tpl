@@ -11,6 +11,11 @@
     <script src="https://cdn.jsdelivr.net/npm/universalviewer@4.0.17/dist/umd/UV.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/universalviewer@4.0.17/dist/uv.min.css">
     <style>/* reset progressive block spacing */
+      @media (min-width: 1536px) {
+        body > footer, body > header, body > main, section {
+          --pico-block-spacing-vertical: calc(var(--pico-spacing) * 2);
+        }
+      }
       @media (min-width: 1280px) {
         body > footer, body > header, body > main, section {
           --pico-block-spacing-vertical: calc(var(--pico-spacing) * 2);

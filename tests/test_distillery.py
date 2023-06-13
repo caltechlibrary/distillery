@@ -78,13 +78,17 @@ def s3_client():
 def delete_archivesspace_test_records(asnake_client, resource_identifer):
     """Delete any existing test records."""
 
-    def delete_digital_objects(uri):
-        result = asnake_client.get(uri, params={"resolve[]": "digital_object"}).json()
+    def delete_related_records(uri):
+        result = asnake_client.get(
+            uri, params={"resolve[]": "digital_object", "resolve[]": "linked_agents"}
+        ).json()
         for instance in result["instances"]:
             if instance.get("digital_object"):
                 digital_object_delete_response = asnake_client.delete(
-                    instance["digital_object"]["_resolved"]["uri"]
+                    instance["digital_object"]["ref"]
                 )
+        for linked_agent in result["linked_agents"]:
+            linked_agent_delete_response = asnake_client.delete(linked_agent["ref"])
 
     def recursive_delete(node, resource_ref):
         if node["child_count"] > 0:
@@ -92,7 +96,7 @@ def delete_archivesspace_test_records(asnake_client, resource_identifer):
                 f'{resource_ref}/tree/waypoint?offset=0&parent_node={node["uri"]}'
             ).json()
             for child in children:
-                delete_digital_objects(child["uri"])
+                delete_related_records(child["uri"])
                 recursive_delete(child, resource_ref)
 
     resource_find_by_id_results = asnake_client.get(
@@ -100,13 +104,13 @@ def delete_archivesspace_test_records(asnake_client, resource_identifer):
         params={"identifier[]": [f'["{resource_identifer}"]']},
     ).json()
     for result in resource_find_by_id_results["resources"]:
-        delete_digital_objects(result["ref"])
+        delete_related_records(result["ref"])
         resource_tree = asnake_client.get(f'{result["ref"]}/tree/root').json()
         if resource_tree["waypoints"] > 1:
             raise Exception("Test resource has more than one waypoint.")
         resource_children = resource_tree["precomputed_waypoints"][""]["0"]
         for child in resource_children:
-            delete_digital_objects(child["uri"])
+            delete_related_records(child["uri"])
             recursive_delete(child, result["ref"])
         asnake_client.delete(result["ref"])
 
@@ -1765,7 +1769,11 @@ def test_oralhistories_add_publish_one_transcript_2d4ja(
 def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
     page: Page, asnake_client, s3_client
 ):
-    """Upload a docx file, edit markdown, and publish a transcript."""
+    """Upload a docx file, edit markdown, and publish a transcript.
+
+    This test aims to have all display elements represented, including metadata
+    fields, additional assets, and content length.
+    """
     test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
     test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
     # DELETE ANY EXISTING TEST RECORDS
@@ -1788,6 +1796,85 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
     print(
         f"🐞 item_create_response:{item_component_id}",
         item_create_response.json(),
+    )
+    # CREATE AGENT PERSON RECORDS
+    # interviewee
+    interviewee = {
+        "names": [
+            {
+                "name_order": "inverted",
+                "primary_name": "Eloquentiam",
+                "rest_of_name": "Facilisis",
+                "sort_name": "Eloquentiam, Facilisis",
+            }
+        ]
+    }
+    # post
+    interviewee_post_response = asnake_client.post("/agents/people", json=interviewee)
+    print(
+        f"🐞 interviewee_post_response",
+        interviewee_post_response.json(),
+    )
+    # interviewer
+    interviewer = {
+        "names": [
+            {
+                "name_order": "inverted",
+                "primary_name": "Ponderum",
+                "rest_of_name": "Scribentur",
+                "sort_name": "Ponderum, Scribentur",
+            }
+        ]
+    }
+    # post
+    interviewer_post_response = asnake_client.post("/agents/people", json=interviewer)
+    print(
+        f"🐞 interviewer_post_response",
+        interviewer_post_response.json(),
+    )
+    # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
+    item = asnake_client.get(item_create_response.json()["uri"]).json()
+    # add agents
+    item["linked_agents"] = [
+        {
+            "ref": interviewee_post_response.json()["uri"],
+            "relator": "ive",
+            "role": "creator",
+        },
+        {
+            "ref": interviewer_post_response.json()["uri"],
+            "relator": "ivr",
+            "role": "creator",
+        },
+    ]
+    # add dates
+    item["dates"] = [
+        {
+            "label": "creation",
+            "begin": "2001-01-01",
+            "date_type": "single",
+        },
+        {
+            "label": "creation",
+            "begin": "2001-01-31",
+            "date_type": "single",
+        },
+    ]
+    # add abstract
+    item["notes"] = [
+        {
+            "jsonmodel_type": "note_singlepart",
+            "type": "abstract",
+            "content": [
+                "Magna excepteur culpa ut culpa culpa labore id eu id dolor ut tempor esse ea. Sint incididunt reprehenderit eu consequat minim. Id in officia culpa sit. Minim eiusmod laboris ullamco esse nostrud. Excepteur occaecat ex reprehenderit labore elit aliqua. Labore labore proident cupidatat occaecat esse.\n\nNon consequat aliqua voluptate aute duis fugiat aliquip anim aute sunt minim dolore officia. Dolore magna laborum aliquip aliquip ut pariatur culpa veniam Lorem ad duis pariatur. Minim pariatur eiusmod id tempor dolor.\n\nQui veniam sunt ex cillum ullamco aliquip excepteur magna. Dolore nulla nulla laboris proident ea sint velit deserunt ullamco. Reprehenderit consectetur nulla consectetur et tempor tempor deserunt. Culpa quis anim tempor nostrud nulla commodo qui dolor quis duis enim aliquip."
+            ],
+            "publish": True,
+        },
+    ]
+    item_update_response = asnake_client.post(item["uri"], json=item)
+    print(
+        f"🐞 item_update_response:{test_id}",
+        item_update_response.json(),
     )
     # DELETE GITHUB TRANSCRIPTS
     # https://stackoverflow.com/a/72553300
@@ -1844,9 +1931,15 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
     ) as f:
         template = f.read()
     markdown = template.format(
+        # NOTE abstract is hardcoded in the template due to complex whitespace
         archival_object_uri=item_create_response.json()["uri"],
         archivesspace_public_url=config("ASPACE_PUBLIC_URL"),
         component_id=item_component_id,
+        # NOTE hardcode date values to avoid writing parsing logic
+        date_summary="2001",
+        dates="- 2001-01-01\n- 2001-01-31",
+        interviewee=f'{interviewee["names"][0]["rest_of_name"]} {interviewee["names"][0]["primary_name"]}',
+        interviewer=f'{interviewer["names"][0]["rest_of_name"]} {interviewer["names"][0]["primary_name"]}',
         resolver_base_url=config("RESOLVER_BASE_URL"),
         title="Faculty Member Oral History Interview",
     )

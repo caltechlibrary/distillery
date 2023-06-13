@@ -1,7 +1,30 @@
 ---
+abstract: |
+  NOTE: This abstract is hardcoded in the template file and is not
+  coming from ArchivesSpace or the test function. Magna excepteur culpa
+  id eu id dolor ut tempor esse ea. Sint incididunt reprehenderit eu
+  consequat minim. Id in officia culpa sit. Minim eiusmod laboris
+  ullamco esse nostrud. Excepteur occaecat ex reprehenderit labore elit
+  aliqua. Labore labore proident cupidatat occaecat esse.
+
+  Non consequat aliqua voluptate aute duis fugiat aliquip anim aute sunt
+  minim dolore officia. Dolore magna laborum aliquip aliquip ut pariatur
+  culpa veniam Lorem ad duis pariatur. Minim pariatur eiusmod id tempor
+  dolor.
+
+  Qui veniam sunt ex cillum ullamco aliquip excepteur magna. Dolore
+  nulla nulla laboris proident ea sint velit deserunt ullamco.
+  Reprehenderit consectetur nulla consectetur et tempor tempor deserunt.
+  Culpa quis anim tempor nostrud nulla commodo qui dolor quis duis enim
+  aliquip.
 archival_object_uri: {archival_object_uri}
 archivesspace_public_url: "{archivesspace_public_url}"
 component_id: {component_id}
+date_summary: {date_summary}
+dates:
+{dates}
+interviewee: {interviewee}
+interviewer: {interviewer}
 resolver_base_url: "{resolver_base_url}"
 title: {title}
 ---
@@ -605,11 +628,7 @@ Ex qui omittam tacimates volutpat, elit solum quaeque vis et. Oratio
 percipitur ea pro, autem reque qui cu, quo adhuc torquatos no? Id mei
 wisi alterum! An autem interesset quo. Propriae persequeris sit at!
 
-# 
-
-# Session 2 
-
-# January 31, 2001
+# Session 2: January 31, 2001
 
 ## Noster pertinacia vel ea, no tractatos incorrupte pro.
 
