@@ -1289,6 +1289,29 @@ def test_distillery_alchemist_kitchen_sink_pd4s3(page: Page, asnake_client):
         "🐞 item_parent_position_post_response",
         item_parent_position_post_response.json(),
     )
+    # CREATE AGENT PERSON RECORDS
+    agent_person_unpublished_create_response = create_archivesspace_test_agent_person(
+        asnake_client, test_id, "Unpublished"
+    )
+    print(
+        f"🐞 agent_person_unpublished_create_response:{test_id}",
+        agent_person_unpublished_create_response.json(),
+    )
+    agent_person_published_create_response = create_archivesspace_test_agent_person(
+        asnake_client, test_id, "Published"
+    )
+    print(
+        f"🐞 agent_person_published_create_response:{test_id}",
+        agent_person_published_create_response.json(),
+    )
+    # CUSTOMIZE AGENT PERSON RECORDS
+    agent_person_published = asnake_client.get(
+        agent_person_published_create_response.json()["uri"]
+    ).json()
+    agent_person_published["publish"] = True
+    agent_person_published_update_response = asnake_client.post(
+        agent_person_published["uri"], json=agent_person_published
+    )
     # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
     item = asnake_client.get(item_create_response.json()["uri"]).json()
     # add dates
@@ -1319,6 +1342,27 @@ def test_distillery_alchemist_kitchen_sink_pd4s3(page: Page, asnake_client):
             "label": "creation",
             "date_type": "single",
             "expression": "ongoing into the future",
+        },
+    ]
+    # add linked_agents
+    item["linked_agents"] = [
+        {
+            "ref": agent_person_unpublished_create_response.json()["uri"],
+            "role": "creator",
+        },
+        {
+            "ref": agent_person_unpublished_create_response.json()["uri"],
+            "role": "subject",
+        },
+        {
+            "ref": agent_person_published_create_response.json()["uri"],
+            "relator": "ard",
+            "role": "creator",
+        },
+        {
+            "ref": agent_person_published_create_response.json()["uri"],
+            "relator": "act",
+            "role": "subject",
         },
     ]
     # add extents
@@ -1597,6 +1641,7 @@ def test_distillery_alchemist_kitchen_sink_pd4s3(page: Page, asnake_client):
     # RUN ALCHEMIST PROCESS
     run_distillery(page, test_id, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_id)
+    print(f"🐞 {alchemist_item_uri}")
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     expect(page.locator("hgroup p:first-of-type")).to_have_text(
@@ -1610,6 +1655,8 @@ def test_distillery_alchemist_kitchen_sink_pd4s3(page: Page, asnake_client):
     expect(page.locator("#metadata")).to_contain_text("Sub-Series")
     expect(page.locator("#metadata")).to_contain_text("Commencement")
     expect(page.locator("#metadata")).to_contain_text("Conferences")
+    expect(page.locator("#metadata")).to_contain_text("[Artistic director]")
+    expect(page.locator("#metadata")).to_contain_text("[Actor]")
     expect(page.locator("#metadata")).to_contain_text("1 books", ignore_case=True)
     expect(page.locator("#metadata")).to_contain_text("2 photographs", ignore_case=True)
     expect(page.locator("#metadata")).to_contain_text("Abstract")
