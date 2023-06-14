@@ -555,6 +555,9 @@ def generate_iiif_manifest(build_directory, variables):
     dates = format_archival_object_dates_display(variables["archival_object"])
     if dates:
         metadata.append({"label": "Dates", "value": dates})
+    creators = format_archival_object_creators_display(variables["archival_object"])
+    if creators:
+        metadata.append({"label": "Creators", "value": creators})
     extents = format_archival_object_extents_display(variables["archival_object"])
     if extents:
         metadata.append({"label": "Extents", "value": extents})
