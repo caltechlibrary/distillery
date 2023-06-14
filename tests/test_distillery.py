@@ -198,6 +198,21 @@ def create_archivesspace_test_archival_object_subseries(
     return subseries_post_response
 
 
+def create_archivesspace_test_agent_person(asnake_client, test_id, unique_rest_of_name):
+    person = {
+        "names": [
+            {
+                "name_order": "inverted",
+                "primary_name": test_id.capitalize(),
+                "rest_of_name": unique_rest_of_name,
+                "sort_name": f"{test_id.capitalize()}, {unique_rest_of_name}",
+            }
+        ]
+    }
+    person_post_response = asnake_client.post("/agents/people", json=person)
+    return person_post_response
+
+
 def run_distillery(page: Page, resource_identifier, destinations, outcome="success"):
     page.goto(config("DISTILLERY_BASE_URL"))
     page.get_by_label("Collection ID").fill(resource_identifier)
@@ -492,6 +507,94 @@ def test_distillery_alchemist_date_output_x2edw(page: Page, asnake_client):
     page.goto(alchemist_item_uri)
     expect(page.locator("hgroup p:first-of-type")).to_have_text(
         "1584 February 29; 1969 December 31 to 1970 January 1; 1999 December 31 to 2000 January 1; ongoing into the future"
+    )
+
+
+def test_distillery_alchemist_linked_agent_output_vdje3(page: Page, asnake_client):
+    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
+    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, test_id)
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_name, test_id
+    )
+    print(
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD
+    (
+        item_create_response,
+        item_component_id,
+    ) = create_archivesspace_test_archival_object_item(
+        asnake_client, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 item_create_response:{test_id}",
+        item_create_response.json(),
+    )
+    # CREATE AGENT PERSON RECORDS
+    agent_person_unpublished_create_response = create_archivesspace_test_agent_person(
+        asnake_client, test_id, "Unpublished"
+    )
+    print(
+        f"🐞 agent_person_unpublished_create_response:{test_id}",
+        agent_person_unpublished_create_response.json(),
+    )
+    agent_person_published_create_response = create_archivesspace_test_agent_person(
+        asnake_client, test_id, "Published"
+    )
+    print(
+        f"🐞 agent_person_published_create_response:{test_id}",
+        agent_person_published_create_response.json(),
+    )
+    # CUSTOMIZE AGENT PERSON RECORDS
+    agent_person_published = asnake_client.get(
+        agent_person_published_create_response.json()["uri"]
+    ).json()
+    agent_person_published["publish"] = True
+    agent_person_published_update_response = asnake_client.post(
+        agent_person_published["uri"], json=agent_person_published
+    )
+    # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
+    item = asnake_client.get(item_create_response.json()["uri"]).json()
+    # add linked_agents
+    item["linked_agents"] = [
+        {
+            "ref": agent_person_unpublished_create_response.json()["uri"],
+            "role": "creator",
+        },
+        {
+            "ref": agent_person_unpublished_create_response.json()["uri"],
+            "role": "subject",
+        },
+        {
+            "ref": agent_person_published_create_response.json()["uri"],
+            "relator": "ard",
+            "role": "creator",
+        },
+        {
+            "ref": agent_person_published_create_response.json()["uri"],
+            "relator": "act",
+            "role": "subject",
+        },
+    ]
+    item_update_response = asnake_client.post(item["uri"], json=item)
+    print(
+        f"🐞 item_update_response:{test_id}",
+        item_update_response.json(),
+    )
+    # RUN ALCHEMIST PROCESS
+    run_distillery(page, test_id, ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    print(f"🐞 {alchemist_item_uri}")
+    # VALIDATE ALCHEMIST HTML
+    page.goto(alchemist_item_uri)
+    expect(page.locator("#metadata")).to_contain_text("[Artistic director]")
+    expect(page.locator("#metadata")).to_contain_text("[Actor]")
+    expect(page.locator("#metadata")).not_to_contain_text(
+        "unpublished", ignore_case=True
     )
 
 
