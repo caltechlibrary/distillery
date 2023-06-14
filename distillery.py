@@ -767,6 +767,7 @@ def find_archival_object(component_id):
                 find_by_id_response.json()["archival_objects"][0]["ref"]
                 + "?resolve[]=ancestors"
                 + "&resolve[]=digital_object"
+                + "&resolve[]=linked_agents"
                 + "&resolve[]=repository"
                 + "&resolve[]=subjects"
                 + "&resolve[]=top_container"
@@ -968,8 +969,14 @@ def construct_digital_object_component(variables):
     # NOTE digital_object_digital_object_id will be the same as the component_id
     # of the corresponding archival_object; this should be the same as the name
     # of the JSON file that is a sibling of the preservation_file parent
-    found_archival_object_datafiles = sorted(Path(variables["preservation_file_info"]["filepath"]).parent.parent.glob("*.json"))
-    logger.debug(f"🐞 FOUND_ARCHIVAL_OBJECT_DATAFILES: {found_archival_object_datafiles}")
+    found_archival_object_datafiles = sorted(
+        Path(variables["preservation_file_info"]["filepath"]).parent.parent.glob(
+            "*.json"
+        )
+    )
+    logger.debug(
+        f"🐞 FOUND_ARCHIVAL_OBJECT_DATAFILES: {found_archival_object_datafiles}"
+    )
     if len(found_archival_object_datafiles) == 1:
         digital_object_digital_object_id = found_archival_object_datafiles[0].stem
     else:

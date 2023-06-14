@@ -335,6 +335,12 @@
         <dd>{{ date }}</dd>
         {% endfor %}
         {% endif %}
+        {% if creators %}
+        <dt>Creators</dt>
+        {% for creator in creators %}
+        <dd>{{ creator }}</dd>
+        {% endfor %}
+        {% endif %}
         {% if extents %}
         <dt>Extents</dt>
         {% for extent in extents %}
