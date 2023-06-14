@@ -370,7 +370,7 @@
       </a></div>
     </main>
     <footer class="container">
-      <article>These digitized collections are accessible for purposes of education and research. Due to the nature of archival collections, we are not always able to identify copyright and rights of privacy, publicity, or trademark. We are eager to <a href="mailto:archives@caltech.edu">hear from any rights holders</a>, so that we may obtain accurate information. Upon request, we’ll remove material from public view while we address a rights issue.</article>
+      <article>{{ rights }}</article>
     </footer>
   </body>
 </html>

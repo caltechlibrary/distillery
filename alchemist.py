@@ -306,6 +306,7 @@ linked_agent_archival_record_relators = {
     "wst": "Writer of supplementary textual content",
 }
 
+rights_notice_html = '<p>These digitized collections are accessible for purposes of education and research. Due to the nature of archival collections, archivists at the Caltech Archives and Special Collections are not always able to identify copyright and rights of privacy, publicity, or trademark. We are eager to <a href="mailto:archives@caltech.edu">hear from any rights holders</a>, so that we may obtain accurate information. Upon request, we’ll remove material from public view while we address a rights issue.</p>'
 
 class AccessPlatform:
     def __init__(self, collection_id, collection_data):
@@ -446,6 +447,7 @@ def generate_archival_object_page(build_directory, variables):
                     archival_object_uri=variables["archival_object"]["uri"],
                     iiif_manifest_url=iiif_manifest_url,
                     iiif_manifest_json=json.dumps({"manifest": f"{iiif_manifest_url}"}),
+                    rights=rights_notice_html,
                 )
             )
         logger.info(
@@ -566,7 +568,7 @@ def generate_iiif_manifest(build_directory, variables):
         metadata.append({"label": "Subjects", "value": subjects})
     notes = format_archival_object_notes_display(variables["archival_object"])
     description = ""
-    attribution = ""
+    attribution = rights_notice_html
     if notes:
         for note_label, note_contents in notes.items():
             if note_contents:
