@@ -219,7 +219,7 @@ class DistilleryService(rpyc.Service):
         )
 
         # send the character that stops javascript reloading in the web ui
-        status_logger.info(f"🈺")
+        status_logger.info(f"🈺")  # Japanese “Open for Business” Button
         # copy the status_logfile to the logs directory
         logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(
             f"{self.collection_id}.{str(int(time.time()))}.validate.log"
@@ -290,7 +290,6 @@ class DistilleryService(rpyc.Service):
                 self.collection_id, config("WORKING_ORIGINAL_FILES")
             )
 
-            # TODO consider running this loop here in order to log items within it or send the logger to the function
             create_derivative_structure(
                 self.variables,
                 working_collection_directory,
@@ -299,9 +298,7 @@ class DistilleryService(rpyc.Service):
                 cloudDistiller,
                 accessDistiller,
             )
-            message = f"☑️  DERIVATIVES CREATED"
-            logger.info(message)
-            status_logger.info(message)
+            # TODO message = f'☑️  DERIVATIVE STRUCTURE CREATED: {self.collection_id}' for preservation destinations
 
             if self.onsite_medium:
                 # TODO run in the background but wait for it before writing records to ArchivesSpace
@@ -311,9 +308,7 @@ class DistilleryService(rpyc.Service):
                 self.onsite_medium.transfer_derivative_collection(self.variables)
 
             if self.access_platform:
-                # TODO run in the background but wait for it before writing records to ArchivesSpace
-                accessDistiller.transfer_derivative_files(self.variables)
-                accessDistiller.ingest_derivative_files(self.variables)
+                # NOTE this is where we write to ArchivesSpace
                 accessDistiller.loop_over_derivative_structure(self.variables)
 
             # PROCESS PRESERVATION STRUCTURE
@@ -430,6 +425,7 @@ def save_collection_datafile(collection_data, directory):
     return collection_datafile_key
 
 
+# IDEA rename this to something like "loop_over_archival_object_directories"
 def create_derivative_structure(
     variables, collection_directory, collection_data, onsite, cloud, access
 ):
@@ -474,7 +470,7 @@ def create_derivative_structure(
             os.path.basename(subdirectory)
         )
         if not variables["archival_object"]:
-            logger.warning(f"⚠️  CONTINUING LOOP AT: {subdirectory}")
+            logger.warning(f"⚠️  ARCHIVAL OBJECT NOT FOUND: {subdirectory}")
             continue
         variables["arrangement"] = get_arrangement(variables["archival_object"])
 
@@ -491,12 +487,20 @@ def create_derivative_structure(
 
         if access:
             access.archival_object_level_processing(variables)
-            status_logger.info(
-                f'☑️  ARCHIVAL OBJECT PAGE CREATED: [**{variables["archival_object"]["component_id"]}**]({config("ACCESS_SITE_BASE_URL").rstrip("/")}/{variables["arrangement"]["collection_id"]}/{variables["archival_object"]["component_id"]}/index.html)'
-            )
-            # TODO check for file type and create derivatives or copy originals
 
         create_derivative_files(variables, collection_data, onsite, cloud, access)
+
+        if access:
+            # NOTE working on variables["archival_object"]["component_id"]
+            access.transfer_archival_object_derivative_files(variables)
+            status_logger.info(
+                "☑️  ACCESS PAGE CREATED: [**{}**]({}/{}/{}/index.html)".format(
+                    variables["archival_object"]["component_id"],
+                    config("ACCESS_SITE_BASE_URL").rstrip("/"),
+                    variables["arrangement"]["collection_id"],
+                    variables["archival_object"]["component_id"],
+                )
+            )
 
 
 def archivessnake_post(uri, object):

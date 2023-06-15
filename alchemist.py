@@ -308,6 +308,7 @@ linked_agent_archival_record_relators = {
 
 rights_notice_html = '<p>These digitized collections are accessible for purposes of education and research. Due to the nature of archival collections, archivists at the Caltech Archives and Special Collections are not always able to identify copyright and rights of privacy, publicity, or trademark. We are eager to <a href="mailto:archives@caltech.edu">hear from any rights holders</a>, so that we may obtain accurate information. Upon request, we’ll remove material from public view while we address a rights issue.</p>'
 
+
 class AccessPlatform:
     def __init__(self, collection_id, collection_data):
         self.collection_id = collection_id
@@ -319,32 +320,21 @@ class AccessPlatform:
         logger.info(f"🐛 COLLECTION STRUCTURE PROCESSING: {self.collection_id}")
 
     def archival_object_level_processing(self, variables):
-        logger.info(f"🐛 ARCHIVAL OBJECT LEVEL PROCESSING: {self.collection_id}")
-        logger.info(f"🐛 variables.keys(): {variables.keys()}")
+        logger.info(f'ℹ️  {variables["archival_object"]["component_id"]}')
         generate_archival_object_page(self.build_directory, variables)
-        upload_archival_object_page(self.build_directory, variables)
         generate_iiif_manifest(self.build_directory, variables)
-        upload_iiif_manifest(self.build_directory, variables)
 
     def create_access_file(self, variables):
         # TODO adapt for different file types
-        # TODO create the Pyramid TIFF for iiif-serverless
-        logger.info(f"🐛 CREATE ACCESS FILE: {self.collection_id}")
-        logger.info(f"🐛 variables.keys(): {variables.keys()}")
-        logger.info(
-            f"🐛 variables['original_image_path']: {variables['original_image_path']}"
+        logger.debug(
+            f'🐞 variables["original_image_path"]: {variables["original_image_path"]}'
         )
         create_pyramid_tiff(self.build_directory, variables)
         return
 
-    def transfer_derivative_files(self, variables):
-        logger.info(f"🐛 TRANSFER DERIVATIVE FILES: {self.collection_id}")
-        logger.info(f"🐛 variables.keys(): {variables.keys()}")
-        publish_access_files(self.build_directory, variables)
-
-    def ingest_derivative_files(self, variables):
-        logger.info(f"🐛 INGEST DERIVATIVE FILES: {self.collection_id}")
-        logger.info(f"🐛 variables.keys(): {variables.keys()}")
+    def transfer_archival_object_derivative_files(self, variables):
+        logger.info(f'ℹ️  {variables["archival_object"]["component_id"]}')
+        publish_archival_object_access_files(self.build_directory, variables)
 
     def loop_over_derivative_structure(self, variables):
         logger.info(f"🐛 LOOP OVER DERIVATIVE STRUCTURE: {self.collection_id}")
@@ -760,36 +750,35 @@ def create_pyramid_tiff(build_directory, variables):
         raise
 
 
-def publish_access_files(build_directory, variables):
-    logger.info(f"🐛 PUBLISH ACCESS FILES: {variables['filepaths']}")
+def publish_archival_object_access_files(build_directory, variables):
+    # NOTE working on variables["archival_object"]["component_id"]
+
+    archival_object_access_path = "/".join(
+        [
+            variables["arrangement"]["collection_id"],
+            variables["archival_object"]["component_id"],
+        ]
+    )
 
     def sync_output(line):
-        logger.info(f"🐛 SYNC OUTPUT: {line}")
+        logger.debug(f"🐞 S5CMD SYNC OUTPUT: {line}")
 
     try:
         s5cmd_cmd = sh.Command(config("WORK_S5CMD_CMD"))
-        # Sync each archival object directory separately to avoid deleting files
-        # that are not in the build directory.
-        for child in Path(
-            f'{build_directory.name}/{variables["arrangement"]["collection_id"]}'
-        ).iterdir():
-            if child.is_dir():
-                sync = s5cmd_cmd(
-                    "sync",
-                    "--delete",
-                    f"{child.as_posix()}/*",
-                    f's3://{config("ACCESS_BUCKET")}/{variables["arrangement"]["collection_id"]}/{variables["archival_object"]["component_id"]}/',
-                    _env={
-                        "AWS_ACCESS_KEY_ID": config("DISTILLERY_AWS_ACCESS_KEY_ID"),
-                        "AWS_SECRET_ACCESS_KEY": config(
-                            "DISTILLERY_AWS_SECRET_ACCESS_KEY"
-                        ),
-                    },
-                    _out=sync_output,
-                    _err=sync_output,
-                    _bg=True,
-                )
-                sync.wait()
+        sync = s5cmd_cmd(
+            "sync",
+            "--delete",
+            f"{build_directory.name}/{archival_object_access_path}/*",
+            f's3://{config("ACCESS_BUCKET")}/{archival_object_access_path}/',
+            _env={
+                "AWS_ACCESS_KEY_ID": config("DISTILLERY_AWS_ACCESS_KEY_ID"),
+                "AWS_SECRET_ACCESS_KEY": config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
+            },
+            _out=sync_output,
+            _err=sync_output,
+            _bg=True,
+        )
+        sync.wait()
     except:
         logger.exception("‼️")
         raise
