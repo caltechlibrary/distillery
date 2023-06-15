@@ -107,7 +107,7 @@
 ;TAPE_SSH_HOST=127.0.0.1
 ;TAPE_SSH_PORT=22
 ; NOTE authorized_keys file on TAPE server must include this WORK server key
-;TAPE_SSH_KEY=/workuser/.ssh/private_key
+;TAPE_SSH_AUTHORIZED_KEY=/workuser/.ssh/private_key
 ;TAPE_PYTHON3_CMD=/usr/local/bin/python3
 ;TAPE_LTO_MOUNTPOINT=/path/to/TAPE_LTO_MOUNTPOINT
 ;TAPE_RSYNC_CMD=/usr/bin/rsync
@@ -164,7 +164,7 @@
 ;RESOLVER_BASE_URL=https://resolver.example.org/archives
 
 [loggers]
-keys=root,alchemist,archivesspace,distillery,islandora,oralhistories,preview,tape,validate,validation,web
+keys=root,alchemist,archivesspace,distillery,islandora,oralhistories,tape,validation,web
 
 [handlers]
 keys=archivesspace,console,file,validation
@@ -206,22 +206,10 @@ handlers=console,file
 qualname=oralhistories
 propagate=0
 
-[logger_preview]
-level=DEBUG
-handlers=console,file
-qualname=preview
-propagate=0
-
 [logger_tape]
 level=DEBUG
 handlers=console,file
 qualname=tape
-propagate=0
-
-[logger_validate]
-level=INFO
-handlers=console,file
-qualname=validate
 propagate=0
 
 [logger_validation]

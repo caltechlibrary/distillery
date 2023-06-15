@@ -28,7 +28,7 @@ tape_server = sh.ssh.bake(
     "-p",
     f"{config('TAPE_SSH_PORT')}",
     "-i",
-    f'{config("TAPE_SSH_KEY")}',
+    f'{config("TAPE_SSH_AUTHORIZED_KEY")}',
 )
 
 
@@ -62,13 +62,11 @@ def main(
 
     (
         WORKING_ORIGINAL_FILES,
-        WORK_LOSSLESS_PRESERVATION_FILES,
+        WORK_PRESERVATION_FILES,
     ) = validate_settings()
 
     variables["WORKING_ORIGINAL_FILES"] = WORKING_ORIGINAL_FILES.as_posix()
-    variables[
-        "WORK_LOSSLESS_PRESERVATION_FILES"
-    ] = WORK_LOSSLESS_PRESERVATION_FILES.as_posix()
+    variables["WORK_PRESERVATION_FILES"] = WORK_PRESERVATION_FILES.as_posix()
 
     # verify TAPE NAS mount
     if not nas_is_mounted():
@@ -104,9 +102,7 @@ def main(
 
     # Calculate whether the collection_id directory will fit on the current tape.
     collection_id_directory_bytes = distillery.get_directory_bytes(
-        Path(variables["WORK_LOSSLESS_PRESERVATION_FILES"]).joinpath(
-            variables["collection_id"]
-        )
+        Path(variables["WORK_PRESERVATION_FILES"]).joinpath(variables["collection_id"])
     )
     # NOTE output from tape_server connection is a string formatted like:
     # `5732142415872 5690046283776`
@@ -175,13 +171,11 @@ def collection_level_preprocessing(collection_id, work_preservation_files):
 
 
 def transfer_derivative_collection(variables):
-    # TODO variables["WORK_LOSSLESS_PRESERVATION_FILES"]
-    # TODO variables["collection_id"]
     """Transfer PRESERVATION_FILES/CollectionID directory as a whole to tape."""
     # Calculate whether the collection_id directory will fit on the current tape.
     collection_id_directory_bytes = distillery.get_directory_bytes(
-        Path(variables["WORK_LOSSLESS_PRESERVATION_FILES"]).joinpath(
-            variables["collection_id"]
+        "/".join(
+            [config("WORK_PRESERVATION_FILES").rstrip("/"), variables["collection_id"]]
         )
     )
     logger.info(f"🔢 BYTECOUNT OF PRESERVATION FILES: {collection_id_directory_bytes}")
@@ -412,7 +406,7 @@ def process_during_original_files_loop(variables):
     # # Save Preservation Image in local filesystem structure.
     # distillery.save_preservation_file(
     #     variables["preservation_file_info"]["filepath"],
-    #     f'{variables["WORK_LOSSLESS_PRESERVATION_FILES"]}/{variables["preservation_file_info"]["s3key"]}',
+    #     f'{variables["WORK_PRESERVATION_FILES"]}/{variables["preservation_file_info"]["s3key"]}',
     # ) # TODO pass only variables
     if variables["step"] == "save_tape_info_to_archivesspace":
         # Add file versions.
@@ -446,14 +440,14 @@ def validate_settings():
     ).resolve(
         strict=True
     )  # NOTE do not create missing `WORKING_ORIGINAL_FILES`
-    WORK_LOSSLESS_PRESERVATION_FILES = distillery.directory_setup(
+    WORK_PRESERVATION_FILES = distillery.directory_setup(
         os.path.expanduser(
             f'{config("WORK_NAS_ARCHIVES_MOUNTPOINT")}/{config("NAS_LOSSLESS_PRESERVATION_FILES_RELATIVE_PATH")}'
         )
     ).resolve(strict=True)
     return (
         WORKING_ORIGINAL_FILES,
-        WORK_LOSSLESS_PRESERVATION_FILES,
+        WORK_PRESERVATION_FILES,
     )
 
 
