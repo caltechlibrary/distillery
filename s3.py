@@ -63,7 +63,7 @@ def main(
             IN_PROCESS_ORIGINAL_FILES,
             STAGE_3_ORIGINAL_FILES,
             PRESERVATION_BUCKET,
-            WORK_LOSSLESS_PRESERVATION_FILES,
+            WORK_PRESERVATION_FILES,
         ) = validate_settings()
     except Exception as e:
         message = "❌ There was a problem with the settings for the processing script.\n"
@@ -76,9 +76,7 @@ def main(
 
     variables["PRESERVATION_BUCKET"] = PRESERVATION_BUCKET
     variables["IN_PROCESS_ORIGINAL_FILES"] = IN_PROCESS_ORIGINAL_FILES.as_posix()
-    variables[
-        "WORK_LOSSLESS_PRESERVATION_FILES"
-    ] = WORK_LOSSLESS_PRESERVATION_FILES.as_posix()
+    variables["WORK_PRESERVATION_FILES"] = WORK_PRESERVATION_FILES.as_posix()
 
     variables["collection_directory"] = distillery.confirm_collection_directory(
         IN_PROCESS_ORIGINAL_FILES, collection_id
@@ -251,7 +249,7 @@ def validate_settings():
     PRESERVATION_BUCKET = config(
         "PRESERVATION_BUCKET"
     )  # TODO validate access to bucket
-    WORK_LOSSLESS_PRESERVATION_FILES = distillery.directory_setup(
+    WORK_PRESERVATION_FILES = distillery.directory_setup(
         os.path.expanduser(
             f'{config("WORK_NAS_ARCHIVES_MOUNTPOINT")}/{config("NAS_LOSSLESS_PRESERVATION_FILES_RELATIVE_PATH")}'
         )
@@ -260,7 +258,7 @@ def validate_settings():
         IN_PROCESS_ORIGINAL_FILES,
         STAGE_3_ORIGINAL_FILES,
         PRESERVATION_BUCKET,
-        WORK_LOSSLESS_PRESERVATION_FILES,
+        WORK_PRESERVATION_FILES,
     )
 
 

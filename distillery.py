@@ -163,6 +163,8 @@ class DistilleryService(rpyc.Service):
             if dirnames:
                 for dirname in dirnames:
                     # check archival_object status
+                    # TODO raise exception after looping through all directories
+                    #   in order to report all problems instead of just one
                     archival_object = find_archival_object(dirname)
                     if not archival_object:
                         message = f"❌ NO ARCHIVAL OBJECT FOUND FOR: {self.collection_id}/{dirname}"
@@ -303,8 +305,6 @@ class DistilleryService(rpyc.Service):
             if self.onsite_medium:
                 # TODO run in the background but wait for it before writing records to ArchivesSpace
                 # TODO is there a benefit in transferring PRESERVATION_FILES/CollectionID directory as a whole to tape?
-                # TODO variables["WORK_LOSSLESS_PRESERVATION_FILES"]
-                # TODO variables["collection_id"]
                 self.onsite_medium.transfer_derivative_collection(self.variables)
 
             if self.access_platform:
@@ -1394,7 +1394,7 @@ def create_preservation_files_structure(variables):
         variables["collection_id"]
     )  # TODO pass only variables
     save_collection_datafile(
-        variables["collection_data"], variables["WORK_LOSSLESS_PRESERVATION_FILES"]
+        variables["collection_data"], variables["WORK_PRESERVATION_FILES"]
     )  # TODO pass only variables
     variables["step"] = "create_preservation_files_structure"  # TODO no more steps?
     create_derivative_structure(variables)
