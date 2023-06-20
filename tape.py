@@ -292,47 +292,25 @@ def rsync_to_tape(variables):
 
 
 def get_tape_indicator():
-    """Ensure tape is mounted and return contents of existing or created INDICATOR file."""
+    """Ensure tape is mounted and return contents of INDICATOR file."""
     if tape_is_mounted():
-        return try_tape_indicator()
+        return read_tape_indicator()
     else:
         mount_tape()
-        return try_tape_indicator()
-
-
-def try_tape_indicator():
-    """Return contents of existing or created INDICATOR file."""
-    try:
-        tape_indicator = read_tape_indicator()
-        return tape_indicator
-    except sh.ErrorReturnCode_1:
-        # TODO do not write tape indicator; we may not know what tape is in the drive;
-        # TODO writing tape indicator must be a manual process
-        write_tape_indicator()
-        tape_indicator = read_tape_indicator()
-        return tape_indicator
-    except Exception as e:
-        raise e
+        return read_tape_indicator()
 
 
 def read_tape_indicator():
-    """"Return contents of existing INDICATOR file."""
-    tape_indicator = tape_server(
-        f'{config("TAPE_PYTHON3_CMD")} -c \'with open("{config("TAPE_LTO_MOUNTPOINT")}/INDICATOR") as f: print(f.read())\''
-    ).strip()
-    logger.info(f"☑️  TAPE INDICATOR FOUND: {tape_indicator}")
-    return tape_indicator
-
-
-def write_tape_indicator():
-    """Write INDICATOR file to tape with contents of: YYYYMMDD_01"""
-    tape_indicator = f'{date.today().strftime("%Y%m%d")}_01'
-    # ASSUMPTION no other indicator with same date exists
-    # TODO check if indicator value already exists
-    # (unlikely, as it would require filling up an entire 6 TB tape in a day)
-    tape_server(
-        f'{config("TAPE_PYTHON3_CMD")} -c \'with open("{config("TAPE_LTO_MOUNTPOINT")}/INDICATOR", "w") as f: f.write("{tape_indicator}\\n")\''
-    )
+    """"Return contents of INDICATOR file."""
+    try:
+        tape_indicator = tape_server(
+            f'{config("TAPE_PYTHON3_CMD")} -c \'with open("{config("TAPE_LTO_MOUNTPOINT")}/INDICATOR") as f: print(f.read())\''
+        ).strip()
+        logger.info(f"☑️  TAPE INDICATOR FOUND: {tape_indicator}")
+        return tape_indicator
+    except:
+        logger.exception("❌  TAPE INDICATOR NOT FOUND")
+        raise
 
 
 def nas_is_mounted():
