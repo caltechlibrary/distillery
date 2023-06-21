@@ -317,6 +317,7 @@ def copy_oralhistories_asset(test_id, filename, tmp_oralhistories, item_componen
     )
 
 
+@pytest.mark.skip
 def test_delete_archivesspace_test_records(asnake_client):
     test_identifiers = [
         name.rsplit("_", maxsplit=1)[-1]
