@@ -35,7 +35,6 @@ logging.config.fileConfig(
 )
 logger = logging.getLogger("distillery")
 archivesspace_logger = logging.getLogger("archivesspace")
-validation_logger = logging.getLogger("validation")
 status_logger = logging.getLogger("status")
 status_logger.setLevel(logging.INFO)
 status_logfile = Path(config("WORK_STATUS_FILES")).joinpath("status.log")

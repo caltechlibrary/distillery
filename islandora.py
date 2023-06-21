@@ -30,7 +30,6 @@ logging.config.fileConfig(
     disable_existing_loggers=False,
 )
 logger = logging.getLogger("islandora")
-validation_logger = logging.getLogger("validation")
 
 islandora_server = sh.ssh.bake(
     f"-i",
@@ -115,7 +114,7 @@ def islandora_collection_structure_processing(collection_id, collection_data):
 
     # Create the temporary staging directory.
     islandora_staging_files = islandora_server.mktemp("--directory").strip()
-    validation_logger.info(f"ISLANDORA: {islandora_staging_files}")
+    logger.info(f"ISLANDORA: {islandora_staging_files}")
     # Upload the collections directory.
     upload_to_islandora_server(
         os.path.join(config("COMPRESSED_ACCESS_FILES"), "collections"),
@@ -257,7 +256,7 @@ def add_books_to_islandora_collection(variables):
     )
     for line in ibi.stderr.decode().splitlines():
         if line.split(":")[0].split()[-1] == variables["collection_id"]:
-            validation_logger.info(
+            logger.info(
                 f'ISLANDORA: {config("ISLANDORA_URL").rstrip("/")}/islandora/object/{line.split(".")[0].split()[-1]}'
             )
     logger.info(
@@ -423,9 +422,6 @@ def create_islandora_collection(islandora_staging_files):
     # we capture just the namespace:id portion (caltech:ABC)
     collection_pid = str(ibi.stderr, "utf-8").split()[1].strip(".")
     logger.info(f"☑️  ISLANDORA COLLECTION CREATED: {collection_pid}")
-    validation_logger.info(
-        f'ISLANDORA: {config("ISLANDORA_URL").rstrip("/")}/islandora/object/{collection_pid}'
-    )
     return collection_pid
 
 

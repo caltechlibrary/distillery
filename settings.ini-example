@@ -164,13 +164,13 @@
 ;RESOLVER_BASE_URL=https://resolver.example.org/archives
 
 [loggers]
-keys=root,alchemist,archivesspace,distillery,islandora,oralhistories,tape,validation,web
+keys=root,alchemist,archivesspace,distillery,islandora,oralhistories,tape,web
 
 [handlers]
-keys=archivesspace,console,file,validation
+keys=archivesspace,console,file
 
 [formatters]
-keys=archivesspace,console,file,validation
+keys=archivesspace,console,file
 
 [logger_root]
 level=NOTSET
@@ -212,18 +212,6 @@ handlers=console,file
 qualname=tape
 propagate=0
 
-[logger_validation]
-; GOAL parsable log that identifies storage and database changes across systems
-; EXAMPLE:
-; ORIGINAL_FILE: HBF/HBF_01_05/HBF_01_05_01.tif
-; TAPE: LTO/20220114_01/HBF/HBF-s01-Organizational-Records/HBF_001_05-Annual-Meetings--1943/HBF_001_05_0001/w2pf_kthk.jp2
-; ARCHIVESSPACE: /repositories/2/digital_object_components/108112
-; S3: bucket-name/HBF/HBF-s01-Organizational-Records/HBF_001_05-Annual-Meetings--1943/HBF_001_05_0001/w2pf_kthk.jp2
-level=INFO
-handlers=validation
-qualname=validation
-propagate=0
-
 [logger_web]
 level=DEBUG
 handlers=console,file
@@ -248,12 +236,6 @@ level=NOTSET
 formatter=file
 args=('/tmp/distillery.log', 'a', 1000000, 9, 'utf-8')
 
-[handler_validation]
-class=handlers.RotatingFileHandler
-level=NOTSET
-formatter=validation
-args=('/tmp/validation.log', 'a', 1000000, 9, 'utf-8')
-
 [formatter_archivesspace]
 format=%(message)s
 datefmt=
@@ -264,8 +246,4 @@ datefmt=
 
 [formatter_file]
 format=%(asctime)s - %(name)s - %(levelname)s - %(message)s
-datefmt=
-
-[formatter_validation]
-format=%(message)s
 datefmt=
