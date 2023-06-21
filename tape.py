@@ -158,13 +158,17 @@ def create_archivesspace_tape_records(variables):
 
 def validate_connection():
     """If WORK server can successfully SSH into TAPE server."""
-    tape_server_connection = tape_server()
-    if tape_server_connection.exit_code == 0:
+    try:
+        # attempt an SSH connection; will raise on failure
+        tape_server_connection = tape_server()
         logger.info(f"📼 TAPE SERVER CONNECTION SUCCESS: {tape_server}")
-        return True
-    else:
-        logger.error(f"❌ TAPE SERVER CONNECTION FAILURE: {tape_server}")
+        tape_indicator = get_tape_indicator()
+        logger.info(f"📼 TAPE INDICATOR: {tape_indicator}")
+    except:
+        logger.exception(f"❌ TAPE SERVER CONNECTION FAILURE: {tape_server}")
         return False
+    else:
+        return True
 
 
 def collection_level_preprocessing(collection_id, work_preservation_files):
