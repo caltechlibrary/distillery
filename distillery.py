@@ -260,6 +260,11 @@ class DistilleryService(rpyc.Service):
                 # save collection metadata
                 save_collection_datafile(collection_data, work_preservation_files)
                 # run collection-level preprocessing
+                if self.onsite_medium:
+                    self.onsite_medium.collection_level_preprocessing(
+                        self.collection_id, work_preservation_files
+                    )
+                    onsiteDistiller = True
                 if self.cloud_platform:
                     self.cloud_platform.collection_level_preprocessing(
                         self.collection_id, work_preservation_files
