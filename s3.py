@@ -22,7 +22,6 @@ logging.config.fileConfig(
     disable_existing_loggers=False,
 )
 logger = logging.getLogger("s3")
-validation_logger = logging.getLogger("validation")
 
 s3_client = boto3.client(
     "s3",
@@ -119,9 +118,6 @@ def transfer_collection_datafile(collection_id, work_preservation_files):
     logger.info(
         f'☑️  COLLECTION DATAFILE UPLOADED TO S3: {config("PRESERVATION_BUCKET")}/{str(collection_datafile_key)}'
     )
-    validation_logger.info(
-        f'S3: {config("PRESERVATION_BUCKET")}/{str(collection_datafile_key)}'
-    )
 
 
 def transfer_derivative_structure(variables):
@@ -150,9 +146,6 @@ def transfer_archival_object_datafile(variables):
         )
     logger.info(
         f'☑️  ARCHIVAL OBJECT DATAFILE UPLOADED TO S3: {config("PRESERVATION_BUCKET")}/{str(archival_object_datafile_key)}'
-    )
-    validation_logger.info(
-        f'S3: {config("PRESERVATION_BUCKET")}/{str(archival_object_datafile_key)}'
     )
 
 
@@ -197,9 +190,6 @@ def transfer_digital_object_component_file(variables):
     else:
         logger.info(
             f'☑️  DIGITAL OBJECT COMPONENT FILE UPLOADED TO S3: {config("PRESERVATION_BUCKET")}/{preservation_file_key}'
-        )
-        validation_logger.info(
-            f'S3: {config("PRESERVATION_BUCKET")}/{preservation_file_key}'
         )
         return response["ETag"].strip('"')
 

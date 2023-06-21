@@ -18,7 +18,6 @@ logging.config.fileConfig(
     disable_existing_loggers=False,
 )
 logger = logging.getLogger("tape")
-validation_logger = logging.getLogger("validation")
 
 
 # NOTE known_hosts file of user on WORK server must include TAPE server keys
@@ -149,10 +148,7 @@ def rsync_to_tape(variables):
 
     def process_output(line):
         if line.strip().startswith(variables["arrangement"]["collection_id"]):
-            validation_logger.info(f"TAPE: {line.strip()}")
-        # with open(variables["stream_path"], "a") as f:
-        #     if line.strip():
-        #         f.write(line)
+            logger.debug(f"RSYNC: {line.strip()}")
 
     def perform_rsync():
         # NOTE LTFS will not save group, permission, or time attributes
