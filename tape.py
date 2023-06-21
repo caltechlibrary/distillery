@@ -348,7 +348,7 @@ def tape_is_mounted():
 
 
 def mount_tape():
-    logger.info(f'✅ MOUNTING TAPE: {config("TAPE_LTO_MOUNTPOINT")}')
+    logger.info(f'🤞 MOUNTING TAPE: {config("TAPE_LTO_MOUNTPOINT")}')
     tape_server(config("TAPE_LTFS_CMD"), config("TAPE_LTO_MOUNTPOINT"))
 
 
