@@ -300,7 +300,7 @@ def rsync_to_tape(variables):
 
 
 def get_tape_indicator():
-    """Ensure tape is mounted and return contents of INDICATOR file."""
+    """Ensure tape is mounted and return INDICATOR string."""
     if tape_is_mounted():
         return read_tape_indicator()
     else:
@@ -309,11 +309,21 @@ def get_tape_indicator():
 
 
 def read_tape_indicator():
-    """"Return contents of INDICATOR file."""
+    """"Find and return INDICATOR string."""
     try:
-        tape_indicator = tape_server(
-            f'{config("TAPE_PYTHON3_CMD")} -c \'with open("{config("TAPE_LTO_MOUNTPOINT")}/INDICATOR") as f: print(f.read())\''
-        ).strip()
+        tape_indicator = (
+            tape_server(
+                "find",
+                config("TAPE_LTO_MOUNTPOINT"),
+                "-type",
+                "f",
+                "-name",
+                "'*.indicator'",
+            )
+            .strip()
+            .split(".")[0]
+            .split("/")[-1]
+        )
         logger.info(f"☑️  TAPE INDICATOR FOUND: {tape_indicator}")
         return tape_indicator
     except:
