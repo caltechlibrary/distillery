@@ -24,11 +24,13 @@ validation_logger = logging.getLogger("validation")
 # NOTE known_hosts file of user on WORK server must include TAPE server keys
 # `ssh-keyscan -H $TAPE_SSH_HOST >> ~/.ssh/known_hosts`
 tape_server = sh.ssh.bake(
-    f"{config('TAPE_SSH_USER')}@{config('TAPE_SSH_HOST')}",
-    "-p",
-    f"{config('TAPE_SSH_PORT')}",
+    "-o",
+    "IdentitiesOnly=yes",
     "-i",
     f'{config("TAPE_SSH_AUTHORIZED_KEY")}',
+    "-p",
+    f"{config('TAPE_SSH_PORT')}",
+    f"{config('TAPE_SSH_USER')}@{config('TAPE_SSH_HOST')}",
 )
 
 
