@@ -175,7 +175,10 @@ def transfer_derivative_collection(variables):
     # Calculate whether the collection_id directory will fit on the current tape.
     collection_id_directory_bytes = distillery.get_directory_bytes(
         "/".join(
-            [config("WORK_PRESERVATION_FILES").rstrip("/"), variables["collection_id"]]
+            [
+                config("WORK_PRESERVATION_FILES").rstrip("/"),
+                variables["arrangement"]["collection_id"],
+            ]
         )
     )
     logger.info(f"🔢 BYTECOUNT OF PRESERVATION FILES: {collection_id_directory_bytes}")
@@ -258,11 +261,10 @@ def process_digital_object_component_file(variables):
 
 
 def rsync_to_tape(variables):
-    # TODO variables["collection_id"]
     """Ensure NAS is mounted and copy collection directory tree to tape."""
 
     def process_output(line):
-        if line.strip().startswith(variables["collection_id"]):
+        if line.strip().startswith(variables["arrangement"]["collection_id"]):
             validation_logger.info(f"TAPE: {line.strip()}")
         # with open(variables["stream_path"], "a") as f:
         #     if line.strip():
