@@ -4,6 +4,7 @@ import inspect
 import os
 import pytest
 import shutil
+import sys
 import tempfile
 import time
 
@@ -314,6 +315,22 @@ def copy_oralhistories_asset(test_id, filename, tmp_oralhistories, item_componen
             ]
         ),
     )
+
+
+def test_delete_archivesspace_test_records(asnake_client):
+    test_identifiers = [
+        name.rsplit("_", maxsplit=1)[-1]
+        for name, obj in inspect.getmembers(sys.modules[__name__])
+        if (
+            inspect.isfunction(obj)
+            and name.startswith("test_")
+            and name != "test_delete_archivesspace_test_records"
+        )
+    ]
+    print("🐞 DELETING TEST RECORDS")
+    for test_id in test_identifiers:
+        print(f"🐞 {test_id}")
+        delete_archivesspace_test_records(asnake_client, test_id)
 
 
 def test_distillery_landing(page: Page):
