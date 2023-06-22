@@ -1858,6 +1858,97 @@ def test_distillery_cloud_nonimage_files_7b3px(page: Page, asnake_client, s3_cli
             ]
 
 
+def test_distillery_tape_reuse_top_container_records_d3bym(page: Page, asnake_client):
+    """Items on the same tape should use the same top container record."""
+    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
+    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, test_id)
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_name, test_id
+    )
+    print(
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD
+    (
+        item_create_response,
+        item_component_id,
+    ) = create_archivesspace_test_archival_object_item(
+        asnake_client, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 item_create_response:{test_id}",
+        item_create_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM2 RECORD
+    (
+        item2_create_response,
+        item2_component_id,
+    ) = create_archivesspace_test_archival_object_item(
+        asnake_client, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 item2_create_response:{test_id}",
+        item2_create_response.json(),
+    )
+    # CUSTOMIZE ARCHIVAL OBJECT ITEM2 RECORD
+    item2 = asnake_client.get(item2_create_response.json()["uri"]).json()
+    item2["title"] = f"Item2 {test_id}"
+    item2["component_id"] = f"item2-{test_id}"
+    item2_update_response = asnake_client.post(item2["uri"], json=item2)
+    print(
+        f"🐞 item2_update_response:{test_id}",
+        item2_update_response.json(),
+    )
+    # RUN DISTILLERY TAPE PROCESS
+    # NOTE increase timeout because tape drive can be quite slow to start up
+    run_distillery(page, test_id, ["onsite"], timeout=300000)
+    # VALIDATE TOP CONTAINER RECORDS
+    # get the top_container indicator for the first item
+    item = asnake_client.get(
+        item_create_response.json()["uri"],
+        params={"resolve[]": "digital_object", "resolve[]": "linked_agents"},
+    ).json()
+    for instance in item["instances"]:
+        if instance.get("sub_container"):
+            if instance["sub_container"].get("top_container"):
+                top_container = asnake_client.get(
+                    instance["sub_container"]["top_container"]["ref"]
+                ).json()
+    # NOTE top_containers must be indexed before they can be searched
+    top_containers_search_response = asnake_client.get(
+        '/repositories/2/top_containers/search?q=indicator_u_icusort:"{}"'.format(
+            top_container["indicator"]
+        )
+    )
+    # wait a maximum of 30 seconds for indexing
+    timeout_start = time.time()
+    while time.time() < timeout_start + 30:
+        if top_containers_search_response.json()["response"]["numFound"] > 0:
+            # allow enough time to index both items
+            time.sleep(10)
+            # and search one more time
+            top_containers_search_response = asnake_client.get(
+                '/repositories/2/top_containers/search?q=indicator_u_icusort:"{}"'.format(
+                    top_container["indicator"]
+                )
+            )
+            break
+        else:
+            time.sleep(1)
+            top_containers_search_response = asnake_client.get(
+                '/repositories/2/top_containers/search?q=indicator_u_icusort:"{}"'.format(
+                    top_container["indicator"]
+                )
+            )
+    # the top_container record should be reused for both items; if there are two
+    # top_container records with the same indicator, we fail the test
+    assert top_containers_search_response.json()["response"]["numFound"] == 1
+
+
 def test_oralhistories_add_publish_one_transcript_2d4ja(
     page: Page, asnake_client, s3_client
 ):
