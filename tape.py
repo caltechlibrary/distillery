@@ -146,11 +146,16 @@ def process_digital_object_component_file(variables):
 def rsync_to_tape(variables):
     """Ensure NAS is mounted and copy collection directory tree to tape."""
 
+    line_count = 0
+
     def process_output(line):
+        nonlocal line_count
+        logger.debug(f"RSYNC: {line.strip()}")
         if line.strip().startswith(variables["arrangement"]["collection_id"]):
-            logger.debug(f"RSYNC: {line.strip()}")
+            line_count += 1
 
     def perform_rsync():
+        nonlocal line_count
         # NOTE LTFS will not save group, permission, or time attributes
         # NOTE running with `_bg=True` and `_out` to process each line of output
         logger.info("⏳ PERFORMING RSYNC TO TAPE...")
@@ -158,12 +163,14 @@ def rsync_to_tape(variables):
             config("TAPE_RSYNC_CMD"),
             "-rv",
             "--exclude=.DS_Store",
-            f'{config("TAPE_NAS_ARCHIVES_MOUNTPOINT")}/{config("NAS_LOSSLESS_PRESERVATION_FILES_RELATIVE_PATH")}/',
+            f'{config("TAPE_PRESERVATION_FILES")}/',
             config("TAPE_LTO_MOUNTPOINT"),
             _out=process_output,
             _bg=True,
         )
         rsync_process.wait()
+        if line_count < 1:
+            raise RuntimeError("❌ NO COLLECTION FILES COPIED TO TAPE")
         return
 
     if nas_is_mounted():
