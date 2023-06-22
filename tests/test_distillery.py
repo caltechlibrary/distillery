@@ -218,7 +218,9 @@ def create_archivesspace_test_agent_person(asnake_client, test_id, unique_rest_o
     return person_post_response
 
 
-def run_distillery(page: Page, resource_identifier, destinations, outcome="success"):
+def run_distillery(
+    page: Page, resource_identifier, destinations, outcome="success", timeout=60000
+):
     page.goto(config("DISTILLERY_BASE_URL"))
     page.get_by_label("Collection ID").fill(resource_identifier)
     for destination in destinations:
@@ -228,17 +230,17 @@ def run_distillery(page: Page, resource_identifier, destinations, outcome="succe
     if outcome == "failure":
         expect(page.locator("p")).to_have_text(
             "❌ Something went wrong. View the details for more information.",
-            timeout=60000,
+            timeout=timeout,
         )
         return page
     expect(page.locator("p")).to_have_text(
         f"✅ Validated metadata, files, and destinations for {resource_identifier}.",
-        timeout=60000,
+        timeout=timeout,
     )
     page.get_by_role("button", name="Run").click()
     page.get_by_text("Details").click()
     expect(page.locator("p")).to_have_text(
-        f"✅ Processed metadata and files for {resource_identifier}.", timeout=60000
+        f"✅ Processed metadata and files for {resource_identifier}.", timeout=timeout
     )
 
 
