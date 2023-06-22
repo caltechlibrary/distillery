@@ -86,6 +86,12 @@ def delete_archivesspace_test_records(asnake_client, resource_identifer):
                 digital_object_delete_response = asnake_client.delete(
                     instance["digital_object"]["ref"]
                 )
+            if instance.get("sub_container") and instance["sub_container"].get(
+                "top_container"
+            ):
+                top_container_delete_response = asnake_client.delete(
+                    instance["sub_container"]["top_container"]["ref"]
+                )
         for linked_agent in result["linked_agents"]:
             linked_agent_delete_response = asnake_client.delete(linked_agent["ref"])
 
