@@ -107,19 +107,41 @@ def ensure_top_container(variables):
     ):
         return
 
-    # Set up and add a container instance to the ArchivesSpace archival_object.
-    top_container = {}
-    # indicator is required
-    top_container["indicator"] = variables["tape_indicator"]
-    # /container_profiles/5 is LTO-7 tape
-    top_container["container_profile"] = {"ref": "/container_profiles/5"}
-    top_container["type"] = "Tape"
-    # create via post
-    top_containers_post_response = distillery.archivessnake_post(
-        "/repositories/2/top_containers", top_container
+    # Search for an existing top_container with the same indicator.
+    top_containers_search_response = distillery.archivessnake_get(
+        '/repositories/2/top_containers/search?q=indicator_u_icusort:"{}"'.format(
+            variables["tape_indicator"]
+        )
     )
-    top_container_uri = top_containers_post_response.json()["uri"]
-    logger.info(f"✳️  TOP CONTAINER CREATED: {top_container_uri}")
+    if top_containers_search_response.json()["response"]["numFound"] == 1:
+        # store existing top_container uri
+        top_container_uri = top_containers_search_response.json()["response"]["docs"][
+            0
+        ]["uri"]
+        logger.info(f"☑️  TOP CONTAINER FOUND: {top_container_uri}")
+    elif top_containers_search_response.json()["response"]["numFound"] == 0:
+        # create a new top_container
+        top_container = {}
+        # indicator is required
+        top_container["indicator"] = variables["tape_indicator"]
+        # TODO avoid hardcoding container_profile ref
+        # /container_profiles/5 is LTO-7 tape
+        top_container["container_profile"] = {"ref": "/container_profiles/5"}
+        top_container["type"] = "Tape"
+        # create via post
+        top_containers_post_response = distillery.archivessnake_post(
+            "/repositories/2/top_containers", top_container
+        )
+        top_container_uri = top_containers_post_response.json()["uri"]
+        logger.info(f"✳️  TOP CONTAINER CREATED: {top_container_uri}")
+    else:
+        # TODO handle multiple top_containers with same indicator
+        message = "❌ MULTIPLE TOP CONTAINERS FOUND WITH INDICATOR: {}".format(
+            variables["tape_indicator"]
+        )
+        logger.error(message)
+        raise ValueError(message)
+
     # set up a container instance to add to the archival_object
     container_instance = {
         "instance_type": "mixed_materials",  # per policy # TODO set up new type
