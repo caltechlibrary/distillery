@@ -317,7 +317,10 @@ def copy_oralhistories_asset(test_id, filename, tmp_oralhistories, item_componen
     )
 
 
-@pytest.mark.skip
+@pytest.mark.skipif(
+    not os.getenv("DELETE_ARCHIVESSPACE_TEST_RECORDS"),
+    reason="environment variable DELETE_ARCHIVESSPACE_TEST_RECORDS is not set",
+)
 def test_delete_archivesspace_test_records(asnake_client):
     test_identifiers = [
         name.rsplit("_", maxsplit=1)[-1]
