@@ -80,9 +80,7 @@ def delete_archivesspace_test_records(asnake_client, resource_identifer):
     """Delete any existing test records."""
 
     def delete_related_records(uri):
-        result = asnake_client.get(
-            uri, params={"resolve[]": "digital_object", "resolve[]": "linked_agents"}
-        ).json()
+        result = asnake_client.get(uri).json()
         for instance in result["instances"]:
             if instance.get("digital_object"):
                 digital_object_delete_response = asnake_client.delete(
