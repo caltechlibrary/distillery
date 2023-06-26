@@ -1336,7 +1336,7 @@ def loop_over_preservation_files(variables, onsite, cloud):
                 ):
                     # do not analyze preservation_folder JSON metadata
                     continue
-                logger.info(f"▶️  PROCESSING FILE: {filename}")
+                logger.info(f"▶️  PROCESSING FILE: {Path(dirpath).name}/{filename}")
 
                 type, encoding = mimetypes.guess_type(filepath)
 
