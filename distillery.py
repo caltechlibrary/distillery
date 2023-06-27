@@ -1283,6 +1283,7 @@ def loop_over_archival_object_datafiles(variables, collection_id, onsite, cloud)
             raise
 
         if onsite:
+            # NOTE writes top_container records to ArchivesSpace
             onsite.process_archival_object_datafile(variables)
         if cloud:
             cloud.process_archival_object_datafile(variables)
@@ -1304,6 +1305,19 @@ def loop_over_preservation_files(variables, onsite, cloud):
         └── item-123.json
     """
     for preservation_folder in variables["preservation_folders"]:
+        # update variables["archival_object"]
+        for entry in os.scandir(preservation_folder):
+            if (
+                entry.is_file()
+                and entry.name.rsplit(".", maxsplit=1)[-1] == "json"
+                and Path(preservation_folder).name.startswith(
+                    entry.name.rsplit(".", maxsplit=1)[0]
+                )
+            ):
+                # this is our archival_object_datafile; update variables
+                variables["archival_object"] = find_archival_object(
+                    entry.name.rsplit(".", maxsplit=1)[0]
+                )
         # see https://stackoverflow.com/a/54790514 for os.walk explainer
         for dirpath, dirnames, filenames in sorted(os.walk(preservation_folder)):
             # preservation_foldername = Path(dirpath).name
