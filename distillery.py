@@ -656,28 +656,6 @@ def get_crockford_id():
     return get_crockford_characters() + "_" + get_crockford_characters()
 
 
-def get_digital_object_component(digital_object_component_component_id):
-    """Return digital_object_component metadata using the digital_object_component_component_id."""
-    find_by_id_response = asnake_client.get(
-        f"/repositories/2/find_by_id/digital_object_components?component_id[]={digital_object_component_component_id}"
-    )
-    find_by_id_response.raise_for_status()
-    if len(find_by_id_response.json()["digital_object_components"]) < 1:
-        return None
-    if len(find_by_id_response.json()["digital_object_components"]) > 1:
-        raise ValueError(
-            f"Multiple digital_object_components found with digital_object_component_component_id: {digital_object_component_component_id}"
-        )
-    digital_object_component_get_response = asnake_client.get(
-        f"{find_by_id_response.json()['digital_object_components'][0]['ref']}"
-    )
-    digital_object_component_get_response.raise_for_status()
-    logger.info(
-        f'☑️  DIGITAL OBJECT COMPONENT RETRIEVED: {digital_object_component_get_response.json()["uri"]}'
-    )
-    return digital_object_component_get_response.json()
-
-
 # TODO rename to get_filepath_components
 def get_file_parts(filepath):
     file_parts = {}
@@ -912,28 +890,64 @@ def save_digital_object_component_record(variables):
     if variables.get("file_uri_scheme") == None:
         logger.warning('⚠️  MISSING variables["file_uri_scheme"]')
         return
-    # TODO be sure id is unique
-    digital_object_component_component_id = Path(
-        variables["preservation_file_info"]["filepath"]
-    ).name
-    digital_object_component = get_digital_object_component(
-        digital_object_component_component_id
-    )
-    if digital_object_component:
-        # TODO check if file_version with specified URI scheme exists
-        file_uri_values = []
-        for file_version in digital_object_component["file_versions"]:
-            file_uri_values.append(file_version["file_uri"])
-        existing_file_versions = [
-            x
-            for x in file_uri_values
-            if x.startswith(f'{variables["file_uri_scheme"]}://')
-        ]
-        if existing_file_versions:
+    # NOTE indexing status of a newly-created digital_object_component is
+    # unreliable; the precomputed_waypoints of the digital_object tree is a
+    # better indicator of digital_object_component existence
+    digital_objects = [
+        i
+        for i in variables["archival_object"]["instances"]
+        if "digital_object" in i.keys()
+    ]
+    if len(digital_objects) > 1:
+        # TODO handle multiple digital_objects
+        logger.debug(f"🐞 MULTIPLE DIGITAL_OBJECTS: {digital_objects}")
+    if len(digital_objects) == 1:
+        logger.debug(f"🐞 DIGITAL_OBJECTS[0]: {digital_objects[0]}")
+        digital_object_tree = archivessnake_get(
+            digital_objects[0]["digital_object"]["ref"] + "/tree/root"
+        ).json()
+        logger.debug(f"🐞 DIGITAL_OBJECT_TREE: {digital_object_tree}")
+        if not digital_object_tree.get("precomputed_waypoints"):
+            # NOTE without precomputed_waypoints we assume there are no
+            # digital_object_components
+            logger.debug(
+                f"🐞 NO PRECOMPUTED_WAYPOINTS; CREATING DIGITAL_OBJECT_COMPONENT"
+            )
+            return create_digital_object_component(variables)
+    else:
+        raise RuntimeError(f"❌ NO DIGITAL_OBJECTS FOUND: {variables}")
+    digital_object_components_summary = [
+        _ for _ in digital_object_tree["precomputed_waypoints"][""]["0"]
+    ]
+    logger.debug(f"🐞 DIGITAL_OBJECT_COMPONENTS: {digital_object_components_summary}")
+    if not digital_object_components_summary:
+        logger.debug(
+            f"🐞 NO DIGITAL_OBJECT_COMPONENTS_SUMMARY; CREATING DIGITAL_OBJECT_COMPONENT"
+        )
+        return create_digital_object_component(variables)
+    # NOTE we assume there is a digital_object_component
+    for digital_object_component_summary in digital_object_components_summary:
+        if (
+            f'{variables["file_uri_scheme"]}://'
+            in digital_object_component_summary["file_uri_summary"]
+        ):
             raise RuntimeError(
-                f"❌ existing file_uri found for digital_object_component: {digital_object_component_component_id}"
+                "❌ EXISTING {} FILE_URI FOUND ON DIGITAL_OBJECT_COMPONENT: {}".format(
+                    variables["file_uri_scheme"],
+                    digital_object_component_summary["label"],
+                )
             )
         else:
+            logger.debug(
+                "🐞 NO EXISTING {} FILE_URI FOUND; ADDING FILE_VERSION TO DIGITAL_OBJECT_COMPONENT: {}".format(
+                    variables["file_uri_scheme"],
+                    digital_object_component_summary["label"],
+                )
+            )
+            # load the full digital_object_component
+            digital_object_component = archivessnake_get(
+                digital_object_component_summary["uri"]
+            ).json()
             file_version = construct_file_version(variables)
             digital_object_component["file_versions"].append(file_version)
             archivessnake_post(
@@ -943,8 +957,6 @@ def save_digital_object_component_record(variables):
                 f'☑️  DIGITAL OBJECT COMPONENT UPDATED: {digital_object_component["uri"]}'
             )
             return digital_object_component["uri"]
-    else:
-        return create_digital_object_component(variables)
 
 
 def construct_digital_object_component(variables):
