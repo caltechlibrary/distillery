@@ -83,31 +83,31 @@ def transfer_derivative_collection(variables):
         #   OR reset original files so the whole process gets redone
         message = "❌ the set of preservation files will not fit on the current tape"
         logger.error(message)
-        # with open(stream_path, "a") as stream:
-        #     stream.write(message)
         raise RuntimeError(message)
+
+    # Establish tape top_container for this file set in ArchivesSpace.
+    variables["tape_top_container_uri"] = establish_tape_top_container_uri(variables)
 
     # Copy LOSSLESS_PRESERVATION_FILES to tape using rsync.
     rsync_to_tape(variables)  # TODO handle failure
 
+    # Return varibles with tape top_container_uri added to it.
+    return variables
 
-def process_archival_object_datafile(variables):
-    ensure_top_container(variables)
 
+def establish_tape_top_container_uri(variables):
+    """Return the URI for the top_container record of the currently mounted tape."""
 
-def ensure_top_container(variables):
-    """Create or confirm existence of 'Tape' Top Container for Archival Object."""
     # Read from the INDICATOR file on the mounted tape.
     variables["tape_indicator"] = get_tape_indicator()
 
-    # Check ArchivesSpace archival_object for an existing top_container with the
-    # same type and indicator values.
-    if tape_container_attached(
-        variables["archival_object"], variables["tape_indicator"]
-    ):
-        return
-
     # Search for an existing top_container with the same indicator.
+    #
+    # NOTE Search is typically unreliable due to slow indexing if the
+    # top_container was created in the preceding moments. We assume here that
+    # Distillery cannot or will not be run in such rapid succession where a
+    # top_container would be created in this function and then expected to be
+    # found by this function in an immediate subsequent run.
     top_containers_search_response = distillery.archivessnake_get(
         '/repositories/2/top_containers/search?q=indicator_u_icusort:"{}"'.format(
             variables["tape_indicator"]
@@ -115,25 +115,27 @@ def ensure_top_container(variables):
     )
     if top_containers_search_response.json()["response"]["numFound"] == 1:
         # store existing top_container uri
-        top_container_uri = top_containers_search_response.json()["response"]["docs"][
-            0
-        ]["uri"]
-        logger.info(f"☑️  TOP CONTAINER FOUND: {top_container_uri}")
+        tape_top_container_uri = top_containers_search_response.json()["response"][
+            "docs"
+        ][0]["uri"]
+        logger.info(f"☑️  TAPE TOP CONTAINER FOUND: {tape_top_container_uri}")
+        return tape_top_container_uri
     elif top_containers_search_response.json()["response"]["numFound"] == 0:
         # create a new top_container
         top_container = {}
         # indicator is required
         top_container["indicator"] = variables["tape_indicator"]
-        # TODO avoid hardcoding container_profile ref
-        # /container_profiles/5 is LTO-7 tape
-        top_container["container_profile"] = {"ref": "/container_profiles/5"}
+        top_container["container_profile"] = {
+            "ref": config("TAPE_CONTAINER_PROFILE_URI")
+        }
         top_container["type"] = "Tape"
         # create via post
         top_containers_post_response = distillery.archivessnake_post(
             "/repositories/2/top_containers", top_container
         )
-        top_container_uri = top_containers_post_response.json()["uri"]
-        logger.info(f"✳️  TOP CONTAINER CREATED: {top_container_uri}")
+        tape_top_container_uri = top_containers_post_response.json()["uri"]
+        logger.info(f"✳️  TAPE TOP CONTAINER CREATED: {tape_top_container_uri}")
+        return tape_top_container_uri
     else:
         # TODO handle multiple top_containers with same indicator
         message = "❌ MULTIPLE TOP CONTAINERS FOUND WITH INDICATOR: {}".format(
@@ -142,10 +144,20 @@ def ensure_top_container(variables):
         logger.error(message)
         raise ValueError(message)
 
+
+def process_archival_object_datafile(variables):
+    attach_tape_top_container(variables)
+
+
+def attach_tape_top_container(variables):
+    """Link the tape top_container record to the archival_object."""
+
     # set up a container instance to add to the archival_object
     container_instance = {
         "instance_type": "mixed_materials",  # per policy # TODO set up new type
-        "sub_container": {"top_container": {"ref": top_container_uri}},
+        "sub_container": {
+            "top_container": {"ref": variables["tape_top_container_uri"]}
+        },
     }
     # add container instance to archival_object
     variables["archival_object"]["instances"].append(container_instance)
@@ -153,7 +165,9 @@ def ensure_top_container(variables):
     distillery.archivessnake_post(
         variables["archival_object"]["uri"], variables["archival_object"]
     )
-    logger.info(f'☑️  ARCHIVAL OBJECT UPDATED: {variables["archival_object"]["uri"]}')
+    logger.info(
+        f'☑️  ADDED TAPE TOP_CONTAINER TO ARCHIVAL_OBJECT: {variables["archival_object"]["uri"]}'
+    )
 
 
 def process_digital_object_component_file(variables):
@@ -315,19 +329,3 @@ def process_during_original_files_loop(variables):
 def process_during_original_structure_loop(variables):
     """Called inside create_derivative_structure function."""
     pass
-
-
-def tape_container_attached(archival_object, top_container_indicator):
-    """Returns True when top_container type is Tape and indicator matches."""
-    for instance in archival_object["instances"]:
-        if "sub_container" in instance.keys():
-            if (
-                instance["sub_container"]["top_container"]["_resolved"]["type"]
-                == "Tape"
-                and instance["sub_container"]["top_container"]["_resolved"]["indicator"]
-                == top_container_indicator
-            ):
-                logger.info(
-                    f'☑️  TAPE TOP CONTAINER EXISTS: {instance["sub_container"]["top_container"]["ref"]}'
-                )
-                return True

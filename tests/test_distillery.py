@@ -1907,46 +1907,23 @@ def test_distillery_tape_reuse_top_container_records_d3bym(page: Page, asnake_cl
     # NOTE increase timeout because tape drive can be quite slow to start up
     run_distillery(page, test_id, ["onsite"], timeout=300000)
     # VALIDATE TOP CONTAINER RECORDS
-    # get the top_container indicator for the first item
+    # get the top_container uri of each item and compare them
     item = asnake_client.get(
         item_create_response.json()["uri"],
         params={"resolve[]": "digital_object", "resolve[]": "linked_agents"},
     ).json()
     for instance in item["instances"]:
         if instance.get("sub_container"):
-            if instance["sub_container"].get("top_container"):
-                top_container = asnake_client.get(
-                    instance["sub_container"]["top_container"]["ref"]
-                ).json()
-    # NOTE top_containers must be indexed before they can be searched
-    top_containers_search_response = asnake_client.get(
-        '/repositories/2/top_containers/search?q=indicator_u_icusort:"{}"'.format(
-            top_container["indicator"]
-        )
-    )
-    # wait a maximum of 30 seconds for indexing
-    timeout_start = time.time()
-    while time.time() < timeout_start + 30:
-        if top_containers_search_response.json()["response"]["numFound"] > 0:
-            # allow enough time to index both items
-            time.sleep(10)
-            # and search one more time
-            top_containers_search_response = asnake_client.get(
-                '/repositories/2/top_containers/search?q=indicator_u_icusort:"{}"'.format(
-                    top_container["indicator"]
-                )
-            )
-            break
-        else:
-            time.sleep(1)
-            top_containers_search_response = asnake_client.get(
-                '/repositories/2/top_containers/search?q=indicator_u_icusort:"{}"'.format(
-                    top_container["indicator"]
-                )
-            )
-    # the top_container record should be reused for both items; if there are two
-    # top_container records with the same indicator, we fail the test
-    assert top_containers_search_response.json()["response"]["numFound"] == 1
+            item_top_container_uri = instance["sub_container"]["top_container"]["ref"]
+    item2 = asnake_client.get(
+        item2_create_response.json()["uri"],
+        params={"resolve[]": "digital_object", "resolve[]": "linked_agents"},
+    ).json()
+    for instance in item2["instances"]:
+        if instance.get("sub_container"):
+            item2_top_container_uri = instance["sub_container"]["top_container"]["ref"]
+    # the linked top_container record should be the same for each item
+    assert item_top_container_uri == item2_top_container_uri
 
 
 def test_oralhistories_add_publish_one_transcript_2d4ja(
