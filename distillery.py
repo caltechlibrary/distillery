@@ -116,6 +116,14 @@ class DistilleryService(rpyc.Service):
                 message = f'❌ CONNECTION FAILURE: {config("ONSITE_MEDIUM")}'
                 status_logger.error(message)
                 raise ConnectionError(message)
+            if not config("TAPE_CONTAINER_PROFILE_URI", default=""):
+                message = "❌ MISSING TAPE_CONTAINER_PROFILE_URI SETTING"
+                status_logger.error(message)
+                raise ValueError(message)
+            elif not archivessnake_get(config("TAPE_CONTAINER_PROFILE_URI")).ok:
+                message = f'❌ INVALID TAPE_CONTAINER_PROFILE_URI SETTING: {config("TAPE_CONTAINER_PROFILE_URI")}'
+                status_logger.error(message)
+                raise ValueError(message)
         if self.cloud_platform:
             # validate CLOUD_PLATFORM connection
             if self.cloud_platform.validate_connection():
@@ -307,9 +315,11 @@ class DistilleryService(rpyc.Service):
             # TODO message = f'☑️  DERIVATIVE STRUCTURE CREATED: {self.collection_id}' for preservation destinations
 
             if self.onsite_medium:
-                # TODO run in the background but wait for it before writing records to ArchivesSpace
-                # TODO is there a benefit in transferring PRESERVATION_FILES/CollectionID directory as a whole to tape?
-                self.onsite_medium.transfer_derivative_collection(self.variables)
+                # write files to tape at the collection level;
+                # tape_top_container_uri added to self.variables
+                self.variables = self.onsite_medium.transfer_derivative_collection(
+                    self.variables
+                )
 
             if self.access_platform:
                 # NOTE this is where we write to ArchivesSpace
