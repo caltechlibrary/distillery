@@ -935,38 +935,52 @@ def save_digital_object_component_record(variables):
             f"🐞 NO DIGITAL_OBJECT_COMPONENTS_SUMMARY; CREATING DIGITAL_OBJECT_COMPONENT"
         )
         return create_digital_object_component(variables)
-    # NOTE we assume there is a digital_object_component
+    if variables["preservation_file_info"]["filepath"].parent.name not in [
+        _["label"] for _ in digital_object_components_summary
+    ]:
+        logger.debug(
+            "🐞 DIGITAL_OBJECT_COMPONENT LABEL NOT FOUND: {}; CREATING DIGITAL_OBJECT_COMPONENT".format(
+                variables["preservation_file_info"]["filepath"].parent.name,
+            )
+        )
+        return create_digital_object_component(variables)
+    # NOTE assuming there is a file_uri_summary in each digital_object_component
     for digital_object_component_summary in digital_object_components_summary:
-        if (
-            f'{variables["file_uri_scheme"]}://'
-            in digital_object_component_summary["file_uri_summary"]
-        ):
-            raise RuntimeError(
-                "❌ EXISTING {} FILE_URI FOUND ON DIGITAL_OBJECT_COMPONENT: {}".format(
-                    variables["file_uri_scheme"],
-                    digital_object_component_summary["label"],
+        file_uri_summary = digital_object_component_summary["file_uri_summary"].split(
+            ","
+        )
+        for file_uri in file_uri_summary:
+            if file_uri.strip().startswith(
+                f'{variables["file_uri_scheme"]}://'
+            ) and file_uri.strip().endswith(
+                variables["preservation_file_info"]["filepath"].name
+            ):
+                raise RuntimeError(
+                    "❌ EXISTING {} FILE_URI FOUND ON DIGITAL_OBJECT_COMPONENT: {}".format(
+                        variables["file_uri_scheme"],
+                        digital_object_component_summary["label"],
+                    )
                 )
-            )
-        else:
-            logger.debug(
-                "🐞 NO EXISTING {} FILE_URI FOUND; ADDING FILE_VERSION TO DIGITAL_OBJECT_COMPONENT: {}".format(
-                    variables["file_uri_scheme"],
-                    digital_object_component_summary["label"],
+            else:
+                logger.debug(
+                    "🐞 NO EXISTING {} FILE_URI FOUND; ADDING FILE_VERSION TO DIGITAL_OBJECT_COMPONENT: {}".format(
+                        variables["file_uri_scheme"],
+                        digital_object_component_summary["label"],
+                    )
                 )
-            )
-            # load the full digital_object_component
-            digital_object_component = archivessnake_get(
-                digital_object_component_summary["uri"]
-            ).json()
-            file_version = construct_file_version(variables)
-            digital_object_component["file_versions"].append(file_version)
-            archivessnake_post(
-                digital_object_component["uri"], digital_object_component
-            )
-            logger.info(
-                f'☑️  DIGITAL OBJECT COMPONENT UPDATED: {digital_object_component["uri"]}'
-            )
-            return digital_object_component["uri"]
+                # load the full digital_object_component
+                digital_object_component = archivessnake_get(
+                    digital_object_component_summary["uri"]
+                ).json()
+                file_version = construct_file_version(variables)
+                digital_object_component["file_versions"].append(file_version)
+                archivessnake_post(
+                    digital_object_component["uri"], digital_object_component
+                )
+                logger.info(
+                    f'☑️  DIGITAL OBJECT COMPONENT UPDATED: {digital_object_component["uri"]}'
+                )
+                return digital_object_component["uri"]
 
 
 def construct_digital_object_component(variables):

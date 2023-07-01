@@ -1782,7 +1782,10 @@ def test_distillery_cloud_nonnumeric_sequence_gz36p(
     for digital_object in results["digital_objects"]:
         tree = asnake_client.get(f'{digital_object["ref"]}/tree/root').json()
         print(f'🐞 {digital_object["ref"]}/tree/root', tree)
-        assert len(tree["precomputed_waypoints"][""]["0"]) > 0
+        # subtract 2, one for collection JSON file and one for the item JSON file
+        assert len(s3_response["Contents"]) - 2 == len(
+            tree["precomputed_waypoints"][""]["0"]
+        )
         for waypoint in tree["precomputed_waypoints"][""]["0"]:
             # split the s3 key from the file_uri_summary and ensure it matches
             assert waypoint["file_uri_summary"].split(
