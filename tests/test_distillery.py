@@ -254,7 +254,7 @@ def run_oralhistories_add(page: Page, file, outcome="success"):
         )
         return page
     expect(page.frame_locator("iframe").locator("body")).to_contain_text(
-        "✅", timeout=60000
+        "🏁", timeout=60000
     )
 
 
@@ -263,7 +263,7 @@ def run_oralhistories_publish(page: Page, item_component_id):
     page.locator("#component_id_publish").fill(item_component_id)
     page.get_by_role("button", name="Publish Changes").click()
     expect(page.frame_locator("iframe").locator("body")).to_contain_text(
-        "✅", timeout=60000
+        "🏁", timeout=60000
     )
 
 
@@ -272,7 +272,7 @@ def run_oralhistories_update(page: Page, item_component_id):
     page.locator("#component_id_update").fill(item_component_id)
     page.get_by_role("button", name="Update Metadata").click()
     expect(page.frame_locator("iframe").locator("body")).to_contain_text(
-        "✅", timeout=60000
+        "🏁", timeout=60000
     )
 
 

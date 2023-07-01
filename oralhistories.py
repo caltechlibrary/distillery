@@ -243,7 +243,7 @@ class OralHistoriesService(rpyc.Service):
         shutil.rmtree(self.tmp_oralhistories_repository)
 
         # send the character that stops javascript reloading in the web ui
-        self.status_logger.info("✅")
+        self.status_logger.info("🏁")
 
     def clone_oralhistories_repository(self):
         tmp_oralhistories_repository = tempfile.mkdtemp()
@@ -491,6 +491,7 @@ class OralHistoriesService(rpyc.Service):
         logger.info(
             f'☑️  RESOLVER REDIRECT SET: s3://{config("RESOLVER_BUCKET")}/{resolver_id} ➡️  {redirect_url}'
         )
+        # TODO reveal errors from the aws_cmd
         return aws_cmd(
             "s3api",
             "put-object",
