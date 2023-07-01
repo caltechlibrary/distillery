@@ -1979,6 +1979,23 @@ def test_oralhistories_add_publish_one_transcript_2d4ja(
         s3_response = s3_client.delete_objects(
             Bucket=config("ORALHISTORIES_BUCKET"), Delete={"Objects": s3_keys}
         )
+    resolver_s3_response = s3_client.list_objects_v2(
+        Bucket=config("RESOLVER_BUCKET"),
+        Prefix="{}/{}".format(
+            config("RESOLVER_BASE_URL")
+            .split(config("RESOLVER_BUCKET"))[-1]
+            .lstrip("/"),
+            item_component_id,
+        ),
+    )
+    print("🐞 resolver_s3_response", resolver_s3_response)
+    if resolver_s3_response.get("Contents"):
+        s3_keys = [
+            {"Key": s3_object["Key"]} for s3_object in resolver_s3_response["Contents"]
+        ]
+        resolver_s3_response = s3_client.delete_objects(
+            Bucket=config("RESOLVER_BUCKET"), Delete={"Objects": s3_keys}
+        )
     # RUN ORALHISTORIES PROCESSES
     # add transcript
     run_oralhistories_add(
@@ -2148,6 +2165,23 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
         s3_response = s3_client.delete_objects(
             Bucket=config("ORALHISTORIES_BUCKET"), Delete={"Objects": s3_keys}
         )
+    resolver_s3_response = s3_client.list_objects_v2(
+        Bucket=config("RESOLVER_BUCKET"),
+        Prefix="{}/{}".format(
+            config("RESOLVER_BASE_URL")
+            .split(config("RESOLVER_BUCKET"))[-1]
+            .lstrip("/"),
+            item_component_id,
+        ),
+    )
+    print("🐞 resolver_s3_response", resolver_s3_response)
+    if resolver_s3_response.get("Contents"):
+        s3_keys = [
+            {"Key": s3_object["Key"]} for s3_object in resolver_s3_response["Contents"]
+        ]
+        resolver_s3_response = s3_client.delete_objects(
+            Bucket=config("RESOLVER_BUCKET"), Delete={"Objects": s3_keys}
+        )
     # RUN ORALHISTORIES PROCESSES
     # add transcript
     run_oralhistories_add(
@@ -2281,6 +2315,23 @@ def test_oralhistories_add_update_one_publish_one_transcript_4hete(
         s3_keys = [{"Key": s3_object["Key"]} for s3_object in s3_response["Contents"]]
         s3_response = s3_client.delete_objects(
             Bucket=config("ORALHISTORIES_BUCKET"), Delete={"Objects": s3_keys}
+        )
+    resolver_s3_response = s3_client.list_objects_v2(
+        Bucket=config("RESOLVER_BUCKET"),
+        Prefix="{}/{}".format(
+            config("RESOLVER_BASE_URL")
+            .split(config("RESOLVER_BUCKET"))[-1]
+            .lstrip("/"),
+            item_component_id,
+        ),
+    )
+    print("🐞 resolver_s3_response", resolver_s3_response)
+    if resolver_s3_response.get("Contents"):
+        s3_keys = [
+            {"Key": s3_object["Key"]} for s3_object in resolver_s3_response["Contents"]
+        ]
+        resolver_s3_response = s3_client.delete_objects(
+            Bucket=config("RESOLVER_BUCKET"), Delete={"Objects": s3_keys}
         )
     # RUN ORALHISTORIES PROCESSES
     # add transcript
