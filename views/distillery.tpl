@@ -65,6 +65,7 @@
           document.querySelector(".checkboxes").style["box-shadow"] = "0 0 0.5rem red";
           return false;
         }
+        return true;
       }
     </script>
     <form action="{{distillery_base_url}}" method="post" onsubmit="return validateCheckboxGroup()">
