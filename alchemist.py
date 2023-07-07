@@ -578,7 +578,7 @@ def generate_iiif_manifest(build_directory, variables):
                     config("ACCESS_SITE_BASE_URL").strip("/"),
                     variables["arrangement"]["collection_id"],
                     variables["archival_object"]["component_id"],
-                    "/manifest.json",
+                    "manifest.json",
                 ]
             ),
             "label": variables["archival_object"]["title"],
@@ -636,7 +636,7 @@ def generate_iiif_manifest(build_directory, variables):
                 ]
             )
             service_id = (
-                config("ACCESS_IIIF_ENDPOINT").strip("/") + "/" + escaped_identifier
+                config("ACCESS_IIIF_ENDPOINT").rstrip("/") + "/" + escaped_identifier
             )
             resource_id = service_id + "/full/max/0/default.jpg"
             canvas = {
