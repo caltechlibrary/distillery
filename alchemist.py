@@ -575,7 +575,7 @@ def generate_iiif_manifest(build_directory, variables):
             "@type": "sc:Manifest",
             "@id": "/".join(
                 [
-                    config("ACCESS_SITE_BASE_URL").strip("/"),
+                    config("ACCESS_SITE_BASE_URL").rstrip("/"),
                     variables["arrangement"]["collection_id"],
                     variables["archival_object"]["component_id"],
                     "manifest.json",
@@ -621,7 +621,7 @@ def generate_iiif_manifest(build_directory, variables):
             )
             canvas_id = "/".join(
                 [
-                    config("ACCESS_SITE_BASE_URL").strip("/"),
+                    config("ACCESS_SITE_BASE_URL").rstrip("/"),
                     variables["arrangement"]["collection_id"],
                     variables["archival_object"]["component_id"],
                     "canvas",
@@ -807,7 +807,7 @@ def create_digital_object_file_versions(build_directory, variables):
 
             archival_object_page_url = "/".join(
                 [
-                    config("ACCESS_SITE_BASE_URL").strip("/"),
+                    config("ACCESS_SITE_BASE_URL").rstrip("/"),
                     variables["arrangement"]["collection_id"],
                     variables["archival_object"]["component_id"],
                     "index.html",
