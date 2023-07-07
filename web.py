@@ -49,9 +49,14 @@ def distillery_get():
 
 @bottle.route("/", method="POST")
 def distillery_post():
-    distillery_work_server_connection = rpyc.connect(
-        config("WORK_HOSTNAME"), config("DISTILLERY_RPYC_PORT")
-    )
+    try:
+        distillery_work_server_connection = rpyc.connect(
+            config("WORK_HOSTNAME"), config("DISTILLERY_RPYC_PORT")
+        )
+    except ConnectionRefusedError:
+        return f'<h1>Connection Refused</h1><p>There was a problem connecting to <code>{config("WORK_HOSTNAME")}</code>. Please contact {config("DISTILLERY_DEVELOPER_CONTACT", default="Digital Library Development")} for assistance.</p>'
+    except:
+        raise
     # TODO sanitize collection_id
     collection_id = bottle.request.forms.get("collection_id").strip()
     # NOTE using getall() wraps single and multiple values in a list;
