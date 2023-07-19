@@ -810,7 +810,6 @@ def create_digital_object_file_versions(build_directory, variables):
                     config("ACCESS_SITE_BASE_URL").rstrip("/"),
                     variables["arrangement"]["collection_id"],
                     variables["archival_object"]["component_id"],
-                    "index.html",
                 ]
             )
             logger.debug(f"🐞 ARCHIVAL_OBJECT_PAGE_URL: {archival_object_page_url}")
