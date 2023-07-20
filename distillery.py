@@ -289,6 +289,8 @@ class DistilleryService(rpyc.Service):
             # Move the `collection_id` directory into `WORKING_ORIGINAL_FILES`.
             # TODO allow for different root volumes
             try:
+                # NOTE if the destination is an existing directory, then src is moved inside that directory
+                # TODO handle existing directories
                 shutil.move(
                     str(os.path.join(config("INITIAL_ORIGINAL_FILES"), collection_id)),
                     str(os.path.join(config("WORKING_ORIGINAL_FILES"), collection_id)),
