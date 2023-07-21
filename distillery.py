@@ -353,6 +353,87 @@ class DistilleryService(rpyc.Service):
             logger.info(f"☑️  COPIED RUN LOG FILE: {logfile_dst}")
             # TODO delete PRESERVATION_FILES/CollectionID directory
 
+    @rpyc.exposed
+    def alchemist_regenerate(self, component_id="", logfile=""):
+        if component_id:
+            status_logger = logging.getLogger(component_id)
+        else:
+            status_logger = logging.getLogger("_")
+        status_logger.setLevel(logging.INFO)
+        status_handler = logging.FileHandler(logfile)
+        status_handler.setLevel(logging.INFO)
+        status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
+        status_logger.addHandler(status_handler)
+
+        # import ACCESS_PLATFORM module
+        try:
+            self.access_platform = importlib.import_module(config("ACCESS_PLATFORM"))
+        except Exception:
+            message = f'❌ UNABLE TO IMPORT MODULE: {config("ACCESS_PLATFORM")}'
+            status_logger.exception(message)
+            raise
+
+        try:
+            accessDistiller = self.access_platform.AccessPlatform(None, None)
+        except Exception:
+            message = "❌ PROBLEM WITH ACCESSPLATFORM CLASS"
+            status_logger.exception(message)
+            raise
+
+        variables = {"alchemist_regenerate": True}
+
+        try:
+            if component_id:
+                # regenerate files for one item
+                status_logger.info(f"🟢 BEGIN REGENERATING: {component_id}")
+                variables["archival_object"] = find_archival_object(component_id)
+                variables["arrangement"] = get_arrangement(variables["archival_object"])
+                accessDistiller.archival_object_level_processing(variables)
+                accessDistiller.transfer_archival_object_derivative_files(variables)
+                status_logger.info(
+                    "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{})".format(
+                        variables["archival_object"]["component_id"],
+                        config("ACCESS_SITE_BASE_URL").rstrip("/"),
+                        variables["arrangement"]["collection_id"],
+                        variables["archival_object"]["component_id"],
+                    )
+                )
+            else:
+                # regenerate files for all items
+                status_logger.info("🟢 BEGIN REGENERATING ALL")
+                archival_object_prefixes = accessDistiller.regenerate_all(variables)
+                for archival_object_prefix in archival_object_prefixes:
+                    component_id = archival_object_prefix.split("/")[-2]
+                    variables["archival_object"] = find_archival_object(component_id)
+                    variables["arrangement"] = get_arrangement(
+                        variables["archival_object"]
+                    )
+                    accessDistiller.archival_object_level_processing(variables)
+                    accessDistiller.transfer_archival_object_derivative_files(variables)
+                    status_logger.info(
+                        "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{})".format(
+                            variables["archival_object"]["component_id"],
+                            config("ACCESS_SITE_BASE_URL").rstrip("/"),
+                            variables["arrangement"]["collection_id"],
+                            variables["archival_object"]["component_id"],
+                        )
+                    )
+        except Exception as e:
+            status_logger.error("❌ SOMETHING WENT WRONG")
+            status_logger.error(e)
+            logger.exception("‼️")
+            raise
+        # complete the process if there is no error
+        else:
+            # send the character that stops javascript reloading in the web ui
+            status_logger.info(f"🏁")
+            # copy the status_logfile to the logs directory
+            logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(
+                f"{self.collection_id}.{str(int(time.time()))}.alchemist_regenerate.log"
+            )
+            shutil.copy2(status_logfile, logfile_dst)
+            logger.info(f"☑️  COPIED ALCHEMIST_REGENERATE LOG FILE: {logfile_dst}")
+
 
 def confirm_collection_directory(collection_id, parent_directory):
     # make a list of directory names to check against

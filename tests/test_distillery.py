@@ -244,6 +244,21 @@ def run_distillery(
     )
 
 
+def run_alchemist_regenerate(page: Page, regeneratees, component_id="", timeout=60000):
+    page.goto("/".join([config("DISTILLERY_BASE_URL").rstrip("/"), "alchemist"]))
+    if regeneratees == "one":
+        page.get_by_label("Regenerate files for one item").check()
+        assert component_id
+        page.get_by_label("Component Unique Identifier").fill(component_id)
+    elif regeneratees == "all":
+        page.get_by_label("Regenerate files for all items").check()
+    page.get_by_role("button", name="Regenerate").click()
+    page.get_by_text("Details").click()
+    expect(page.locator("p")).to_contain_text(
+        f"✅ Regenerated metadata and files for ", timeout=timeout
+    )
+
+
 def run_oralhistories_add(page: Page, file, outcome="success"):
     page.goto("/".join([config("DISTILLERY_BASE_URL").rstrip("/"), "oralhistories"]))
     page.locator("#file").set_input_files(file)
@@ -1140,6 +1155,54 @@ def test_distillery_alchemist_nonnumeric_sequence_yw3ff(page: Page, asnake_clien
     expect(page.locator("#thumb-0")).to_have_text("C")
     expect(page.locator("#thumb-1")).to_have_text("p000-p001")
     expect(page.locator("#thumb-2")).to_have_text("p002-p003")
+
+
+def test_distillery_alchemist_regenerate_one_vru3b(page: Page, asnake_client):
+    """Regenerate one set of files."""
+    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
+    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, test_id)
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_name, test_id
+    )
+    print(
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD
+    (
+        item_create_response,
+        item_component_id,
+    ) = create_archivesspace_test_archival_object_item(
+        asnake_client, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 item_create_response:{test_id}",
+        item_create_response.json(),
+    )
+    # RUN ALCHEMIST PROCESS
+    run_distillery(page, test_id, ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    # VALIDATE ALCHEMIST ITEM
+    page.goto(alchemist_item_uri)
+    expect(page.locator("#metadata")).to_contain_text("Collection")
+    # UPDATE ARCHIVAL OBJECT ITEM RECORD
+    item = asnake_client.get(item_create_response.json()["uri"]).json()
+    # update title
+    item["title"] = "Regenerated Title"
+    item_update_response = asnake_client.post(item["uri"], json=item)
+    print(
+        f"🐞 item_update_response:{test_id}",
+        item_update_response.json(),
+    )
+    # RUN REGENERATE PROCESS
+    run_alchemist_regenerate(page, "one", component_id=item_component_id, timeout=60000)
+    # VALIDATE ALCHEMIST ITEM
+    page.goto(alchemist_item_uri)
+    page.screenshot(path=f"tests/_output/{test_id}.png")
+    expect(page.get_by_role("heading", name="Regenerated Title")).to_be_visible()
 
 
 def test_distillery_alchemist_kitchen_sink_pd4s3(page: Page, asnake_client):
