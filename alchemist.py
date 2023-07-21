@@ -341,6 +341,26 @@ class AccessPlatform:
         logger.info(f"🐛 variables.keys(): {variables.keys()}")
         create_digital_object_file_versions(self.build_directory, variables)
 
+    def regenerate_all(self, variables):
+        collection_prefixes = []
+        archival_object_prefixes = []
+        paginator = s3_client.get_paginator("list_objects_v2")
+        for result in paginator.paginate(Bucket=config("ACCESS_BUCKET"), Delimiter="/"):
+            for prefix in result.get("CommonPrefixes"):
+                # store collection_id/
+                collection_prefixes.append(prefix.get("Prefix"))
+                print(prefix.get("Prefix"))
+        for collection_prefix in collection_prefixes:
+            paginator = s3_client.get_paginator("list_objects_v2")
+            for result in paginator.paginate(
+                Bucket=config("ACCESS_BUCKET"), Delimiter="/", Prefix=collection_prefix
+            ):
+                for prefix in result.get("CommonPrefixes"):
+                    # store collection_id/component_id/
+                    archival_object_prefixes.append(prefix.get("Prefix"))
+                    print(prefix.get("Prefix"))
+        return archival_object_prefixes
+
 
 def validate_connection():
     try:
@@ -570,100 +590,121 @@ def generate_iiif_manifest(build_directory, variables):
                 # TODO validate against Restriction End date
                 attribution = note_contents
     try:
-        manifest = {
-            "@context": "http://iiif.io/api/presentation/2/context.json",
-            "@type": "sc:Manifest",
-            "@id": "/".join(
-                [
-                    config("ACCESS_SITE_BASE_URL").rstrip("/"),
-                    variables["arrangement"]["collection_id"],
+        if variables.get("alchemist_regenerate"):
+            manifest_key = (
+                Path(variables["arrangement"]["collection_id"])
+                .joinpath(
                     variables["archival_object"]["component_id"],
                     "manifest.json",
-                ]
-            ),
-            "label": variables["archival_object"]["title"],
-        }
+                )
+                .as_posix()
+            )
+            response = s3_client.get_object(
+                Bucket=config("ACCESS_BUCKET"),
+                Key=manifest_key,
+            )
+            manifest = json.loads(response["Body"].read())
+        else:
+            manifest = {
+                "@context": "http://iiif.io/api/presentation/2/context.json",
+                "@type": "sc:Manifest",
+                "@id": "/".join(
+                    [
+                        config("ACCESS_SITE_BASE_URL").rstrip("/"),
+                        variables["arrangement"]["collection_id"],
+                        variables["archival_object"]["component_id"],
+                        "manifest.json",
+                    ]
+                ),
+            }
         # maintain order of keys
+        manifest["label"] = variables["archival_object"]["title"]
         if description:
             manifest["description"] = description
-        manifest.update(
-            {
-                "thumbnail": {
-                    "@id": get_thumbnail_url(variables),
-                    "service": {
-                        "@context": "http://iiif.io/api/image/2/context.json",
-                        "@id": get_thumbnail_url(variables).rsplit("/", maxsplit=4)[0],
-                        "profile": "http://iiif.io/api/image/2/level1.json",
+        if not variables.get("alchemist_regenerate"):
+            manifest.update(
+                {
+                    "thumbnail": {
+                        "@id": get_thumbnail_url(variables),
+                        "service": {
+                            "@context": "http://iiif.io/api/image/2/context.json",
+                            "@id": get_thumbnail_url(variables).rsplit("/", maxsplit=4)[
+                                0
+                            ],
+                            "profile": "http://iiif.io/api/image/2/level1.json",
+                        },
                     },
-                },
-                "metadata": metadata,
-            }
-        )
+                }
+            )
+        manifest["metadata"] = metadata
         if attribution:
             manifest["attribution"] = attribution
-        manifest.update(
-            {
-                "sequences": [{"@type": "sc:Sequence", "canvases": []}],
-            }
-        )
-        for filepath in sorted(variables["filepaths"]):
-            # create canvas metadata
-            # HACK the binaries for `vips` and `vipsheader` should be in the same place
-            width = (
-                os.popen(f'{config("WORK_VIPS_CMD")}header -f width {filepath}')
-                .read()
-                .strip()
+        if not variables.get("alchemist_regenerate"):
+            manifest.update(
+                {
+                    "sequences": [{"@type": "sc:Sequence", "canvases": []}],
+                }
             )
-            height = (
-                os.popen(f'{config("WORK_VIPS_CMD")}header -f height {filepath}')
-                .read()
-                .strip()
-            )
-            canvas_id = "/".join(
-                [
-                    config("ACCESS_SITE_BASE_URL").rstrip("/"),
-                    variables["arrangement"]["collection_id"],
-                    variables["archival_object"]["component_id"],
-                    "canvas",
-                    f"{Path(filepath).stem}",
-                ]
-            )
-            escaped_identifier = "/".join(
-                [
-                    variables["arrangement"]["collection_id"],
-                    variables["archival_object"]["component_id"],
-                    f"{Path(filepath).stem}",
-                ]
-            )
-            service_id = (
-                config("ACCESS_IIIF_ENDPOINT").rstrip("/") + "/" + escaped_identifier
-            )
-            resource_id = service_id + "/full/max/0/default.jpg"
-            canvas = {
-                "@type": "sc:Canvas",
-                "@id": canvas_id,
-                "label": Path(filepath).stem.split("_")[-1].lstrip("0"),
-                "width": width,
-                "height": height,
-                "images": [
-                    {
-                        "@type": "oa:Annotation",
-                        "motivation": "sc:painting",
-                        "on": canvas_id,
-                        "resource": {
-                            "@type": "dctypes:Image",
-                            "@id": resource_id,
-                            "service": {
-                                "@context": "http://iiif.io/api/image/2/context.json",
-                                "@id": service_id,
-                                "profile": "http://iiif.io/api/image/2/level2.json",
-                            },  # optional?
-                        },
-                    }
-                ],
-            }
-            # add canvas to sequences
-            manifest["sequences"][0]["canvases"].append(canvas)
+            for filepath in sorted(variables["filepaths"]):
+                # create canvas metadata
+                # HACK the binaries for `vips` and `vipsheader` should be in the same place
+                width = (
+                    os.popen(f'{config("WORK_VIPS_CMD")}header -f width {filepath}')
+                    .read()
+                    .strip()
+                )
+                height = (
+                    os.popen(f'{config("WORK_VIPS_CMD")}header -f height {filepath}')
+                    .read()
+                    .strip()
+                )
+                canvas_id = "/".join(
+                    [
+                        config("ACCESS_SITE_BASE_URL").rstrip("/"),
+                        variables["arrangement"]["collection_id"],
+                        variables["archival_object"]["component_id"],
+                        "canvas",
+                        f"{Path(filepath).stem}",
+                    ]
+                )
+                escaped_identifier = "/".join(
+                    [
+                        variables["arrangement"]["collection_id"],
+                        variables["archival_object"]["component_id"],
+                        f"{Path(filepath).stem}",
+                    ]
+                )
+                service_id = (
+                    config("ACCESS_IIIF_ENDPOINT").rstrip("/")
+                    + "/"
+                    + escaped_identifier
+                )
+                resource_id = service_id + "/full/max/0/default.jpg"
+                canvas = {
+                    "@type": "sc:Canvas",
+                    "@id": canvas_id,
+                    "label": Path(filepath).stem.split("_")[-1].lstrip("0"),
+                    "width": width,
+                    "height": height,
+                    "images": [
+                        {
+                            "@type": "oa:Annotation",
+                            "motivation": "sc:painting",
+                            "on": canvas_id,
+                            "resource": {
+                                "@type": "dctypes:Image",
+                                "@id": resource_id,
+                                "service": {
+                                    "@context": "http://iiif.io/api/image/2/context.json",
+                                    "@id": service_id,
+                                    "profile": "http://iiif.io/api/image/2/level2.json",
+                                },  # optional?
+                            },
+                        }
+                    ],
+                }
+                # add canvas to sequences
+                manifest["sequences"][0]["canvases"].append(canvas)
 
         # save manifest file
         manifest_file = Path(build_directory.name).joinpath(
@@ -763,25 +804,47 @@ def publish_archival_object_access_files(build_directory, variables):
     def sync_output(line):
         logger.debug(f"🐞 S5CMD SYNC OUTPUT: {line}")
 
-    try:
-        s5cmd_cmd = sh.Command(config("WORK_S5CMD_CMD"))
-        sync = s5cmd_cmd(
-            "sync",
-            "--delete",
-            f"{build_directory.name}/{archival_object_access_path}/*",
-            f's3://{config("ACCESS_BUCKET")}/{archival_object_access_path}/',
-            _env={
-                "AWS_ACCESS_KEY_ID": config("DISTILLERY_AWS_ACCESS_KEY_ID"),
-                "AWS_SECRET_ACCESS_KEY": config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
-            },
-            _out=sync_output,
-            _err=sync_output,
-            _bg=True,
-        )
-        sync.wait()
-    except:
-        logger.exception("‼️")
-        raise
+    # TODO think about how to DRY this out;
+    # we need one version with a --delete flag and one without
+    if variables.get("alchemist_regenerate"):
+        try:
+            s5cmd_cmd = sh.Command(config("WORK_S5CMD_CMD"))
+            sync = s5cmd_cmd(
+                "sync",
+                f"{build_directory.name}/{archival_object_access_path}/*",
+                f's3://{config("ACCESS_BUCKET")}/{archival_object_access_path}/',
+                _env={
+                    "AWS_ACCESS_KEY_ID": config("DISTILLERY_AWS_ACCESS_KEY_ID"),
+                    "AWS_SECRET_ACCESS_KEY": config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
+                },
+                _out=sync_output,
+                _err=sync_output,
+                _bg=True,
+            )
+            sync.wait()
+        except:
+            logger.exception("‼️")
+            raise
+    else:
+        try:
+            s5cmd_cmd = sh.Command(config("WORK_S5CMD_CMD"))
+            sync = s5cmd_cmd(
+                "sync",
+                "--delete",
+                f"{build_directory.name}/{archival_object_access_path}/*",
+                f's3://{config("ACCESS_BUCKET")}/{archival_object_access_path}/',
+                _env={
+                    "AWS_ACCESS_KEY_ID": config("DISTILLERY_AWS_ACCESS_KEY_ID"),
+                    "AWS_SECRET_ACCESS_KEY": config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
+                },
+                _out=sync_output,
+                _err=sync_output,
+                _bg=True,
+            )
+            sync.wait()
+        except:
+            logger.exception("‼️")
+            raise
 
 
 def create_digital_object_file_versions(build_directory, variables):

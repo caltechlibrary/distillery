@@ -94,6 +94,73 @@ def log():
         return bottle.template("distillery_log", log=f.readlines())
 
 
+@bottle.route("/alchemist")
+def alchemist_form():
+    return bottle.template(
+        "alchemist_form",
+        distillery_base_url=config("DISTILLERY_BASE_URL").rstrip("/"),
+        user=authorize_user(),
+    )
+
+
+@bottle.route("/alchemist/regenerate", method="POST")
+def alchemist_regenerate():
+    try:
+        distillery_work_server_connection = rpyc.connect(
+            config("WORK_HOSTNAME"), config("DISTILLERY_RPYC_PORT")
+        )
+    except ConnectionRefusedError:
+        return f'<h1>Connection Refused</h1><p>There was a problem connecting to <code>{config("WORK_HOSTNAME")}</code>. Please contact {config("DISTILLERY_DEVELOPER_CONTACT", default="Digital Library Development")} for assistance.</p>'
+    except:
+        raise
+    timestamp = str(int(time.time()))
+    # asynchronously run on WORK server
+    distillery_alchemist_regenerate = rpyc.async_(
+        distillery_work_server_connection.root.alchemist_regenerate
+    )
+    if bottle.request.forms.get("component_id"):
+        component_id = bottle.request.forms.get("component_id")
+        logfile = Path(config("WEB_STATUS_FILES")).joinpath(
+            f"{component_id}.{timestamp}.alchemist_regenerate.log"
+        )
+        logfile.touch()
+        async_result = distillery_alchemist_regenerate(
+            component_id=component_id, logfile=str(logfile)
+        )
+        return bottle.template(
+            "alchemist_regenerate",
+            distillery_base_url=config("DISTILLERY_BASE_URL").rstrip("/"),
+            archivesspace_staff_url=config("ASPACE_STAFF_URL"),
+            user=authorize_user(),
+            component_id=component_id,
+            timestamp=timestamp,
+        )
+    else:
+        logfile = Path(config("WEB_STATUS_FILES")).joinpath(
+            f"_.{timestamp}.alchemist_regenerate.log"
+        )
+        logfile.touch()
+        async_result = distillery_alchemist_regenerate(logfile=str(logfile))
+        return bottle.template(
+            "alchemist_regenerate",
+            distillery_base_url=config("DISTILLERY_BASE_URL").rstrip("/"),
+            user=authorize_user(),
+            component_id="_",
+            timestamp=timestamp,
+        )
+
+
+@bottle.route("/alchemist/regenerate/log/<component_id>/<timestamp>")
+def alchemist_regenerate_log(component_id, timestamp):
+    with open(
+        Path(config("WEB_STATUS_FILES")).joinpath(
+            f"{component_id}.{timestamp}.alchemist_regenerate.log"
+        ),
+        encoding="utf-8",
+    ) as f:
+        return bottle.template("alchemist_regenerate_log", log=f.readlines())
+
+
 @bottle.route("/oralhistories")
 def oralhistories_form():
     return bottle.template(

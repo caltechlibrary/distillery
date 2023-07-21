@@ -86,6 +86,12 @@
 ; set an ACCESS_PLATFORM that corresponds to a {name}.py module file
 ;ACCESS_PLATFORM=name
 
+; ALCHEMIST
+; ---------
+ACCESS_BUCKET=example-bucket-name
+ACCESS_SITE_BASE_URL=https://example.org/
+ACCESS_IIIF_ENDPOINT=https://example.net/iiif/2/
+
 ; Tape Server
 ; -----------
 ; NOTE known_hosts file on WORK server must include TAPE server keys
