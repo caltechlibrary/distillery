@@ -282,7 +282,6 @@ def format_alchemist_item_uri(test_id):
             config("ACCESS_SITE_BASE_URL").rstrip("/"),
             test_id,
             f"item-{test_id}",
-            "index.html",
         ]
     )
 
