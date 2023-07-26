@@ -95,10 +95,30 @@
             Public web access
             <small>generate files & metadata and publish on the web</small>
           </label>
+          <fieldset class="publishing" hidden>
+            <legend>Choose what happens if digital object file versions exist.</legend>
+            <label><input type="radio" name="file_versions_op" value="halt" checked>Halt if any digital object file versions exist</label>
+            <label><input type="radio" name="file_versions_op" value="overwrite">Overwrite any existing digital object file versions</label>
+            <label><input type="radio" name="file_versions_op" value="unpublish">Unpublish any existing digital object file versions</label>
+          </fieldset>
+          <fieldset class="publishing" hidden>
+            <legend>Images with an appended sequence indicator in the filename will be labeled with only the sequence indicator in the thumbnail display.</legend>
+            <label><input type="radio" name="thumbnail_label" value="sequence" checked>Use sequence indicator as label</label>
+            <label><input type="radio" name="thumbnail_label" value="filename">Use whole filename as label</label>
+          </fieldset>
         </div>
       </div>
       <input type="hidden" id="step" name="step" value="validating">
       <button>Validate</button>
+      <script>
+        const accessCheckbox = document.querySelector('input[value="access"]');
+        function handleAccessCheckbox() {
+          if (accessCheckbox.checked) {
+            document.querySelectorAll(".publishing").forEach(fieldset => fieldset.hidden = false);
+          }
+        }
+        accessCheckbox.addEventListener('change', handleAccessCheckbox);
+      </script>
     </form>
     % elif step == "validating":
     <p>Validating metadata, files, and destinations for <b>{{collection_id}}</b>.</p>

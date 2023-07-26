@@ -8,6 +8,7 @@
 from gevent import monkey; monkey.patch_all()
 # fmt: on
 
+import json
 import logging.config
 import os
 import time
@@ -59,29 +60,39 @@ def distillery_post():
         raise
     # TODO sanitize collection_id
     collection_id = bottle.request.forms.get("collection_id").strip()
-    # NOTE using getall() wraps single and multiple values in a list;
-    # allows reuse of the same field name; only strings seem to work with rpyc
-    # TODO sanitize destinations
-    destinations = "_".join(bottle.request.forms.getall("destinations"))
     if bottle.request.forms.get("step") == "validating":
         step = "validating"
+        destinations = {}
+        # NOTE using getall() wraps single and multiple values in a list
+        for destination in bottle.request.forms.getall("destinations"):
+            if destination in ["cloud", "onsite", "access"]:
+                destinations[destination] = True
+        if destinations.get("access"):
+            destinations["access"] = {}
+            destinations["access"]["file_versions_op"] = bottle.request.forms.get(
+                "file_versions_op"
+            )
+            destinations["access"]["thumbnail_label"] = bottle.request.forms.get(
+                "thumbnail_label"
+            )
         # asynchronously validate on WORK server
         distillery_validate = rpyc.async_(
             distillery_work_server_connection.root.validate
         )
-        async_result = distillery_validate(collection_id, destinations)
+        async_result = distillery_validate(collection_id, json.dumps(destinations))
     if bottle.request.forms.get("step") == "running":
         step = "running"
+        destinations = json.loads(bottle.request.forms.get("destinations"))
         # asynchronously run on WORK server
         distillery_run = rpyc.async_(distillery_work_server_connection.root.run)
-        async_result = distillery_run(collection_id, destinations)
+        async_result = distillery_run(collection_id, json.dumps(destinations))
     return bottle.template(
         "distillery",
         distillery_base_url=config("DISTILLERY_BASE_URL").rstrip("/"),
         user=authorize_user(),
         step=step,
         collection_id=collection_id,
-        destinations=destinations,
+        destinations=json.dumps(destinations),
     )
 
 
