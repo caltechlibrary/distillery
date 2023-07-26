@@ -66,6 +66,8 @@ class DistilleryService(rpyc.Service):
         self.variables = {}
 
     def _import_modules(self):
+        # NOTE self.destinations is a JSON string
+        logger.debug(f"🐞 self.destinations: {self.destinations}")
         if "onsite" in self.destinations and config("ONSITE_MEDIUM"):
             # import ONSITE_MEDIUM module
             try:
@@ -193,15 +195,52 @@ class DistilleryService(rpyc.Service):
                         bool(archival_object.get("instances")) and self.access_platform
                     ):
                         for instance in archival_object["instances"]:
-                            if "digital_object" in instance.keys():
-                                if bool(
+                            if "digital_object" not in instance.keys():
+                                continue
+                            # NOTE self.destinations is a JSON string
+                            if (
+                                bool(
                                     instance["digital_object"]["_resolved"].get(
                                         "file_versions"
                                     )
-                                ):
-                                    message = f'❌ DIGITAL OBJECT ALREADY HAS FILE VERSIONS: [**{instance["digital_object"]["_resolved"]["title"]}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={instance["digital_object"]["ref"]})'
-                                    status_logger.error(message)
-                                    raise ValueError(message)
+                                )
+                                and "halt" in self.destinations
+                            ):
+                                message = "❌ DIGITAL OBJECT ALREADY HAS FILE VERSIONS: [**{}**]({}/resolve/readonly?uri={})".format(
+                                    instance["digital_object"]["_resolved"]["title"],
+                                    config("ASPACE_STAFF_URL"),
+                                    instance["digital_object"]["ref"],
+                                )
+                                status_logger.error(message)
+                                raise ValueError(message)
+                            elif (
+                                bool(
+                                    instance["digital_object"]["_resolved"].get(
+                                        "file_versions"
+                                    )
+                                )
+                                and "overwrite" in self.destinations
+                            ):
+                                message = "⚠️  DIGITAL OBJECT FILE VERSIONS WILL BE OVERWRITTEN: [**{}**]({}/resolve/readonly?uri={})".format(
+                                    instance["digital_object"]["_resolved"]["title"],
+                                    config("ASPACE_STAFF_URL"),
+                                    instance["digital_object"]["ref"],
+                                )
+                                status_logger.warning(message)
+                            elif (
+                                bool(
+                                    instance["digital_object"]["_resolved"].get(
+                                        "file_versions"
+                                    )
+                                )
+                                and "unpublish" in self.destinations
+                            ):
+                                message = "⚠️  DIGITAL OBJECT FILE VERSIONS WILL BE UNPUBLISHED: [**{}**]({}/resolve/readonly?uri={})".format(
+                                    instance["digital_object"]["_resolved"]["title"],
+                                    config("ASPACE_STAFF_URL"),
+                                    instance["digital_object"]["ref"],
+                                )
+                                status_logger.warning(message)
                     # count and list subdirectories in the collection directory
                     initial_original_subdirectorycount += 1
                     status_logger.info(f"📁 {self.collection_id}/{dirname}")
@@ -222,10 +261,20 @@ class DistilleryService(rpyc.Service):
             raise FileNotFoundError(message)
 
         # validate collection in ArchivesSpace
-        collection_data = get_collection_data(self.collection_id)
-        status_logger.info(
-            f'☑️  ARCHIVESSPACE COLLECTION FOUND: [**{collection_data["title"]}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={collection_data["uri"]})'
-        )
+        try:
+            collection_data = get_collection_data(self.collection_id)
+            status_logger.info(
+                "☑️  ARCHIVESSPACE COLLECTION FOUND: [**{}**]({}/resolve/readonly?uri={})".format(
+                    collection_data["title"],
+                    config("ASPACE_STAFF_URL"),
+                    collection_data["uri"],
+                )
+            )
+        except:
+            message = f"❌ COLLECTION NOT FOUND IN ARCHIVESSPACE: {self.collection_id}"
+            status_logger.error(message)
+            logger.exception(message)
+            raise
 
         # send the character that stops javascript reloading in the web ui
         status_logger.info(f"🈺")  # Japanese “Open for Business” Button
@@ -247,7 +296,7 @@ class DistilleryService(rpyc.Service):
             status_logger.info(f"🟢 BEGIN DISTILLING: {self.collection_id}")
             self._import_modules()
             status_logger.info(
-                f'☑️  DESTINATIONS: {self.destinations.replace("_", ", ")}'
+                f'☑️  DESTINATIONS: {", ".join(list(json.loads(self.destinations)))}'
             )
 
             # retrieve collection data from ArchivesSpace
@@ -281,6 +330,12 @@ class DistilleryService(rpyc.Service):
             # for access publication
             accessDistiller = None
             if self.access_platform:
+                self.variables["file_versions_op"] = json.loads(self.destinations)[
+                    "access"
+                ]["file_versions_op"]
+                self.variables["thumbnail_label"] = json.loads(self.destinations)[
+                    "access"
+                ]["thumbnail_label"]
                 accessDistiller = self.access_platform.AccessPlatform(
                     self.collection_id, collection_data
                 )
@@ -324,7 +379,7 @@ class DistilleryService(rpyc.Service):
                 )
 
             if self.access_platform:
-                # NOTE this is where we write to ArchivesSpace
+                # NOTE this is where we create_digital_object_file_versions()
                 accessDistiller.loop_over_derivative_structure(self.variables)
 
             # PROCESS PRESERVATION STRUCTURE
@@ -399,6 +454,7 @@ class DistilleryService(rpyc.Service):
                     )
                 )
             else:
+                # TODO DRY this out
                 # regenerate files for all items
                 status_logger.info("🟢 BEGIN REGENERATING ALL")
                 archival_object_prefixes = accessDistiller.regenerate_all(variables)
@@ -617,24 +673,30 @@ def archivessnake_delete(uri):
     return response
 
 
-def add_digital_object_file_versions(archival_object, file_versions):
+def save_digital_object_file_versions(archival_object, file_versions, file_versions_op):
     try:
         for instance in archival_object["instances"]:
             if "digital_object" in instance.keys():
                 # ASSUMPTION: only one digital_object exists per archival_object
                 # TODO handle multiple digital_objects per archival_object
-                if instance["digital_object"]["_resolved"].get("file_versions"):
-                    # TODO decide what to do with existing file_versions; unpublish? delete?
-                    raise Exception(
-                        f'❌ EXISTING DIGITAL_OBJECT FILE_VERSIONS FOUND: {archival_object["component_id"]}: {instance["digital_object"]["ref"]}'
-                    )
-                else:
-                    digital_object = instance["digital_object"]["_resolved"]
-                    digital_object["file_versions"] = file_versions
-                    digital_object["publish"] = True
-                    digital_object_post_response = update_digital_object(
-                        digital_object["uri"], digital_object
-                    ).json()
+                existing_file_versions = []
+                if file_versions_op == "unpublish" and instance["digital_object"][
+                    "_resolved"
+                ].get("file_versions"):
+                    for file_version in instance["digital_object"]["_resolved"][
+                        "file_versions"
+                    ]:
+                        file_version["publish"] = False
+                    existing_file_versions = instance["digital_object"]["_resolved"][
+                        "file_versions"
+                    ]
+                file_versions.extend(existing_file_versions)
+                digital_object = instance["digital_object"]["_resolved"]
+                digital_object["file_versions"] = file_versions
+                digital_object["publish"] = True
+                digital_object_post_response = update_digital_object(
+                    digital_object["uri"], digital_object
+                ).json()
     except:
         logger.exception("‼️")
         raise
@@ -1503,20 +1565,6 @@ def get_preservation_image_data(filepath):
     with open(preservation_image_data["filepath"], "rb") as f:
         preservation_image_data["md5"] = hashlib.md5(f.read())
     return preservation_image_data
-
-
-def create_preservation_files_structure(variables):
-    variables["collection_directory"] = confirm_collection_directory(
-        variables["WORKING_ORIGINAL_FILES"], variables["collection_id"]
-    )  # TODO pass only variables
-    variables["collection_data"] = get_collection_data(
-        variables["collection_id"]
-    )  # TODO pass only variables
-    save_collection_datafile(
-        variables["collection_data"], variables["WORK_PRESERVATION_FILES"]
-    )  # TODO pass only variables
-    variables["step"] = "create_preservation_files_structure"  # TODO no more steps?
-    create_derivative_structure(variables)
 
 
 def create_derivative_files(variables, collection_data, onsite, cloud, access):

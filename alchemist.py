@@ -647,16 +647,13 @@ def generate_iiif_manifest(build_directory, variables):
             )
             for filepath in sorted(variables["filepaths"]):
                 # create canvas metadata
-                # HACK the binaries for `vips` and `vipsheader` should be in the same place
-                width = (
-                    os.popen(f'{config("WORK_VIPS_CMD")}header -f width {filepath}')
+                dimensions = (
+                    os.popen(
+                        f'{config("WORK_MAGICK_CMD")} identify -format "%w*%h" {filepath}'
+                    )
                     .read()
                     .strip()
-                )
-                height = (
-                    os.popen(f'{config("WORK_VIPS_CMD")}header -f height {filepath}')
-                    .read()
-                    .strip()
+                    .split("*")
                 )
                 canvas_id = "/".join(
                     [
@@ -684,8 +681,8 @@ def generate_iiif_manifest(build_directory, variables):
                     "@type": "sc:Canvas",
                     "@id": canvas_id,
                     "label": Path(filepath).stem.split("_")[-1].lstrip("0"),
-                    "width": width,
-                    "height": height,
+                    "width": dimensions[0],
+                    "height": dimensions[1],
                     "images": [
                         {
                             "@type": "oa:Annotation",
@@ -703,6 +700,9 @@ def generate_iiif_manifest(build_directory, variables):
                         }
                     ],
                 }
+                if variables["thumbnail_label"] == "filename":
+                    canvas["label"] = Path(filepath).stem
+                logger.debug(f"🐞 CANVAS: {canvas}")
                 # add canvas to sequences
                 manifest["sequences"][0]["canvases"].append(canvas)
 
@@ -758,6 +758,35 @@ def upload_iiif_manifest(build_directory, variables):
 
 def create_pyramid_tiff(build_directory, variables):
     try:
+        # NOTE vips has problems with JP2 source images
+        if (
+            os.popen(
+                '{} identify -format "%m" {}'.format(
+                    config("WORK_MAGICK_CMD"), variables["original_image_path"]
+                )
+            )
+            .read()
+            .strip()
+            == "JP2"
+        ):
+            vips_source_image = (
+                Path(build_directory.name).joinpath("uncompressed.tiff").as_posix()
+            )
+            magick_output = subprocess.run(
+                [
+                    config("WORK_MAGICK_CMD"),
+                    "convert",
+                    "-quiet",
+                    variables["original_image_path"],
+                    "-compress",
+                    "None",
+                    vips_source_image,
+                ],
+                capture_output=True,
+                text=True,
+            ).stdout
+        else:
+            vips_source_image = variables["original_image_path"]
         pyramid_tiff_key = "/".join(
             [
                 variables["arrangement"]["collection_id"],
@@ -768,11 +797,11 @@ def create_pyramid_tiff(build_directory, variables):
         pyramid_tiff_file = (
             Path(build_directory.name).joinpath(pyramid_tiff_key).as_posix()
         )
-        output = subprocess.run(
+        vips_output = subprocess.run(
             [
                 config("WORK_VIPS_CMD"),
                 "tiffsave",
-                variables["original_image_path"],
+                vips_source_image,
                 pyramid_tiff_file,
                 "--tile",
                 "--pyramid",
@@ -911,8 +940,10 @@ def create_digital_object_file_versions(build_directory, variables):
                     f'❌ MULTIPLE DIGITAL OBJECTS FOUND: {variables["archival_object"]["component_id"]}'
                 )
             elif digital_object_count == 1:
-                distillery.add_digital_object_file_versions(
-                    variables["archival_object"], file_versions
+                distillery.save_digital_object_file_versions(
+                    variables["archival_object"],
+                    file_versions,
+                    variables["file_versions_op"],
                 )
             elif digital_object_count < 1:
                 # returns new archival_object with digital_object instance included
@@ -920,8 +951,10 @@ def create_digital_object_file_versions(build_directory, variables):
                     digital_object_uri,
                     variables["archival_object"],
                 ) = distillery.create_digital_object(variables["archival_object"])
-                distillery.add_digital_object_file_versions(
-                    variables["archival_object"], file_versions
+                distillery.save_digital_object_file_versions(
+                    variables["archival_object"],
+                    file_versions,
+                    variables["file_versions_op"],
                 )
     except:
         logger.exception("‼️")
