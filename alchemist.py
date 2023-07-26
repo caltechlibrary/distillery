@@ -9,7 +9,6 @@ import tempfile
 
 from pathlib import Path
 
-import arrow
 import boto3
 import botocore
 import jinja2  # pypi: Jinja2
@@ -974,15 +973,89 @@ def format_archival_object_creators_display(archival_object):
 
 
 def format_archival_object_dates_display(archival_object):
+    # NOTE begin and end could be: YYYY, YYYY-MM, YYYY-MM-DD
+    months = {
+        "01": "January",
+        "02": "February",
+        "03": "March",
+        "04": "April",
+        "05": "May",
+        "06": "June",
+        "07": "July",
+        "08": "August",
+        "09": "September",
+        "10": "October",
+        "11": "November",
+        "12": "December",
+    }
     dates_display = []
     for date in archival_object["dates"]:
         if date["label"] == "creation":
+            # NOTE filter(None, ...) removes empty strings from the list
             if date.get("end"):
-                dates_display.append(
-                    f'{arrow.get(date["begin"]).format("YYYY MMMM D")} to {arrow.get(date["end"]).format("YYYY MMMM D")}'
-                )
+                if date["begin"][:4] == date["end"][:4]:
+                    # NOTE exclude the end year per DACS: 1975 March-August
+                    dates_display.append(
+                        "{} to {}".format(
+                            " ".join(
+                                filter(
+                                    None,
+                                    [
+                                        date.get("begin")[:4],
+                                        months.get(date.get("begin")[5:7], ""),
+                                        date.get("begin")[8:10],
+                                    ],
+                                )
+                            ),
+                            " ".join(
+                                filter(
+                                    None,
+                                    [
+                                        months.get(date.get("end")[5:7], ""),
+                                        date.get("end")[8:10],
+                                    ],
+                                )
+                            ),
+                        )
+                    )
+                else:
+                    dates_display.append(
+                        "{} to {}".format(
+                            " ".join(
+                                filter(
+                                    None,
+                                    [
+                                        date.get("begin")[:4],
+                                        months.get(date.get("begin")[5:7], ""),
+                                        date.get("begin")[8:10],
+                                    ],
+                                )
+                            ),
+                            " ".join(
+                                filter(
+                                    None,
+                                    [
+                                        date.get("end")[:4],
+                                        months.get(date.get("end")[5:7], ""),
+                                        date.get("end")[8:10],
+                                    ],
+                                )
+                            ),
+                        )
+                    )
             elif date.get("begin"):
-                dates_display.append(arrow.get(date["begin"]).format("YYYY MMMM D"))
+                dates_display.append(
+                    " ".join(
+                        filter(
+                            None,
+                            [
+                                date.get("begin")[:4],
+                                months[date.get("begin")[5:7]],
+                                date.get("begin")[8:10],
+                            ],
+                        )
+                    )
+                )
             else:
                 dates_display.append(date["expression"])
     return dates_display
