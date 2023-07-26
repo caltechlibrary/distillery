@@ -97,7 +97,7 @@
           </label>
           <fieldset class="publishing" hidden>
             <legend>Choose what happens if digital object file versions exist.</legend>
-            <label><input type="radio" name="file_versions_op" value="halt" checked>Halt if any digital object file versions exist</label>
+            <label><input type="radio" name="file_versions_op" value="fail" checked>Fail validation when any digital object file versions exist</label>
             <label><input type="radio" name="file_versions_op" value="overwrite">Overwrite any existing digital object file versions</label>
             <label><input type="radio" name="file_versions_op" value="unpublish">Unpublish any existing digital object file versions</label>
           </fieldset>

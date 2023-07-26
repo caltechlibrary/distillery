@@ -204,7 +204,7 @@ class DistilleryService(rpyc.Service):
                                         "file_versions"
                                     )
                                 )
-                                and "halt" in self.destinations
+                                and "fail" in self.destinations
                             ):
                                 message = "❌ DIGITAL OBJECT ALREADY HAS FILE VERSIONS: [**{}**]({}/resolve/readonly?uri={})".format(
                                     instance["digital_object"]["_resolved"]["title"],
