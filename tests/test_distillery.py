@@ -218,13 +218,44 @@ def create_archivesspace_test_agent_person(asnake_client, test_id, unique_rest_o
     return person_post_response
 
 
+def create_archivesspace_test_digital_object(asnake_client, test_id):
+    digital_object = {}
+    # required
+    digital_object["title"] = f"Item {test_id}"
+    digital_object["digital_object_id"] = f"item-{test_id}"
+    # optional
+    digital_object["file_versions"] = [
+        {"file_uri": f"http://example.org/item-{test_id}", "publish": True},
+        {
+            "file_uri": f"http://example.org/item-{test_id}/thumbnail",
+            "publish": True,
+            "xlink_show_attribute": "embed",
+        },
+    ]
+    digital_object["publish"] = True
+    # post
+    digital_object_post_response = asnake_client.post(
+        "/repositories/2/digital_objects", json=digital_object
+    )
+    return digital_object_post_response, digital_object["digital_object_id"]
+
+
 def run_distillery(
-    page: Page, resource_identifier, destinations, outcome="success", timeout=60000
+    page: Page,
+    resource_identifier,
+    destinations,
+    file_versions_op="fail",
+    thumbnail_label="sequence",
+    outcome="success",
+    timeout=60000,
 ):
     page.goto(config("DISTILLERY_BASE_URL"))
     page.get_by_label("Collection ID").fill(resource_identifier)
     for destination in destinations:
         page.locator(f'input[value="{destination}"]').click()
+        if destination == "access":
+            page.locator(f'input[value="{file_versions_op}"]').check()
+            page.locator(f'input[value="{thumbnail_label}"]').check()
     page.get_by_role("button", name="Validate").click()
     page.get_by_text("Details").click()
     if outcome == "failure":
@@ -1110,10 +1141,10 @@ def test_distillery_alchemist_ancestors_2gj5n(page: Page, asnake_client):
     expect(page.locator("#metadata")).to_contain_text("Sub-Series")
 
 
-def test_distillery_alchemist_nonnumeric_sequence_yw3ff(page: Page, asnake_client):
-    """Confirm non-numeric sequence strings make it to Alchemist."""
-    test_name = "alchemist non-numeric sequence"
-    test_id = "yw3ff"
+def test_distillery_alchemist_thumbnaillabel_sequence_yw3ff(page: Page, asnake_client):
+    """Use sequence indicator as label in Universal Viewer."""
+    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
+    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -1138,23 +1169,46 @@ def test_distillery_alchemist_nonnumeric_sequence_yw3ff(page: Page, asnake_clien
     # RUN ALCHEMIST PROCESS
     run_distillery(page, test_id, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_id)
-    # VALIDATE DIGITAL OBJECT RECORD
-    results = asnake_client.get(
-        "/repositories/2/find_by_id/digital_objects",
-        params={"digital_object_id[]": f"{item_component_id}"},
-    ).json()
-    print(f"🐞 find_by_id/digital_objects:{item_component_id}", results)
-    assert len(results["digital_objects"]) == 1
-    for result in results["digital_objects"]:
-        digital_object = asnake_client.get(result["ref"]).json()
-        print("🐞 digital_object", digital_object)
-        assert digital_object["publish"] is True
-        assert digital_object["file_versions"][0]["file_uri"] == alchemist_item_uri
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
-    expect(page.locator("#thumb-0")).to_have_text("C")
-    expect(page.locator("#thumb-1")).to_have_text("p000-p001")
-    expect(page.locator("#thumb-2")).to_have_text("p002-p003")
+    expect(page.locator("#thumb-0")).to_have_text("1")
+    expect(page.locator("#thumb-1")).to_have_text("2")
+    expect(page.locator("#thumb-2")).to_have_text("last")
+
+
+def test_distillery_alchemist_thumbnaillabel_filename_wef99(page: Page, asnake_client):
+    """Use filename as label in Universal Viewer."""
+    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
+    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, test_id)
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_name, test_id
+    )
+    print(
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD
+    (
+        item_create_response,
+        item_component_id,
+    ) = create_archivesspace_test_archival_object_item(
+        asnake_client, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 item_create_response:{test_id}",
+        item_create_response.json(),
+    )
+    # RUN ALCHEMIST PROCESS
+    run_distillery(page, test_id, ["access"], thumbnail_label="filename")
+    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    # VALIDATE ALCHEMIST ITEM
+    page.goto(alchemist_item_uri)
+    expect(page.locator("#thumb-0")).to_have_text("lQGJCMY5qcM-unsplash_001")
+    expect(page.locator("#thumb-1")).to_have_text("lQGJCMY5qcM-unsplash_002")
+    expect(page.locator("#thumb-2")).to_have_text("lQGJCMY5qcM-unsplash_last")
 
 
 def test_distillery_alchemist_regenerate_one_vru3b(page: Page, asnake_client):
@@ -1203,6 +1257,196 @@ def test_distillery_alchemist_regenerate_one_vru3b(page: Page, asnake_client):
     page.goto(alchemist_item_uri)
     page.screenshot(path=f"tests/_output/{test_id}.png")
     expect(page.get_by_role("heading", name="Regenerated Title")).to_be_visible()
+
+
+def test_distillery_alchemist_fileversions_fail_2tgwm(page: Page, asnake_client):
+    """Fail validation when digital_object file_versions exist."""
+    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
+    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, test_id)
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_name, test_id
+    )
+    print(
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD
+    (
+        item_create_response,
+        item_component_id,
+    ) = create_archivesspace_test_archival_object_item(
+        asnake_client, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 item_create_response:{test_id}",
+        item_create_response.json(),
+    )
+    # CREATE DIGITAL OBJECT RECORD
+    (
+        digital_object_create_response,
+        digital_object_id,
+    ) = create_archivesspace_test_digital_object(asnake_client, test_id)
+    print(
+        f"🐞 digital_object_create_response:{test_id}",
+        digital_object_create_response.json(),
+    )
+    # UPDATE ARCHIVAL OBJECT ITEM RECORD
+    item = asnake_client.get(item_create_response.json()["uri"]).json()
+    # update title
+    item["instances"] = [
+        {
+            "instance_type": "digital_object",
+            "digital_object": {"ref": digital_object_create_response.json()["uri"]},
+        }
+    ]
+    item_update_response = asnake_client.post(item["uri"], json=item)
+    print(
+        f"🐞 item_update_response:{test_id}",
+        item_update_response.json(),
+    )
+    # RUN ALCHEMIST PROCESS
+    run_distillery(page, test_id, ["access"], outcome="failure")
+    # TODO check contents of iframe
+
+
+def test_distillery_alchemist_fileversions_overwrite_v3wqp(page: Page, asnake_client):
+    """Overwrite any existing digital object file versions."""
+    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
+    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, test_id)
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_name, test_id
+    )
+    print(
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD
+    (
+        item_create_response,
+        item_component_id,
+    ) = create_archivesspace_test_archival_object_item(
+        asnake_client, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 item_create_response:{test_id}",
+        item_create_response.json(),
+    )
+    # CREATE DIGITAL OBJECT RECORD
+    (
+        digital_object_create_response,
+        digital_object_id,
+    ) = create_archivesspace_test_digital_object(asnake_client, test_id)
+    print(
+        f"🐞 digital_object_create_response:{test_id}",
+        digital_object_create_response.json(),
+    )
+    # UPDATE ARCHIVAL OBJECT ITEM RECORD
+    item = asnake_client.get(item_create_response.json()["uri"]).json()
+    # update title
+    item["instances"] = [
+        {
+            "instance_type": "digital_object",
+            "digital_object": {"ref": digital_object_create_response.json()["uri"]},
+        }
+    ]
+    item_update_response = asnake_client.post(item["uri"], json=item)
+    print(
+        f"🐞 item_update_response:{test_id}",
+        item_update_response.json(),
+    )
+    # RUN ALCHEMIST PROCESS
+    run_distillery(page, test_id, ["access"], file_versions_op="overwrite")
+    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    # VALIDATE DIGITAL OBJECT RECORD
+    results = asnake_client.get(
+        "/repositories/2/find_by_id/digital_objects",
+        params={"digital_object_id[]": f"{item_component_id}"},
+    ).json()
+    print(f"🐞 find_by_id/digital_objects:{item_component_id}", results)
+    assert len(results["digital_objects"]) == 1
+    for result in results["digital_objects"]:
+        digital_object = asnake_client.get(result["ref"]).json()
+        print("🐞 digital_object", digital_object)
+        assert digital_object["publish"] is True
+        assert len(digital_object["file_versions"]) == 2
+        assert digital_object["file_versions"][0]["file_uri"] == alchemist_item_uri
+
+
+def test_distillery_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_client):
+    """Unpublish any existing digital object file versions."""
+    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
+    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, test_id)
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_name, test_id
+    )
+    print(
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD
+    (
+        item_create_response,
+        item_component_id,
+    ) = create_archivesspace_test_archival_object_item(
+        asnake_client, test_id, resource_create_response.json()["uri"]
+    )
+    print(
+        f"🐞 item_create_response:{test_id}",
+        item_create_response.json(),
+    )
+    # CREATE DIGITAL OBJECT RECORD
+    (
+        digital_object_create_response,
+        digital_object_id,
+    ) = create_archivesspace_test_digital_object(asnake_client, test_id)
+    print(
+        f"🐞 digital_object_create_response:{test_id}",
+        digital_object_create_response.json(),
+    )
+    # UPDATE ARCHIVAL OBJECT ITEM RECORD
+    item = asnake_client.get(item_create_response.json()["uri"]).json()
+    # update title
+    item["instances"] = [
+        {
+            "instance_type": "digital_object",
+            "digital_object": {"ref": digital_object_create_response.json()["uri"]},
+        }
+    ]
+    item_update_response = asnake_client.post(item["uri"], json=item)
+    print(
+        f"🐞 item_update_response:{test_id}",
+        item_update_response.json(),
+    )
+    # RUN ALCHEMIST PROCESS
+    run_distillery(page, test_id, ["access"], file_versions_op="unpublish")
+    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    # VALIDATE DIGITAL OBJECT RECORD
+    results = asnake_client.get(
+        "/repositories/2/find_by_id/digital_objects",
+        params={"digital_object_id[]": f"{item_component_id}"},
+    ).json()
+    print(f"🐞 find_by_id/digital_objects:{item_component_id}", results)
+    assert len(results["digital_objects"]) == 1
+    for result in results["digital_objects"]:
+        digital_object = asnake_client.get(result["ref"]).json()
+        print("🐞 digital_object", digital_object)
+        assert digital_object["publish"] is True
+        assert len(digital_object["file_versions"]) == 4
+        assert digital_object["file_versions"][0]["file_uri"] == alchemist_item_uri
+        for file_version in digital_object["file_versions"]:
+            if file_version["file_uri"].startswith(
+                f"http://example.org/{item_component_id}"
+            ):
+                assert file_version["publish"] is False
 
 
 def test_distillery_alchemist_kitchen_sink_pd4s3(page: Page, asnake_client):
