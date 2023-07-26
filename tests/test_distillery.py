@@ -1418,6 +1418,18 @@ def test_distillery_alchemist_kitchen_sink_pd4s3(page: Page, asnake_client):
         {
             "label": "creation",
             "date_type": "inclusive",
+            "begin": "1900",
+            "end": "1901",
+        },
+        {
+            "label": "creation",
+            "date_type": "inclusive",
+            "begin": "1911-01",
+            "end": "1911-12",
+        },
+        {
+            "label": "creation",
+            "date_type": "inclusive",
             "begin": "1969-12-31",
             "end": "1970-01-01",
         },
@@ -1734,7 +1746,7 @@ def test_distillery_alchemist_kitchen_sink_pd4s3(page: Page, asnake_client):
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     expect(page.locator("hgroup p:first-of-type")).to_have_text(
-        "1584 February 29; 1969 December 31 to 1970 January 1; 1999 December 31 to 2000 January 1; ongoing into the future"
+        "1584 February 29; 1900 to 1901; 1911 January to December; 1969 December 31 to 1970 January 01; 1999 December 31 to 2000 January 01; ongoing into the future"
     )
     expect(page.locator("hgroup p:last-child")).to_have_text(
         f'{test_name.capitalize().replace("_", " ")}Series {test_id}Sub-Series {test_id}'
