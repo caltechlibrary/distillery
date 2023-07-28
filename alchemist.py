@@ -309,14 +309,12 @@ rights_notice_html = '<p>These digitized collections are accessible for purposes
 
 
 class AccessPlatform:
-    def __init__(self, collection_id, collection_data):
-        self.collection_id = collection_id
-        self.collection_data = collection_data
+    def __init__(self):
         self.build_directory = tempfile.TemporaryDirectory()
 
     def collection_structure_processing(self):
         # TODO build html metadata/thumbnail page?
-        logger.info(f"🐛 COLLECTION STRUCTURE PROCESSING: {self.collection_id}")
+        logger.debug("🐞 EMPTY METHOD")
 
     def archival_object_level_processing(self, variables):
         logger.info(f'ℹ️  {variables["archival_object"]["component_id"]}')
@@ -336,8 +334,6 @@ class AccessPlatform:
         publish_archival_object_access_files(self.build_directory, variables)
 
     def loop_over_derivative_structure(self, variables):
-        logger.info(f"🐛 LOOP OVER DERIVATIVE STRUCTURE: {self.collection_id}")
-        logger.info(f"🐛 variables.keys(): {variables.keys()}")
         create_digital_object_file_versions(self.build_directory, variables)
 
     def regenerate_all(self, variables):

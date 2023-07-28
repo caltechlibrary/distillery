@@ -40,8 +40,6 @@ def distillery_0000_reset_files():
         shutil.move(d, config("INITIAL_ORIGINAL_FILES"))
     for d in glob.glob(os.path.join(config("WORK_PRESERVATION_FILES"), "*/")):
         os.system(f"/bin/rm -r {d}")
-    for d in glob.glob(os.path.join(config("COMPRESSED_ACCESS_FILES"), "*/")):
-        os.system(f"/bin/rm -r {d}")
     return
 
 
@@ -150,7 +148,7 @@ def create_archivesspace_test_resource(asnake_client, test_name, test_id):
 
 
 def create_archivesspace_test_archival_object_item(
-    asnake_client, test_id, resource_uri
+    asnake_client, test_name, test_id, resource_uri
 ):
     item = {}
     # required
@@ -158,7 +156,7 @@ def create_archivesspace_test_archival_object_item(
     item["level"] = "item"
     item["resource"] = {"ref": resource_uri}
     # optional
-    item["component_id"] = f"item-{test_id}"
+    item["component_id"] = f'item-{test_name.split("_", maxsplit=1)[-1]}_{test_id}'
     item["publish"] = True
     # post
     item_post_response = asnake_client.post(
@@ -172,7 +170,7 @@ def create_archivesspace_test_archival_object_series(
 ):
     series = {}
     # required
-    series["title"] = f"Series {test_id}"
+    series["title"] = f"[Series] {test_id}"
     series["level"] = "series"
     series["resource"] = {"ref": resource_uri}
     # optional
@@ -190,7 +188,7 @@ def create_archivesspace_test_archival_object_subseries(
 ):
     subseries = {}
     # required
-    subseries["title"] = f"Sub-Series {test_id}"
+    subseries["title"] = f"[Sub-Series] {test_id}"
     subseries["level"] = "subseries"
     subseries["resource"] = {"ref": resource_uri}
     # optional
@@ -242,7 +240,6 @@ def create_archivesspace_test_digital_object(asnake_client, test_id):
 
 def run_distillery(
     page: Page,
-    resource_identifier,
     destinations,
     file_versions_op="fail",
     thumbnail_label="sequence",
@@ -250,7 +247,6 @@ def run_distillery(
     timeout=60000,
 ):
     page.goto(config("DISTILLERY_BASE_URL"))
-    page.get_by_label("Collection ID").fill(resource_identifier)
     for destination in destinations:
         page.locator(f'input[value="{destination}"]').click()
         if destination == "access":
@@ -265,13 +261,13 @@ def run_distillery(
         )
         return page
     expect(page.locator("p")).to_have_text(
-        f"✅ Validated metadata, files, and destinations for {resource_identifier}.",
+        f"✅ Validated metadata, files, and destinations.",
         timeout=timeout,
     )
     page.get_by_role("button", name="Run").click()
     page.get_by_text("Details").click()
     expect(page.locator("p")).to_have_text(
-        f"✅ Processed metadata and files for {resource_identifier}.", timeout=timeout
+        f"✅ Processed metadata and files.", timeout=timeout
     )
 
 
@@ -1449,7 +1445,7 @@ def test_distillery_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_cl
                 assert file_version["publish"] is False
 
 
-def test_distillery_alchemist_kitchen_sink_pd4s3(page: Page, asnake_client):
+def test_alchemist_kitchen_sink_pd4s3(page: Page, asnake_client):
     """Attempt to test every ArchivesSpace field."""
     test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
     test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
@@ -1604,7 +1600,7 @@ def test_distillery_alchemist_kitchen_sink_pd4s3(page: Page, asnake_client):
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
@@ -1984,7 +1980,7 @@ def test_distillery_alchemist_kitchen_sink_pd4s3(page: Page, asnake_client):
         item_update_response.json(),
     )
     # RUN ALCHEMIST PROCESS
-    run_distillery(page, test_id, ["access"])
+    run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_id)
     print(f"🐞 {alchemist_item_uri}")
     # VALIDATE ALCHEMIST ITEM
