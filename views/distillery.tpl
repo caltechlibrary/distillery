@@ -69,13 +69,6 @@
       }
     </script>
     <form action="{{distillery_base_url}}" method="post" onsubmit="return validateCheckboxGroup()">
-      <h2>Collection</h2>
-      <p>Enter a Collection ID as it appears in ArchivesSpace and the folder name on the filesystem.</p>
-      <label>
-        Collection ID
-        <input type="text" name="collection_id" pattern="^[a-zA-Z0-9-\.~_]+$" title="only letters, numbers, hyphens, periods, tildes, and underscores allowed" required>
-      </label>
-      <div><small>examples: HaleGE, HBF, etc. (case-sensitive)</small></div>
       <div role="group" aria-labelledby="checkbox-group">
         <h2 id="checkbox-group">Destinations</h2>
         <p class="required">Select at least one destination for the available files.</p>
@@ -121,9 +114,9 @@
       </script>
     </form>
     % elif step == "validating":
-    <p>Validating metadata, files, and destinations for <b>{{collection_id}}</b>.</p>
+    <p>Validating metadata, files, and destinations.</p>
     % elif step == "running":
-    <p>Processing metadata and files for <b>{{collection_id}}</b>.</p>
+    <p>Processing metadata and files.</p>
     % end
     % if step == "validating" or step == "running":
     <details>
@@ -132,7 +125,6 @@
     </details>
     % if step == "validating":
     <form action="{{distillery_base_url}}" method="post">
-      <input type="hidden" id="collection_id" name="collection_id" value="{{collection_id}}">
       <input type="hidden" id="destinations" name="destinations" value="{{destinations}}">
       <input type="hidden" id="step" name="step" value="running">
       <div class="grid">

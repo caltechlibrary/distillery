@@ -57,8 +57,7 @@ asnake_client.authorize()
 
 @rpyc.service
 class DistilleryService(rpyc.Service):
-    def _initiate_variables(self, collection_id, destinations):
-        self.collection_id = collection_id
+    def _initiate_variables(self, destinations):
         self.destinations = destinations
         self.onsite_medium = None
         self.cloud_platform = None
@@ -72,6 +71,7 @@ class DistilleryService(rpyc.Service):
             # import ONSITE_MEDIUM module
             try:
                 self.onsite_medium = importlib.import_module(config("ONSITE_MEDIUM"))
+                logger.debug(f"🐞 self.onsite_medium: {self.onsite_medium}")
             except Exception:
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("ONSITE_MEDIUM")}'
                 status_logger.error(message)
@@ -80,6 +80,7 @@ class DistilleryService(rpyc.Service):
             # import CLOUD_PLATFORM module
             try:
                 self.cloud_platform = importlib.import_module(config("CLOUD_PLATFORM"))
+                logger.debug(f"🐞 self.cloud_platform: {self.cloud_platform}")
             except Exception:
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("CLOUD_PLATFORM")}'
                 status_logger.error(message)
@@ -90,22 +91,26 @@ class DistilleryService(rpyc.Service):
                 self.access_platform = importlib.import_module(
                     config("ACCESS_PLATFORM")
                 )
+                logger.debug(f"🐞 self.access_platform: {self.access_platform}")
+                logger.debug(
+                    f"🐞 bool(self.access_platform): {bool(self.access_platform)}"
+                )
             except Exception:
                 message = f'❌ UNABLE TO IMPORT MODULE: {config("ACCESS_PLATFORM")}'
                 status_logger.error(message)
                 raise
 
     @rpyc.exposed
-    def validate(self, collection_id, destinations):
+    def validate(self, destinations):
         """Validate connections, files, and data."""
 
         # reset status_logfile
         with open(status_logfile, "w") as f:
             pass
 
-        self._initiate_variables(collection_id, destinations)
+        self._initiate_variables(destinations)
 
-        status_logger.info(f"🟢 BEGIN VALIDATING COMPONENTS: {self.collection_id}")
+        status_logger.info(f"🟢 BEGIN VALIDATING COMPONENTS")
 
         self._import_modules()
 
@@ -145,30 +150,14 @@ class DistilleryService(rpyc.Service):
                 status_logger.error(message)
                 raise ConnectionError(message)
 
-        # validate INITIAL_ORIGINAL_FILES directory
-        # TODO allow for multiple locations / different mount points
-        try:
-            if Path(config("INITIAL_ORIGINAL_FILES")).is_dir():
-                confirm_collection_directory(
-                    self.collection_id, config("INITIAL_ORIGINAL_FILES")
-                )
-                message = f"☑️  COLLECTION DIRECTORY FOUND: {self.collection_id}"
-                status_logger.info(message)
-            else:
-                raise NotADirectoryError(config("INITIAL_ORIGINAL_FILES"))
-        except NotADirectoryError as e:
-            message = f"❌ DIRECTORY NOT FOUND: {str(e)}"
-            status_logger.error(message)
-            # re-raise the exception because we cannot continue without the files
-            raise
-
         # TODO confirm any PRESERVATION_FILES/{collection_id} directory is empty
 
-        initial_original_subdirectorycount = 0
+        initial_original_directorycount = 0
         initial_original_filecount = 0
-        for dirpath, dirnames, filenames in os.walk(
-            os.path.join(config("INITIAL_ORIGINAL_FILES"), self.collection_id)
-        ):
+        for dirpath, dirnames, filenames in os.walk(config("INITIAL_ORIGINAL_FILES")):
+            logger.debug(
+                f"🐞 dirpath: {dirpath}; dirnames: {dirnames}; filenames: {filenames}"
+            )
             if dirnames:
                 for dirname in dirnames:
                     # check archival_object status
@@ -176,7 +165,7 @@ class DistilleryService(rpyc.Service):
                     #   in order to report all problems instead of just one
                     archival_object = find_archival_object(dirname)
                     if not archival_object:
-                        message = f"❌ NO ARCHIVAL OBJECT FOUND FOR: {self.collection_id}/{dirname}"
+                        message = f"❌ NO ARCHIVAL OBJECT FOUND FOR: {dirname}"
                         status_logger.error(message)
                         raise RuntimeError(message)
                     elif not archival_object["publish"] and self.access_platform:
@@ -241,64 +230,142 @@ class DistilleryService(rpyc.Service):
                                     instance["digital_object"]["ref"],
                                 )
                                 status_logger.warning(message)
-                    # count and list subdirectories in the collection directory
-                    initial_original_subdirectorycount += 1
-                    status_logger.info(f"📁 {self.collection_id}/{dirname}")
+                    # count and list initial directories
+                    initial_original_directorycount += 1
+                    status_logger.info(f"📁 {dirname}")
             if filenames:
                 for filename in filenames:
                     # count files
-                    initial_original_filecount += 1
-        if not initial_original_subdirectorycount:
-            message = f"❌ No subdirectories found under {self.collection_id} directory"
+                    if filename not in [".DS_Store", "Thumbs.db"]:
+                        initial_original_filecount += 1
+        if not initial_original_directorycount:
+            message = "❌ NO DIRECTORIES FOUND"
             status_logger.error(message)
             raise FileNotFoundError(message)
         if initial_original_filecount:
-            logger.info(f"☑️  FILE COUNT: {initial_original_filecount}")
-            status_logger.info(f"📄 File count: {initial_original_filecount}")
+            status_logger.info(f"📄 FILE COUNT: {initial_original_filecount}")
         else:
-            message = f"❌ No files found for {self.collection_id}"
+            message = "❌ NO FILES FOUND"
             status_logger.error(message)
             raise FileNotFoundError(message)
-
-        # validate collection in ArchivesSpace
-        try:
-            collection_data = get_collection_data(self.collection_id)
-            status_logger.info(
-                "☑️  ARCHIVESSPACE COLLECTION FOUND: [**{}**]({}/resolve/readonly?uri={})".format(
-                    collection_data["title"],
-                    config("ASPACE_STAFF_URL"),
-                    collection_data["uri"],
-                )
-            )
-        except:
-            message = f"❌ COLLECTION NOT FOUND IN ARCHIVESSPACE: {self.collection_id}"
-            status_logger.error(message)
-            logger.exception(message)
-            raise
 
         # send the character that stops javascript reloading in the web ui
         status_logger.info(f"🈺")  # Japanese “Open for Business” Button
         # copy the status_logfile to the logs directory
         logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(
-            f"{self.collection_id}.{str(int(time.time()))}.validate.log"
+            f"{str(int(time.time()))}.validate.log"
         )
         shutil.copy2(status_logfile, logfile_dst)
         logger.info(f"☑️  COPIED VALIDATE LOG FILE: {logfile_dst}")
 
     @rpyc.exposed
-    def run(self, collection_id, destinations):
+    def run(self, destinations):
         """Run Distillery."""
         # reset status_logfile
         with open(status_logfile, "w") as f:
             pass
         try:
-            self._initiate_variables(collection_id, destinations)
-            status_logger.info(f"🟢 BEGIN DISTILLING: {self.collection_id}")
+            self._initiate_variables(destinations)
+            status_logger.info(f"🟢 BEGIN DISTILLING")
             self._import_modules()
             status_logger.info(
                 f'☑️  DESTINATIONS: {", ".join(list(json.loads(self.destinations)))}'
             )
 
+            for dirpath, dirnames, filenames in os.walk(
+                config("INITIAL_ORIGINAL_FILES")
+            ):
+                if dirnames:
+                    for dirname in dirnames:
+
+                        # for publication destinations
+                        accessDistiller = None
+                        if self.access_platform:
+                            self.variables["file_versions_op"] = json.loads(
+                                self.destinations
+                            )["access"]["file_versions_op"]
+                            self.variables["thumbnail_label"] = json.loads(
+                                self.destinations
+                            )["access"]["thumbnail_label"]
+                            accessDistiller = self.access_platform.AccessPlatform()
+                            accessDistiller.collection_structure_processing()
+
+                        initial_archival_object_directory = str(
+                            os.path.join(dirpath, dirname)
+                        )
+                        working_archival_object_directory = str(
+                            os.path.join(
+                                config("WORKING_ORIGINAL_FILES"),
+                                dirname,
+                            )
+                        )
+                        try:
+                            shutil.move(initial_archival_object_directory, working_archival_object_directory)
+                        except BaseException:
+                            message = "❌ UNABLE TO MOVE THE SOURCE FILES FOR PROCESSING"
+                            status_logger.error(message)
+                            logger.exception(f"‼️")
+                            raise
+
+                        # Set up list of file paths for the current directory.
+                        self.variables["filepaths"] = [
+                            f.path
+                            for f in os.scandir(working_archival_object_directory)
+                            if f.is_file() and f.name not in [".DS_Store", "Thumbs.db"]
+                        ]
+
+                        # Get archival_object data via component_id from directory name.
+                        self.variables["archival_object"] = find_archival_object(
+                            os.path.basename(working_archival_object_directory)
+                        )
+                        self.variables["arrangement"] = get_arrangement(
+                            self.variables["archival_object"]
+                        )
+
+                        if accessDistiller:
+                            accessDistiller.archival_object_level_processing(
+                                self.variables
+                            )
+
+                        create_derivative_files(self.variables, access=accessDistiller)
+
+                        if accessDistiller:
+                            # NOTE working on variables["archival_object"]["component_id"]
+                            accessDistiller.transfer_archival_object_derivative_files(
+                                self.variables
+                            )
+                            status_logger.info(
+                                "☑️  ACCESS PAGE CREATED: [**{}**]({}/{}/{}/index.html)".format(
+                                    self.variables["archival_object"]["component_id"],
+                                    config("ACCESS_SITE_BASE_URL").rstrip("/"),
+                                    self.variables["arrangement"]["collection_id"],
+                                    self.variables["archival_object"]["component_id"],
+                                )
+                            )
+
+                            # NOTE this is where we create_digital_object_file_versions()
+                            accessDistiller.loop_over_derivative_structure(
+                                self.variables
+                            )
+
+        except Exception as e:
+            status_logger.error("❌ SOMETHING WENT WRONG")
+            status_logger.error(e)
+            logger.exception("‼️")
+            raise
+        # complete the process if there is no error
+        else:
+            # send the character that stops javascript reloading in the web ui
+            status_logger.info(f"🏁")
+            # copy the status_logfile to the logs directory
+            logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(
+                f"{str(int(time.time()))}.run.log"
+            )
+            shutil.copy2(status_logfile, logfile_dst)
+            logger.info(f"☑️  COPIED RUN LOG FILE: {logfile_dst}")
+            # TODO delete PRESERVATION_FILES/CollectionID directory
+
+            return
             # retrieve collection data from ArchivesSpace
             collection_data = get_collection_data(self.collection_id)
             status_logger.info(
@@ -391,22 +458,6 @@ class DistilleryService(rpyc.Service):
                     self.onsite_medium,
                     self.cloud_platform,
                 )
-        except Exception as e:
-            status_logger.error("❌ SOMETHING WENT WRONG")
-            status_logger.error(e)
-            logger.exception("‼️")
-            raise
-        # complete the process if there is no error
-        else:
-            # send the character that stops javascript reloading in the web ui
-            status_logger.info(f"🏁")
-            # copy the status_logfile to the logs directory
-            logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(
-                f"{self.collection_id}.{str(int(time.time()))}.run.log"
-            )
-            shutil.copy2(status_logfile, logfile_dst)
-            logger.info(f"☑️  COPIED RUN LOG FILE: {logfile_dst}")
-            # TODO delete PRESERVATION_FILES/CollectionID directory
 
     @rpyc.exposed
     def alchemist_regenerate(self, component_id="", logfile=""):
@@ -950,7 +1001,7 @@ def get_digital_object_component_file_key(prefix, file_parts):
     )
 
 
-def get_xmp_dc_metadata(arrangement, file_parts, archival_object, collection_data):
+def get_xmp_dc_metadata(arrangement, file_parts, archival_object):
     xmp_dc = {}
     xmp_dc["title"] = (
         arrangement["folder_display"] + " [" + file_parts["sequence"] + "]"
@@ -986,7 +1037,32 @@ def get_xmp_dc_metadata(arrangement, file_parts, archival_object, collection_dat
     xmp_dc[
         "rights"
     ] = "Caltech Archives has not determined the copyright in this image."
-    for note in collection_data["notes"]:
+    for ancestor in archival_object["ancestors"]:
+        if ancestor["level"] == "collection":
+            for note in ancestor["_resolved"]["notes"]:
+                if note["type"] == "userestrict":
+                    if (
+                        bool(note["subnotes"][0]["content"])
+                        and note["subnotes"][0]["publish"]
+                    ):
+                        xmp_dc["rights"] = note["subnotes"][0]["content"]
+        elif ancestor["level"] == "series":
+            for note in ancestor["_resolved"]["notes"]:
+                if note["type"] == "userestrict":
+                    if (
+                        bool(note["subnotes"][0]["content"])
+                        and note["subnotes"][0]["publish"]
+                    ):
+                        xmp_dc["rights"] = note["subnotes"][0]["content"]
+        elif ancestor["level"] == "subseries":
+            for note in ancestor["_resolved"]["notes"]:
+                if note["type"] == "userestrict":
+                    if (
+                        bool(note["subnotes"][0]["content"])
+                        and note["subnotes"][0]["publish"]
+                    ):
+                        xmp_dc["rights"] = note["subnotes"][0]["content"]
+    for note in archival_object["notes"]:
         if note["type"] == "userestrict":
             if bool(note["subnotes"][0]["content"]) and note["subnotes"][0]["publish"]:
                 xmp_dc["rights"] = note["subnotes"][0]["content"]
@@ -1240,7 +1316,7 @@ def construct_file_version(variables):
     return file_version
 
 
-def create_lossless_jpeg2000_image(variables, collection_data):
+def create_lossless_jpeg2000_image(variables):
     """Convert original image and ensure matching image signatures."""
     cut_cmd = sh.Command(config("WORK_CUT_CMD"))
     sha512sum_cmd = sh.Command(config("WORK_SHA512SUM_CMD"))
@@ -1303,7 +1379,6 @@ def create_lossless_jpeg2000_image(variables, collection_data):
         variables["arrangement"],
         filepath_components,
         variables["archival_object"],
-        collection_data,
     )
     # Catch any conversion errors in order to skip file and continue.
     # TODO needs testing
@@ -1567,11 +1642,11 @@ def get_preservation_image_data(filepath):
     return preservation_image_data
 
 
-def create_derivative_files(variables, collection_data, onsite, cloud, access):
-    """Loop over files in subdirectories of ORIGINAL_FILES/CollectionID directory.
+def create_derivative_files(variables, onsite=None, cloud=None, access=None):
+    """Loop over files in working_archival_object_directory.
 
     Example:
-    ORIGINAL_FILES/CollectionID
+    WORKING_ORIGINAL_FILES
     ├── CollectionID_000_XX
     ├── CollectionID_001_02 <-- looping over files under here
     │   ├── CollectionID_001_02_01.tif
@@ -1602,9 +1677,7 @@ def create_derivative_files(variables, collection_data, onsite, cloud, access):
             if type and type.startswith("image/"):
                 try:
                     # Create lossless JPEG 2000 image from original.
-                    preservation_image_key = create_lossless_jpeg2000_image(
-                        variables, collection_data
-                    )
+                    preservation_image_key = create_lossless_jpeg2000_image(variables)
                 except Exception as e:
                     logger.exception(e)
                     continue

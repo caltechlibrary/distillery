@@ -58,8 +58,6 @@ def distillery_post():
         return f'<h1>Connection Refused</h1><p>There was a problem connecting to <code>{config("WORK_HOSTNAME")}</code>. Please contact {config("DISTILLERY_DEVELOPER_CONTACT", default="Digital Library Development")} for assistance.</p>'
     except:
         raise
-    # TODO sanitize collection_id
-    collection_id = bottle.request.forms.get("collection_id").strip()
     if bottle.request.forms.get("step") == "validating":
         step = "validating"
         destinations = {}
@@ -79,19 +77,18 @@ def distillery_post():
         distillery_validate = rpyc.async_(
             distillery_work_server_connection.root.validate
         )
-        async_result = distillery_validate(collection_id, json.dumps(destinations))
+        async_result = distillery_validate(json.dumps(destinations))
     if bottle.request.forms.get("step") == "running":
         step = "running"
         destinations = json.loads(bottle.request.forms.get("destinations"))
         # asynchronously run on WORK server
         distillery_run = rpyc.async_(distillery_work_server_connection.root.run)
-        async_result = distillery_run(collection_id, json.dumps(destinations))
+        async_result = distillery_run(json.dumps(destinations))
     return bottle.template(
         "distillery",
         distillery_base_url=config("DISTILLERY_BASE_URL").rstrip("/"),
         user=authorize_user(),
         step=step,
-        collection_id=collection_id,
         destinations=json.dumps(destinations),
     )
 
