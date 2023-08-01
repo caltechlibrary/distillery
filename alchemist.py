@@ -334,7 +334,11 @@ class AccessPlatform:
         publish_archival_object_access_files(self.build_directory, variables)
 
     def loop_over_derivative_structure(self, variables):
-        create_digital_object_file_versions(self.build_directory, variables)
+        try:
+            create_digital_object_file_versions(self.build_directory, variables)
+        except:
+            logger.exception("‼️")
+            raise
 
     def regenerate_all(self, variables):
         collection_prefixes = []
@@ -376,18 +380,13 @@ def validate_connection():
 
 def generate_archival_object_page(build_directory, variables):
     try:
+        logger.debug(f"🐞 BUILD_DIRECTORY.NAME: {build_directory.name}")
         environment = jinja2.Environment(
             loader=jinja2.FileSystemLoader(f"{os.path.dirname(__file__)}/templates"),
             trim_blocks=True,
             lstrip_blocks=True,
         )
         template = environment.get_template("alchemist/archival_object.tpl")
-        logger.info(f"🐛 TEMPLATE: {template}")
-        logger.info(f"🐛 BUILD DIRECTORY: {build_directory.name}")
-        collection_directory = Path(build_directory.name).joinpath(
-            variables["arrangement"]["collection_id"]
-        )
-        logger.info(f"🐛 COLLECTION DIRECTORY: {collection_directory}")
         iiif_manifest_url = "/".join(
             [
                 config("ACCESS_SITE_BASE_URL").rstrip("/"),
@@ -456,7 +455,7 @@ def generate_archival_object_page(build_directory, variables):
                 )
             )
         logger.info(
-            f"🐛 ARCHIVAL OBJECT PAGE FILE GENERATED: {archival_object_page_file}"
+            f"✨ ARCHIVAL OBJECT PAGE FILE GENERATED: {archival_object_page_file}"
         )
     except Exception as e:
         logger.exception(e)
@@ -872,88 +871,79 @@ def publish_archival_object_access_files(build_directory, variables):
 
 
 def create_digital_object_file_versions(build_directory, variables):
-    try:
+    # TODO no loop over collection directory; we are acting on an archival_object_directory
+    logger.debug(f'🐞 ARCHIVAL_OBJECT: {variables["archival_object"]["component_id"]}')
+    logger.debug(f"🐞 BUILD_DIRECTORY: {build_directory}")
 
-        collection_directory = Path(build_directory.name).joinpath(
-            variables["arrangement"]["collection_id"]
+    archival_object_directory = (
+        Path(build_directory.name)
+        .joinpath(
+            variables["arrangement"]["collection_id"],
+            variables["archival_object"]["component_id"],
         )
-        logger.debug(f"🐞 COLLECTION_DIRECTORY: {collection_directory}")
+        .resolve(strict=True)
+    )
+    logger.debug(f"🐞 ARCHIVAL_OBJECT_DIRECTORY: {archival_object_directory}")
 
-        for archival_object_directory in collection_directory.iterdir():
+    archival_object_page_url = "/".join(
+        [
+            config("ACCESS_SITE_BASE_URL").rstrip("/"),
+            variables["arrangement"]["collection_id"],
+            variables["archival_object"]["component_id"],
+        ]
+    )
+    logger.debug(f"🐞 ARCHIVAL_OBJECT_PAGE_URL: {archival_object_page_url}")
 
-            if not archival_object_directory.is_dir():
-                continue
-            logger.debug(f"🐞 ARCHIVAL_OBJECT_DIRECTORY: {archival_object_directory}")
+    variables["filepaths"] = [
+        f.absolute()
+        for f in archival_object_directory.iterdir()
+        if f.is_file() and f.name not in [".DS_Store", "Thumbs.db"]
+    ]
+    logger.debug(f'🐞 FILEPATHS[0]: {sorted(variables["filepaths"])[0]}')
 
-            variables["archival_object"] = distillery.find_archival_object(
-                archival_object_directory.name
-            )
-            logger.debug(
-                f'🐞 ARCHIVAL_OBJECT: {variables["archival_object"]["component_id"]}'
-            )
+    file_versions = [
+        {
+            "file_uri": archival_object_page_url,
+            "jsonmodel_type": "file_version",
+            "publish": True,
+        },
+        {
+            "file_uri": get_thumbnail_url(variables),
+            "jsonmodel_type": "file_version",
+            "publish": True,
+            "xlink_show_attribute": "embed",
+        },
+    ]
 
-            archival_object_page_url = "/".join(
-                [
-                    config("ACCESS_SITE_BASE_URL").rstrip("/"),
-                    variables["arrangement"]["collection_id"],
-                    variables["archival_object"]["component_id"],
-                ]
-            )
-            logger.debug(f"🐞 ARCHIVAL_OBJECT_PAGE_URL: {archival_object_page_url}")
-
-            variables["filepaths"] = [
-                f.absolute()
-                for f in archival_object_directory.iterdir()
-                if f.is_file() and f.name not in [".DS_Store", "Thumbs.db"]
-            ]
-            logger.debug(f'🐞 FILEPATHS[0]: {sorted(variables["filepaths"])[0]}')
-
-            file_versions = [
-                {
-                    "file_uri": archival_object_page_url,
-                    "jsonmodel_type": "file_version",
-                    "publish": True,
-                },
-                {
-                    "file_uri": get_thumbnail_url(variables),
-                    "jsonmodel_type": "file_version",
-                    "publish": True,
-                    "xlink_show_attribute": "embed",
-                },
-            ]
-
-            digital_object_count = len(
-                [
-                    i
-                    for i in variables["archival_object"]["instances"]
-                    if "digital_object" in i.keys()
-                ]
-            )
-            logger.debug(f"🐞 DIGITAL OBJECT COUNT: {digital_object_count}")
-            if digital_object_count > 1:
-                raise ValueError(
-                    f'❌ MULTIPLE DIGITAL OBJECTS FOUND: {variables["archival_object"]["component_id"]}'
-                )
-            elif digital_object_count == 1:
-                distillery.save_digital_object_file_versions(
-                    variables["archival_object"],
-                    file_versions,
-                    variables["file_versions_op"],
-                )
-            elif digital_object_count < 1:
-                # returns new archival_object with digital_object instance included
-                (
-                    digital_object_uri,
-                    variables["archival_object"],
-                ) = distillery.create_digital_object(variables["archival_object"])
-                distillery.save_digital_object_file_versions(
-                    variables["archival_object"],
-                    file_versions,
-                    variables["file_versions_op"],
-                )
-    except:
-        logger.exception("‼️")
-        raise
+    digital_object_count = len(
+        [
+            i
+            for i in variables["archival_object"]["instances"]
+            if "digital_object" in i.keys()
+        ]
+    )
+    logger.debug(f"🐞 DIGITAL OBJECT COUNT: {digital_object_count}")
+    if digital_object_count > 1:
+        raise ValueError(
+            f'❌ MULTIPLE DIGITAL OBJECTS FOUND: {variables["archival_object"]["component_id"]}'
+        )
+    elif digital_object_count == 1:
+        distillery.save_digital_object_file_versions(
+            variables["archival_object"],
+            file_versions,
+            variables["file_versions_op"],
+        )
+    elif digital_object_count < 1:
+        # returns new archival_object with digital_object instance included
+        (
+            digital_object_uri,
+            variables["archival_object"],
+        ) = distillery.create_digital_object(variables["archival_object"])
+        distillery.save_digital_object_file_versions(
+            variables["archival_object"],
+            file_versions,
+            variables["file_versions_op"],
+        )
 
 
 def format_archival_object_creators_display(archival_object):

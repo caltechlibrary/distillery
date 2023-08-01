@@ -53,18 +53,21 @@ def collection_level_preprocessing(collection_id, work_preservation_files):
     pass
 
 
-def transfer_derivative_collection(variables):
-    """Transfer PRESERVATION_FILES/CollectionID directory as a whole to tape."""
-    # Calculate whether the collection_id directory will fit on the current tape.
-    collection_id_directory_bytes = distillery.get_directory_bytes(
-        "/".join(
-            [
-                config("WORK_PRESERVATION_FILES").rstrip("/"),
-                variables["arrangement"]["collection_id"],
-            ]
+def transfer_archival_object_derivative_files(variables):
+    # Calculate whether the current directory will fit on the mounted tape.
+    archival_object_directory_bytes = distillery.get_directory_bytes(
+        Path(config("TAPE_PRESERVATION_FILES"))
+        .joinpath(
+            distillery.get_archival_object_directory_prefix(
+                variables["arrangement"], variables["archival_object"]
+            )
         )
+        .resolve()
+        .as_posix()
     )
-    logger.info(f"🔢 BYTECOUNT OF PRESERVATION FILES: {collection_id_directory_bytes}")
+    logger.info(
+        f"🔢 BYTECOUNT OF ARCHIVAL_OBJECT PRESERVATION FILES: {archival_object_directory_bytes}"
+    )
     # NOTE output from tape_server connection is a string formatted like:
     # `5732142415872 5690046283776`
     tape_bytes = tape_server(
@@ -75,21 +78,21 @@ def transfer_derivative_collection(variables):
     tape_free_bytes = tuple(map(int, tape_bytes.split(" ")))[1]
     logger.info(f"🔢 FREE BYTES ON TAPE: {tape_free_bytes}")
     tape_capacity_buffer = tape_total_bytes * 0.01  # reserve 1% for tape index
-    if not tape_free_bytes - collection_id_directory_bytes > tape_capacity_buffer:
+    if not tape_free_bytes - archival_object_directory_bytes > tape_capacity_buffer:
         # TODO unmount tape
         # TODO send mail to LIT
         # TODO send mail to Archives
         # TODO create mechanism to start this up after new tape inserted
         #   OR reset original files so the whole process gets redone
-        message = "❌ the set of preservation files will not fit on the current tape"
+        message = "❌ THE SET OF PRESERVATION FILES WILL NOT FIT ON THE MOUNTED TAPE"
         logger.error(message)
         raise RuntimeError(message)
 
     # Establish tape top_container for this file set in ArchivesSpace.
     variables["tape_top_container_uri"] = establish_tape_top_container_uri(variables)
 
-    # Copy LOSSLESS_PRESERVATION_FILES to tape using rsync.
-    rsync_to_tape(variables)  # TODO handle failure
+    # Copy archival_object PRESERVATION_FILES to tape using rsync.
+    rsync_archival_object_directory_to_tape(variables)  # TODO handle failure
 
     # Return varibles with tape top_container_uri added to it.
     return variables
@@ -179,8 +182,8 @@ def process_digital_object_component_file(variables):
         return
 
 
-def rsync_to_tape(variables):
-    """Ensure NAS is mounted and copy collection directory tree to tape."""
+def rsync_archival_object_directory_to_tape(variables):
+    """Ensure NAS is mounted and copy directory tree to tape."""
 
     line_count = 0
 
@@ -199,14 +202,14 @@ def rsync_to_tape(variables):
             config("TAPE_RSYNC_CMD"),
             "-rv",
             "--exclude=.DS_Store",
-            f'{config("TAPE_PRESERVATION_FILES")}/',
+            f'{Path(config("TAPE_PRESERVATION_FILES")).joinpath(distillery.get_archival_object_directory_prefix(variables["arrangement"], variables["archival_object"])).resolve().as_posix()}/',
             config("TAPE_LTO_MOUNTPOINT"),
             _out=process_output,
             _bg=True,
         )
         rsync_process.wait()
         if line_count < 1:
-            raise RuntimeError("❌ NO COLLECTION FILES COPIED TO TAPE")
+            raise RuntimeError("❌ NO FILES COPIED TO TAPE")
         return
 
     if nas_is_mounted():
