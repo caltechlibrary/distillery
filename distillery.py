@@ -3,6 +3,7 @@
 
 # processing functionality; see web.py for bottlepy web application
 
+import glob
 import hashlib
 import importlib
 import json
@@ -498,6 +499,11 @@ class DistilleryService(rpyc.Service):
                                     self.variables
                                 )
 
+                    # delete preservation files because transfer to tape moves everything in source directory
+                    for d in glob.glob(os.path.join(config("WORK_PRESERVATION_FILES"), "*/")):
+                        os.system(f"/bin/rm -r {d}")
+
+
         except Exception as e:
             status_logger.error("❌ SOMETHING WENT WRONG")
             status_logger.error(e)
@@ -536,7 +542,7 @@ class DistilleryService(rpyc.Service):
             raise
 
         try:
-            accessDistiller = self.access_platform.AccessPlatform(None, None)
+            accessDistiller = self.access_platform.AccessPlatform()
         except Exception:
             message = "❌ PROBLEM WITH ACCESSPLATFORM CLASS"
             status_logger.exception(message)
