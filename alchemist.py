@@ -989,7 +989,7 @@ def format_archival_object_dates_display(archival_object):
                                     [
                                         date.get("begin")[:4],
                                         months.get(date.get("begin")[5:7], ""),
-                                        date.get("begin")[8:10],
+                                        date.get("begin")[8:10].lstrip("0"),
                                     ],
                                 )
                             ),
@@ -998,7 +998,7 @@ def format_archival_object_dates_display(archival_object):
                                     None,
                                     [
                                         months.get(date.get("end")[5:7], ""),
-                                        date.get("end")[8:10],
+                                        date.get("end")[8:10].lstrip("0"),
                                     ],
                                 )
                             ),
@@ -1013,7 +1013,7 @@ def format_archival_object_dates_display(archival_object):
                                     [
                                         date.get("begin")[:4],
                                         months.get(date.get("begin")[5:7], ""),
-                                        date.get("begin")[8:10],
+                                        date.get("begin")[8:10].lstrip("0"),
                                     ],
                                 )
                             ),
@@ -1023,7 +1023,7 @@ def format_archival_object_dates_display(archival_object):
                                     [
                                         date.get("end")[:4],
                                         months.get(date.get("end")[5:7], ""),
-                                        date.get("end")[8:10],
+                                        date.get("end")[8:10].lstrip("0"),
                                     ],
                                 )
                             ),
@@ -1037,7 +1037,7 @@ def format_archival_object_dates_display(archival_object):
                             [
                                 date.get("begin")[:4],
                                 months[date.get("begin")[5:7]],
-                                date.get("begin")[8:10],
+                                date.get("begin")[8:10].lstrip("0"),
                             ],
                         )
                     )

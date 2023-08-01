@@ -189,7 +189,7 @@ def rsync_archival_object_directory_to_tape(variables):
 
     def process_output(line):
         nonlocal line_count
-        logger.debug(f"RSYNC: {line.strip()}")
+        logger.debug(f"🐞 RSYNC: {line.strip()}")
         if line.strip().startswith(variables["arrangement"]["collection_id"]):
             line_count += 1
 
@@ -202,7 +202,7 @@ def rsync_archival_object_directory_to_tape(variables):
             config("TAPE_RSYNC_CMD"),
             "-rv",
             "--exclude=.DS_Store",
-            f'{Path(config("TAPE_PRESERVATION_FILES")).joinpath(distillery.get_archival_object_directory_prefix(variables["arrangement"], variables["archival_object"])).resolve().as_posix()}/',
+            f'{config("TAPE_PRESERVATION_FILES")}/',
             config("TAPE_LTO_MOUNTPOINT"),
             _out=process_output,
             _bg=True,
