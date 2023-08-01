@@ -34,10 +34,12 @@ def set_timeout(page: Page):
 
 @pytest.fixture(autouse=True)
 def distillery_0000_reset_files():
+    for d in glob.glob(os.path.join(config("INITIAL_ORIGINAL_FILES"), "*/")):
+        shutil.move(d, config("TEST_FILES", default="tests/files"))
     for d in glob.glob(os.path.join(config("WORKING_ORIGINAL_FILES"), "*/")):
-        shutil.move(d, config("INITIAL_ORIGINAL_FILES"))
+        shutil.move(d, config("TEST_FILES", default="tests/files"))
     for d in glob.glob(os.path.join(config("STAGE_3_ORIGINAL_FILES"), "*/")):
-        shutil.move(d, config("INITIAL_ORIGINAL_FILES"))
+        shutil.move(d, config("TEST_FILES", default="tests/files"))
     for d in glob.glob(os.path.join(config("WORK_PRESERVATION_FILES"), "*/")):
         os.system(f"/bin/rm -r {d}")
     return
@@ -118,6 +120,16 @@ def delete_archivesspace_test_records(asnake_client, resource_identifer):
         asnake_client.delete(result["ref"])
 
 
+def move_test_files_to_initial_original_files_directory(test_name):
+    shutil.move(
+        os.path.join(
+            config("TEST_FILES", default="tests/files"),
+            f"item-{test_name}",
+        ),
+        config("INITIAL_ORIGINAL_FILES"),
+    )
+
+
 def create_archivesspace_test_resource(asnake_client, test_name, test_id):
     resource = {}
     # required
@@ -156,7 +168,7 @@ def create_archivesspace_test_archival_object_item(
     item["level"] = "item"
     item["resource"] = {"ref": resource_uri}
     # optional
-    item["component_id"] = f'item-{test_name.split("_", maxsplit=1)[-1]}_{test_id}'
+    item["component_id"] = f"item-{test_name}"
     item["publish"] = True
     # post
     item_post_response = asnake_client.post(
@@ -216,11 +228,11 @@ def create_archivesspace_test_agent_person(asnake_client, test_id, unique_rest_o
     return person_post_response
 
 
-def create_archivesspace_test_digital_object(asnake_client, test_id):
+def create_archivesspace_test_digital_object(asnake_client, test_name, test_id):
     digital_object = {}
     # required
     digital_object["title"] = f"Item {test_id}"
-    digital_object["digital_object_id"] = f"item-{test_id}"
+    digital_object["digital_object_id"] = f"item-{test_name}"
     # optional
     digital_object["file_versions"] = [
         {"file_uri": f"http://example.org/item-{test_id}", "publish": True},
@@ -318,12 +330,12 @@ def run_oralhistories_update(page: Page, item_component_id):
     )
 
 
-def format_alchemist_item_uri(test_id):
+def format_alchemist_item_uri(test_name, test_id):
     return "/".join(
         [
             config("ACCESS_SITE_BASE_URL").rstrip("/"),
             test_id,
-            f"item-{test_id}",
+            f"item-{test_name}",
         ]
     )
 
@@ -389,9 +401,11 @@ def test_distillery_landing(page: Page):
     expect(page).to_have_title("Distillery")
 
 
-def test_distillery_access_unpublished_archival_object_sjex6(page: Page, asnake_client):
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+def test_alchemist_fail_unpublished_archival_object_sjex6(page: Page, asnake_client):
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(test_name)
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -407,7 +421,7 @@ def test_distillery_access_unpublished_archival_object_sjex6(page: Page, asnake_
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 archival_object_create_response:{test_id}",
@@ -423,13 +437,15 @@ def test_distillery_access_unpublished_archival_object_sjex6(page: Page, asnake_
         item_update_response.json(),
     )
     # RUN DISTILLERY ACCESS WORKFLOW
-    page = run_distillery(page, test_id, ["access"], outcome="failure")
+    page = run_distillery(page, ["access"], outcome="failure")
     # TODO check contents of iframe
 
 
-def test_distillery_access_unpublished_ancestor_jvycv(page: Page, asnake_client):
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+def test_alchemist_fail_unpublished_ancestor_jvycv(page: Page, asnake_client):
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(test_name)
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -454,21 +470,23 @@ def test_distillery_access_unpublished_ancestor_jvycv(page: Page, asnake_client)
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
         item_create_response.json(),
     )
     # RUN DISTILLERY ACCESS WORKFLOW
-    page = run_distillery(page, test_id, ["access"], outcome="failure")
+    page = run_distillery(page, ["access"], outcome="failure")
     # TODO check contents of iframe
 
 
-def test_distillery_access_file_uri_v8v5r(page: Page, asnake_client):
+def test_alchemist_archivesspace_file_uri_v8v5r(page: Page, asnake_client):
     """Confirm file_uri for Alchemist item makes it to ArchivesSpace."""
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(test_name)
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -484,15 +502,15 @@ def test_distillery_access_file_uri_v8v5r(page: Page, asnake_client):
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
         item_create_response.json(),
     )
     # RUN ALCHEMIST PROCESS
-    run_distillery(page, test_id, ["access"])
-    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    run_distillery(page, ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     # VALIDATE DIGITAL OBJECT RECORD
     results = asnake_client.get(
         "/repositories/2/find_by_id/digital_objects",
@@ -507,9 +525,11 @@ def test_distillery_access_file_uri_v8v5r(page: Page, asnake_client):
         assert digital_object["file_versions"][0]["file_uri"] == alchemist_item_uri
 
 
-def test_distillery_alchemist_date_output_x2edw(page: Page, asnake_client):
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+def test_alchemist_date_output_x2edw(page: Page, asnake_client):
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(test_name)
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -525,7 +545,7 @@ def test_distillery_alchemist_date_output_x2edw(page: Page, asnake_client):
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
@@ -569,8 +589,8 @@ def test_distillery_alchemist_date_output_x2edw(page: Page, asnake_client):
         item_update_response.json(),
     )
     # RUN ALCHEMIST PROCESS
-    run_distillery(page, test_id, ["access"])
-    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    run_distillery(page, ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
     expect(page.locator("hgroup p:first-of-type")).to_have_text(
@@ -578,9 +598,11 @@ def test_distillery_alchemist_date_output_x2edw(page: Page, asnake_client):
     )
 
 
-def test_distillery_alchemist_linked_agent_output_vdje3(page: Page, asnake_client):
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+def test_alchemist_linked_agent_output_vdje3(page: Page, asnake_client):
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(test_name)
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -596,7 +618,7 @@ def test_distillery_alchemist_linked_agent_output_vdje3(page: Page, asnake_clien
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
@@ -654,8 +676,8 @@ def test_distillery_alchemist_linked_agent_output_vdje3(page: Page, asnake_clien
         item_update_response.json(),
     )
     # RUN ALCHEMIST PROCESS
-    run_distillery(page, test_id, ["access"])
-    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    run_distillery(page, ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     print(f"🐞 {alchemist_item_uri}")
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
@@ -666,9 +688,11 @@ def test_distillery_alchemist_linked_agent_output_vdje3(page: Page, asnake_clien
     )
 
 
-def test_distillery_alchemist_extent_output_77cjj(page: Page, asnake_client):
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+def test_alchemist_extent_output_77cjj(page: Page, asnake_client):
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(test_name)
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -684,7 +708,7 @@ def test_distillery_alchemist_extent_output_77cjj(page: Page, asnake_client):
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
@@ -711,17 +735,19 @@ def test_distillery_alchemist_extent_output_77cjj(page: Page, asnake_client):
         item_update_response.json(),
     )
     # RUN ALCHEMIST PROCESS
-    run_distillery(page, test_id, ["access"])
-    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    run_distillery(page, ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
     expect(page.locator("#metadata")).to_contain_text("1 books", ignore_case=True)
     expect(page.locator("#metadata")).to_contain_text("2 photographs", ignore_case=True)
 
 
-def test_distillery_alchemist_subject_output_28s3q(page: Page, asnake_client):
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+def test_alchemist_subject_output_28s3q(page: Page, asnake_client):
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(test_name)
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -737,7 +763,7 @@ def test_distillery_alchemist_subject_output_28s3q(page: Page, asnake_client):
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
@@ -760,17 +786,19 @@ def test_distillery_alchemist_subject_output_28s3q(page: Page, asnake_client):
         item_update_response.json(),
     )
     # RUN ALCHEMIST PROCESS
-    run_distillery(page, test_id, ["access"])
-    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    run_distillery(page, ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
     expect(page.locator("#metadata")).to_contain_text("Commencement")
     expect(page.locator("#metadata")).to_contain_text("Conferences")
 
 
-def test_distillery_alchemist_note_output_u8vvf(page: Page, asnake_client):
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+def test_alchemist_note_output_u8vvf(page: Page, asnake_client):
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(test_name)
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -786,7 +814,7 @@ def test_distillery_alchemist_note_output_u8vvf(page: Page, asnake_client):
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
@@ -1046,8 +1074,8 @@ def test_distillery_alchemist_note_output_u8vvf(page: Page, asnake_client):
         item_update_response.json(),
     )
     # RUN ALCHEMIST PROCESS
-    run_distillery(page, test_id, ["access"])
-    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    run_distillery(page, ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     print(f"🐞 {alchemist_item_uri}")
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
@@ -1062,10 +1090,12 @@ def test_distillery_alchemist_note_output_u8vvf(page: Page, asnake_client):
     )
 
 
-def test_distillery_alchemist_ancestors_2gj5n(page: Page, asnake_client):
+def test_alchemist_ancestors_2gj5n(page: Page, asnake_client):
     """Confirm ancestors display in Alchemist."""
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(test_name)
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -1106,7 +1136,7 @@ def test_distillery_alchemist_ancestors_2gj5n(page: Page, asnake_client):
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
@@ -1125,22 +1155,24 @@ def test_distillery_alchemist_ancestors_2gj5n(page: Page, asnake_client):
         item_parent_position_post_response.json(),
     )
     # RUN ALCHEMIST PROCESS
-    run_distillery(page, test_id, ["access"])
-    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    run_distillery(page, ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     expect(page.locator("hgroup p:last-child")).to_have_text(
-        f'{test_name.capitalize().replace("_", " ")}Series {test_id}Sub-Series {test_id}'
+        f'{test_name.capitalize().replace("_", " ")}[Series] {test_id}[Sub-Series] {test_id}'
     )
     expect(page.locator("#metadata")).to_contain_text("Collection")
     expect(page.locator("#metadata")).to_contain_text("Series")
     expect(page.locator("#metadata")).to_contain_text("Sub-Series")
 
 
-def test_distillery_alchemist_thumbnaillabel_sequence_yw3ff(page: Page, asnake_client):
+def test_alchemist_thumbnaillabel_sequence_yw3ff(page: Page, asnake_client):
     """Use sequence indicator as label in Universal Viewer."""
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(test_name)
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -1156,15 +1188,15 @@ def test_distillery_alchemist_thumbnaillabel_sequence_yw3ff(page: Page, asnake_c
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
         item_create_response.json(),
     )
     # RUN ALCHEMIST PROCESS
-    run_distillery(page, test_id, ["access"])
-    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    run_distillery(page, ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     expect(page.locator("#thumb-0")).to_have_text("1")
@@ -1172,10 +1204,12 @@ def test_distillery_alchemist_thumbnaillabel_sequence_yw3ff(page: Page, asnake_c
     expect(page.locator("#thumb-2")).to_have_text("last")
 
 
-def test_distillery_alchemist_thumbnaillabel_filename_wef99(page: Page, asnake_client):
+def test_alchemist_thumbnaillabel_filename_wef99(page: Page, asnake_client):
     """Use filename as label in Universal Viewer."""
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(test_name)
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -1191,15 +1225,15 @@ def test_distillery_alchemist_thumbnaillabel_filename_wef99(page: Page, asnake_c
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
         item_create_response.json(),
     )
     # RUN ALCHEMIST PROCESS
-    run_distillery(page, test_id, ["access"], thumbnail_label="filename")
-    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    run_distillery(page, ["access"], thumbnail_label="filename")
+    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     expect(page.locator("#thumb-0")).to_have_text("lQGJCMY5qcM-unsplash_001")
@@ -1207,10 +1241,12 @@ def test_distillery_alchemist_thumbnaillabel_filename_wef99(page: Page, asnake_c
     expect(page.locator("#thumb-2")).to_have_text("lQGJCMY5qcM-unsplash_last")
 
 
-def test_distillery_alchemist_regenerate_one_vru3b(page: Page, asnake_client):
+def test_alchemist_regenerate_one_vru3b(page: Page, asnake_client):
     """Regenerate one set of files."""
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(test_name)
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -1226,15 +1262,15 @@ def test_distillery_alchemist_regenerate_one_vru3b(page: Page, asnake_client):
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
         item_create_response.json(),
     )
     # RUN ALCHEMIST PROCESS
-    run_distillery(page, test_id, ["access"])
-    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    run_distillery(page, ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     expect(page.locator("#metadata")).to_contain_text("Collection")
@@ -1252,13 +1288,15 @@ def test_distillery_alchemist_regenerate_one_vru3b(page: Page, asnake_client):
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     page.screenshot(path=f"tests/_output/{test_id}.png")
-    expect(page.get_by_role("heading", name="Regenerated Title")).to_be_visible()
+    expect(page.locator("hgroup > h1")).to_have_text("Regenerated Title")
 
 
-def test_distillery_alchemist_fileversions_fail_2tgwm(page: Page, asnake_client):
+def test_alchemist_fileversions_fail_2tgwm(page: Page, asnake_client):
     """Fail validation when digital_object file_versions exist."""
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(test_name)
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -1274,7 +1312,7 @@ def test_distillery_alchemist_fileversions_fail_2tgwm(page: Page, asnake_client)
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
@@ -1284,7 +1322,7 @@ def test_distillery_alchemist_fileversions_fail_2tgwm(page: Page, asnake_client)
     (
         digital_object_create_response,
         digital_object_id,
-    ) = create_archivesspace_test_digital_object(asnake_client, test_id)
+    ) = create_archivesspace_test_digital_object(asnake_client, test_name, test_id)
     print(
         f"🐞 digital_object_create_response:{test_id}",
         digital_object_create_response.json(),
@@ -1304,14 +1342,16 @@ def test_distillery_alchemist_fileversions_fail_2tgwm(page: Page, asnake_client)
         item_update_response.json(),
     )
     # RUN ALCHEMIST PROCESS
-    run_distillery(page, test_id, ["access"], outcome="failure")
+    run_distillery(page, ["access"], outcome="failure")
     # TODO check contents of iframe
 
 
-def test_distillery_alchemist_fileversions_overwrite_v3wqp(page: Page, asnake_client):
+def test_alchemist_fileversions_overwrite_v3wqp(page: Page, asnake_client):
     """Overwrite any existing digital object file versions."""
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(test_name)
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -1327,7 +1367,7 @@ def test_distillery_alchemist_fileversions_overwrite_v3wqp(page: Page, asnake_cl
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
@@ -1337,7 +1377,7 @@ def test_distillery_alchemist_fileversions_overwrite_v3wqp(page: Page, asnake_cl
     (
         digital_object_create_response,
         digital_object_id,
-    ) = create_archivesspace_test_digital_object(asnake_client, test_id)
+    ) = create_archivesspace_test_digital_object(asnake_client, test_name, test_id)
     print(
         f"🐞 digital_object_create_response:{test_id}",
         digital_object_create_response.json(),
@@ -1357,8 +1397,8 @@ def test_distillery_alchemist_fileversions_overwrite_v3wqp(page: Page, asnake_cl
         item_update_response.json(),
     )
     # RUN ALCHEMIST PROCESS
-    run_distillery(page, test_id, ["access"], file_versions_op="overwrite")
-    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    run_distillery(page, ["access"], file_versions_op="overwrite")
+    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     # VALIDATE DIGITAL OBJECT RECORD
     results = asnake_client.get(
         "/repositories/2/find_by_id/digital_objects",
@@ -1374,10 +1414,12 @@ def test_distillery_alchemist_fileversions_overwrite_v3wqp(page: Page, asnake_cl
         assert digital_object["file_versions"][0]["file_uri"] == alchemist_item_uri
 
 
-def test_distillery_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_client):
+def test_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_client):
     """Unpublish any existing digital object file versions."""
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(test_name)
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -1393,7 +1435,7 @@ def test_distillery_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_cl
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
@@ -1403,7 +1445,7 @@ def test_distillery_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_cl
     (
         digital_object_create_response,
         digital_object_id,
-    ) = create_archivesspace_test_digital_object(asnake_client, test_id)
+    ) = create_archivesspace_test_digital_object(asnake_client, test_name, test_id)
     print(
         f"🐞 digital_object_create_response:{test_id}",
         digital_object_create_response.json(),
@@ -1423,8 +1465,8 @@ def test_distillery_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_cl
         item_update_response.json(),
     )
     # RUN ALCHEMIST PROCESS
-    run_distillery(page, test_id, ["access"], file_versions_op="unpublish")
-    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    run_distillery(page, ["access"], file_versions_op="unpublish")
+    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     # VALIDATE DIGITAL OBJECT RECORD
     results = asnake_client.get(
         "/repositories/2/find_by_id/digital_objects",
@@ -1445,10 +1487,12 @@ def test_distillery_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_cl
                 assert file_version["publish"] is False
 
 
-def test_alchemist_kitchen_sink_pd4s3(page: Page, asnake_client):
+def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client):
     """Attempt to test every ArchivesSpace field."""
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(test_name)
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -1981,15 +2025,15 @@ def test_alchemist_kitchen_sink_pd4s3(page: Page, asnake_client):
     )
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"])
-    alchemist_item_uri = format_alchemist_item_uri(test_id)
+    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     print(f"🐞 {alchemist_item_uri}")
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     expect(page.locator("hgroup p:first-of-type")).to_have_text(
-        "1584 February 29; 1900 to 1901; 1911 January to December; 1969 December 31 to 1970 January 01; 1999 December 31 to 2000 January 01; ongoing into the future"
+        "1584 February 29; 1900 to 1901; 1911 January to December; 1969 December 31 to 1970 January 1; 1999 December 31 to 2000 January 1; ongoing into the future"
     )
     expect(page.locator("hgroup p:last-child")).to_have_text(
-        f'{test_name.capitalize().replace("_", " ")}Series {test_id}Sub-Series {test_id}'
+        f'{test_name.capitalize().replace("_", " ")}[Series] {test_id}[Sub-Series] {test_id}'
     )
     expect(page.locator("#metadata")).to_contain_text("Collection")
     expect(page.locator("#metadata")).to_contain_text("Series")
@@ -2011,42 +2055,12 @@ def test_alchemist_kitchen_sink_pd4s3(page: Page, asnake_client):
     )
 
 
-def test_distillery_cloud_wrong_component_id_948vk(page: Page, asnake_client):
-    """Corresponding directory name does not match component_id."""
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
-    # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, test_id)
-    # CREATE RESOURCE RECORD
-    resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_name, test_id
-    )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
-    # CREATE ARCHIVAL OBJECT ITEM RECORD
-    (
-        item_create_response,
-        item_component_id,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
-    )
-    print(
-        f"🐞 item_create_response:{test_id}",
-        item_create_response.json(),
-    )
-    # RUN DISTILLERY CLOUD PROCESS
-    page = run_distillery(page, test_id, ["cloud"], outcome="failure")
-    # TODO check contents of iframe
-
-
-def test_distillery_cloud_nonnumeric_sequence_gz36p(
-    page: Page, asnake_client, s3_client
-):
+def test_s3_nonnumeric_sequence_gz36p(page: Page, asnake_client, s3_client):
     """Confirm images with non-numeric sequence strings make it to S3 and ArchivesSpace."""
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(test_name)
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -2062,7 +2076,7 @@ def test_distillery_cloud_nonnumeric_sequence_gz36p(
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
@@ -2079,7 +2093,7 @@ def test_distillery_cloud_nonnumeric_sequence_gz36p(
             Bucket=config("PRESERVATION_BUCKET"), Delete={"Objects": s3_keys}
         )
     # RUN DISTILLERY CLOUD PROCESS
-    run_distillery(page, test_id, ["cloud"])
+    run_distillery(page, ["cloud"])
     # VALIDATE S3 UPLOAD AND DIGITAL OBJECT RECORD
     # get a list of s3 objects under this collection prefix
     s3_response = s3_client.list_objects_v2(
@@ -2111,10 +2125,12 @@ def test_distillery_cloud_nonnumeric_sequence_gz36p(
             ]
 
 
-def test_distillery_cloud_nonimage_files_7b3px(page: Page, asnake_client, s3_client):
+def test_s3_nonimage_files_7b3px(page: Page, asnake_client, s3_client):
     """Confirm non-image files make it to S3 and ArchivesSpace."""
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(test_name)
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -2130,7 +2146,7 @@ def test_distillery_cloud_nonimage_files_7b3px(page: Page, asnake_client, s3_cli
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
@@ -2147,7 +2163,7 @@ def test_distillery_cloud_nonimage_files_7b3px(page: Page, asnake_client, s3_cli
             Bucket=config("PRESERVATION_BUCKET"), Delete={"Objects": s3_keys}
         )
     # RUN DISTILLERY CLOUD PROCESS
-    run_distillery(page, test_id, ["cloud"])
+    run_distillery(page, ["cloud"])
     # get a list of s3 objects under this collection prefix
     s3_response = s3_client.list_objects_v2(
         Bucket=config("PRESERVATION_BUCKET"), Prefix=test_id
@@ -2175,10 +2191,13 @@ def test_distillery_cloud_nonimage_files_7b3px(page: Page, asnake_client, s3_cli
             ]
 
 
-def test_distillery_tape_reuse_top_container_records_d3bym(page: Page, asnake_client):
+def test_tape_reuse_top_container_records_d3by1(page: Page, asnake_client):
     """Items on the same tape should use the same top container record."""
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(test_name)
+    move_test_files_to_initial_original_files_directory("test_tape_reuse_top_container_records_d3by2")
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -2194,7 +2213,7 @@ def test_distillery_tape_reuse_top_container_records_d3bym(page: Page, asnake_cl
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{test_id}",
@@ -2205,24 +2224,24 @@ def test_distillery_tape_reuse_top_container_records_d3bym(page: Page, asnake_cl
         item2_create_response,
         item2_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, "test_tape_reuse_top_container_records_d3by2", "d3by2", resource_create_response.json()["uri"]
     )
     print(
-        f"🐞 item2_create_response:{test_id}",
+        "🐞 item2_create_response:d3by2",
         item2_create_response.json(),
     )
     # CUSTOMIZE ARCHIVAL OBJECT ITEM2 RECORD
     item2 = asnake_client.get(item2_create_response.json()["uri"]).json()
-    item2["title"] = f"Item2 {test_id}"
-    item2["component_id"] = f"item2-{test_id}"
+    item2["title"] = "Item d3by2"
+    item2["component_id"] = "item-test_tape_reuse_top_container_records_d3by2"
     item2_update_response = asnake_client.post(item2["uri"], json=item2)
     print(
-        f"🐞 item2_update_response:{test_id}",
+        "🐞 item2_update_response:d3by2",
         item2_update_response.json(),
     )
     # RUN DISTILLERY TAPE PROCESS
     # NOTE increase timeout because tape drive can be quite slow to start up
-    run_distillery(page, test_id, ["onsite"], timeout=300000)
+    run_distillery(page, ["onsite"], timeout=300000)
     # VALIDATE TOP CONTAINER RECORDS
     # get the top_container uri of each item and compare them
     item = asnake_client.get(
@@ -2247,8 +2266,8 @@ def test_oralhistories_add_publish_one_transcript_2d4ja(
     page: Page, asnake_client, s3_client
 ):
     """Upload a docx file and publish a transcript."""
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -2264,7 +2283,7 @@ def test_oralhistories_add_publish_one_transcript_2d4ja(
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{item_component_id}",
@@ -2354,8 +2373,8 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
     This test aims to have all display elements represented, including metadata
     fields, additional assets, and content length.
     """
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -2371,7 +2390,7 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{item_component_id}",
@@ -2585,8 +2604,8 @@ def test_oralhistories_add_update_one_publish_one_transcript_4hete(
     page: Page, asnake_client, s3_client
 ):
     """Upload a docx file, update metadata, and publish a transcript."""
-    test_name = inspect.currentframe().f_code.co_name.rsplit("_", maxsplit=1)[0]
-    test_id = inspect.currentframe().f_code.co_name.split("_")[-1]
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -2602,7 +2621,7 @@ def test_oralhistories_add_update_one_publish_one_transcript_4hete(
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_id, resource_create_response.json()["uri"]
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(
         f"🐞 item_create_response:{item_component_id}",
