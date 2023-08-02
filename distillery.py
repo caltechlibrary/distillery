@@ -501,20 +501,28 @@ class DistilleryService(rpyc.Service):
 
                     # move preservation files on each iteration because the
                     # rsync transfer to tape copies the entire contents of the
-                    # directory; use a temporary directory for deletion because
-                    # deleting across slow file systems can result in cruft
-                    # still existing on the next iteration
-                    stillage_tmp = tempfile.TemporaryDirectory()
-                    logger.debug(f"🐞 STILLAGE_TMP: {stillage_tmp.name}")
+                    # directory; move them into an intermediate directory for
+                    # deletion because deleting across slow file systems can
+                    # result in cruft still existing on the next iteration
+                    if config("WORK_STILLAGE_FILES", default=False):
+                        # create a .STILLAGE directory
+                        stillage_default = Path(
+                            config("WORK_PRESERVATION_FILES")
+                        ).parent.joinpath(".STILLAGE")
+                        stillage_default.mkdir(exist_ok=True)
                     shutil.move(
                         Path(config("WORK_PRESERVATION_FILES"))
                         .joinpath(self.variables["arrangement"]["collection_id"])
                         .as_posix(),
-                        Path(stillage_tmp.name).resolve().as_posix(),
+                        Path(config("WORK_STILLAGE_FILES", default=stillage_default))
+                        .resolve()
+                        .as_posix(),
                     )
                     os.system(
                         "/bin/rm -rf {}".format(
-                            Path(stillage_tmp.name)
+                            Path(
+                                config("WORK_STILLAGE_FILES", default=stillage_default)
+                            )
                             .joinpath(self.variables["arrangement"]["collection_id"])
                             .resolve()
                             .as_posix()
