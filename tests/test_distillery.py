@@ -2197,7 +2197,9 @@ def test_tape_reuse_top_container_records_d3by1(page: Page, asnake_client):
     test_id = test_name.split("_")[-1]
     # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
     move_test_files_to_initial_original_files_directory(test_name)
-    move_test_files_to_initial_original_files_directory("test_tape_reuse_top_container_records_d3by2")
+    move_test_files_to_initial_original_files_directory(
+        "test_tape_reuse_top_container_records_d3by2"
+    )
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
     # CREATE RESOURCE RECORD
@@ -2224,7 +2226,10 @@ def test_tape_reuse_top_container_records_d3by1(page: Page, asnake_client):
         item2_create_response,
         item2_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, "test_tape_reuse_top_container_records_d3by2", "d3by2", resource_create_response.json()["uri"]
+        asnake_client,
+        "test_tape_reuse_top_container_records_d3by2",
+        "d3by2",
+        resource_create_response.json()["uri"],
     )
     print(
         "🐞 item2_create_response:d3by2",

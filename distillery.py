@@ -3,7 +3,6 @@
 
 # processing functionality; see web.py for bottlepy web application
 
-import glob
 import hashlib
 import importlib
 import json
@@ -15,6 +14,7 @@ import os
 import random
 import shutil
 import string
+import tempfile
 import time
 
 from pathlib import Path
@@ -499,10 +499,27 @@ class DistilleryService(rpyc.Service):
                                     self.variables
                                 )
 
-                    # delete preservation files because transfer to tape moves everything in source directory
-                    for d in glob.glob(os.path.join(config("WORK_PRESERVATION_FILES"), "*/")):
-                        os.system(f"/bin/rm -r {d}")
-
+                    # move preservation files on each iteration because the
+                    # rsync transfer to tape copies the entire contents of the
+                    # directory; use a temporary directory for deletion because
+                    # deleting across slow file systems can result in cruft
+                    # still existing on the next iteration
+                    stillage_tmp = tempfile.TemporaryDirectory()
+                    logger.debug(f"🐞 STILLAGE_TMP: {stillage_tmp.name}")
+                    shutil.move(
+                        Path(config("WORK_PRESERVATION_FILES"))
+                        .joinpath(self.variables["arrangement"]["collection_id"])
+                        .as_posix(),
+                        Path(stillage_tmp.name).resolve().as_posix(),
+                    )
+                    os.system(
+                        "/bin/rm -rf {}".format(
+                            Path(stillage_tmp.name)
+                            .joinpath(self.variables["arrangement"]["collection_id"])
+                            .resolve()
+                            .as_posix()
+                        )
+                    )
 
         except Exception as e:
             status_logger.error("❌ SOMETHING WENT WRONG")
