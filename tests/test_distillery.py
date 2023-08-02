@@ -2191,12 +2191,14 @@ def test_s3_nonimage_files_7b3px(page: Page, asnake_client, s3_client):
             ]
 
 
-def test_tape_reuse_top_container_records_d3by1(page: Page, asnake_client):
+def test_tape_reuse_top_container_records_d3bym(page: Page, asnake_client):
     """Items on the same tape should use the same top container record."""
     test_name = inspect.currentframe().f_code.co_name
     test_id = test_name.split("_")[-1]
     # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
-    move_test_files_to_initial_original_files_directory(test_name)
+    move_test_files_to_initial_original_files_directory(
+        "test_tape_reuse_top_container_records_d3by1"
+    )
     move_test_files_to_initial_original_files_directory(
         "test_tape_reuse_top_container_records_d3by2"
     )
@@ -2215,11 +2217,23 @@ def test_tape_reuse_top_container_records_d3by1(page: Page, asnake_client):
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
+        asnake_client,
+        "test_tape_reuse_top_container_records_d3by1",
+        "d3by1",
+        resource_create_response.json()["uri"],
     )
     print(
-        f"🐞 item_create_response:{test_id}",
+        "🐞 item2_create_response:d3by1",
         item_create_response.json(),
+    )
+    # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
+    item = asnake_client.get(item_create_response.json()["uri"]).json()
+    item["title"] = "Item d3by1"
+    item["component_id"] = "item-test_tape_reuse_top_container_records_d3by1"
+    item_update_response = asnake_client.post(item["uri"], json=item)
+    print(
+        "🐞 item_update_response:d3by1",
+        item_update_response.json(),
     )
     # CREATE ARCHIVAL OBJECT ITEM2 RECORD
     (

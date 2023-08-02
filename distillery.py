@@ -510,6 +510,13 @@ class DistilleryService(rpyc.Service):
                             config("WORK_PRESERVATION_FILES")
                         ).parent.joinpath(".STILLAGE")
                         stillage_default.mkdir(exist_ok=True)
+                    logger.debug(
+                        "🐞 STILLAGE DIRECTORY: {}".format(
+                            Path(
+                                config("WORK_STILLAGE_FILES", default=stillage_default)
+                            ).as_posix()
+                        )
+                    )
                     shutil.move(
                         Path(config("WORK_PRESERVATION_FILES"))
                         .joinpath(self.variables["arrangement"]["collection_id"])
