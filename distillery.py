@@ -630,34 +630,16 @@ class DistilleryService(rpyc.Service):
             status_logger.info(f"🏁")
             # copy the status_logfile to the logs directory
             logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(
-                f"{self.collection_id}.{str(int(time.time()))}.alchemist_regenerate.log"
+                f"{str(int(time.time()))}.alchemist_regenerate.log"
             )
             shutil.copy2(status_logfile, logfile_dst)
             logger.info(f"☑️  COPIED ALCHEMIST_REGENERATE LOG FILE: {logfile_dst}")
-
-
-def confirm_collection_directory(collection_id, parent_directory):
-    # make a list of directory names to check against
-    entries = []
-    for entry in os.scandir(parent_directory):
-        if entry.is_dir:
-            entries.append(entry.name)
-    # check that collection_id case matches directory name
-    if collection_id in entries:
-        message = f"☑️  COLLECTION DIRECTORY FOUND: {collection_id}"
-        logger.info(message)
-        return os.path.join(parent_directory, collection_id)
-    else:
-        raise NotADirectoryError(os.path.join(parent_directory, collection_id))
 
 
 def get_collection_data(collection_id):
     # raises an HTTPError exception if unsuccessful
     collection_uri = get_collection_uri(collection_id)
     collection_data = archivessnake_get(collection_uri).json()
-    if not collection_identifiers_match(collection_id, collection_data):
-        message = f"❌ The Collection ID from the form, {collection_id}, must exactly match the identifier in ArchivesSpace, {collection_data['id_0']}, including case-sensitively.\n"
-        raise ValueError(message)
     if collection_data:
         collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
         if collection_data["tree"]["_resolved"]:
@@ -687,12 +669,6 @@ def archivessnake_get(uri):
     response = asnake_client.get(uri)
     response.raise_for_status()
     return response
-
-
-def collection_identifiers_match(collection_id, collection_data):
-    if collection_id != collection_data["id_0"]:
-        return False
-    return True
 
 
 def get_collection_tree(collection_uri):
