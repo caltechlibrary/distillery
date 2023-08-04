@@ -504,7 +504,7 @@ class DistilleryService(rpyc.Service):
                     # directory; move them into an intermediate directory for
                     # deletion because deleting across slow file systems can
                     # result in cruft still existing on the next iteration
-                    if config("WORK_STILLAGE_FILES", default=False):
+                    if not config("WORK_STILLAGE_FILES", default=""):
                         # create a .STILLAGE directory
                         stillage_default = Path(
                             config("WORK_PRESERVATION_FILES")
