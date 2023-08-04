@@ -1,7 +1,6 @@
 # PREPARE FILES AND METADATA FOR COPYING TO S3 STORAGE
 
 import base64
-import concurrent.futures
 import json
 import logging
 import os
@@ -29,73 +28,6 @@ s3_client = boto3.client(
     aws_access_key_id=config("DISTILLERY_AWS_ACCESS_KEY_ID"),
     aws_secret_access_key=config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
 )
-
-
-def main(
-    cloud: ("sending to cloud storage", "flag", "c"),  # type: ignore
-    onsite: ("preparing for onsite storage", "flag", "o"),  # type: ignore
-    access: ("publishing access copies", "flag", "a"),  # type: ignore
-    collection_id: "the Collection ID from ArchivesSpace",  # type: ignore
-):
-    variables = {}
-
-    variables["cloud"] = cloud
-    variables["onsite"] = onsite
-    variables["access"] = access
-
-    # NOTE we have to assume that STATUS_FILES is set correctly
-    stream_path = Path(
-        f'{config("WORK_NAS_APPS_MOUNTPOINT")}/{config("NAS_STATUS_FILES_RELATIVE_PATH")}'
-    ).joinpath(f"{collection_id}-processing")
-
-    variables["stream_path"] = stream_path.as_posix()
-
-    if not cloud:
-        message = "❌ s3.py script was initiated without cloud being selected"
-        logger.error(message)
-        with open(stream_path, "a") as stream:
-            stream.write(message)
-        raise RuntimeError(message)
-
-    try:
-        (
-            IN_PROCESS_ORIGINAL_FILES,
-            STAGE_3_ORIGINAL_FILES,
-            PRESERVATION_BUCKET,
-            WORK_PRESERVATION_FILES,
-        ) = validate_settings()
-    except Exception as e:
-        message = "❌ There was a problem with the settings for the processing script.\n"
-        with open(stream_path, "a") as f:
-            f.write(message)
-        # logging.error(message, exc_info=True)
-        # TODO set up notify
-        # subprocess.run(["/bin/bash", "./notify.sh", str(e), message])
-        raise
-
-    variables["PRESERVATION_BUCKET"] = PRESERVATION_BUCKET
-    variables["IN_PROCESS_ORIGINAL_FILES"] = IN_PROCESS_ORIGINAL_FILES.as_posix()
-    variables["WORK_PRESERVATION_FILES"] = WORK_PRESERVATION_FILES.as_posix()
-
-    variables["collection_directory"] = distillery.confirm_collection_directory(
-        IN_PROCESS_ORIGINAL_FILES, collection_id
-    )
-    variables["collection_data"] = distillery.get_collection_data(collection_id)
-
-    s3_client.put_object(
-        Bucket=PRESERVATION_BUCKET,
-        Key=collection_id + "/" + collection_id + ".json",
-        Body=json.dumps(variables["collection_data"], indent=4, sort_keys=True),
-    )
-    with open(stream_path, "a") as f:
-        f.write(
-            f"✅ https://{PRESERVATION_BUCKET}.s3-us-west-2.amazonaws.com/{collection_id}/{collection_id}.json\n"
-        )
-
-    distillery.loop_over_collection_subdirectories(variables)
-
-    with open(stream_path, "a") as f:
-        f.write(f"🗄 Finished processing {collection_id}.\n📆 {datetime.now()}\n")
 
 
 def collection_level_preprocessing(collection_id, work_preservation_files):
@@ -250,8 +182,3 @@ def validate_settings():
         PRESERVATION_BUCKET,
         WORK_PRESERVATION_FILES,
     )
-
-
-if __name__ == "__main__":
-    # fmt: off
-    import plac; plac.call(main)
