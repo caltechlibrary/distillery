@@ -6,6 +6,7 @@ import logging
 import os
 import subprocess
 import tempfile
+import time
 
 from pathlib import Path
 
@@ -359,6 +360,34 @@ class AccessPlatform:
                     archival_object_prefixes.append(prefix.get("Prefix"))
                     print(prefix.get("Prefix"))
         return archival_object_prefixes
+
+
+def invalidate_cloudfront_path(path="/*", caller_reference=str(time.time())):
+    cloudfront_client = boto3.client(
+        "cloudfront",
+        aws_access_key_id=config("DISTILLERY_AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
+    )
+    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/cloudfront/client/create_invalidation.html
+    response = cloudfront_client.create_invalidation(
+        DistributionId=config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID"),
+        InvalidationBatch={
+            "Paths": {
+                "Quantity": 1,
+                "Items": [path],
+            },
+            "CallerReference": caller_reference,
+        },
+    )
+    logger.debug(f"🐞 CLOUDFRONT INVALIDATION RESPONSE: {str(response)}")
+    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/cloudfront/waiter/InvalidationCompleted.html
+    waiter = cloudfront_client.get_waiter("invalidation_completed")
+    logger.debug("🐞 WAITING ON CLOUDFRONT INVALIDATION")
+    waiter.wait(
+        DistributionId=config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID"),
+        Id=response["Invalidation"]["Id"],
+    )
+    logger.debug("🐞 CLOUDFRONT INVALIDATION COMPLETE")
 
 
 def validate_connection():

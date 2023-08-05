@@ -8,6 +8,7 @@ import sys
 import tempfile
 import time
 
+import boto3
 import git
 
 from decouple import config
@@ -60,8 +61,6 @@ def asnake_client():
 
 @pytest.fixture
 def s3_client():
-    import boto3
-
     s3_client = boto3.client(
         "s3",
         region_name=config("DISTILLERY_AWS_REGION", default="us-west-2"),
@@ -69,6 +68,11 @@ def s3_client():
         aws_secret_access_key=config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
     )
     return s3_client
+
+
+@pytest.fixture(scope="session")
+def timestamp():
+    return str(time.time())
 
 
 # NOTE cleaning up previous tests and then setting up for new tests is not the
@@ -128,6 +132,32 @@ def move_test_files_to_initial_original_files_directory(test_name):
         ),
         config("INITIAL_ORIGINAL_FILES"),
     )
+
+
+def invalidate_cloudfront_path(path="/*", caller_reference=str(time.time())):
+    cloudfront_client = boto3.client(
+        "cloudfront",
+        aws_access_key_id=config("DISTILLERY_AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
+    )
+    response = cloudfront_client.create_invalidation(
+        DistributionId=config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID"),
+        InvalidationBatch={
+            "Paths": {
+                "Quantity": 1,
+                "Items": [path],
+            },
+            "CallerReference": caller_reference,
+        },
+    )
+    print(f"🐞 CLOUDFRONT INVALIDATION RESPONSE: {str(response)}")
+    waiter = cloudfront_client.get_waiter("invalidation_completed")
+    print("🐞 WAITING ON CLOUDFRONT INVALIDATION")
+    waiter.wait(
+        DistributionId=config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID"),
+        Id=response["Invalidation"]["Id"],
+    )
+    print("🐞 CLOUDFRONT INVALIDATION COMPLETE")
 
 
 def create_archivesspace_test_resource(asnake_client, test_name, test_id):
@@ -526,7 +556,7 @@ def test_alchemist_archivesspace_file_uri_v8v5r(page: Page, asnake_client):
         assert digital_object["file_versions"][0]["file_uri"] == alchemist_item_uri
 
 
-def test_alchemist_date_output_x2edw(page: Page, asnake_client):
+def test_alchemist_date_output_x2edw(page: Page, asnake_client, timestamp):
     test_name = inspect.currentframe().f_code.co_name
     test_id = test_name.split("_")[-1]
     # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
@@ -592,6 +622,8 @@ def test_alchemist_date_output_x2edw(page: Page, asnake_client):
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
+    # INVALIDATE CLOUDFRONT ITEMS
+    invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
     expect(page.locator("hgroup p:first-of-type")).to_have_text(
@@ -680,6 +712,8 @@ def test_alchemist_linked_agent_output_vdje3(page: Page, asnake_client):
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     print(f"🐞 {alchemist_item_uri}")
+    # INVALIDATE CLOUDFRONT ITEMS
+    invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
     expect(page.locator("#metadata")).to_contain_text("[Artistic director]")
@@ -738,6 +772,8 @@ def test_alchemist_extent_output_77cjj(page: Page, asnake_client):
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
+    # INVALIDATE CLOUDFRONT ITEMS
+    invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
     expect(page.locator("#metadata")).to_contain_text("1 books", ignore_case=True)
@@ -789,6 +825,8 @@ def test_alchemist_subject_output_28s3q(page: Page, asnake_client):
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
+    # INVALIDATE CLOUDFRONT ITEMS
+    invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
     expect(page.locator("#metadata")).to_contain_text("Commencement")
@@ -1078,6 +1116,8 @@ def test_alchemist_note_output_u8vvf(page: Page, asnake_client):
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     print(f"🐞 {alchemist_item_uri}")
+    # INVALIDATE CLOUDFRONT ITEMS
+    invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
     expect(page.locator("#metadata")).to_contain_text("Abstract")
@@ -1158,6 +1198,8 @@ def test_alchemist_ancestors_2gj5n(page: Page, asnake_client):
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
+    # INVALIDATE CLOUDFRONT ITEMS
+    invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     expect(page.locator("hgroup p:last-child")).to_have_text(
@@ -1198,6 +1240,8 @@ def test_alchemist_thumbnaillabel_sequence_yw3ff(page: Page, asnake_client):
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
+    # INVALIDATE CLOUDFRONT ITEMS
+    invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     expect(page.locator("#thumb-0")).to_have_text("1")
@@ -1235,6 +1279,8 @@ def test_alchemist_thumbnaillabel_filename_wef99(page: Page, asnake_client):
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"], thumbnail_label="filename")
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
+    # INVALIDATE CLOUDFRONT ITEMS
+    invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     expect(page.locator("#thumb-0")).to_have_text("lQGJCMY5qcM-unsplash_001")
@@ -1272,6 +1318,8 @@ def test_alchemist_regenerate_one_vru3b(page: Page, asnake_client):
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
+    # INVALIDATE CLOUDFRONT ITEMS
+    invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     expect(page).to_have_title(f"Item {test_id}")
@@ -2027,6 +2075,8 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client):
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     print(f"🐞 {alchemist_item_uri}")
+    # INVALIDATE CLOUDFRONT ITEMS
+    invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     expect(page.locator("hgroup p:first-of-type")).to_have_text(
@@ -2368,6 +2418,8 @@ def test_oralhistories_add_publish_one_transcript_2d4ja(
     assert wait_for_oralhistories_generated_files(git_repo)
     # publish transcript
     run_oralhistories_publish(page, item_component_id)
+    # INVALIDATE CLOUDFRONT ITEMS
+    invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE RESOLVER URL & WEB TRANSCRIPT
     page.goto("/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id]))
     expect(page).to_have_url(
@@ -2603,6 +2655,8 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
     assert wait_for_oralhistories_generated_files(git_repo, 6, 15)
     # publish transcript
     run_oralhistories_publish(page, item_component_id)
+    # INVALIDATE CLOUDFRONT ITEMS
+    invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE RESOLVER URL & WEB TRANSCRIPT
     page.goto("/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id]))
     expect(page).to_have_url(
@@ -2725,6 +2779,8 @@ def test_oralhistories_add_update_one_publish_one_transcript_4hete(
     assert wait_for_oralhistories_generated_files(git_repo, attempts=9, sleep_time=10)
     # publish transcript
     run_oralhistories_publish(page, item_component_id)
+    # INVALIDATE CLOUDFRONT ITEMS
+    invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE RESOLVER URL & WEB TRANSCRIPT
     page.goto("/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id]))
     expect(page).to_have_url(
