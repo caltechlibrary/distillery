@@ -631,7 +631,7 @@ def test_alchemist_date_output_x2edw(page: Page, asnake_client, timestamp):
     )
 
 
-def test_alchemist_linked_agent_output_vdje3(page: Page, asnake_client):
+def test_alchemist_linked_agent_output_vdje3(page: Page, asnake_client, timestamp):
     test_name = inspect.currentframe().f_code.co_name
     test_id = test_name.split("_")[-1]
     # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
@@ -723,7 +723,7 @@ def test_alchemist_linked_agent_output_vdje3(page: Page, asnake_client):
     )
 
 
-def test_alchemist_extent_output_77cjj(page: Page, asnake_client):
+def test_alchemist_extent_output_77cjj(page: Page, asnake_client, timestamp):
     test_name = inspect.currentframe().f_code.co_name
     test_id = test_name.split("_")[-1]
     # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
@@ -780,7 +780,7 @@ def test_alchemist_extent_output_77cjj(page: Page, asnake_client):
     expect(page.locator("#metadata")).to_contain_text("2 photographs", ignore_case=True)
 
 
-def test_alchemist_subject_output_28s3q(page: Page, asnake_client):
+def test_alchemist_subject_output_28s3q(page: Page, asnake_client, timestamp):
     test_name = inspect.currentframe().f_code.co_name
     test_id = test_name.split("_")[-1]
     # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
@@ -833,7 +833,7 @@ def test_alchemist_subject_output_28s3q(page: Page, asnake_client):
     expect(page.locator("#metadata")).to_contain_text("Conferences")
 
 
-def test_alchemist_note_output_u8vvf(page: Page, asnake_client):
+def test_alchemist_note_output_u8vvf(page: Page, asnake_client, timestamp):
     test_name = inspect.currentframe().f_code.co_name
     test_id = test_name.split("_")[-1]
     # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
@@ -1131,7 +1131,7 @@ def test_alchemist_note_output_u8vvf(page: Page, asnake_client):
     )
 
 
-def test_alchemist_ancestors_2gj5n(page: Page, asnake_client):
+def test_alchemist_ancestors_2gj5n(page: Page, asnake_client, timestamp):
     """Confirm ancestors display in Alchemist."""
     test_name = inspect.currentframe().f_code.co_name
     test_id = test_name.split("_")[-1]
@@ -1210,7 +1210,7 @@ def test_alchemist_ancestors_2gj5n(page: Page, asnake_client):
     expect(page.locator("#metadata")).to_contain_text("Sub-Series")
 
 
-def test_alchemist_thumbnaillabel_sequence_yw3ff(page: Page, asnake_client):
+def test_alchemist_thumbnaillabel_sequence_yw3ff(page: Page, asnake_client, timestamp):
     """Use sequence indicator as label in Universal Viewer."""
     test_name = inspect.currentframe().f_code.co_name
     test_id = test_name.split("_")[-1]
@@ -1249,7 +1249,7 @@ def test_alchemist_thumbnaillabel_sequence_yw3ff(page: Page, asnake_client):
     expect(page.locator("#thumb-2")).to_have_text("last")
 
 
-def test_alchemist_thumbnaillabel_filename_wef99(page: Page, asnake_client):
+def test_alchemist_thumbnaillabel_filename_wef99(page: Page, asnake_client, timestamp):
     """Use filename as label in Universal Viewer."""
     test_name = inspect.currentframe().f_code.co_name
     test_id = test_name.split("_")[-1]
@@ -1288,7 +1288,7 @@ def test_alchemist_thumbnaillabel_filename_wef99(page: Page, asnake_client):
     expect(page.locator("#thumb-2")).to_have_text("lQGJCMY5qcM-unsplash_last")
 
 
-def test_alchemist_regenerate_one_vru3b(page: Page, asnake_client):
+def test_alchemist_regenerate_one_vru3b(page: Page, asnake_client, timestamp):
     """Regenerate one set of files."""
     test_name = inspect.currentframe().f_code.co_name
     test_id = test_name.split("_")[-1]
@@ -1535,7 +1535,7 @@ def test_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_client):
                 assert file_version["publish"] is False
 
 
-def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client):
+def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
     """Attempt to test every ArchivesSpace field."""
     test_name = inspect.currentframe().f_code.co_name
     test_id = test_name.split("_")[-1]
@@ -2332,7 +2332,7 @@ def test_tape_reuse_top_container_records_d3bym(page: Page, asnake_client):
 
 
 def test_oralhistories_add_publish_one_transcript_2d4ja(
-    page: Page, asnake_client, s3_client
+    page: Page, asnake_client, s3_client, timestamp
 ):
     """Upload a docx file and publish a transcript."""
     test_name = inspect.currentframe().f_code.co_name
@@ -2437,7 +2437,7 @@ def test_oralhistories_add_publish_one_transcript_2d4ja(
 
 
 def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
-    page: Page, asnake_client, s3_client
+    page: Page, asnake_client, s3_client, timestamp
 ):
     """Upload a docx file, edit markdown, and publish a transcript.
 
@@ -2674,7 +2674,7 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
 
 
 def test_oralhistories_add_update_one_publish_one_transcript_4hete(
-    page: Page, asnake_client, s3_client
+    page: Page, asnake_client, s3_client, timestamp
 ):
     """Upload a docx file, update metadata, and publish a transcript."""
     test_name = inspect.currentframe().f_code.co_name
