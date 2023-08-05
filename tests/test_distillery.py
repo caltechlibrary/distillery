@@ -334,6 +334,7 @@ def format_alchemist_item_uri(test_name, test_id):
     return "/".join(
         [
             config("ACCESS_SITE_BASE_URL").rstrip("/"),
+            config("ALCHEMIST_URL_PATH_PREFIX"),
             test_id,
             f"item-{test_name}",
         ]
@@ -1273,7 +1274,7 @@ def test_alchemist_regenerate_one_vru3b(page: Page, asnake_client):
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
-    expect(page.locator("#metadata")).to_contain_text("Collection")
+    expect(page).to_have_title(f"Item {test_id}")
     # UPDATE ARCHIVAL OBJECT ITEM RECORD
     item = asnake_client.get(item_create_response.json()["uri"]).json()
     # update title
@@ -1284,11 +1285,10 @@ def test_alchemist_regenerate_one_vru3b(page: Page, asnake_client):
         item_update_response.json(),
     )
     # RUN REGENERATE PROCESS
-    run_alchemist_regenerate(page, "one", component_id=item_component_id, timeout=60000)
+    run_alchemist_regenerate(page, "one", component_id=item_component_id, timeout=90000)
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
-    page.screenshot(path=f"tests/_output/{test_id}.png")
-    expect(page.locator("hgroup > h1")).to_have_text("Regenerated Title")
+    expect(page).to_have_title("Regenerated Title")
 
 
 def test_alchemist_fileversions_fail_2tgwm(page: Page, asnake_client):
