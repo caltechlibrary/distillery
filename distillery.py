@@ -589,12 +589,22 @@ class DistilleryService(rpyc.Service):
                 variables["arrangement"] = get_arrangement(variables["archival_object"])
                 accessDistiller.archival_object_level_processing(variables)
                 accessDistiller.transfer_archival_object_derivative_files(variables)
-                status_logger.info(
-                    "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{})".format(
-                        variables["archival_object"]["component_id"],
-                        config("ACCESS_SITE_BASE_URL").rstrip("/"),
+                archival_object_path = "/".join(
+                    [
+                        config("ALCHEMIST_URL_PATH_PREFIX"),
                         variables["arrangement"]["collection_id"],
                         variables["archival_object"]["component_id"],
+                    ]
+                )
+                status_logger.info(
+                    "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({})".format(
+                        variables["archival_object"]["component_id"],
+                        "/".join(
+                            [
+                                config("ACCESS_SITE_BASE_URL").rstrip("/"),
+                                archival_object_path,
+                            ]
+                        ),
                     )
                 )
             else:
@@ -614,6 +624,7 @@ class DistilleryService(rpyc.Service):
                         "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{})".format(
                             variables["archival_object"]["component_id"],
                             config("ACCESS_SITE_BASE_URL").rstrip("/"),
+                            config("ALCHEMIST_URL_PATH_PREFIX"),
                             variables["arrangement"]["collection_id"],
                             variables["archival_object"]["component_id"],
                         )
@@ -1536,6 +1547,7 @@ def set_digital_object_id(uri, digital_object_id):
 def update_digital_object(uri, data):
     # raises an HTTPError exception if unsuccessful
     response = asnake_client.post(uri, json=data)
+    logger.debug(f"🐞 RESPONSE: {response.json()}")
     response.raise_for_status()
     archivesspace_logger.info(response.json()["uri"])
     return response

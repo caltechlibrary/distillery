@@ -390,6 +390,7 @@ def generate_archival_object_page(build_directory, variables):
         iiif_manifest_url = "/".join(
             [
                 config("ACCESS_SITE_BASE_URL").rstrip("/"),
+                config("ALCHEMIST_URL_PATH_PREFIX"),
                 variables["arrangement"]["collection_id"],
                 variables["archival_object"]["component_id"],
                 "manifest.json",
@@ -419,8 +420,12 @@ def generate_archival_object_page(build_directory, variables):
             variables["archival_object"]
         )
         archival_object_page_key = (
-            Path(variables["arrangement"]["collection_id"])
-            .joinpath(f'{variables["archival_object"]["component_id"]}', "index.html")
+            Path(config("ALCHEMIST_URL_PATH_PREFIX"))
+            .joinpath(
+                variables["arrangement"]["collection_id"],
+                variables["archival_object"]["component_id"],
+                "index.html",
+            )
             .as_posix()
         )
         archival_object_page_file = (
@@ -470,8 +475,12 @@ def upload_archival_object_page(build_directory, variables):
         )
         logger.info(f"🐛 BUILD DIRECTORY: {build_directory.name}")
         archival_object_page_key = (
-            Path(variables["arrangement"]["collection_id"])
-            .joinpath(f'{variables["archival_object"]["component_id"]}', "index.html")
+            Path(config("ALCHEMIST_URL_PATH_PREFIX"))
+            .joinpath(
+                variables["arrangement"]["collection_id"],
+                variables["archival_object"]["component_id"],
+                "index.html",
+            )
             .as_posix()
         )
         archival_object_page_file = (
@@ -502,9 +511,10 @@ def upload_archival_object_page(build_directory, variables):
 
 def get_thumbnail_url(variables):
     thumbnail_file = Path(sorted(variables["filepaths"])[0])
-    thumbnail_id = "%2F".join(
+    thumbnail_id = "/".join(
         [
-            thumbnail_file.parent.parent.name,
+            config("ALCHEMIST_URL_PATH_PREFIX"),
+            variables["arrangement"]["collection_id"],
             thumbnail_file.parent.name,
             thumbnail_file.stem,
         ]
@@ -586,8 +596,9 @@ def generate_iiif_manifest(build_directory, variables):
     try:
         if variables.get("alchemist_regenerate"):
             manifest_key = (
-                Path(variables["arrangement"]["collection_id"])
+                Path(config("ALCHEMIST_URL_PATH_PREFIX"))
                 .joinpath(
+                    variables["arrangement"]["collection_id"],
                     variables["archival_object"]["component_id"],
                     "manifest.json",
                 )
@@ -605,6 +616,7 @@ def generate_iiif_manifest(build_directory, variables):
                 "@id": "/".join(
                     [
                         config("ACCESS_SITE_BASE_URL").rstrip("/"),
+                        config("ALCHEMIST_URL_PATH_PREFIX"),
                         variables["arrangement"]["collection_id"],
                         variables["archival_object"]["component_id"],
                         "manifest.json",
@@ -652,6 +664,7 @@ def generate_iiif_manifest(build_directory, variables):
                 canvas_id = "/".join(
                     [
                         config("ACCESS_SITE_BASE_URL").rstrip("/"),
+                        config("ALCHEMIST_URL_PATH_PREFIX"),
                         variables["arrangement"]["collection_id"],
                         variables["archival_object"]["component_id"],
                         "canvas",
@@ -660,15 +673,14 @@ def generate_iiif_manifest(build_directory, variables):
                 )
                 escaped_identifier = "/".join(
                     [
+                        config("ALCHEMIST_URL_PATH_PREFIX"),
                         variables["arrangement"]["collection_id"],
                         variables["archival_object"]["component_id"],
                         f"{Path(filepath).stem}",
                     ]
                 )
-                service_id = (
-                    config("ACCESS_IIIF_ENDPOINT").rstrip("/")
-                    + "/"
-                    + escaped_identifier
+                service_id = "/".join(
+                    [config("ACCESS_IIIF_ENDPOINT").rstrip("/"), escaped_identifier]
                 )
                 resource_id = service_id + "/full/max/0/default.jpg"
                 canvas = {
@@ -702,6 +714,7 @@ def generate_iiif_manifest(build_directory, variables):
 
         # save manifest file
         manifest_file = Path(build_directory.name).joinpath(
+            config("ALCHEMIST_URL_PATH_PREFIX"),
             variables["arrangement"]["collection_id"],
             variables["archival_object"]["component_id"],
             "manifest.json",
@@ -725,8 +738,9 @@ def upload_iiif_manifest(build_directory, variables):
         )
         logger.info(f"🐛 BUILD DIRECTORY: {build_directory.name}")
         manifest_key = (
-            Path(variables["arrangement"]["collection_id"])
+            Path(config("ALCHEMIST_URL_PATH_PREFIX"))
             .joinpath(
+                variables["arrangement"]["collection_id"],
                 variables["archival_object"]["component_id"],
                 "manifest.json",
             )
@@ -783,6 +797,7 @@ def create_pyramid_tiff(build_directory, variables):
             vips_source_image = variables["original_image_path"]
         pyramid_tiff_key = "/".join(
             [
+                config("ALCHEMIST_URL_PATH_PREFIX"),
                 variables["arrangement"]["collection_id"],
                 variables["archival_object"]["component_id"],
                 f'{Path(variables["original_image_path"]).stem}.ptif',
@@ -819,6 +834,7 @@ def publish_archival_object_access_files(build_directory, variables):
 
     archival_object_access_path = "/".join(
         [
+            config("ALCHEMIST_URL_PATH_PREFIX"),
             variables["arrangement"]["collection_id"],
             variables["archival_object"]["component_id"],
         ]
@@ -878,6 +894,7 @@ def create_digital_object_file_versions(build_directory, variables):
     archival_object_directory = (
         Path(build_directory.name)
         .joinpath(
+            config("ALCHEMIST_URL_PATH_PREFIX"),
             variables["arrangement"]["collection_id"],
             variables["archival_object"]["component_id"],
         )
@@ -888,6 +905,7 @@ def create_digital_object_file_versions(build_directory, variables):
     archival_object_page_url = "/".join(
         [
             config("ACCESS_SITE_BASE_URL").rstrip("/"),
+            config("ALCHEMIST_URL_PATH_PREFIX"),
             variables["arrangement"]["collection_id"],
             variables["archival_object"]["component_id"],
         ]
@@ -897,7 +915,7 @@ def create_digital_object_file_versions(build_directory, variables):
     variables["filepaths"] = [
         f.absolute()
         for f in archival_object_directory.iterdir()
-        if f.is_file() and f.name not in [".DS_Store", "Thumbs.db"]
+        if f.is_file() and f.name.endswith(".ptif")
     ]
     logger.debug(f'🐞 FILEPATHS[0]: {sorted(variables["filepaths"])[0]}')
 

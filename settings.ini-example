@@ -89,6 +89,7 @@
 ; ALCHEMIST
 ; ---------
 ACCESS_BUCKET=example-bucket-name
+ALCHEMIST_URL_PATH_PREFIX=collections
 ACCESS_SITE_BASE_URL=https://example.org/
 ACCESS_IIIF_ENDPOINT=https://example.net/iiif/2/
 
@@ -229,9 +230,9 @@ format=%(message)s
 datefmt=
 
 [formatter_console]
-format=%(asctime)s - %(name)s - %(levelname)s - %(message)s
+format=%(asctime)s - %(name)s:%(lineno)d %(funcName)s - %(levelname)s - %(message)s
 datefmt=
 
 [formatter_file]
-format=%(asctime)s - %(name)s - %(levelname)s - %(message)s
+format=%(asctime)s - %(name)s:%(lineno)d %(funcName)s - %(levelname)s - %(message)s
 datefmt=
