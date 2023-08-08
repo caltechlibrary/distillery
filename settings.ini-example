@@ -92,6 +92,7 @@ ACCESS_BUCKET=example-bucket-name
 ALCHEMIST_URL_PATH_PREFIX=collections
 ACCESS_SITE_BASE_URL=https://example.org/
 ACCESS_IIIF_ENDPOINT=https://example.net/iiif/2/
+ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID=EFGH1234567890
 
 ; Tape Server
 ; -----------
