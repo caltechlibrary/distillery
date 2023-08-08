@@ -958,6 +958,7 @@ def create_digital_object_file_versions(build_directory, variables):
             "file_uri": get_thumbnail_url(variables),
             "jsonmodel_type": "file_version",
             "publish": True,
+            "use_statement": "image-thumbnail",
             "xlink_show_attribute": "embed",
         },
     ]
