@@ -825,6 +825,7 @@ def save_digital_object_file_versions(archival_object, file_versions, file_versi
                         "file_versions"
                     ]:
                         file_version["publish"] = False
+                        file_version["is_representative"] = False
                     existing_file_versions = instance["digital_object"]["_resolved"][
                         "file_versions"
                     ]
