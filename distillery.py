@@ -596,9 +596,10 @@ class DistilleryService(rpyc.Service):
                         variables["archival_object"]["component_id"],
                     ]
                 )
-                self.access_platform.invalidate_cloudfront_path(
-                    path=f"/{archival_object_path}/*"
-                )
+                if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+                    self.access_platform.invalidate_cloudfront_path(
+                        path=f"/{archival_object_path}/*"
+                    )
                 status_logger.info(
                     "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({})".format(
                         variables["archival_object"]["component_id"],
@@ -624,9 +625,10 @@ class DistilleryService(rpyc.Service):
                     accessDistiller.archival_object_level_processing(variables)
                     accessDistiller.transfer_archival_object_derivative_files(variables)
                     timestamp = str(time.time())
-                    self.access_platform.invalidate_cloudfront_path(
-                        caller_reference=timestamp
-                    )
+                    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+                        self.access_platform.invalidate_cloudfront_path(
+                            caller_reference=timestamp
+                        )
                     status_logger.info(
                         "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{})".format(
                             variables["archival_object"]["component_id"],
