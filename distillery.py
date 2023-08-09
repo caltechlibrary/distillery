@@ -384,6 +384,7 @@ class DistilleryService(rpyc.Service):
                         "☑️  ACCESS PAGE CREATED: [**{}**]({}/{}/{}/index.html)".format(
                             self.variables["archival_object"]["component_id"],
                             config("ACCESS_SITE_BASE_URL").rstrip("/"),
+                            config("ALCHEMIST_URL_PATH_PREFIX"),
                             self.variables["arrangement"]["collection_id"],
                             self.variables["archival_object"]["component_id"],
                         )
@@ -790,6 +791,7 @@ def create_derivative_structure(
                 "☑️  ACCESS PAGE CREATED: [**{}**]({}/{}/{}/index.html)".format(
                     variables["archival_object"]["component_id"],
                     config("ACCESS_SITE_BASE_URL").rstrip("/"),
+                    config("ALCHEMIST_URL_PATH_PREFIX"),
                     variables["arrangement"]["collection_id"],
                     variables["archival_object"]["component_id"],
                 )
