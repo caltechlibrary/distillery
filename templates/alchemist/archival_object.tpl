@@ -372,5 +372,6 @@
     <footer class="container">
       <article>{{ rights }}</article>
     </footer>
+    <img referrerpolicy="no-referrer-when-downgrade" src="https://caltechlibrary.matomo.cloud/matomo.php?idsite=5&amp;rec=1" style="border:0" alt="">
   </body>
 </html>
