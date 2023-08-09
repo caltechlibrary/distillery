@@ -623,7 +623,8 @@ def test_alchemist_date_output_x2edw(page: Page, asnake_client, timestamp):
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     # INVALIDATE CLOUDFRONT ITEMS
-    invalidate_cloudfront_path(caller_reference=timestamp)
+    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+        invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
     expect(page.locator("hgroup p:first-of-type")).to_have_text(
@@ -713,7 +714,8 @@ def test_alchemist_linked_agent_output_vdje3(page: Page, asnake_client, timestam
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     print(f"🐞 {alchemist_item_uri}")
     # INVALIDATE CLOUDFRONT ITEMS
-    invalidate_cloudfront_path(caller_reference=timestamp)
+    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+        invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
     expect(page.locator("#metadata")).to_contain_text("[Artistic director]")
@@ -773,7 +775,8 @@ def test_alchemist_extent_output_77cjj(page: Page, asnake_client, timestamp):
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     # INVALIDATE CLOUDFRONT ITEMS
-    invalidate_cloudfront_path(caller_reference=timestamp)
+    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+        invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
     expect(page.locator("#metadata")).to_contain_text("1 books", ignore_case=True)
@@ -826,7 +829,8 @@ def test_alchemist_subject_output_28s3q(page: Page, asnake_client, timestamp):
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     # INVALIDATE CLOUDFRONT ITEMS
-    invalidate_cloudfront_path(caller_reference=timestamp)
+    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+        invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
     expect(page.locator("#metadata")).to_contain_text("Commencement")
@@ -1117,7 +1121,8 @@ def test_alchemist_note_output_u8vvf(page: Page, asnake_client, timestamp):
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     print(f"🐞 {alchemist_item_uri}")
     # INVALIDATE CLOUDFRONT ITEMS
-    invalidate_cloudfront_path(caller_reference=timestamp)
+    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+        invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
     expect(page.locator("#metadata")).to_contain_text("Abstract")
@@ -1199,7 +1204,8 @@ def test_alchemist_ancestors_2gj5n(page: Page, asnake_client, timestamp):
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     # INVALIDATE CLOUDFRONT ITEMS
-    invalidate_cloudfront_path(caller_reference=timestamp)
+    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+        invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     expect(page.locator("hgroup p:last-child")).to_have_text(
@@ -1241,7 +1247,8 @@ def test_alchemist_thumbnaillabel_sequence_yw3ff(page: Page, asnake_client, time
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     # INVALIDATE CLOUDFRONT ITEMS
-    invalidate_cloudfront_path(caller_reference=timestamp)
+    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+        invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     expect(page.locator("#thumb-0")).to_have_text("1")
@@ -1280,7 +1287,8 @@ def test_alchemist_thumbnaillabel_filename_wef99(page: Page, asnake_client, time
     run_distillery(page, ["access"], thumbnail_label="filename")
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     # INVALIDATE CLOUDFRONT ITEMS
-    invalidate_cloudfront_path(caller_reference=timestamp)
+    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+        invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     expect(page.locator("#thumb-0")).to_have_text("lQGJCMY5qcM-unsplash_001")
@@ -1319,7 +1327,8 @@ def test_alchemist_regenerate_one_vru3b(page: Page, asnake_client, timestamp):
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     # INVALIDATE CLOUDFRONT ITEMS
-    invalidate_cloudfront_path(caller_reference=timestamp)
+    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+        invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     expect(page).to_have_title(f"Item {test_id}")
@@ -2076,7 +2085,8 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     print(f"🐞 {alchemist_item_uri}")
     # INVALIDATE CLOUDFRONT ITEMS
-    invalidate_cloudfront_path(caller_reference=timestamp)
+    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+        invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     expect(page.locator("hgroup p:first-of-type")).to_have_text(
@@ -2419,7 +2429,8 @@ def test_oralhistories_add_publish_one_transcript_2d4ja(
     # publish transcript
     run_oralhistories_publish(page, item_component_id)
     # INVALIDATE CLOUDFRONT ITEMS
-    invalidate_cloudfront_path(caller_reference=timestamp)
+    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+        invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE RESOLVER URL & WEB TRANSCRIPT
     page.goto("/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id]))
     expect(page).to_have_url(
@@ -2656,7 +2667,8 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
     # publish transcript
     run_oralhistories_publish(page, item_component_id)
     # INVALIDATE CLOUDFRONT ITEMS
-    invalidate_cloudfront_path(caller_reference=timestamp)
+    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+        invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE RESOLVER URL & WEB TRANSCRIPT
     page.goto("/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id]))
     expect(page).to_have_url(
@@ -2780,7 +2792,8 @@ def test_oralhistories_add_update_one_publish_one_transcript_4hete(
     # publish transcript
     run_oralhistories_publish(page, item_component_id)
     # INVALIDATE CLOUDFRONT ITEMS
-    invalidate_cloudfront_path(caller_reference=timestamp)
+    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+        invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE RESOLVER URL & WEB TRANSCRIPT
     page.goto("/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id]))
     expect(page).to_have_url(
