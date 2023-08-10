@@ -976,12 +976,15 @@ def get_arrangement(archival_object):
     arrangement["folder_title"]
     arrangement["collection_title"]
     arrangement["collection_id"]
+    arrangement["collection_uri"]
     arrangement["series_display"]
     arrangement["series_id"]
     arrangement["series_title"]
+    arrangement["series_uri"]
     arrangement["subseries_display"]
     arrangement["subseries_id"]
     arrangement["subseries_title"]
+    arrangement["subseries_uri"]
     """
     try:
         # TODO document assumptions about arrangement
@@ -998,16 +1001,19 @@ def get_arrangement(archival_object):
             if ancestor["level"] == "collection":
                 arrangement["collection_title"] = ancestor["_resolved"]["title"]
                 arrangement["collection_id"] = ancestor["_resolved"]["id_0"]
+                arrangement["collection_uri"] = ancestor["ref"]
             elif ancestor["level"] == "series":
                 arrangement["series_display"] = ancestor["_resolved"]["display_string"]
                 arrangement["series_id"] = ancestor["_resolved"].get("component_id")
                 arrangement["series_title"] = ancestor["_resolved"].get("title")
+                arrangement["series_uri"] = ancestor["ref"]
             elif ancestor["level"] == "subseries":
                 arrangement["subseries_display"] = ancestor["_resolved"][
                     "display_string"
                 ]
                 arrangement["subseries_id"] = ancestor["_resolved"].get("component_id")
                 arrangement["subseries_title"] = ancestor["_resolved"].get("title")
+                arrangement["subseries_uri"] = ancestor["ref"]
         logger.info("☑️  ARRANGEMENT LEVELS AGGREGATED")
         return arrangement
     except:

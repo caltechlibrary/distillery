@@ -1208,8 +1208,17 @@ def test_alchemist_ancestors_2gj5n(page: Page, asnake_client, timestamp):
         invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
-    expect(page.locator("hgroup p:last-child")).to_have_text(
-        f'{test_name.capitalize().replace("_", " ")}[Series] {test_id}[Sub-Series] {test_id}'
+    expect(page.locator("hgroup nav li:nth-child(1)")).to_have_text(
+        f'{test_name.capitalize().replace("_", " ")}'
+    )
+    expect(page.locator("hgroup nav li:nth-child(2)")).to_have_text(
+        f"[Series] {test_id}"
+    )
+    expect(page.locator("hgroup nav li:nth-child(3)")).to_have_text(
+        f"[Sub-Series] {test_id}"
+    )
+    expect(page.locator("hgroup nav li:nth-child(4)")).to_have_text(
+        f"Open the Item {test_id} record within its collection guide."
     )
     expect(page.locator("#metadata")).to_contain_text("Collection")
     expect(page.locator("#metadata")).to_contain_text("Series")
@@ -2092,8 +2101,17 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
     expect(page.locator("hgroup p:first-of-type")).to_have_text(
         "1584 February 29; 1900 to 1901; 1911 January to December; 1969 December 31 to 1970 January 1; 1999 December 31 to 2000 January 1; ongoing into the future"
     )
-    expect(page.locator("hgroup p:last-child")).to_have_text(
-        f'{test_name.capitalize().replace("_", " ")}[Series] {test_id}[Sub-Series] {test_id}'
+    expect(page.locator("hgroup nav li:nth-child(1)")).to_have_text(
+        f'{test_name.capitalize().replace("_", " ")}'
+    )
+    expect(page.locator("hgroup nav li:nth-child(2)")).to_have_text(
+        f"[Series] {test_id}"
+    )
+    expect(page.locator("hgroup nav li:nth-child(3)")).to_have_text(
+        f"[Sub-Series] {test_id}"
+    )
+    expect(page.locator("hgroup nav li:nth-child(4)")).to_have_text(
+        f"Open the Item {test_id} record within its collection guide."
     )
     expect(page.locator("#metadata")).to_contain_text("Collection")
     expect(page.locator("#metadata")).to_contain_text("Series")

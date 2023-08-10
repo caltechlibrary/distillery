@@ -474,8 +474,11 @@ def generate_archival_object_page(build_directory, variables):
                 template.render(
                     title=variables["archival_object"]["title"],
                     collection=variables["arrangement"].get("collection_title"),
+                    collection_uri=variables["arrangement"]["collection_uri"],
                     series=series_display,
+                    series_uri=variables["arrangement"]["series_uri"],
                     subseries=subseries_display,
+                    subseries_uri=variables["arrangement"]["subseries_uri"],
                     dates=dates_display,
                     creators=creators_display,
                     extents=extents_display,
