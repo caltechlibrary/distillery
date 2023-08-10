@@ -181,25 +181,20 @@
       hgroup h1 {
         margin-block-end: var(--pico-typography-spacing-vertical);
       }
-      hgroup p:last-child span {
-        padding: var(--pico-nav-element-spacing-vertical) var(--pico-nav-element-spacing-horizontal);
-      }
-      hgroup p:last-child span:first-child {
-        padding-inline-start: 0;
-      }
-      hgroup p:last-child span:not(:first-child) {
-        -webkit-margin-start: var(--pico-nav-link-spacing-horizontal);
-        margin-inline-start: var(--pico-nav-link-spacing-horizontal);
-      }
-      hgroup p:last-child span:not(:last-child)::after {
-        position: absolute;
-        width: calc(var(--pico-nav-link-spacing-horizontal) * 2);
-        -webkit-margin-start: calc(var(--pico-nav-link-spacing-horizontal) / 2);
-        margin-inline-start: calc(var(--pico-nav-link-spacing-horizontal) / 2);
-        content: var(--pico-nav-breadcrumb-divider);
+      hgroup nav li a {
         color: var(--pico-muted-color);
-        text-align: center;
-        text-decoration: none;
+      }
+      hgroup nav li a:is([aria-current], :hover, :active, :focus) {
+        --pico-color: var(--pico-muted-hover);
+        --pico-underline: var(--pico-muted-hover-underline);
+        --pico-text-decoration: underline;
+      }
+      hgroup nav li:last-child a {
+        display: flex;
+      }
+      hgroup nav li:last-child a svg {
+        height: 0.8em;
+        vertical-align: baseline;
       }
       #manifest {
         border: var(--pico-outline-width) solid transparent;
@@ -207,6 +202,37 @@
       }
       #manifest:hover {
         background-color: rgba(40, 115, 171, 0.25); /* translucent blue in IIIF logo */
+      }
+    </style>
+    <style>/* helpers */
+      /* bootstrap */
+      .visually-hidden {
+        border: 0 !important;
+        clip: rect(0, 0, 0, 0) !important;
+        display: inline-block !important;
+        height: 1px !important;
+        overflow: hidden !important;
+        padding: 0 !important;
+        white-space: nowrap !important;
+        width: 1px !important;
+      }
+      /* https://stackoverflow.com/a/48693294 */
+      .svg-underline {
+        display: inline-block;
+        overflow: hidden;
+        padding-inline: 0.1em 0.01em;
+        position: relative;
+        vertical-align: bottom;
+      }
+      a:hover .svg-underline::after {
+        content: "\00A0";
+        letter-spacing: 9999px;
+        position: absolute;
+        right: 0;
+        left: 0;
+        bottom: 0;
+        top: 0;
+        text-decoration: underline;
       }
     </style>
     <style>/* colors */
@@ -282,6 +308,30 @@
     </header>
     <main class="container">
       <hgroup>
+        {% if collection %}
+        <nav aria-label="breadcrumb">
+          <ul>
+            <li><a href="{{ archivesspace_public_url | trim('/') }}{{ collection_uri }}">{{ collection }}</a></li>
+            {% if series %}
+            <li><a href="{{ archivesspace_public_url | trim('/') }}{{ series_uri }}">{{ series }}</a></li>
+            {% endif %}
+            {% if subseries %}
+            <li><a href="{{ archivesspace_public_url | trim('/') }}{{ subseries_uri }}">{{ subseries }}</a></li>
+            {% endif %}
+            <li>
+              <a href="{{ archivesspace_public_url | trim('/') }}{{ archival_object_uri }}" title="Open the {{ title }} record within its collection guide.">
+                <span class="visually-hidden">Open the {{ title }} record within its collection guide.</span>
+                <span class="svg-underline">
+                  <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                    <!-- Font Awesome Free 6.4.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2023 Fonticons, Inc. -->
+                    <path d="M432,320H400a16,16,0,0,0-16,16V448H64V128H208a16,16,0,0,0,16-16V80a16,16,0,0,0-16-16H48A48,48,0,0,0,0,112V464a48,48,0,0,0,48,48H400a48,48,0,0,0,48-48V336A16,16,0,0,0,432,320ZM488,0h-128c-21.37,0-32.05,25.91-17,41l35.73,35.73L135,320.37a24,24,0,0,0,0,34L157.67,377a24,24,0,0,0,34,0L435.28,133.32,471,169c15,15,41,4.5,41-17V24A24,24,0,0,0,488,0Z">
+                  </svg>
+                </span>
+              </a>
+            </li>
+          </ul>
+        </nav>
+        {% endif %}
         <h1>
           {{ title }}
         </h1>
@@ -292,13 +342,7 @@
           {% endfor %}
         </p>
         {% endif %}
-        {% if collection %}
-        <p>
-          <span>{{ collection }}</span>{% if series %}<span>{{ series }}</span>{% endif %}{% if subseries %}<span>{{ subseries }}</span>{% endif %}
-        </p>
-        {% endif %}
       </hgroup>
-      <p><a href="{{ archivesspace_public_url | trim('/') }}{{ archival_object_uri }}">Open the <cite>{{ title }}</cite> record in its archival context</a></p>
       <div class="uv" id="uv" style="width:100%;height:80vh"></div>
       <script>
         const data = {{ iiif_manifest_json }}
