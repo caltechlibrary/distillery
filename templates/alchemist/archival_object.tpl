@@ -363,15 +363,15 @@
         <dd>{{ title }}</dd>
         {% if collection %}
         <dt>Collection</dt>
-        <dd>{{ collection }}</dd>
+        <dd><a href="{{ archivesspace_public_url | trim('/') }}{{ collection_uri }}">{{ collection }}</a></dd>
         {% endif %}
         {% if series %}
         <dt>Series</dt>
-        <dd>{{ series}}</dd>
+        <dd><a href="{{ archivesspace_public_url | trim('/') }}{{ series_uri }}">{{ series }}</a></dd>
         {% endif %}
         {% if subseries %}
         <dt>Sub-Series</dt>
-        <dd>{{ subseries }}</dd>
+        <dd><a href="{{ archivesspace_public_url | trim('/') }}{{ subseries_uri }}">{{ subseries }}</a></dd>
         {% endif %}
         {% if dates %}
         <dt>Dates</dt>
