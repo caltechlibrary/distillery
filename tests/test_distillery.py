@@ -1363,6 +1363,105 @@ def test_alchemist_regenerate_one_vru3b(page: Page, asnake_client, timestamp):
     expect(page).to_have_title("Regenerated Title")
 
 
+def test_alchemist_regenerate_all_mxsk0(page: Page, asnake_client, timestamp):
+    """Regenerate all sets of files."""
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(
+        "test_alchemist_regenerate_all_mxsk1"
+    )
+    move_test_files_to_initial_original_files_directory(
+        "test_alchemist_regenerate_all_mxsk2"
+    )
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, "mxsk1")
+    delete_archivesspace_test_records(asnake_client, "mxsk2")
+    # CREATE RESOURCE RECORD 1
+    resource_create_response1 = create_archivesspace_test_resource(
+        asnake_client, "test_alchemist_regenerate_all_mxsk1", "mxsk1"
+    )
+    print(
+        "🐞 resource_create_response1:mxsk1",
+        resource_create_response1.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD 1
+    (
+        item_create_response1,
+        item_component_id1,
+    ) = create_archivesspace_test_archival_object_item(
+        asnake_client,
+        "test_alchemist_regenerate_all_mxsk1",
+        "mxsk1",
+        resource_create_response1.json()["uri"],
+    )
+    print(
+        "🐞 item_create_response1:mxsk1",
+        item_create_response1.json(),
+    )
+    # CREATE RESOURCE RECORD 2
+    resource_create_response2 = create_archivesspace_test_resource(
+        asnake_client, "test_alchemist_regenerate_all_mxsk2", "mxsk2"
+    )
+    print(
+        "🐞 resource_create_response2:mxsk2",
+        resource_create_response2.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD 2
+    (
+        item_create_response2,
+        item_component_id2,
+    ) = create_archivesspace_test_archival_object_item(
+        asnake_client,
+        "test_alchemist_regenerate_all_mxsk2",
+        "mxsk2",
+        resource_create_response2.json()["uri"],
+    )
+    print(
+        "🐞 item_create_response2:mxsk2",
+        item_create_response2.json(),
+    )
+    # RUN ALCHEMIST PROCESS
+    run_distillery(page, ["access"])
+    alchemist_item_uri1 = format_alchemist_item_uri(
+        "test_alchemist_regenerate_all_mxsk1", "mxsk1"
+    )
+    alchemist_item_uri2 = format_alchemist_item_uri(
+        "test_alchemist_regenerate_all_mxsk2", "mxsk2"
+    )
+    # INVALIDATE CLOUDFRONT ITEMS
+    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+        invalidate_cloudfront_path(caller_reference=timestamp)
+    # VALIDATE ALCHEMIST ITEMS
+    page.goto(alchemist_item_uri1)
+    expect(page).to_have_title("Item mxsk1")
+    page.goto(alchemist_item_uri2)
+    expect(page).to_have_title("Item mxsk2")
+    # UPDATE ARCHIVAL OBJECT ITEM RECORD 1
+    item1 = asnake_client.get(item_create_response1.json()["uri"]).json()
+    # update title
+    item1["title"] = "Regenerated Title mxsk1"
+    item_update_response1 = asnake_client.post(item1["uri"], json=item1)
+    print(
+        "🐞 item_update_response1:mxsk1",
+        item_update_response1.json(),
+    )
+    # UPDATE ARCHIVAL OBJECT ITEM RECORD 2
+    item2 = asnake_client.get(item_create_response2.json()["uri"]).json()
+    # update title
+    item2["title"] = "Regenerated Title mxsk2"
+    item_update_response2 = asnake_client.post(item2["uri"], json=item2)
+    print(
+        "🐞 item_update_response2:mxsk2",
+        item_update_response2.json(),
+    )
+    # RUN REGENERATE PROCESS
+    run_alchemist_regenerate(page, "all", timeout=90000)
+    # VALIDATE ALCHEMIST ITEMS
+    page.goto(alchemist_item_uri1)
+    expect(page).to_have_title("Regenerated Title mxsk1")
+    page.goto(alchemist_item_uri2)
+    expect(page).to_have_title("Regenerated Title mxsk2")
+
+
 def test_alchemist_fileversions_fail_2tgwm(page: Page, asnake_client):
     """Fail validation when digital_object file_versions exist."""
     test_name = inspect.currentframe().f_code.co_name
