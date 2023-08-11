@@ -267,6 +267,8 @@ class DistilleryService(rpyc.Service):
         # reset status_logfile
         with open(status_logfile, "w") as f:
             pass
+        batch_set_timestamp = str(time.time())
+        logger.debug(f"🐞 BATCH_SET_TIMESTAMP: {batch_set_timestamp}")
         try:
             self._initiate_variables(destinations)
             status_logger.info(f"🟢 BEGIN DISTILLING")
@@ -282,8 +284,29 @@ class DistilleryService(rpyc.Service):
             else:
                 either_preservation_destination = False
 
+            try:
+                batch_directory = Path(config("BATCH_SETS_DIRECTORY")).joinpath(
+                    batch_set_timestamp
+                )
+                batch_directory.mkdir(parents=True, exist_ok=True)
+                Path(config("INITIAL_ORIGINAL_FILES")).rename(
+                    batch_directory.joinpath("STAGE_1_INITIAL")
+                )
+                batch_directory.joinpath("STAGE_2_WORKING").mkdir(
+                    parents=True, exist_ok=True
+                )
+                batch_directory.joinpath("STAGE_3_COMPLETE").mkdir(
+                    parents=True, exist_ok=True
+                )
+                Path(config("INITIAL_ORIGINAL_FILES")).mkdir()
+            except BaseException:
+                message = "❌ UNABLE TO MOVE THE SOURCE FILES FOR PROCESSING"
+                status_logger.error(message)
+                logger.exception(f"‼️")
+                raise
+
             for dir_entry in sorted(
-                os.scandir(config("INITIAL_ORIGINAL_FILES")),
+                os.scandir(batch_directory.joinpath("STAGE_1_INITIAL")),
                 key=lambda dir_entry: dir_entry.name,
             ):
                 if dir_entry.is_file():
@@ -335,7 +358,7 @@ class DistilleryService(rpyc.Service):
 
                 initial_archival_object_directory = dir_entry.path
                 working_archival_object_directory = str(
-                    os.path.join(config("WORKING_ORIGINAL_FILES"), dir_entry.name)
+                    batch_directory.joinpath("STAGE_2_WORKING", dir_entry.name)
                 )
                 try:
                     shutil.move(
@@ -343,7 +366,7 @@ class DistilleryService(rpyc.Service):
                         working_archival_object_directory,
                     )
                 except BaseException:
-                    message = "❌ UNABLE TO MOVE THE SOURCE FILES FOR PROCESSING"
+                    message = "❌ UNABLE TO MOVE THE INITIAL FILES FOR WORKING"
                     status_logger.error(message)
                     logger.exception(f"‼️")
                     raise
@@ -536,6 +559,19 @@ class DistilleryService(rpyc.Service):
                         )
                     )
 
+                try:
+                    shutil.move(
+                        working_archival_object_directory,
+                        str(
+                            batch_directory.joinpath("STAGE_3_COMPLETE", dir_entry.name)
+                        ),
+                    )
+                except BaseException:
+                    message = "❌ UNABLE TO MOVE THE WORKING FILES FOR COMPLETION"
+                    status_logger.error(message)
+                    logger.exception(f"‼️")
+                    raise
+
         except Exception as e:
             status_logger.error("❌ SOMETHING WENT WRONG")
             status_logger.error(e)
@@ -547,7 +583,7 @@ class DistilleryService(rpyc.Service):
             status_logger.info(f"🏁")
             # copy the status_logfile to the logs directory
             logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(
-                f"{str(int(time.time()))}.run.log"
+                f"{batch_set_timestamp}.run.log"
             )
             shutil.copy2(status_logfile, logfile_dst)
             logger.info(f"☑️  COPIED RUN LOG FILE: {logfile_dst}")
@@ -1084,7 +1120,7 @@ def get_digital_object_component_file_key(prefix, file_parts):
     #     "crockford_id": "me5v-z1yp",
     #     "extension": "tiff",
     #     "filename": "HaleGE_02_0B_056_07_0001.tiff",
-    #     "filepath": "/path/to/archives/data/WORKING_ORIGINAL_FILES/HaleGE/HaleGE_02_0B_056_07_0001.tiff",
+    #     "filepath": "/path/to/archives/data/BATCH/HaleGE/HaleGE_02_0B_056_07_0001.tiff",
     #     "filestem": "HaleGE_02_0B_056_07_0001",
     #     "sequence": "0001"
     # }
@@ -1616,7 +1652,7 @@ def create_derivative_files(variables, onsite=None, cloud=None, access=None):
     """Loop over files in working_archival_object_directory.
 
     Example:
-    WORKING_ORIGINAL_FILES
+    BATCH/STAGE
     ├── CollectionID_000_XX
     ├── CollectionID_001_02 <-- looping over files under here
     │   ├── CollectionID_001_02_01.tif
@@ -1637,7 +1673,10 @@ def create_derivative_files(variables, onsite=None, cloud=None, access=None):
         # TODO rename variable to original_file_path
         variables["original_image_path"] = variables["filepaths_popped"].pop()
         logger.info(
-            f'▶️  PROCESSING ITEM: {variables["original_image_path"][len(config("WORKING_ORIGINAL_FILES")) + 1:]}'
+            "▶️  PROCESSING ITEM: {}/{}".format(
+                variables["original_image_path"].split("/")[-2],
+                variables["original_image_path"].split("/")[-1],
+            )
         )
 
         type, encoding = mimetypes.guess_type(variables["original_image_path"])

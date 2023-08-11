@@ -37,10 +37,11 @@ def set_timeout(page: Page):
 def distillery_0000_reset_files():
     for d in glob.glob(os.path.join(config("INITIAL_ORIGINAL_FILES"), "*/")):
         shutil.move(d, config("TEST_FILES", default="tests/files"))
-    for d in glob.glob(os.path.join(config("WORKING_ORIGINAL_FILES"), "*/")):
-        shutil.move(d, config("TEST_FILES", default="tests/files"))
-    for d in glob.glob(os.path.join(config("STAGE_3_ORIGINAL_FILES"), "*/")):
-        shutil.move(d, config("TEST_FILES", default="tests/files"))
+    for batch in glob.glob(os.path.join(config("BATCH_SETS_DIRECTORY"), "*/")):
+        for stage in glob.glob(os.path.join(batch, "*/")):
+            for i in glob.glob(os.path.join(stage, "*/")):
+                shutil.move(i, config("TEST_FILES", default="tests/files"))
+        os.system(f"/bin/rm -r {batch}")
     for d in glob.glob(os.path.join(config("WORK_PRESERVATION_FILES"), "*/")):
         os.system(f"/bin/rm -r {d}")
     return
