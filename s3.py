@@ -157,28 +157,3 @@ def validate_connection():
     except botocore.exceptions.ClientError as error:
         logger.error(f"❌ S3 ERROR: {error.response}")
         return False
-
-
-def validate_settings():
-    IN_PROCESS_ORIGINAL_FILES = Path(
-        os.path.expanduser(config("WORKING_ORIGINAL_FILES"))
-    ).resolve(
-        strict=True
-    )  # NOTE do not create missing `IN_PROCESS_ORIGINAL_FILES`
-    STAGE_3_ORIGINAL_FILES = distillery.directory_setup(
-        os.path.expanduser(config("STAGE_3_ORIGINAL_FILES"))
-    ).resolve(strict=True)
-    PRESERVATION_BUCKET = config(
-        "PRESERVATION_BUCKET"
-    )  # TODO validate access to bucket
-    WORK_PRESERVATION_FILES = distillery.directory_setup(
-        os.path.expanduser(
-            f'{config("WORK_NAS_ARCHIVES_MOUNTPOINT")}/{config("NAS_LOSSLESS_PRESERVATION_FILES_RELATIVE_PATH")}'
-        )
-    ).resolve(strict=True)
-    return (
-        IN_PROCESS_ORIGINAL_FILES,
-        STAGE_3_ORIGINAL_FILES,
-        PRESERVATION_BUCKET,
-        WORK_PRESERVATION_FILES,
-    )

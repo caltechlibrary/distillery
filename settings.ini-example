@@ -48,12 +48,10 @@
 
 ;WORK_LOG_FILES=/path/to/log/files
 
-; INITIAL_ORIGINAL_FILES: (directory) location before any processing; CASC puts collection directories here
+; INITIAL_ORIGINAL_FILES: (directory) location before any processing; CASC puts archival object directories here
 ;INITIAL_ORIGINAL_FILES=/path/to/INITIAL_ORIGINAL_FILES
-; WORKING_ORIGINAL_FILES: (directory) distillery.py moves collection directories here before processing
-;WORKING_ORIGINAL_FILES=/path/to/WORKING_ORIGINAL_FILES
-; STAGE_3_ORIGINAL_FILES: files to be here after processing
-;STAGE_3_ORIGINAL_FILES=/path/to/STAGE_3_DIRECTORY
+; BATCH_SETS_DIRECTORY: distillery.py creates a subdirectory here before processing a set
+;BATCH_SETS_DIRECTORY=/path/to/BATCH_SETS_DIRECTORY
 
 ; Commands
 ; --------
