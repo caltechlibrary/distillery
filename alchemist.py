@@ -442,9 +442,7 @@ def generate_archival_object_page(build_directory, variables):
         extents_display = format_archival_object_extents_display(
             variables["archival_object"]
         )
-        subjects_display = format_archival_object_subjects_display(
-            variables["archival_object"]
-        )
+        subjects = format_archival_object_subjects_display(variables["archival_object"])
         notes_display = format_archival_object_notes_display(
             variables["archival_object"]
         )
@@ -482,7 +480,7 @@ def generate_archival_object_page(build_directory, variables):
                     dates=dates_display,
                     creators=creators_display,
                     extents=extents_display,
-                    subjects=subjects_display,
+                    subjects=subjects,
                     notes=notes_display,
                     archivesspace_public_url=config("ASPACE_PUBLIC_URL"),
                     archival_object_uri=variables["archival_object"]["uri"],
@@ -611,7 +609,7 @@ def generate_iiif_manifest(build_directory, variables):
         metadata.append({"label": "Extents", "value": extents})
     subjects = format_archival_object_subjects_display(variables["archival_object"])
     if subjects:
-        metadata.append({"label": "Subjects", "value": subjects})
+        metadata.append({"label": "Subjects", "value": list(subjects.values())})
     notes = format_archival_object_notes_display(variables["archival_object"])
     description = ""
     attribution = rights_notice_html
@@ -1106,18 +1104,18 @@ def format_archival_object_extents_display(archival_object):
 
 
 def format_archival_object_subjects_display(archival_object):
-    subjects_display = []
+    subjects = {}
     for subject in archival_object["subjects"]:
         if subject["_resolved"]["publish"]:
-            subjects_display.append(subject["_resolved"]["title"])
+            subjects[subject["ref"]] = subject["_resolved"]["title"]
     # TODO check for subjects higher up in the hierarchy
     for linked_agent in archival_object["linked_agents"]:
         if linked_agent["_resolved"]["publish"] and linked_agent["role"] == "subject":
             sort_name = linked_agent["_resolved"]["display_name"]["sort_name"]
             if linked_agent["relator"]:
                 sort_name += f' [{linked_agent_archival_record_relators[linked_agent["relator"]]}]'
-            subjects_display.append(sort_name)
-    return subjects_display
+            subjects[linked_agent["ref"]] = sort_name
+    return subjects
 
 
 def format_archival_object_notes_display(archival_object):

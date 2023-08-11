@@ -394,7 +394,7 @@
         {% if subjects %}
         <dt>Subjects</dt>
         {% for subject in subjects %}
-        <dd>{{ subject }}</dd>
+        <dd><a href="{{ archivesspace_public_url | trim('/') }}{{ subject }}">{{ subjects[subject] }}</a></dd>
         {% endfor %}
         {% endif %}
         {% if notes %}
