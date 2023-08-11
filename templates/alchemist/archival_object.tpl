@@ -382,7 +382,7 @@
         {% if creators %}
         <dt>Creators</dt>
         {% for creator in creators %}
-        <dd>{{ creator }}</dd>
+        <dd><a href="{{ archivesspace_public_url | trim('/') }}{{ creator }}">{{ creators[creator] }}</a></dd>
         {% endfor %}
         {% endif %}
         {% if extents %}

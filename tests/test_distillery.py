@@ -718,8 +718,14 @@ def test_alchemist_linked_agent_output_vdje3(page: Page, asnake_client, timestam
         invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE ALCHEMIST HTML
     page.goto(alchemist_item_uri)
-    expect(page.locator("#metadata")).to_contain_text("[Artistic director]")
-    expect(page.locator("#metadata")).to_contain_text("[Actor]")
+    expect(
+        page.get_by_role(
+            "link", name=f"{test_id.capitalize()}, Published [Artistic director]"
+        )
+    ).to_be_visible()
+    expect(
+        page.get_by_role("link", name=f"{test_id.capitalize()}, Published [Actor]")
+    ).to_be_visible()
     expect(page.locator("#metadata")).not_to_contain_text(
         "unpublished", ignore_case=True
     )
@@ -2116,7 +2122,11 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
     expect(page.locator("#metadata")).to_contain_text("Collection")
     expect(page.locator("#metadata")).to_contain_text("Series")
     expect(page.locator("#metadata")).to_contain_text("Sub-Series")
-    expect(page.locator("#metadata")).to_contain_text("[Artistic director]")
+    expect(
+        page.get_by_role(
+            "link", name=f"{test_id.capitalize()}, Published [Artistic director]"
+        )
+    ).to_be_visible()
     expect(page.get_by_role("link", name="Commencement")).to_be_visible()
     expect(page.get_by_role("link", name="Conferences")).to_be_visible()
     expect(
