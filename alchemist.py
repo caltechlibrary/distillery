@@ -433,9 +433,7 @@ def generate_archival_object_page(build_directory, variables):
             subseries_display = variables["arrangement"]["subseries_title"]
         else:
             subseries_display = variables["arrangement"].get("subseries_display")
-        creators_display = format_archival_object_creators_display(
-            variables["archival_object"]
-        )
+        creators = format_archival_object_creators_display(variables["archival_object"])
         dates_display = format_archival_object_dates_display(
             variables["archival_object"]
         )
@@ -478,7 +476,7 @@ def generate_archival_object_page(build_directory, variables):
                     subseries=subseries_display,
                     subseries_uri=variables["arrangement"]["subseries_uri"],
                     dates=dates_display,
-                    creators=creators_display,
+                    creators=creators,
                     extents=extents_display,
                     subjects=subjects,
                     notes=notes_display,
@@ -603,7 +601,7 @@ def generate_iiif_manifest(build_directory, variables):
         metadata.append({"label": "Dates", "value": dates})
     creators = format_archival_object_creators_display(variables["archival_object"])
     if creators:
-        metadata.append({"label": "Creators", "value": creators})
+        metadata.append({"label": "Creators", "value": list(creators.values())})
     extents = format_archival_object_extents_display(variables["archival_object"])
     if extents:
         metadata.append({"label": "Extents", "value": extents})
@@ -997,14 +995,14 @@ def create_digital_object_file_versions(build_directory, variables):
 
 def format_archival_object_creators_display(archival_object):
     # TODO check for creators higher up in the hierarchy
-    creators_display = []
+    creators = {}
     for linked_agent in archival_object["linked_agents"]:
         if linked_agent["_resolved"]["publish"] and linked_agent["role"] == "creator":
             sort_name = linked_agent["_resolved"]["display_name"]["sort_name"]
             if linked_agent["relator"]:
                 sort_name += f' [{linked_agent_archival_record_relators[linked_agent["relator"]]}]'
-            creators_display.append(sort_name)
-    return creators_display
+            creators[linked_agent["ref"]] = sort_name
+    return creators
 
 
 def format_archival_object_dates_display(archival_object):
