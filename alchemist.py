@@ -342,23 +342,32 @@ class AccessPlatform:
             raise
 
     def regenerate_all(self, variables):
-        collection_prefixes = []
-        archival_object_prefixes = []
         paginator = s3_client.get_paginator("list_objects_v2")
-        for result in paginator.paginate(Bucket=config("ACCESS_BUCKET"), Delimiter="/"):
-            for prefix in result.get("CommonPrefixes"):
-                # store collection_id/
-                collection_prefixes.append(prefix.get("Prefix"))
-                print(prefix.get("Prefix"))
+        collection_prefixes = []
+        for page in paginator.paginate(Bucket=config("ACCESS_BUCKET"), Delimiter="/"):
+            logger.debug(f'🐞 COMMON_PREFIXES: {page.get("CommonPrefixes")}')
+            for top_level_prefix in page.get("CommonPrefixes"):
+                if top_level_prefix.get("Prefix").strip("/") == config(
+                    "ALCHEMIST_URL_PATH_PREFIX"
+                ):
+                    for collection in paginator.paginate(
+                        Bucket=config("ACCESS_BUCKET"),
+                        Delimiter="/",
+                        Prefix=f'{config("ALCHEMIST_URL_PATH_PREFIX")}/',
+                    ):
+                        for prefix in collection.get("CommonPrefixes"):
+                            # store collection_id/
+                            collection_prefixes.append(prefix.get("Prefix"))
+                            logger.debug(f'🐞 COLLECTION_PREFIX: {prefix.get("Prefix")}')
+        archival_object_prefixes = []
         for collection_prefix in collection_prefixes:
-            paginator = s3_client.get_paginator("list_objects_v2")
             for result in paginator.paginate(
                 Bucket=config("ACCESS_BUCKET"), Delimiter="/", Prefix=collection_prefix
             ):
                 for prefix in result.get("CommonPrefixes"):
                     # store collection_id/component_id/
                     archival_object_prefixes.append(prefix.get("Prefix"))
-                    print(prefix.get("Prefix"))
+                    logger.debug(f'🐞 ARCHIVAL_OBJECT_PREFIX: {prefix.get("Prefix")}')
         return archival_object_prefixes
 
 
@@ -472,9 +481,9 @@ def generate_archival_object_page(build_directory, variables):
                     collection=variables["arrangement"].get("collection_title"),
                     collection_uri=variables["arrangement"]["collection_uri"],
                     series=series_display,
-                    series_uri=variables["arrangement"]["series_uri"],
+                    series_uri=variables["arrangement"].get("series_uri"),
                     subseries=subseries_display,
-                    subseries_uri=variables["arrangement"]["subseries_uri"],
+                    subseries_uri=variables["arrangement"].get("subseries_uri"),
                     dates=dates_display,
                     creators=creators,
                     extents=extents_display,
