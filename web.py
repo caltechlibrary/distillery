@@ -38,18 +38,18 @@ def error403(error):
 
 
 @bottle.route("/")
-def distillery_get():
+def distillery_form():
     step = "collecting"
     return bottle.template(
-        "distillery",
+        "distillery_form",
         distillery_base_url=config("DISTILLERY_BASE_URL").rstrip("/"),
         user=authorize_user(),
         step=step,
     )
 
 
-@bottle.route("/", method="POST")
-def distillery_post():
+@bottle.route("/validate", method="POST")
+def distillery_validate():
     try:
         distillery_work_server_connection = rpyc.connect(
             config("WORK_HOSTNAME"), config("DISTILLERY_RPYC_PORT")
@@ -58,45 +58,69 @@ def distillery_post():
         return f'<h1>Connection Refused</h1><p>There was a problem connecting to <code>{config("WORK_HOSTNAME")}</code>. Please contact {config("DISTILLERY_DEVELOPER_CONTACT", default="Digital Library Development")} for assistance.</p>'
     except:
         raise
-    if bottle.request.forms.get("step") == "validating":
-        step = "validating"
-        destinations = {}
-        # NOTE using getall() wraps single and multiple values in a list
-        for destination in bottle.request.forms.getall("destinations"):
-            if destination in ["cloud", "onsite", "access"]:
-                destinations[destination] = True
-        if destinations.get("access"):
-            destinations["access"] = {}
-            destinations["access"]["file_versions_op"] = bottle.request.forms.get(
-                "file_versions_op"
-            )
-            destinations["access"]["thumbnail_label"] = bottle.request.forms.get(
-                "thumbnail_label"
-            )
-        # asynchronously validate on WORK server
-        distillery_validate = rpyc.async_(
-            distillery_work_server_connection.root.validate
+    destinations = {}
+    batch_set_id = str(time.time())
+    # NOTE using getall() wraps single and multiple values in a list
+    for destination in bottle.request.forms.getall("destinations"):
+        if destination in ["cloud", "onsite", "access"]:
+            destinations[destination] = True
+    if destinations.get("access"):
+        destinations["access"] = {}
+        destinations["access"]["file_versions_op"] = bottle.request.forms.get(
+            "file_versions_op"
         )
-        async_result = distillery_validate(json.dumps(destinations))
-    if bottle.request.forms.get("step") == "running":
-        step = "running"
-        destinations = json.loads(bottle.request.forms.get("destinations"))
-        # asynchronously run on WORK server
-        distillery_run = rpyc.async_(distillery_work_server_connection.root.run)
-        async_result = distillery_run(json.dumps(destinations))
+        destinations["access"]["thumbnail_label"] = bottle.request.forms.get(
+            "thumbnail_label"
+        )
+    # asynchronously validate on WORK server
+    distillery_validate = rpyc.async_(distillery_work_server_connection.root.validate)
+    async_result = distillery_validate(json.dumps(destinations), batch_set_id)
     return bottle.template(
-        "distillery",
+        "distillery_validate",
         distillery_base_url=config("DISTILLERY_BASE_URL").rstrip("/"),
         user=authorize_user(),
-        step=step,
         destinations=json.dumps(destinations),
+        batch_set_id=batch_set_id,
     )
 
 
-@bottle.route("/log")
-def log():
+@bottle.route("/validate/log/<batch_set_id>")
+def distillery_validate_log(batch_set_id):
     with open(
-        Path(config("WEB_STATUS_FILES")).joinpath("status.log"),
+        Path(config("WEB_STATUS_FILES")).joinpath(f"{batch_set_id}.validate.log"),
+        encoding="utf-8",
+    ) as f:
+        return bottle.template("distillery_log", log=f.readlines())
+
+
+@bottle.route("/run", method="POST")
+def distillery_run():
+    try:
+        distillery_work_server_connection = rpyc.connect(
+            config("WORK_HOSTNAME"), config("DISTILLERY_RPYC_PORT")
+        )
+    except ConnectionRefusedError:
+        return f'<h1>Connection Refused</h1><p>There was a problem connecting to <code>{config("WORK_HOSTNAME")}</code>. Please contact {config("DISTILLERY_DEVELOPER_CONTACT", default="Digital Library Development")} for assistance.</p>'
+    except:
+        raise
+    destinations = json.loads(bottle.request.forms.get("destinations"))
+    batch_set_id = bottle.request.forms.get("batch_set_id")
+    # asynchronously run on WORK server
+    distillery_run = rpyc.async_(distillery_work_server_connection.root.run)
+    async_result = distillery_run(json.dumps(destinations), batch_set_id)
+    return bottle.template(
+        "distillery_run",
+        distillery_base_url=config("DISTILLERY_BASE_URL").rstrip("/"),
+        user=authorize_user(),
+        destinations=json.dumps(destinations),
+        batch_set_id=batch_set_id,
+    )
+
+
+@bottle.route("/run/log/<batch_set_id>")
+def distillery_run_log(batch_set_id):
+    with open(
+        Path(config("WEB_STATUS_FILES")).joinpath(f"{batch_set_id}.run.log"),
         encoding="utf-8",
     ) as f:
         return bottle.template("distillery_log", log=f.readlines())
