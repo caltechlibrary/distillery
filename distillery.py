@@ -101,12 +101,23 @@ class DistilleryService(rpyc.Service):
                 raise
 
     @rpyc.exposed
-    def validate(self, destinations):
+    def validate(self, destinations, batch_set_id):
         """Validate connections, files, and data."""
 
         # reset status_logfile
-        with open(status_logfile, "w") as f:
-            pass
+        status_logger = logging.getLogger("status")
+        for status_logger_handler in status_logger.handlers[:]:
+            # remove the existing file handlers
+            if isinstance(status_logger_handler, logging.FileHandler):
+                status_logger.removeHandler(status_logger_handler)
+        # set the new handler
+        status_logfile = Path(config("WORK_STATUS_FILES")).joinpath(
+            f"{batch_set_id}.validate.log"
+        )
+        status_handler = logging.FileHandler(status_logfile)
+        status_handler.setLevel(logging.INFO)
+        status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
+        status_logger.addHandler(status_handler)
 
         self._initiate_variables(destinations)
 
@@ -254,21 +265,31 @@ class DistilleryService(rpyc.Service):
 
         # send the character that stops javascript reloading in the web ui
         status_logger.info(f"🈺")  # Japanese “Open for Business” Button
-        # copy the status_logfile to the logs directory
-        logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(
-            f"{str(int(time.time()))}.validate.log"
+        # move the status_logfile to the logs directory
+        shutil.move(status_logfile, Path(config("WORK_LOG_FILES")))
+        logger.info(
+            f'☑️  MOVED VALIDATE LOG FILE: {Path(config("WORK_LOG_FILES")).joinpath(status_logfile.name)}'
         )
-        shutil.copy2(status_logfile, logfile_dst)
-        logger.info(f"☑️  COPIED VALIDATE LOG FILE: {logfile_dst}")
 
     @rpyc.exposed
-    def run(self, destinations):
+    def run(self, destinations, batch_set_id):
         """Run Distillery."""
+
         # reset status_logfile
-        with open(status_logfile, "w") as f:
-            pass
-        batch_set_timestamp = str(time.time())
-        logger.debug(f"🐞 BATCH_SET_TIMESTAMP: {batch_set_timestamp}")
+        status_logger = logging.getLogger("status")
+        for status_logger_handler in status_logger.handlers[:]:
+            # remove the existing file handlers
+            if isinstance(status_logger_handler, logging.FileHandler):
+                status_logger.removeHandler(status_logger_handler)
+        # set the new handler
+        status_logfile = Path(config("WORK_STATUS_FILES")).joinpath(
+            f"{batch_set_id}.run.log"
+        )
+        status_handler = logging.FileHandler(status_logfile)
+        status_handler.setLevel(logging.INFO)
+        status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
+        status_logger.addHandler(status_handler)
+
         try:
             self._initiate_variables(destinations)
             status_logger.info(f"🟢 BEGIN DISTILLING")
@@ -286,7 +307,7 @@ class DistilleryService(rpyc.Service):
 
             try:
                 batch_directory = Path(config("BATCH_SETS_DIRECTORY")).joinpath(
-                    batch_set_timestamp
+                    batch_set_id
                 )
                 batch_directory.mkdir(parents=True, exist_ok=True)
                 Path(config("INITIAL_ORIGINAL_FILES")).rename(
@@ -581,12 +602,11 @@ class DistilleryService(rpyc.Service):
         else:
             # send the character that stops javascript reloading in the web ui
             status_logger.info(f"🏁")
-            # copy the status_logfile to the logs directory
-            logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(
-                f"{batch_set_timestamp}.run.log"
+            # move the status_logfile to the logs directory
+            shutil.move(status_logfile, Path(config("WORK_LOG_FILES")))
+            logger.info(
+                f'☑️  MOVED RUN LOG FILE: {Path(config("WORK_LOG_FILES")).joinpath(status_logfile.name)}'
             )
-            shutil.copy2(status_logfile, logfile_dst)
-            logger.info(f"☑️  COPIED RUN LOG FILE: {logfile_dst}")
             # TODO delete PRESERVATION_FILES/CollectionID directory
 
     @rpyc.exposed

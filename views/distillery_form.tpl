@@ -52,7 +52,6 @@
       <h1>Distillery</h1>
     </header>
     <hr>
-    % if step == "collecting":
     <script>
       function validateCheckboxGroup() {
         var form_data = new FormData(document.querySelector("form"));
@@ -68,7 +67,7 @@
         return true;
       }
     </script>
-    <form action="{{distillery_base_url}}" method="post" onsubmit="return validateCheckboxGroup()">
+    <form action="{{distillery_base_url}}/validate" method="post" onsubmit="return validateCheckboxGroup()">
       <div role="group" aria-labelledby="checkbox-group">
         <h2 id="checkbox-group">Destinations</h2>
         <p class="required">Select at least one destination for the available files.</p>
@@ -101,7 +100,6 @@
           </fieldset>
         </div>
       </div>
-      <input type="hidden" id="step" name="step" value="validating">
       <button>Validate</button>
       <script>
         const accessCheckbox = document.querySelector('input[value="access"]');
@@ -113,71 +111,6 @@
         accessCheckbox.addEventListener('change', handleAccessCheckbox);
       </script>
     </form>
-    % elif step == "validating":
-    <p>Validating metadata, files, and destinations.</p>
-    % elif step == "running":
-    <p>Processing metadata and files.</p>
-    % end
-    % if step == "validating" or step == "running":
-    <details>
-      <summary>Details</summary>
-      <iframe src="{{distillery_base_url}}/log"></iframe>
-    </details>
-    % if step == "validating":
-    <form action="{{distillery_base_url}}" method="post">
-      <input type="hidden" id="destinations" name="destinations" value="{{destinations}}">
-      <input type="hidden" id="step" name="step" value="running">
-      <div class="grid">
-        <button aria-busy="true" disabled>Validating…</button>
-        <div id="cancel"><a href="{{distillery_base_url}}">Cancel</a></div>
-      </div>
-    </form>
-    % elif step == "running":
-    <div><a href="{{distillery_base_url}}">back to form</a></div>
-    % end
-    <script>
-      const p = document.getElementsByTagName('p')[0];
-      const iframe = document.getElementsByTagName('iframe')[0];
-      const button = document.getElementsByTagName('button')[0];
-      const details = document.getElementsByTagName('details')[0];
-      let id;
-
-      function reloadIframe() {
-        iframe.contentDocument.location.reload();
-        let text = iframe.contentDocument.body.innerText;
-        if (text.indexOf('❌') !== -1) {
-          clearInterval(id);
-          if (p) {
-            p.innerHTML = "❌ Something went wrong. View the details for more information.";
-          }
-          if (button) {
-            button.innerHTML = "❌ Failure";
-            button.setAttribute("aria-busy", false);
-          }
-        } else if (text.indexOf('🈺') != -1 || text.indexOf('🏁') != -1) {
-          clearInterval(id);
-          if (p) {
-            p.innerHTML = p.innerHTML.replace("Validating", "✅ Validated");
-            p.innerHTML = p.innerHTML.replace("Processing", "✅ Processed");
-          }
-          if (button) {
-            button.innerHTML = "Run 🚀";
-            button.setAttribute("aria-busy", false);
-            button.disabled = false;
-          }
-        }
-        iframe.style.height = iframe.contentDocument.body.scrollHeight + 48 + 'px';
-        iframe.contentWindow.scrollTo(0, iframe.contentDocument.body.scrollHeight);
-      }
-
-      function updateIframe() {
-        requestAnimationFrame(reloadIframe);
-      }
-
-      details.addEventListener('toggle', updateIframe);
-      id = setInterval(updateIframe, 1000);
-    </script>
-    % end
     <hr>
     <footer>
       <nav id="user">
