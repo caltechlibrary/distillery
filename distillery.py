@@ -404,7 +404,7 @@ class DistilleryService(rpyc.Service):
                         self.variables
                     )
                     status_logger.info(
-                        "☑️  ACCESS PAGE CREATED: [**{}**]({}/{}/{}/index.html)".format(
+                        "☑️  ACCESS PAGE CREATED: [**{}**]({}/{}/{}/{})".format(
                             self.variables["archival_object"]["component_id"],
                             config("ACCESS_SITE_BASE_URL").rstrip("/"),
                             config("ALCHEMIST_URL_PATH_PREFIX"),
@@ -824,7 +824,7 @@ def create_derivative_structure(
             # NOTE working on variables["archival_object"]["component_id"]
             access.transfer_archival_object_derivative_files(variables)
             status_logger.info(
-                "☑️  ACCESS PAGE CREATED: [**{}**]({}/{}/{}/index.html)".format(
+                "☑️  ACCESS PAGE CREATED: [**{}**]({}/{}/{}/{})".format(
                     variables["archival_object"]["component_id"],
                     config("ACCESS_SITE_BASE_URL").rstrip("/"),
                     config("ALCHEMIST_URL_PATH_PREFIX"),
