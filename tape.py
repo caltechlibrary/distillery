@@ -327,8 +327,3 @@ def process_during_original_files_loop(variables):
     if variables["step"] == "save_tape_info_to_archivesspace":
         # Add file versions.
         pass
-
-
-def process_during_original_structure_loop(variables):
-    """Called inside create_derivative_structure function."""
-    pass
