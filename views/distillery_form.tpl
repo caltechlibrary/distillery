@@ -18,22 +18,7 @@
       margin-block-end: revert;
     }
     h2 { margin-block: revert; }
-    input[type=text] { margin-block-end: revert; }
     :where(input) + small { margin-block-start: revert; }
-    details {border-block-end: none; }
-    iframe {
-      margin-block-end: var(--spacing);
-      max-height: 40vh;
-      width: 100%;
-    }
-    #cancel {
-      display: flex;
-      margin-block-end: var(--spacing);
-    }
-    #cancel > a {
-      align-self: center;
-      margin: auto;
-    }
     #user [role=button] { white-space: nowrap; }
     @media (min-width: 992px) {
       main > * {
