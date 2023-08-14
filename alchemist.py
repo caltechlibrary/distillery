@@ -3,11 +3,13 @@
 
 import json
 import logging
+import mimetypes
 import os
 import subprocess
 import tempfile
 import time
 
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import boto3
@@ -309,9 +311,13 @@ linked_agent_archival_record_relators = {
 rights_notice_html = '<p>These digitized collections are accessible for purposes of education and research. Due to the nature of archival collections, archivists at the Caltech Archives and Special Collections are not always able to identify copyright and rights of privacy, publicity, or trademark. We are eager to <a href="mailto:archives@caltech.edu">hear from any rights holders</a>, so that we may obtain accurate information. Upon request, we’ll remove material from public view while we address a rights issue.</p>'
 
 
+# TODO rename class to Publisher?
 class AccessPlatform:
     def __init__(self):
         self.build_directory = tempfile.TemporaryDirectory()
+
+    def get_build_directory(self):
+        return self.build_directory
 
     def collection_structure_processing(self):
         # TODO build html metadata/thumbnail page?
@@ -688,66 +694,33 @@ def generate_iiif_manifest(build_directory, variables):
                     "sequences": [{"@type": "sc:Sequence", "canvases": []}],
                 }
             )
-            for filepath in sorted(variables["filepaths"]):
-                # create canvas metadata
-                dimensions = (
-                    os.popen(
-                        f'{config("WORK_MAGICK_CMD")} identify -format "%w*%h" {filepath}'
-                    )
-                    .read()
-                    .strip()
-                    .split("*")
-                )
-                canvas_id = "/".join(
-                    [
-                        config("ACCESS_SITE_BASE_URL").rstrip("/"),
-                        config("ALCHEMIST_URL_PATH_PREFIX"),
-                        variables["arrangement"]["collection_id"],
-                        variables["archival_object"]["component_id"],
-                        "canvas",
-                        f"{Path(filepath).stem}",
-                    ]
-                )
-                escaped_identifier = "/".join(
-                    [
-                        config("ALCHEMIST_URL_PATH_PREFIX"),
-                        variables["arrangement"]["collection_id"],
-                        variables["archival_object"]["component_id"],
-                        f"{Path(filepath).stem}",
-                    ]
-                )
-                service_id = "/".join(
-                    [config("ACCESS_IIIF_ENDPOINT").rstrip("/"), escaped_identifier]
-                )
-                resource_id = service_id + "/full/max/0/default.jpg"
-                canvas = {
-                    "@type": "sc:Canvas",
-                    "@id": canvas_id,
-                    "label": Path(filepath).stem.split("_")[-1].lstrip("0"),
-                    "width": dimensions[0],
-                    "height": dimensions[1],
-                    "images": [
-                        {
-                            "@type": "oa:Annotation",
-                            "motivation": "sc:painting",
-                            "on": canvas_id,
-                            "resource": {
-                                "@type": "dctypes:Image",
-                                "@id": resource_id,
-                                "service": {
-                                    "@context": "http://iiif.io/api/image/2/context.json",
-                                    "@id": service_id,
-                                    "profile": "http://iiif.io/api/image/2/level2.json",
-                                },  # optional?
-                            },
-                        }
-                    ],
-                }
-                if variables["thumbnail_label"] == "filename":
-                    canvas["label"] = Path(filepath).stem
-                logger.debug(f"🐞 CANVAS: {canvas}")
-                # add canvas to sequences
-                manifest["sequences"][0]["canvases"].append(canvas)
+            logger.debug(f'🐞 sorted(variables["filepaths"]): {sorted(variables["filepaths"])}')
+            logger.debug(f"🐞 BEFORE PROCESSPOOLEXECUTOR")
+            # blah = {"blah": "blah"}
+            # # start the process pool
+            # with ProcessPoolExecutor() as executor:
+            #     # submit tasks and collect futures
+            #     logger.debug(f'🐞 VARIABLES: {variables}')
+            #     futures = [executor.submit(task, i, variables["arrangement"]["collection_id"], variables["archival_object"]["component_id"], variables["thumbnail_label"]) for i in range(10)]
+            #     # process task results in the order they were submitted
+            #     for future in futures:
+            #         # retrieve the result
+            #         print(future.result())
+            #         logger.debug(f"🐞 FUTURE.RESULT(): {future.result()}")
+            with ProcessPoolExecutor() as executor:
+                logger.debug(f"🐞 INSIDE PROCESSPOOLEXECUTOR")
+                futures = [
+                    executor.submit(create_canvas_metadata, f, variables)
+                    for f in sorted(variables["filepaths"])
+                ]
+                logger.debug(f"🐞 FUTURES {futures}")
+                # maintain the order of the filepaths
+                for future in futures:
+                    logger.debug(f"🐞 CANVAS: {future.result()}")
+                    # add canvas to sequences
+                    manifest["sequences"][0]["canvases"].append(future.result())
+                logger.debug(f"🐞 AFTER FUTURES")
+            logger.debug(f"🐞 AFTER PROCESSPOOLEXECUTOR")
 
         # save manifest file
         manifest_file = Path(build_directory.name).joinpath(
@@ -762,9 +735,81 @@ def generate_iiif_manifest(build_directory, variables):
             "w",
         ) as f:
             f.write(json.dumps(manifest, indent=4))
+        logger.info(f"✨ MANIFEST FILE GENERATED: {manifest_file}")
     except Exception as e:
         logger.exception(e)
         raise
+
+
+from time import sleep
+from random import random
+# custom task that will sleep for a variable amount of time
+def task(name, collection_id, component_id, thumbnail_label):
+    logger.debug(f"🐞 INSIDE TASK")
+    logger.debug(f"🐞 COLLECTION_ID: {collection_id}")
+    logger.debug(f"🐞 COMPONENT_ID: {component_id}")
+    logger.debug(f"🐞 THUMBNAIL_LABEL: {thumbnail_label}")
+    # sleep for less than a second
+    sleep(random())
+    return name
+
+def create_canvas_metadata(filepath, variables):
+    print(f"🐞 print INSIDE CREATE_CANVAS_METADATA")
+    logger.debug(f"🐞 INSIDE CREATE_CANVAS_METADATA")
+    dimensions = (
+        os.popen(f'{config("WORK_MAGICK_CMD")} identify -format "%w*%h" {filepath}')
+        .read()
+        .strip()
+        .split("*")
+    )
+    canvas_id = "/".join(
+        [
+            config("ACCESS_SITE_BASE_URL").rstrip("/"),
+            config("ALCHEMIST_URL_PATH_PREFIX"),
+            variables["arrangement"]["collection_id"],
+            variables["archival_object"]["component_id"],
+            "canvas",
+            f"{Path(filepath).stem}",
+        ]
+    )
+    escaped_identifier = "/".join(
+        [
+            config("ALCHEMIST_URL_PATH_PREFIX"),
+            variables["arrangement"]["collection_id"],
+            variables["archival_object"]["component_id"],
+            f"{Path(filepath).stem}",
+        ]
+    )
+    service_id = "/".join(
+        [config("ACCESS_IIIF_ENDPOINT").rstrip("/"), escaped_identifier]
+    )
+    resource_id = service_id + "/full/max/0/default.jpg"
+    canvas = {
+        "@type": "sc:Canvas",
+        "@id": canvas_id,
+        "label": Path(filepath).stem.split("_")[-1].lstrip("0"),
+        "width": dimensions[0],
+        "height": dimensions[1],
+        "images": [
+            {
+                "@type": "oa:Annotation",
+                "motivation": "sc:painting",
+                "on": canvas_id,
+                "resource": {
+                    "@type": "dctypes:Image",
+                    "@id": resource_id,
+                    "service": {
+                        "@context": "http://iiif.io/api/image/2/context.json",
+                        "@id": service_id,
+                        "profile": "http://iiif.io/api/image/2/level2.json",
+                    },  # optional?
+                },
+            }
+        ],
+    }
+    if variables["thumbnail_label"] == "filename":
+        canvas["label"] = Path(filepath).stem
+    return canvas
 
 
 def upload_iiif_manifest(build_directory, variables):
@@ -799,6 +844,37 @@ def upload_iiif_manifest(build_directory, variables):
     except Exception as e:
         logger.exception(e)
         raise
+
+def loop_over_archival_object_directory_files(build_directory, variables):
+    """Concurrently process files in the archival object directory."""
+    logger.debug(f"🐞 INSIDE LOOP_OVER_ARCHIVAL_OBJECT_DIRECTORY_FILES")
+    with ProcessPoolExecutor() as executor:
+        logger.debug(f"🐞 INSIDE PROCESSPOOLEXECUTOR")
+        futures = [
+            executor.submit(conditional_derivative_file_processing, f, build_directory, variables)
+            for f in variables["filepaths"]
+        ]
+        logger.debug(f"🐞 ALL TASKS ARE DONE AFTER EXECUTOR.SUBMIT")
+    logger.info(
+        f'☑️  DERIVATIVE FILE PROCESSING COMPLETE: {variables["archival_object"]["component_id"]}'
+    )
+
+def conditional_derivative_file_processing(filepath, build_directory, variables):
+    logger.debug(f"🐞 INSIDE CONDITIONAL_DERIVATIVE_FILE_PROCESSING")
+    # TODO rename to variables["original_file_path"]
+    variables["original_image_path"] = filepath
+
+    type, encoding = mimetypes.guess_type(variables["original_image_path"])
+
+    if type.startswith("image/"):
+        logger.debug(f'🐞 BEFORE CREATE_PYRAMID_TIFF: {variables["original_image_path"]}')
+        create_pyramid_tiff(build_directory, variables)
+    else:
+        logger.error(
+            "❌ ONLY IMAGE FILES ARE SUPPORTED AT THIS TIME: {}".format(
+                variables["original_image_path"]
+            )
+        )
 
 
 def create_pyramid_tiff(build_directory, variables):
