@@ -417,10 +417,11 @@ class DistilleryService(rpyc.Service):
                     accessDistiller.archival_object_level_processing(self.variables)
                     # TODO create derivative files
                     build_directory = accessDistiller.get_build_directory()
-                    self.access_platform.loop_over_archival_object_directory_files(build_directory, self.variables)
+                    self.access_platform.loop_over_archival_object_directory_files(
+                        build_directory, self.variables
+                    )
                     # TODO transfer derivative files
                     # TODO create digital_object records
-
 
                 if accessDistiller:
                     # NOTE working on variables["archival_object"]["component_id"]
@@ -1654,7 +1655,6 @@ def conditional_derivative_file_processing(filepath, variables):
                 )
             else:
                 status_logger.info(f"☑️  ORIGINAL FILE COPIED: {preservation_file_key}")
-
 
 
 if __name__ == "__main__":

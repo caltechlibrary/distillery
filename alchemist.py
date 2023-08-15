@@ -694,7 +694,9 @@ def generate_iiif_manifest(build_directory, variables):
                     "sequences": [{"@type": "sc:Sequence", "canvases": []}],
                 }
             )
-            logger.debug(f'🐞 sorted(variables["filepaths"]): {sorted(variables["filepaths"])}')
+            logger.debug(
+                f'🐞 sorted(variables["filepaths"]): {sorted(variables["filepaths"])}'
+            )
             logger.debug(f"🐞 BEFORE PROCESSPOOLEXECUTOR")
             # blah = {"blah": "blah"}
             # # start the process pool
@@ -743,6 +745,7 @@ def generate_iiif_manifest(build_directory, variables):
 
 from time import sleep
 from random import random
+
 # custom task that will sleep for a variable amount of time
 def task(name, collection_id, component_id, thumbnail_label):
     logger.debug(f"🐞 INSIDE TASK")
@@ -752,6 +755,7 @@ def task(name, collection_id, component_id, thumbnail_label):
     # sleep for less than a second
     sleep(random())
     return name
+
 
 def create_canvas_metadata(filepath, variables):
     print(f"🐞 print INSIDE CREATE_CANVAS_METADATA")
@@ -845,19 +849,23 @@ def upload_iiif_manifest(build_directory, variables):
         logger.exception(e)
         raise
 
+
 def loop_over_archival_object_directory_files(build_directory, variables):
     """Concurrently process files in the archival object directory."""
     logger.debug(f"🐞 INSIDE LOOP_OVER_ARCHIVAL_OBJECT_DIRECTORY_FILES")
     with ProcessPoolExecutor() as executor:
         logger.debug(f"🐞 INSIDE PROCESSPOOLEXECUTOR")
         futures = [
-            executor.submit(conditional_derivative_file_processing, f, build_directory, variables)
+            executor.submit(
+                conditional_derivative_file_processing, f, build_directory, variables
+            )
             for f in variables["filepaths"]
         ]
         logger.debug(f"🐞 ALL TASKS ARE DONE AFTER EXECUTOR.SUBMIT")
     logger.info(
         f'☑️  DERIVATIVE FILE PROCESSING COMPLETE: {variables["archival_object"]["component_id"]}'
     )
+
 
 def conditional_derivative_file_processing(filepath, build_directory, variables):
     logger.debug(f"🐞 INSIDE CONDITIONAL_DERIVATIVE_FILE_PROCESSING")
@@ -867,7 +875,9 @@ def conditional_derivative_file_processing(filepath, build_directory, variables)
     type, encoding = mimetypes.guess_type(variables["original_image_path"])
 
     if type.startswith("image/"):
-        logger.debug(f'🐞 BEFORE CREATE_PYRAMID_TIFF: {variables["original_image_path"]}')
+        logger.debug(
+            f'🐞 BEFORE CREATE_PYRAMID_TIFF: {variables["original_image_path"]}'
+        )
         create_pyramid_tiff(build_directory, variables)
     else:
         logger.error(
