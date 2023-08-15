@@ -178,26 +178,35 @@ class DistilleryService(rpyc.Service):
             logger.debug(
                 f"🐞 dirpath: {dirpath}; dirnames: {dirnames}; filenames: {filenames}"
             )
+            validation_failure = False
             for dirname in dirnames:
-                # check archival_object status
-                # TODO raise exception after looping through all directories
-                #   in order to report all problems instead of just one
+                # check archival_object status; raise exception only after
+                # checking all directories
+                status_logger.info(f"📁 {dirname}")
                 archival_object = find_archival_object(dirname)
                 if not archival_object:
-                    message = f"❌ NO ARCHIVAL OBJECT FOUND FOR: {dirname}"
+                    message = f"‼️  NO ARCHIVAL OBJECT FOUND FOR: {dirname}"
                     status_logger.error(message)
-                    raise RuntimeError(message)
+                    validation_failure = True
                 elif not archival_object["publish"] and self.access_platform:
-                    message = f'❌ ARCHIVAL OBJECT NOT PUBLISHED: [**{archival_object["title"]}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={archival_object["uri"]})'
+                    message = "‼️  ARCHIVAL OBJECT NOT PUBLISHED: [**{}**]({}/resolve/readonly?uri={})".format(
+                        archival_object["title"],
+                        config("ASPACE_STAFF_URL"),
+                        archival_object["uri"],
+                    )
                     status_logger.error(message)
-                    raise ValueError(message)
+                    validation_failure = True
                 elif (
                     archival_object["has_unpublished_ancestor"] and self.access_platform
                 ):
-                    message = f'❌ ARCHIVAL OBJECT HAS UNPUBLISHED ANCESTOR: [**{archival_object["title"]}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={archival_object["uri"]})'
+                    message = "‼️  ARCHIVAL OBJECT HAS UNPUBLISHED ANCESTOR: [**{}**]({}/resolve/readonly?uri={})".format(
+                        archival_object["title"],
+                        config("ASPACE_STAFF_URL"),
+                        archival_object["uri"],
+                    )
                     status_logger.error(message)
-                    raise ValueError(message)
-                # raise for existing digital_object["file_versions"]
+                    validation_failure = True
+                # check for existing digital_object["file_versions"]
                 elif bool(archival_object.get("instances")) and self.access_platform:
                     for instance in archival_object["instances"]:
                         if "digital_object" not in instance.keys():
@@ -211,13 +220,13 @@ class DistilleryService(rpyc.Service):
                             )
                             and "fail" in self.destinations
                         ):
-                            message = "❌ DIGITAL OBJECT ALREADY HAS FILE VERSIONS: [**{}**]({}/resolve/readonly?uri={})".format(
+                            message = "‼️  DIGITAL OBJECT ALREADY HAS FILE VERSIONS: [**{}**]({}/resolve/readonly?uri={})".format(
                                 instance["digital_object"]["_resolved"]["title"],
                                 config("ASPACE_STAFF_URL"),
                                 instance["digital_object"]["ref"],
                             )
                             status_logger.error(message)
-                            raise ValueError(message)
+                            validation_failure = True
                         elif (
                             bool(
                                 instance["digital_object"]["_resolved"].get(
@@ -246,9 +255,12 @@ class DistilleryService(rpyc.Service):
                                 instance["digital_object"]["ref"],
                             )
                             status_logger.warning(message)
-                # count and list initial directories
+                # count initial directories
                 initial_original_directorycount += 1
-                status_logger.info(f"📁 {dirname}")
+            if validation_failure:
+                message = "❌ VALIDATION FAILURE"
+                status_logger.error(message)
+                raise RuntimeError(message)
             for filename in filenames:
                 # count files
                 if filename not in [".DS_Store", "Thumbs.db"]:
