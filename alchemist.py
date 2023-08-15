@@ -1168,7 +1168,7 @@ def format_archival_object_dates_display(archival_object):
                             None,
                             [
                                 date.get("begin")[:4],
-                                months[date.get("begin")[5:7]],
+                                months.get(date.get("begin")[5:7], ""),
                                 date.get("begin")[8:10].lstrip("0"),
                             ],
                         )
