@@ -697,32 +697,16 @@ def generate_iiif_manifest(build_directory, variables):
             logger.debug(
                 f'🐞 sorted(variables["filepaths"]): {sorted(variables["filepaths"])}'
             )
-            logger.debug(f"🐞 BEFORE PROCESSPOOLEXECUTOR")
-            # blah = {"blah": "blah"}
-            # # start the process pool
-            # with ProcessPoolExecutor() as executor:
-            #     # submit tasks and collect futures
-            #     logger.debug(f'🐞 VARIABLES: {variables}')
-            #     futures = [executor.submit(task, i, variables["arrangement"]["collection_id"], variables["archival_object"]["component_id"], variables["thumbnail_label"]) for i in range(10)]
-            #     # process task results in the order they were submitted
-            #     for future in futures:
-            #         # retrieve the result
-            #         print(future.result())
-            #         logger.debug(f"🐞 FUTURE.RESULT(): {future.result()}")
             with ProcessPoolExecutor() as executor:
-                logger.debug(f"🐞 INSIDE PROCESSPOOLEXECUTOR")
                 futures = [
                     executor.submit(create_canvas_metadata, f, variables)
                     for f in sorted(variables["filepaths"])
                 ]
-                logger.debug(f"🐞 FUTURES {futures}")
                 # maintain the order of the filepaths
                 for future in futures:
                     logger.debug(f"🐞 CANVAS: {future.result()}")
                     # add canvas to sequences
                     manifest["sequences"][0]["canvases"].append(future.result())
-                logger.debug(f"🐞 AFTER FUTURES")
-            logger.debug(f"🐞 AFTER PROCESSPOOLEXECUTOR")
 
         # save manifest file
         manifest_file = Path(build_directory.name).joinpath(
@@ -746,20 +730,7 @@ def generate_iiif_manifest(build_directory, variables):
 from time import sleep
 from random import random
 
-# custom task that will sleep for a variable amount of time
-def task(name, collection_id, component_id, thumbnail_label):
-    logger.debug(f"🐞 INSIDE TASK")
-    logger.debug(f"🐞 COLLECTION_ID: {collection_id}")
-    logger.debug(f"🐞 COMPONENT_ID: {component_id}")
-    logger.debug(f"🐞 THUMBNAIL_LABEL: {thumbnail_label}")
-    # sleep for less than a second
-    sleep(random())
-    return name
-
-
 def create_canvas_metadata(filepath, variables):
-    print(f"🐞 print INSIDE CREATE_CANVAS_METADATA")
-    logger.debug(f"🐞 INSIDE CREATE_CANVAS_METADATA")
     dimensions = (
         os.popen(f'{config("WORK_MAGICK_CMD")} identify -format "%w*%h" {filepath}')
         .read()
@@ -850,34 +821,27 @@ def upload_iiif_manifest(build_directory, variables):
         raise
 
 
-def loop_over_archival_object_directory_files(build_directory, variables):
-    """Concurrently process files in the archival object directory."""
-    logger.debug(f"🐞 INSIDE LOOP_OVER_ARCHIVAL_OBJECT_DIRECTORY_FILES")
+def loop_over_archival_object_files(build_directory, variables):
+    """Concurrently process files in the filepaths list."""
     with ProcessPoolExecutor() as executor:
-        logger.debug(f"🐞 INSIDE PROCESSPOOLEXECUTOR")
         futures = [
             executor.submit(
                 conditional_derivative_file_processing, f, build_directory, variables
             )
             for f in variables["filepaths"]
         ]
-        logger.debug(f"🐞 ALL TASKS ARE DONE AFTER EXECUTOR.SUBMIT")
     logger.info(
         f'☑️  DERIVATIVE FILE PROCESSING COMPLETE: {variables["archival_object"]["component_id"]}'
     )
 
 
 def conditional_derivative_file_processing(filepath, build_directory, variables):
-    logger.debug(f"🐞 INSIDE CONDITIONAL_DERIVATIVE_FILE_PROCESSING")
     # TODO rename to variables["original_file_path"]
     variables["original_image_path"] = filepath
 
     type, encoding = mimetypes.guess_type(variables["original_image_path"])
 
     if type.startswith("image/"):
-        logger.debug(
-            f'🐞 BEFORE CREATE_PYRAMID_TIFF: {variables["original_image_path"]}'
-        )
         create_pyramid_tiff(build_directory, variables)
     else:
         logger.error(

@@ -39,7 +39,7 @@ def distillery_0000_reset_files():
         shutil.move(d, config("TEST_FILES", default="tests/files"))
     for batch in glob.glob(os.path.join(config("BATCH_SETS_DIRECTORY"), "*/")):
         for stage in glob.glob(os.path.join(batch, "*/")):
-            for i in glob.glob(os.path.join(stage, "*/")):
+            for i in glob.glob(os.path.join(stage, "*")):
                 shutil.move(i, config("TEST_FILES", default="tests/files"))
         os.system(f"/bin/rm -r {batch}")
     for d in glob.glob(os.path.join(config("WORK_PRESERVATION_FILES"), "*/")):
@@ -1657,6 +1657,98 @@ def test_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_client):
                 f"http://example.org/{item_component_id}"
             ):
                 assert file_version["publish"] is False
+
+
+def test_alchemist_imageitems_alone_b74ya(page: Page, asnake_client):
+    """Publish single-image archival objects."""
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(
+        "test_alchemist_imageitems_alone_b74y1.jpg"
+    )
+    move_test_files_to_initial_original_files_directory(
+        "test_alchemist_imageitems_alone_b74y2.jpg"
+    )
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, test_id)
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_name, test_id
+    )
+    print(
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD 1
+    (
+        item_create_response1,
+        item_component_id1,
+    ) = create_archivesspace_test_archival_object_item(
+        asnake_client,
+        "test_alchemist_imageitems_alone_b74y1",
+        "b74y1",
+        resource_create_response.json()["uri"],
+    )
+    print(
+        "🐞 item_create_response1:b74y1",
+        item_create_response1.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD 2
+    (
+        item_create_response2,
+        item_component_id2,
+    ) = create_archivesspace_test_archival_object_item(
+        asnake_client,
+        "test_alchemist_imageitems_alone_b74y2",
+        "b74y2",
+        resource_create_response.json()["uri"],
+    )
+    print(
+        "🐞 item_create_response2:b74y2",
+        item_create_response2.json(),
+    )
+    # RUN ALCHEMIST PROCESS
+    run_distillery(page, ["access"])
+    alchemist_item_uri1 = format_alchemist_item_uri(
+        "test_alchemist_imageitems_alone_b74y1", test_id
+    )
+    alchemist_item_uri2 = format_alchemist_item_uri(
+        "test_alchemist_imageitems_alone_b74y2", test_id
+    )
+    # INVALIDATE CLOUDFRONT ITEMS
+    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+        invalidate_cloudfront_path(caller_reference=timestamp)
+    # VALIDATE ALCHEMIST ITEMS
+    page.goto(alchemist_item_uri1)
+    expect(page).to_have_title("Item b74y1")
+    page.goto(alchemist_item_uri2)
+    expect(page).to_have_title("Item b74y2")
+    # UPDATE ARCHIVAL OBJECT ITEM RECORD 1
+    item1 = asnake_client.get(item_create_response1.json()["uri"]).json()
+    # update title
+    item1["title"] = "Regenerated Title b74y1"
+    item_update_response1 = asnake_client.post(item1["uri"], json=item1)
+    print(
+        "🐞 item_update_response1:b74y1",
+        item_update_response1.json(),
+    )
+    # UPDATE ARCHIVAL OBJECT ITEM RECORD 2
+    item2 = asnake_client.get(item_create_response2.json()["uri"]).json()
+    # update title
+    item2["title"] = "Regenerated Title b74y2"
+    item_update_response2 = asnake_client.post(item2["uri"], json=item2)
+    print(
+        "🐞 item_update_response2:b74y2",
+        item_update_response2.json(),
+    )
+    # RUN REGENERATE PROCESS
+    run_alchemist_regenerate(page, "all", timeout=90000)
+    # VALIDATE ALCHEMIST ITEMS
+    page.goto(alchemist_item_uri1)
+    expect(page).to_have_title("Regenerated Title b74y1")
+    page.goto(alchemist_item_uri2)
+    expect(page).to_have_title("Regenerated Title b74y2")
 
 
 def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
