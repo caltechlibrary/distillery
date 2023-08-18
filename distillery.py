@@ -172,105 +172,118 @@ class DistilleryService(rpyc.Service):
                 logger.exception("‼️")
                 raise
 
-        initial_original_directorycount = 0
-        initial_original_filecount = 0
+        def is_archival_object_valid(component_id):
+            try:
+                archival_object = find_archival_object(component_id)
+            except Exception as e:
+                status_logger.error(e)
+                logger.exception(e)
+            if not self.access_platform:
+                # no need to check more conditions
+                return True
+            elif not archival_object["publish"]:
+                message = "‼️ ARCHIVAL OBJECT NOT PUBLISHED: [**{}**]({}/resolve/readonly?uri={})".format(
+                    archival_object["title"],
+                    config("ASPACE_STAFF_URL"),
+                    archival_object["uri"],
+                )
+                status_logger.error(message)
+                return False
+            elif archival_object["has_unpublished_ancestor"]:
+                message = "‼️ ARCHIVAL OBJECT HAS UNPUBLISHED ANCESTOR: [**{}**]({}/resolve/readonly?uri={})".format(
+                    archival_object["title"],
+                    config("ASPACE_STAFF_URL"),
+                    archival_object["uri"],
+                )
+                status_logger.error(message)
+                return False
+            # check for existing digital_object["file_versions"]
+            elif archival_object.get("instances"):
+                for instance in archival_object["instances"]:
+                    if "digital_object" not in instance.keys():
+                        return True
+                    # NOTE self.destinations is a JSON string
+                    if (
+                        instance["digital_object"]["_resolved"].get("file_versions")
+                        and "fail" in self.destinations
+                    ):
+                        message = "‼️  DIGITAL OBJECT ALREADY HAS FILE VERSIONS: [**{}**]({}/resolve/readonly?uri={})".format(
+                            instance["digital_object"]["_resolved"]["title"],
+                            config("ASPACE_STAFF_URL"),
+                            instance["digital_object"]["ref"],
+                        )
+                        status_logger.error(message)
+                        return False
+                    elif (
+                        instance["digital_object"]["_resolved"].get("file_versions")
+                        and "overwrite" in self.destinations
+                    ):
+                        message = "⚠️ DIGITAL OBJECT FILE VERSIONS WILL BE OVERWRITTEN: [**{}**]({}/resolve/readonly?uri={})".format(
+                            instance["digital_object"]["_resolved"]["title"],
+                            config("ASPACE_STAFF_URL"),
+                            instance["digital_object"]["ref"],
+                        )
+                        status_logger.warning(message)
+                        return True
+                    elif (
+                        instance["digital_object"]["_resolved"].get("file_versions")
+                        and "unpublish" in self.destinations
+                    ):
+                        message = "⚠️ DIGITAL OBJECT FILE VERSIONS WILL BE UNPUBLISHED: [**{}**]({}/resolve/readonly?uri={})".format(
+                            instance["digital_object"]["_resolved"]["title"],
+                            config("ASPACE_STAFF_URL"),
+                            instance["digital_object"]["ref"],
+                        )
+                        status_logger.warning(message)
+                        return True
+            else:
+                # ensure there is a return value
+                return True
+
+        archival_object_count = 0
+        file_count = 0
         for dirpath, dirnames, filenames in os.walk(config("INITIAL_ORIGINAL_FILES")):
-            logger.debug(
-                f"🐞 dirpath: {dirpath}; dirnames: {dirnames}; filenames: {filenames}"
-            )
-            validation_failure = False
+            logger.debug(f"🐞 DIRPATH: {dirpath}")
+            logger.debug(f"🐞 DIRNAMES: {dirnames}")
+            logger.debug(f"🐞 FILENAMES: {filenames}")
+            validation_status = True
+            if not dirnames and not filenames:
+                message = "❌ NO DIRECTORIES OR FILES FOUND"
+                status_logger.error(message)
+                raise FileNotFoundError(message)
+            # check filenames in root directory
+            for filename in filenames:
+                if filename in [".DS_Store", "Thumbs.db"]:
+                    os.remove(Path(dirpath).joinpath(filename))
+                else:
+                    status_logger.info(f"📄 {filename}")
+                    validation_status = is_archival_object_valid(
+                        filename.rsplit(".", maxsplit=1)[0]
+                    )
+                    file_count += 1
+                    archival_object_count += 1
+            # check dirnames in root directory
             for dirname in dirnames:
-                # check archival_object status; raise exception only after
-                # checking all directories
                 status_logger.info(f"📁 {dirname}")
-                archival_object = find_archival_object(dirname)
-                if not archival_object:
-                    message = f"‼️  NO ARCHIVAL OBJECT FOUND FOR: {dirname}"
-                    status_logger.error(message)
-                    validation_failure = True
-                elif not archival_object["publish"] and self.access_platform:
-                    message = "‼️  ARCHIVAL OBJECT NOT PUBLISHED: [**{}**]({}/resolve/readonly?uri={})".format(
-                        archival_object["title"],
-                        config("ASPACE_STAFF_URL"),
-                        archival_object["uri"],
-                    )
-                    status_logger.error(message)
-                    validation_failure = True
-                elif (
-                    archival_object["has_unpublished_ancestor"] and self.access_platform
-                ):
-                    message = "‼️  ARCHIVAL OBJECT HAS UNPUBLISHED ANCESTOR: [**{}**]({}/resolve/readonly?uri={})".format(
-                        archival_object["title"],
-                        config("ASPACE_STAFF_URL"),
-                        archival_object["uri"],
-                    )
-                    status_logger.error(message)
-                    validation_failure = True
-                # check for existing digital_object["file_versions"]
-                elif bool(archival_object.get("instances")) and self.access_platform:
-                    for instance in archival_object["instances"]:
-                        if "digital_object" not in instance.keys():
-                            continue
-                        # NOTE self.destinations is a JSON string
-                        if (
-                            bool(
-                                instance["digital_object"]["_resolved"].get(
-                                    "file_versions"
-                                )
-                            )
-                            and "fail" in self.destinations
-                        ):
-                            message = "‼️  DIGITAL OBJECT ALREADY HAS FILE VERSIONS: [**{}**]({}/resolve/readonly?uri={})".format(
-                                instance["digital_object"]["_resolved"]["title"],
-                                config("ASPACE_STAFF_URL"),
-                                instance["digital_object"]["ref"],
-                            )
-                            status_logger.error(message)
-                            validation_failure = True
-                        elif (
-                            bool(
-                                instance["digital_object"]["_resolved"].get(
-                                    "file_versions"
-                                )
-                            )
-                            and "overwrite" in self.destinations
-                        ):
-                            message = "⚠️  DIGITAL OBJECT FILE VERSIONS WILL BE OVERWRITTEN: [**{}**]({}/resolve/readonly?uri={})".format(
-                                instance["digital_object"]["_resolved"]["title"],
-                                config("ASPACE_STAFF_URL"),
-                                instance["digital_object"]["ref"],
-                            )
-                            status_logger.warning(message)
-                        elif (
-                            bool(
-                                instance["digital_object"]["_resolved"].get(
-                                    "file_versions"
-                                )
-                            )
-                            and "unpublish" in self.destinations
-                        ):
-                            message = "⚠️  DIGITAL OBJECT FILE VERSIONS WILL BE UNPUBLISHED: [**{}**]({}/resolve/readonly?uri={})".format(
-                                instance["digital_object"]["_resolved"]["title"],
-                                config("ASPACE_STAFF_URL"),
-                                instance["digital_object"]["ref"],
-                            )
-                            status_logger.warning(message)
-                # count initial directories
-                initial_original_directorycount += 1
-            if validation_failure:
+                validation_status = is_archival_object_valid(dirname)
+                for dir_entry in os.scandir(Path(dirpath).joinpath(dirname)):
+                    if dir_entry.name in [".DS_Store", "Thumbs.db"]:
+                        os.remove(dir_entry.path)
+                    else:
+                        logger.debug(f"🐞 DIR_ENTRY.NAME: {dir_entry.name}")
+                        file_count += 1
+                archival_object_count += 1
+            # reset dirnames to stop os.walk from descending into subdirectories
+            # and continuing to loop over filenames
+            # https://stackoverflow.com/a/43618972
+            dirnames[:] = []
+            if not validation_status:
                 message = "❌ VALIDATION FAILURE"
                 status_logger.error(message)
                 raise RuntimeError(message)
-            for filename in filenames:
-                # count files
-                if filename not in [".DS_Store", "Thumbs.db"]:
-                    initial_original_filecount += 1
-        if not initial_original_directorycount:
-            message = "❌ NO DIRECTORIES FOUND"
-            status_logger.error(message)
-            raise FileNotFoundError(message)
-        if initial_original_filecount:
-            status_logger.info(f"📄 FILE COUNT: {initial_original_filecount}")
+        if archival_object_count and file_count:
+            status_logger.info(f"🗂 ARCHIVAL OBJECT COUNT: {archival_object_count}")
+            status_logger.info(f"📄 FILE COUNT: {file_count}")
         else:
             message = "❌ NO FILES FOUND"
             status_logger.error(message)
@@ -344,10 +357,22 @@ class DistilleryService(rpyc.Service):
                 key=lambda dir_entry: dir_entry.name,
             ):
                 if dir_entry.is_file():
+                    dir_entry_stem = dir_entry.name.rsplit(".", maxsplit=1)[0]
+                elif dir_entry.is_dir():
+                    dir_entry_stem = dir_entry.name
+                else:
+                    logger.warning(
+                        f"⚠️ UNEXPECTED OS.DIRENTRY OBJECT: {dir_entry.name}"
+                    )
                     continue
 
-                # Get archival_object data via component_id from directory name.
-                self.variables["archival_object"] = find_archival_object(dir_entry.name)
+                try:
+                    self.variables["archival_object"] = find_archival_object(
+                        dir_entry_stem
+                    )
+                except Exception as e:
+                    status_logger.error(e)
+                    logger.exception(e)
                 self.variables["arrangement"] = get_arrangement(
                     self.variables["archival_object"]
                 )
@@ -390,14 +415,14 @@ class DistilleryService(rpyc.Service):
                     accessDistiller = self.access_platform.AccessPlatform()
                     accessDistiller.collection_structure_processing()
 
-                initial_archival_object_directory = dir_entry.path
-                working_archival_object_directory = str(
+                initial_archival_object = dir_entry.path
+                working_archival_object = str(
                     batch_directory.joinpath("STAGE_2_WORKING", dir_entry.name)
                 )
                 try:
                     shutil.move(
-                        initial_archival_object_directory,
-                        working_archival_object_directory,
+                        initial_archival_object,
+                        working_archival_object,
                     )
                 except BaseException:
                     message = "❌ UNABLE TO MOVE THE INITIAL FILES FOR WORKING"
@@ -406,11 +431,14 @@ class DistilleryService(rpyc.Service):
                     raise
 
                 # Set up list of file paths for the current directory.
-                self.variables["filepaths"] = [
-                    f.path
-                    for f in os.scandir(working_archival_object_directory)
-                    if f.is_file() and f.name not in [".DS_Store", "Thumbs.db"]
-                ]
+                if Path(working_archival_object).is_file():
+                    self.variables["filepaths"] = [working_archival_object]
+                elif Path(working_archival_object).is_dir():
+                    self.variables["filepaths"] = [
+                        f.path
+                        for f in os.scandir(working_archival_object)
+                        if f.is_file()
+                    ]
 
                 if either_preservation_destination:
                     archival_object_datafile_key = save_archival_object_datafile(
@@ -429,7 +457,7 @@ class DistilleryService(rpyc.Service):
                     accessDistiller.archival_object_level_processing(self.variables)
                     # TODO create derivative files
                     build_directory = accessDistiller.get_build_directory()
-                    self.access_platform.loop_over_archival_object_directory_files(
+                    self.access_platform.loop_over_archival_object_files(
                         build_directory, self.variables
                     )
                     # TODO transfer derivative files
@@ -598,7 +626,7 @@ class DistilleryService(rpyc.Service):
 
                 try:
                     shutil.move(
-                        working_archival_object_directory,
+                        working_archival_object,
                         str(
                             batch_directory.joinpath("STAGE_3_COMPLETE", dir_entry.name)
                         ),
@@ -1603,70 +1631,6 @@ def get_preservation_image_data(filepath):
     with open(preservation_image_data["filepath"], "rb") as f:
         preservation_image_data["md5"] = hashlib.md5(f.read())
     return preservation_image_data
-
-
-def loop_over_archival_object_directory_files(variables):
-    """Concurrently process files in the archival object directory."""
-    logger.debug(f"🐞 INSIDE LOOP_OVER_ARCHIVAL_OBJECT_DIRECTORY_FILES")
-    with ProcessPoolExecutor() as executor:
-        logger.debug(f"🐞 INSIDE PROCESSPOOLEXECUTOR")
-        futures = [
-            executor.submit(conditional_derivative_file_processing, f, variables)
-            for f in variables["filepaths"]
-        ]
-        logger.debug(f"🐞 AFTER EXECUTOR.SUBMIT")
-    status_logger.info(
-        f'☑️  DERIVATIVE FILE PROCESSING COMPLETE: {variables["archival_object"]["component_id"]}'
-    )
-
-
-def conditional_derivative_file_processing(filepath, variables):
-    logger.debug(f"🐞 INSIDE CONDITIONAL_DERIVATIVE_FILE_PROCESSING")
-    # TODO rename to variables["original_file_path"]
-    variables["original_image_path"] = filepath
-
-    type, encoding = mimetypes.guess_type(variables["original_image_path"])
-
-    if "onsite" in variables["destinations"] or "cloud" in variables["destinations"]:
-        if type and type.startswith("image/"):
-            try:
-                preservation_image_key = create_lossless_jpeg2000_image(variables)
-            except Exception:
-                logger.exception(
-                    "❌ LOSSLESS JPEG 2000 CREATION FAILED: {}".format(
-                        variables["original_image_path"]
-                    )
-                )
-            else:
-                status_logger.info(
-                    f"☑️  LOSSLESS JPEG 2000 DERIVATIVE CREATED: {preservation_image_key}"
-                )
-        else:
-            filepath_components = get_file_parts(variables["original_image_path"])
-            preservation_file_key = get_digital_object_component_file_key(
-                get_archival_object_directory_prefix(
-                    variables["arrangement"],
-                    variables["archival_object"],
-                ),
-                filepath_components,
-            )
-            preservation_file_path = Path(config("WORK_PRESERVATION_FILES")).joinpath(
-                preservation_file_key
-            )
-            try:
-                preservation_file_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(
-                    variables["original_image_path"],
-                    preservation_file_path,
-                )
-            except Exception:
-                logger.exception(
-                    "❌ ORIGINAL FILE COPY FAILED: {}".format(
-                        variables["original_image_path"]
-                    )
-                )
-            else:
-                status_logger.info(f"☑️  ORIGINAL FILE COPIED: {preservation_file_key}")
 
 
 if __name__ == "__main__":
