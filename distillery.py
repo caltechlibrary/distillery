@@ -1015,33 +1015,33 @@ def get_arrangement(archival_object):
 
 
 def find_archival_object(component_id):
-    """Finds an archival object by component_id; Returns dict or None."""
+    """Returns a dict of the archival object data for a given component_id.
+
+    Raises a ValueError if no archival object is found or if multiple archival
+    objects are found.
+    """
     find_uri = (
         f"/repositories/2/find_by_id/archival_objects?component_id[]={component_id}"
     )
     find_by_id_response = archivessnake_get(find_uri)
     if len(find_by_id_response.json()["archival_objects"]) < 1:
-        logger.warning(f"⚠️  ARCHIVAL OBJECT NOT FOUND: {component_id}")
-        return None
+        message = f"❌ ARCHIVAL OBJECT NOT FOUND: {component_id}"
+        raise ValueError(message)
     elif len(find_by_id_response.json()["archival_objects"]) > 1:
-        logger.warning(f"⚠️  MULTIPLE ARCHIVAL OBJECTS FOUND: {component_id}")
-        return None
+        message = f"❌ MULTIPLE ARCHIVAL OBJECTS FOUND: {component_id}"
+        raise ValueError(message)
     else:
-        try:
-            archival_object = archivessnake_get(
-                find_by_id_response.json()["archival_objects"][0]["ref"]
-                + "?resolve[]=ancestors"
-                + "&resolve[]=digital_object"
-                + "&resolve[]=linked_agents"
-                + "&resolve[]=repository"
-                + "&resolve[]=subjects"
-                + "&resolve[]=top_container"
-            ).json()
-            logger.info(f"☑️  ARCHIVAL OBJECT FOUND: {component_id}")
-            return archival_object
-        except Exception as e:
-            logger.exception(e)
-            raise
+        archival_object = archivessnake_get(
+            find_by_id_response.json()["archival_objects"][0]["ref"]
+            + "?resolve[]=ancestors"
+            + "&resolve[]=digital_object"
+            + "&resolve[]=linked_agents"
+            + "&resolve[]=repository"
+            + "&resolve[]=subjects"
+            + "&resolve[]=top_container"
+        ).json()
+        logger.info(f"☑️ ARCHIVAL OBJECT FOUND: {component_id}")
+        return archival_object
 
 
 def get_archival_object_datafile_key(prefix, archival_object):
