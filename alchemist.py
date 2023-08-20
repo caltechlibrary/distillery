@@ -1058,7 +1058,7 @@ def format_archival_object_creators_display(archival_object):
     for linked_agent in archival_object["linked_agents"]:
         if linked_agent["_resolved"]["publish"] and linked_agent["role"] == "creator":
             sort_name = linked_agent["_resolved"]["display_name"]["sort_name"]
-            if linked_agent["relator"]:
+            if linked_agent.get("relator"):
                 sort_name += f' [{linked_agent_archival_record_relators[linked_agent["relator"]]}]'
             creators[linked_agent["ref"]] = sort_name
     return creators
@@ -1169,7 +1169,7 @@ def format_archival_object_subjects_display(archival_object):
     for linked_agent in archival_object["linked_agents"]:
         if linked_agent["_resolved"]["publish"] and linked_agent["role"] == "subject":
             sort_name = linked_agent["_resolved"]["display_name"]["sort_name"]
-            if linked_agent["relator"]:
+            if linked_agent.get("relator"):
                 sort_name += f' [{linked_agent_archival_record_relators[linked_agent["relator"]]}]'
             subjects[linked_agent["ref"]] = sort_name
     return subjects
