@@ -19,6 +19,8 @@
         <p>Rebuild the <code>index.html</code> and <code>manifest.json</code> files to capture metadata updates and/or template changes.</p>
         <label><input type="radio" name="regenerate" value="one">Regenerate files for one item</label>
         <label>Component Unique Identifier<input type="text" name="component_id"></label>
+        <label><input type="radio" name="regenerate" value="collection">Regenerate files for a collection</label>
+        <label>Collection Identifier<input type="text" name="collection_id"></label>
         <label><input type="radio" name="regenerate" value="all">Regenerate files for all items</label>
       </fieldset>
       <input type="submit" name="regenerate" value="Regenerate">

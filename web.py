@@ -167,6 +167,23 @@ def alchemist_regenerate():
             component_id=component_id,
             timestamp=timestamp,
         )
+    elif bottle.request.forms.get("collection_id"):
+        collection_id = bottle.request.forms.get("collection_id")
+        logfile = Path(config("WEB_STATUS_FILES")).joinpath(
+            f"{collection_id}.{timestamp}.alchemist_regenerate.log"
+        )
+        logfile.touch()
+        async_result = distillery_alchemist_regenerate(
+            collection_id=collection_id, logfile=str(logfile)
+        )
+        return bottle.template(
+            "alchemist_regenerate",
+            distillery_base_url=config("DISTILLERY_BASE_URL").rstrip("/"),
+            archivesspace_staff_url=config("ASPACE_STAFF_URL"),
+            user=authorize_user(),
+            component_id=collection_id,
+            timestamp=timestamp,
+        )
     else:
         logfile = Path(config("WEB_STATUS_FILES")).joinpath(
             f"_.{timestamp}.alchemist_regenerate.log"
