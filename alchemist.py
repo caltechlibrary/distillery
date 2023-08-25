@@ -694,9 +694,6 @@ def generate_iiif_manifest(build_directory, variables):
                     "sequences": [{"@type": "sc:Sequence", "canvases": []}],
                 }
             )
-            logger.debug(
-                f'🐞 sorted(variables["filepaths"]): {sorted(variables["filepaths"])}'
-            )
             with ProcessPoolExecutor() as executor:
                 futures = [
                     executor.submit(create_canvas_metadata, f, variables)
@@ -729,6 +726,7 @@ def generate_iiif_manifest(build_directory, variables):
 
 from time import sleep
 from random import random
+
 
 def create_canvas_metadata(filepath, variables):
     dimensions = (
@@ -865,7 +863,9 @@ def create_pyramid_tiff(build_directory, variables):
             == "JP2"
         ):
             vips_source_image = (
-                Path(build_directory.name).joinpath("uncompressed.tiff").as_posix()
+                Path(build_directory.name)
+                .joinpath(f'{Path(variables["original_image_path"]).stem}.tmp.tiff')
+                .as_posix()
             )
             magick_output = subprocess.run(
                 [
@@ -879,7 +879,8 @@ def create_pyramid_tiff(build_directory, variables):
                 ],
                 capture_output=True,
                 text=True,
-            ).stdout
+                check=True,
+            )
         else:
             vips_source_image = variables["original_image_path"]
         pyramid_tiff_key = "/".join(
@@ -910,7 +911,11 @@ def create_pyramid_tiff(build_directory, variables):
             ],
             capture_output=True,
             text=True,
-        ).stdout
+            check=True,
+        )
+        logger.debug(f"🐞 PYRAMID TIFF CREATED: {pyramid_tiff_file}")
+        if vips_source_image.endswith(".tmp.tiff"):
+            os.remove(vips_source_image)
     except Exception as e:
         logger.exception(e)
         raise
