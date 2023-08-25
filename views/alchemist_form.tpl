@@ -28,16 +28,31 @@
   </main>
   <script>
     const component_id = document.querySelector('input[name="component_id"]');
+    const collection_id = document.querySelector('input[name="collection_id"]');
     component_id.parentElement.hidden = true;
+    collection_id.parentElement.hidden = true;
     function handleRadioChoice() {
       if (document.querySelector('input[value="one"]').checked) {
         component_id.parentElement.hidden = false;
         component_id.required = true;
+        collection_id.parentElement.hidden = true;
+        collection_id.required = false;
+        collection_id.value = '';
+      }
+      else if (document.querySelector('input[value="collection"]').checked) {
+        component_id.parentElement.hidden = true;
+        component_id.required = false;
+        component_id.value = '';
+        collection_id.parentElement.hidden = false;
+        collection_id.required = true;
       }
       else {
         component_id.parentElement.hidden = true;
         component_id.required = false;
         component_id.value = '';
+        collection_id.parentElement.hidden = true;
+        collection_id.required = false;
+        collection_id.value = '';
       }
     }
     const radios = document.querySelectorAll('input[name="regenerate"]');
