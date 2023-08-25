@@ -347,7 +347,21 @@ class AccessPlatform:
             logger.exception("‼️")
             raise
 
-    def regenerate_all(self, variables):
+    def regenerate_collection(self, collection_id):
+        paginator = s3_client.get_paginator("list_objects_v2")
+        archival_object_prefixes = []
+        for result in paginator.paginate(
+            Bucket=config("ACCESS_BUCKET"),
+            Delimiter="/",
+            Prefix=f'{config("ALCHEMIST_URL_PATH_PREFIX")}/{collection_id}/',
+        ):
+            for prefix in result.get("CommonPrefixes"):
+                # store collection_id/component_id/
+                archival_object_prefixes.append(prefix.get("Prefix"))
+                logger.debug(f'🐞 ARCHIVAL_OBJECT_PREFIX: {prefix.get("Prefix")}')
+        return archival_object_prefixes
+
+    def regenerate_all(self):
         paginator = s3_client.get_paginator("list_objects_v2")
         collection_prefixes = []
         for page in paginator.paginate(Bucket=config("ACCESS_BUCKET"), Delimiter="/"):

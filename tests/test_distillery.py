@@ -314,12 +314,18 @@ def run_distillery(
     )
 
 
-def run_alchemist_regenerate(page: Page, regeneratees, component_id="", timeout=60000):
+def run_alchemist_regenerate(
+    page: Page, regeneratees, component_id="", collection_id="", timeout=60000
+):
     page.goto("/".join([config("DISTILLERY_BASE_URL").rstrip("/"), "alchemist"]))
     if regeneratees == "one":
         page.get_by_label("Regenerate files for one item").check()
         assert component_id
         page.get_by_label("Component Unique Identifier").fill(component_id)
+    if regeneratees == "collection":
+        page.get_by_label("Regenerate files for a collection").check()
+        assert collection_id
+        page.get_by_label("Collection Identifier").fill(collection_id)
     elif regeneratees == "all":
         page.get_by_label("Regenerate files for all items").check()
     page.get_by_role("button", name="Regenerate").click()
@@ -1362,6 +1368,98 @@ def test_alchemist_regenerate_one_vru3b(page: Page, asnake_client, timestamp):
     # VALIDATE ALCHEMIST ITEM
     page.goto(alchemist_item_uri)
     expect(page).to_have_title("Regenerated Title")
+
+
+def test_alchemist_regenerate_collection_2zqyy(page: Page, asnake_client):
+    """Publish single-image archival objects."""
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(
+        "test_alchemist_regenerate_collection_2zqy1"
+    )
+    move_test_files_to_initial_original_files_directory(
+        "test_alchemist_regenerate_collection_2zqy2"
+    )
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, test_id)
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_name, test_id
+    )
+    print(
+        f"🐞 resource_create_response:{test_id}",
+        resource_create_response.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD 1
+    (
+        item_create_response1,
+        item_component_id1,
+    ) = create_archivesspace_test_archival_object_item(
+        asnake_client,
+        "test_alchemist_regenerate_collection_2zqy1",
+        "2zqy1",
+        resource_create_response.json()["uri"],
+    )
+    print(
+        "🐞 item_create_response1:2zqy1",
+        item_create_response1.json(),
+    )
+    # CREATE ARCHIVAL OBJECT ITEM RECORD 2
+    (
+        item_create_response2,
+        item_component_id2,
+    ) = create_archivesspace_test_archival_object_item(
+        asnake_client,
+        "test_alchemist_regenerate_collection_2zqy2",
+        "2zqy2",
+        resource_create_response.json()["uri"],
+    )
+    print(
+        "🐞 item_create_response2:2zqy2",
+        item_create_response2.json(),
+    )
+    # RUN ALCHEMIST PROCESS
+    run_distillery(page, ["access"])
+    alchemist_item_uri1 = format_alchemist_item_uri(
+        "test_alchemist_regenerate_collection_2zqy1", test_id
+    )
+    alchemist_item_uri2 = format_alchemist_item_uri(
+        "test_alchemist_regenerate_collection_2zqy2", test_id
+    )
+    # INVALIDATE CLOUDFRONT ITEMS
+    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+        invalidate_cloudfront_path(caller_reference=timestamp)
+    # VALIDATE ALCHEMIST ITEMS
+    page.goto(alchemist_item_uri1)
+    expect(page).to_have_title("Item 2zqy1")
+    page.goto(alchemist_item_uri2)
+    expect(page).to_have_title("Item 2zqy2")
+    # UPDATE ARCHIVAL OBJECT ITEM RECORD 1
+    item1 = asnake_client.get(item_create_response1.json()["uri"]).json()
+    # update title
+    item1["title"] = "Regenerated Title 2zqy1"
+    item_update_response1 = asnake_client.post(item1["uri"], json=item1)
+    print(
+        "🐞 item_update_response1:2zqy1",
+        item_update_response1.json(),
+    )
+    # UPDATE ARCHIVAL OBJECT ITEM RECORD 2
+    item2 = asnake_client.get(item_create_response2.json()["uri"]).json()
+    # update title
+    item2["title"] = "Regenerated Title 2zqy2"
+    item_update_response2 = asnake_client.post(item2["uri"], json=item2)
+    print(
+        "🐞 item_update_response2:2zqy2",
+        item_update_response2.json(),
+    )
+    # RUN REGENERATE PROCESS
+    run_alchemist_regenerate(page, "collection", collection_id=test_id, timeout=90000)
+    # VALIDATE ALCHEMIST ITEMS
+    page.goto(alchemist_item_uri1)
+    expect(page).to_have_title("Regenerated Title 2zqy1")
+    page.goto(alchemist_item_uri2)
+    expect(page).to_have_title("Regenerated Title 2zqy2")
 
 
 def test_alchemist_regenerate_all_mxsk0(page: Page, asnake_client, timestamp):

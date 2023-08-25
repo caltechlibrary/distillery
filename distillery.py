@@ -654,9 +654,11 @@ class DistilleryService(rpyc.Service):
             # TODO delete PRESERVATION_FILES/CollectionID directory
 
     @rpyc.exposed
-    def alchemist_regenerate(self, component_id="", logfile=""):
+    def alchemist_regenerate(self, component_id="", collection_id="", logfile=""):
         if component_id:
             status_logger = logging.getLogger(component_id)
+        elif collection_id:
+            status_logger = logging.getLogger(collection_id)
         else:
             status_logger = logging.getLogger("_")
         status_logger.setLevel(logging.INFO)
@@ -712,11 +714,40 @@ class DistilleryService(rpyc.Service):
                         ),
                     )
                 )
+            elif collection_id:
+                # TODO DRY this out
+                # regenerate files for a collection
+                status_logger.info(f"🟢 BEGIN REGENERATING ITEMS FOR: {collection_id}")
+                archival_object_prefixes = accessDistiller.regenerate_collection(
+                    collection_id
+                )
+                for archival_object_prefix in archival_object_prefixes:
+                    component_id = archival_object_prefix.split("/")[-2]
+                    variables["archival_object"] = find_archival_object(component_id)
+                    variables["arrangement"] = get_arrangement(
+                        variables["archival_object"]
+                    )
+                    accessDistiller.archival_object_level_processing(variables)
+                    accessDistiller.transfer_archival_object_derivative_files(variables)
+                    timestamp = str(time.time())
+                    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+                        self.access_platform.invalidate_cloudfront_path(
+                            caller_reference=timestamp
+                        )
+                    status_logger.info(
+                        "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{})".format(
+                            variables["archival_object"]["component_id"],
+                            config("ACCESS_SITE_BASE_URL").rstrip("/"),
+                            config("ALCHEMIST_URL_PATH_PREFIX"),
+                            variables["arrangement"]["collection_id"],
+                            variables["archival_object"]["component_id"],
+                        )
+                    )
             else:
                 # TODO DRY this out
                 # regenerate files for all items
                 status_logger.info("🟢 BEGIN REGENERATING ALL")
-                archival_object_prefixes = accessDistiller.regenerate_all(variables)
+                archival_object_prefixes = accessDistiller.regenerate_all()
                 for archival_object_prefix in archival_object_prefixes:
                     component_id = archival_object_prefix.split("/")[-2]
                     variables["archival_object"] = find_archival_object(component_id)
