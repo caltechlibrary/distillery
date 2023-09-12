@@ -9,3 +9,6 @@ tests/_output
 
 # TEMPORARY
 ~$*
+
+# ENVIROMENT
+.venv

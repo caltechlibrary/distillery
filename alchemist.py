@@ -718,7 +718,6 @@ def generate_iiif_manifest(build_directory, variables):
                     logger.debug(f"🐞 CANVAS: {future.result()}")
                     # add canvas to sequences
                     manifest["sequences"][0]["canvases"].append(future.result())
-
         # save manifest file
         manifest_file = Path(build_directory.name).joinpath(
             config("ALCHEMIST_URL_PATH_PREFIX"),
@@ -736,10 +735,6 @@ def generate_iiif_manifest(build_directory, variables):
     except Exception as e:
         logger.exception(e)
         raise
-
-
-from time import sleep
-from random import random
 
 
 def create_canvas_metadata(filepath, variables):
