@@ -281,8 +281,6 @@ def oralhistories_post():
                 component_id=component_id,
                 timestamp=timestamp,
                 op=op,
-                oralhistories_public_base_url=config("ORALHISTORIES_PUBLIC_BASE_URL"),
-                resolver_base_url=config("RESOLVER_BASE_URL"),
             )
         else:
             logfile = Path(config("WEB_STATUS_FILES")).joinpath(

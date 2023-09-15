@@ -12,13 +12,13 @@ def main(file):
         # file_segments[1] will be component_id
         file_segments = file.split("/")
         # skip when build artifacts already exist
-        if os.path.isfile(f"build/{file_segments[1]}/{file_segments[1]}.html"):
-            print(f"🐞 file exists: build/{file_segments[1]}/{file_segments[1]}.html")
+        if os.path.isfile(f"build/{file_segments[1]}/index.html"):
+            print(f"🐞 file exists: build/{file_segments[1]}/index.html")
             return
         # remove published files when markdown transcript is deleted
         if file.endswith(".md") and not os.path.isfile(file):
             print(f"🐞 file deleted: {file}")
-            os.remove(f"{os.path.splitext(file)[0]}.html")
+            os.remove(f"index.html")
             os.remove(f"{os.path.splitext(file)[0]}.pdf")
             return
         generate_files(file_segments[1])
@@ -51,11 +51,11 @@ def generate_files(identifier):
             "--from=markdown",
             "--to=html",
             "--template=.github/workflows/templates/web.html",
-            f"--output=build/{identifier}/{identifier}.html",
+            f"--output=build/{identifier}/index.html",
             f"transcripts/{identifier}/{identifier}.md",
         ]
     )
-    print(f"🐞 file generated: build/{identifier}/{identifier}.html")
+    print(f"🐞 file generated: build/{identifier}/index.html")
     # create intermediate html for pagedjs
     subprocess.run(
         [

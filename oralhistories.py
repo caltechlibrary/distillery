@@ -77,12 +77,19 @@ class OralHistoriesService(rpyc.Service):
                 self.transcript_source_directory = Path(
                     self.tmp_oralhistories_repository
                 ).joinpath("transcripts", component_id)
-                self.bucket_destination = (
-                    f's3://{config("ORALHISTORIES_BUCKET")}/{component_id}/'
+                self.bucket_destination = "s3://{}/{}/{}".format(
+                    config("ORALHISTORIES_BUCKET"),
+                    config("ORALHISTORIES_PATH_PREFIX"),
+                    component_id,
                 )
                 s3sync_output = self.publish_transcripts()
                 self.status_logger.info(
-                    f'☑️  published [**{component_id}** transcript]({config("ORALHISTORIES_PUBLIC_BASE_URL")}/{component_id}/{component_id}.html) to the web'
+                    "☑️  published [**{}** transcript]({}/{}/{}) to the web".format(
+                        component_id,
+                        config("ALCHEMIST_BASE_URL").rstrip("/"),
+                        config("ORALHISTORIES_PATH_PREFIX"),
+                        component_id,
+                    )
                 )
             else:
                 # (re)publish all records (example case: interviewer name change)
@@ -112,8 +119,15 @@ class OralHistoriesService(rpyc.Service):
                 digital_object = distillery.archivessnake_get(
                     self.digital_object_uri
                 ).json()
-                base_url = config("ORALHISTORIES_PUBLIC_BASE_URL")
-                file_uri = f'{base_url}/{line.split("/")[-2]}/{line.split("/")[-1]}'
+                base_url = "/".join(
+                    [
+                        config("ALCHEMIST_BASE_URL").rstrip("/"),
+                        config("ORALHISTORIES_PATH_PREFIX"),
+                    ]
+                )
+                file_uri = "/".join(
+                    [base_url, line.split("/")[-2], line.split("/")[-1]]
+                )
                 if line.split()[0] == "upload:":
                     if line.split(".")[-1] == "html":
                         # add file_version to digital_object
