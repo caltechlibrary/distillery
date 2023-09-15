@@ -356,7 +356,7 @@ $if(archival_object_uri)$
 $endif$
 $endif$
 $if(component_id)$
-<p><a id="pdf" href="$component_id$.pdf">Access a PDF version of the transcript</a></p>
+<p><a id="pdf" href="$component_id$.pdf">Access a PDF version of the transcript [$pdf-size$ MB]</a></p>
 $endif$
 $if(interviewee)$
 $if(interviewer)$
@@ -397,16 +397,6 @@ $body$
   if (document.getElementById("frontispiece")) {
     document.querySelector("header h1").insertAdjacentElement("afterend", document.getElementById("frontispiece"));
   }
-  // append file size to pdf links
-  const pdf_link = document.getElementById("pdf");
-  fetch(pdf_link.href, {method: "HEAD"}).then((response) => {
-    const bytes = response.headers.get('content-length');
-    pdf_link.insertAdjacentText("beforeend", ` [$${humanFileSize(bytes)}]`);
-  });
-  function humanFileSize(size) {
-    var i = size == 0 ? 0 : Math.floor(Math.log(size) / Math.log(1024));
-    return (size / Math.pow(1024, i)).toFixed(2) * 1 + ' ' + ['B', 'kB', 'MB', 'GB', 'TB'][i];
-  };
   // scrollspy
   // inspired by https://www.bram.us/2020/01/10/smooth-scrolling-sticky-scrollspy-navigation/
   // and https://stackoverflow.com/a/58981159
