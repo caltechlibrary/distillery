@@ -213,14 +213,16 @@ class OralHistoriesService(rpyc.Service):
                                 f'🔥 DIGITAL OBJECT COMPONENT DELETED: {line.split("/")[-1]}'
                             )
             if component_id:
-                self.status_logger.info(
-                    f'☑️  created [**{component_id}** persistant URL entry]({config("RESOLVER_BASE_URL")}/{component_id}) in resolver'
-                )
+                if config("RESOLVER_BUCKET", default=""):
+                    self.status_logger.info(
+                        f'☑️  created [**{component_id}** persistant URL entry]({config("RESOLVER_BASE_URL")}/{component_id}) in resolver'
+                    )
                 self.status_logger.info(
                     f'☑️  published [**{component_id}** Digital Object record]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={self.digital_object_uri}) in ArchivesSpace'
                 )
             else:
-                self.status_logger.info(f"☑️ (re)published all resolver links")
+                if config("RESOLVER_BUCKET", default=""):
+                    self.status_logger.info(f"☑️ (re)published all resolver links")
                 self.status_logger.info(
                     "☑️ (re)published all Digital Object records in ArchivesSpace"
                 )

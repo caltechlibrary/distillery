@@ -2714,23 +2714,25 @@ def test_oralhistories_add_publish_one_transcript_2d4ja(
         s3_response = s3_client.delete_objects(
             Bucket=config("ORALHISTORIES_BUCKET"), Delete={"Objects": s3_keys}
         )
-    resolver_s3_response = s3_client.list_objects_v2(
-        Bucket=config("RESOLVER_BUCKET"),
-        Prefix="{}/{}".format(
-            config("RESOLVER_BASE_URL")
-            .split(config("RESOLVER_BUCKET"))[-1]
-            .lstrip("/"),
-            item_component_id,
-        ),
-    )
-    print("🐞 resolver_s3_response", resolver_s3_response)
-    if resolver_s3_response.get("Contents"):
-        s3_keys = [
-            {"Key": s3_object["Key"]} for s3_object in resolver_s3_response["Contents"]
-        ]
-        resolver_s3_response = s3_client.delete_objects(
-            Bucket=config("RESOLVER_BUCKET"), Delete={"Objects": s3_keys}
+    if config("RESOLVER_BUCKET", default=""):
+        resolver_s3_response = s3_client.list_objects_v2(
+            Bucket=config("RESOLVER_BUCKET"),
+            Prefix="{}/{}".format(
+                config("RESOLVER_BASE_URL")
+                .split(config("RESOLVER_BUCKET"))[-1]
+                .lstrip("/"),
+                item_component_id,
+            ),
         )
+        print("🐞 resolver_s3_response", resolver_s3_response)
+        if resolver_s3_response.get("Contents"):
+            s3_keys = [
+                {"Key": s3_object["Key"]}
+                for s3_object in resolver_s3_response["Contents"]
+            ]
+            resolver_s3_response = s3_client.delete_objects(
+                Bucket=config("RESOLVER_BUCKET"), Delete={"Objects": s3_keys}
+            )
     # RUN ORALHISTORIES PROCESSES
     # add transcript
     run_oralhistories_add(
@@ -2752,7 +2754,20 @@ def test_oralhistories_add_publish_one_transcript_2d4ja(
     if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
         invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE RESOLVER URL & WEB TRANSCRIPT
-    page.goto("/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id]))
+    if config("RESOLVER_BUCKET", default=""):
+        page.goto(
+            "/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id])
+        )
+    else:
+        page.goto(
+            "/".join(
+                [
+                    config("ALCHEMIST_BASE_URL").rstrip("/"),
+                    config("ORALHISTORIES_PATH_PREFIX"),
+                    item_component_id,
+                ]
+            )
+        )
     # AWS S3 adds a trailing slash when it redirects to the index.html file.
     expect(page).to_have_url(
         "/".join(
@@ -2905,23 +2920,25 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
         s3_response = s3_client.delete_objects(
             Bucket=config("ORALHISTORIES_BUCKET"), Delete={"Objects": s3_keys}
         )
-    resolver_s3_response = s3_client.list_objects_v2(
-        Bucket=config("RESOLVER_BUCKET"),
-        Prefix="{}/{}".format(
-            config("RESOLVER_BASE_URL")
-            .split(config("RESOLVER_BUCKET"))[-1]
-            .lstrip("/"),
-            item_component_id,
-        ),
-    )
-    print("🐞 resolver_s3_response", resolver_s3_response)
-    if resolver_s3_response.get("Contents"):
-        s3_keys = [
-            {"Key": s3_object["Key"]} for s3_object in resolver_s3_response["Contents"]
-        ]
-        resolver_s3_response = s3_client.delete_objects(
-            Bucket=config("RESOLVER_BUCKET"), Delete={"Objects": s3_keys}
+    if config("RESOLVER_BUCKET", default=""):
+        resolver_s3_response = s3_client.list_objects_v2(
+            Bucket=config("RESOLVER_BUCKET"),
+            Prefix="{}/{}".format(
+                config("RESOLVER_BASE_URL")
+                .split(config("RESOLVER_BUCKET"))[-1]
+                .lstrip("/"),
+                item_component_id,
+            ),
         )
+        print("🐞 resolver_s3_response", resolver_s3_response)
+        if resolver_s3_response.get("Contents"):
+            s3_keys = [
+                {"Key": s3_object["Key"]}
+                for s3_object in resolver_s3_response["Contents"]
+            ]
+            resolver_s3_response = s3_client.delete_objects(
+                Bucket=config("RESOLVER_BUCKET"), Delete={"Objects": s3_keys}
+            )
     # RUN ORALHISTORIES PROCESSES
     # add transcript
     run_oralhistories_add(
@@ -2992,7 +3009,20 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
     if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
         invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE RESOLVER URL & WEB TRANSCRIPT
-    page.goto("/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id]))
+    if config("RESOLVER_BUCKET", default=""):
+        page.goto(
+            "/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id])
+        )
+    else:
+        page.goto(
+            "/".join(
+                [
+                    config("ALCHEMIST_BASE_URL").rstrip("/"),
+                    config("ORALHISTORIES_PATH_PREFIX"),
+                    item_component_id,
+                ]
+            )
+        )
     # AWS S3 adds a trailing slash when it redirects to the index.html file.
     expect(page).to_have_url(
         "/".join(
@@ -3061,23 +3091,25 @@ def test_oralhistories_add_update_one_publish_one_transcript_4hete(
         s3_response = s3_client.delete_objects(
             Bucket=config("ORALHISTORIES_BUCKET"), Delete={"Objects": s3_keys}
         )
-    resolver_s3_response = s3_client.list_objects_v2(
-        Bucket=config("RESOLVER_BUCKET"),
-        Prefix="{}/{}".format(
-            config("RESOLVER_BASE_URL")
-            .split(config("RESOLVER_BUCKET"))[-1]
-            .lstrip("/"),
-            item_component_id,
-        ),
-    )
-    print("🐞 resolver_s3_response", resolver_s3_response)
-    if resolver_s3_response.get("Contents"):
-        s3_keys = [
-            {"Key": s3_object["Key"]} for s3_object in resolver_s3_response["Contents"]
-        ]
-        resolver_s3_response = s3_client.delete_objects(
-            Bucket=config("RESOLVER_BUCKET"), Delete={"Objects": s3_keys}
+    if config("RESOLVER_BUCKET", default=""):
+        resolver_s3_response = s3_client.list_objects_v2(
+            Bucket=config("RESOLVER_BUCKET"),
+            Prefix="{}/{}".format(
+                config("RESOLVER_BASE_URL")
+                .split(config("RESOLVER_BUCKET"))[-1]
+                .lstrip("/"),
+                item_component_id,
+            ),
         )
+        print("🐞 resolver_s3_response", resolver_s3_response)
+        if resolver_s3_response.get("Contents"):
+            s3_keys = [
+                {"Key": s3_object["Key"]}
+                for s3_object in resolver_s3_response["Contents"]
+            ]
+            resolver_s3_response = s3_client.delete_objects(
+                Bucket=config("RESOLVER_BUCKET"), Delete={"Objects": s3_keys}
+            )
     # RUN ORALHISTORIES PROCESSES
     # add transcript
     run_oralhistories_add(
@@ -3119,7 +3151,20 @@ def test_oralhistories_add_update_one_publish_one_transcript_4hete(
     if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
         invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE RESOLVER URL & WEB TRANSCRIPT
-    page.goto("/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id]))
+    if config("RESOLVER_BUCKET", default=""):
+        page.goto(
+            "/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id])
+        )
+    else:
+        page.goto(
+            "/".join(
+                [
+                    config("ALCHEMIST_BASE_URL").rstrip("/"),
+                    config("ORALHISTORIES_PATH_PREFIX"),
+                    item_component_id,
+                ]
+            )
+        )
     # AWS S3 adds a trailing slash when it redirects to the index.html file.
     expect(page).to_have_url(
         "/".join(
