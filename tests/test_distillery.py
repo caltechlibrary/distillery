@@ -2753,12 +2753,14 @@ def test_oralhistories_add_publish_one_transcript_2d4ja(
         invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE RESOLVER URL & WEB TRANSCRIPT
     page.goto("/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id]))
+    # AWS S3 adds a trailing slash when it redirects to the index.html file.
     expect(page).to_have_url(
         "/".join(
             [
-                config("ORALHISTORIES_PUBLIC_BASE_URL").rstrip("/"),
+                config("ALCHEMIST_BASE_URL").rstrip("/"),
+                config("ORALHISTORIES_PATH_PREFIX"),
                 item_component_id,
-                f"{item_component_id}.html",
+                "",
             ]
         )
     )
@@ -2991,12 +2993,14 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
         invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE RESOLVER URL & WEB TRANSCRIPT
     page.goto("/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id]))
+    # AWS S3 adds a trailing slash when it redirects to the index.html file.
     expect(page).to_have_url(
         "/".join(
             [
-                config("ORALHISTORIES_PUBLIC_BASE_URL").rstrip("/"),
+                config("ALCHEMIST_BASE_URL").rstrip("/"),
+                config("ORALHISTORIES_PATH_PREFIX"),
                 item_component_id,
-                f"{item_component_id}.html",
+                "",
             ]
         )
     )
@@ -3116,12 +3120,14 @@ def test_oralhistories_add_update_one_publish_one_transcript_4hete(
         invalidate_cloudfront_path(caller_reference=timestamp)
     # VALIDATE RESOLVER URL & WEB TRANSCRIPT
     page.goto("/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id]))
+    # AWS S3 adds a trailing slash when it redirects to the index.html file.
     expect(page).to_have_url(
         "/".join(
             [
-                config("ORALHISTORIES_PUBLIC_BASE_URL").rstrip("/"),
+                config("ALCHEMIST_BASE_URL").rstrip("/"),
+                config("ORALHISTORIES_PATH_PREFIX"),
                 item_component_id,
-                f"{item_component_id}.html",
+                "",
             ]
         )
     )

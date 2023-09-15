@@ -141,8 +141,8 @@ ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID=EFGH1234567890
 ;ORALHISTORIES_GIT_USER_NAME=bot
 ;; as noted under `AWS` above, this bucket must be included in the user policy
 ;ORALHISTORIES_BUCKET=s3-bucket-name
-;; base url for oral histories items including the domain and any base path
-;ORALHISTORIES_PUBLIC_BASE_URL=https://archives.example.org/oralhistories
+;; ALCHEMIST_URL_PREFIX + CollectionID from ArchivesSpace
+;ORALHISTORIES_PATH_PREFIX=%(ALCHEMIST_URL_PREFIX)s/OralHistories
 ;; s3 bucket for the resolver
 ;RESOLVER_BUCKET=s3-bucket-name
 ;; resolver base url including the domain and any base path
