@@ -370,8 +370,8 @@ def run_oralhistories_update(page: Page, item_component_id):
 def format_alchemist_item_uri(test_name, test_id):
     return "/".join(
         [
-            config("ACCESS_SITE_BASE_URL").rstrip("/"),
-            config("ALCHEMIST_URL_PATH_PREFIX"),
+            config("ALCHEMIST_BASE_URL").rstrip("/"),
+            config("ALCHEMIST_URL_PREFIX"),
             test_id,
             f"item-{test_name}",
         ]

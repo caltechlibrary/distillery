@@ -351,9 +351,9 @@ class AccessPlatform:
         paginator = s3_client.get_paginator("list_objects_v2")
         archival_object_prefixes = []
         for result in paginator.paginate(
-            Bucket=config("ACCESS_BUCKET"),
+            Bucket=config("ALCHEMIST_BUCKET"),
             Delimiter="/",
-            Prefix=f'{config("ALCHEMIST_URL_PATH_PREFIX")}/{collection_id}/',
+            Prefix=f'{config("ALCHEMIST_URL_PREFIX")}/{collection_id}/',
         ):
             for prefix in result.get("CommonPrefixes"):
                 # store collection_id/component_id/
@@ -364,16 +364,18 @@ class AccessPlatform:
     def regenerate_all(self):
         paginator = s3_client.get_paginator("list_objects_v2")
         collection_prefixes = []
-        for page in paginator.paginate(Bucket=config("ACCESS_BUCKET"), Delimiter="/"):
+        for page in paginator.paginate(
+            Bucket=config("ALCHEMIST_BUCKET"), Delimiter="/"
+        ):
             logger.debug(f'🐞 COMMON_PREFIXES: {page.get("CommonPrefixes")}')
             for top_level_prefix in page.get("CommonPrefixes"):
                 if top_level_prefix.get("Prefix").strip("/") == config(
-                    "ALCHEMIST_URL_PATH_PREFIX"
+                    "ALCHEMIST_URL_PREFIX"
                 ):
                     for collection in paginator.paginate(
-                        Bucket=config("ACCESS_BUCKET"),
+                        Bucket=config("ALCHEMIST_BUCKET"),
                         Delimiter="/",
-                        Prefix=f'{config("ALCHEMIST_URL_PATH_PREFIX")}/',
+                        Prefix=f'{config("ALCHEMIST_URL_PREFIX")}/',
                     ):
                         for prefix in collection.get("CommonPrefixes"):
                             # store collection_id/
@@ -382,7 +384,9 @@ class AccessPlatform:
         archival_object_prefixes = []
         for collection_prefix in collection_prefixes:
             for result in paginator.paginate(
-                Bucket=config("ACCESS_BUCKET"), Delimiter="/", Prefix=collection_prefix
+                Bucket=config("ALCHEMIST_BUCKET"),
+                Delimiter="/",
+                Prefix=collection_prefix,
             ):
                 for prefix in result.get("CommonPrefixes"):
                     # store collection_id/component_id/
@@ -422,13 +426,13 @@ def invalidate_cloudfront_path(path="/*", caller_reference=str(time.time())):
 def validate_connection():
     try:
         response = s3_client.put_object(
-            Bucket=config("ACCESS_BUCKET"), Key=".distillery"
+            Bucket=config("ALCHEMIST_BUCKET"), Key=".distillery"
         )
         if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
-            logger.info(f'☁️  S3 BUCKET WRITABLE: {config("ACCESS_BUCKET")}')
+            logger.info(f'☁️  S3 BUCKET WRITABLE: {config("ALCHEMIST_BUCKET")}')
             return True
         else:
-            logger.error(f'❌ S3 BUCKET NOT WRITABLE: {config("ACCESS_BUCKET")}')
+            logger.error(f'❌ S3 BUCKET NOT WRITABLE: {config("ALCHEMIST_BUCKET")}')
             logger.error(f"❌ S3 BUCKET RESPONSE: {response}")
             return False
     except botocore.exceptions.ClientError as error:
@@ -447,8 +451,8 @@ def generate_archival_object_page(build_directory, variables):
         template = environment.get_template("alchemist/archival_object.tpl")
         iiif_manifest_url = "/".join(
             [
-                config("ACCESS_SITE_BASE_URL").rstrip("/"),
-                config("ALCHEMIST_URL_PATH_PREFIX"),
+                config("ALCHEMIST_BASE_URL").rstrip("/"),
+                config("ALCHEMIST_URL_PREFIX"),
                 variables["arrangement"]["collection_id"],
                 variables["archival_object"]["component_id"],
                 "manifest.json",
@@ -474,7 +478,7 @@ def generate_archival_object_page(build_directory, variables):
             variables["archival_object"]
         )
         archival_object_page_key = (
-            Path(config("ALCHEMIST_URL_PATH_PREFIX"))
+            Path(config("ALCHEMIST_URL_PREFIX"))
             .joinpath(
                 variables["arrangement"]["collection_id"],
                 variables["archival_object"]["component_id"],
@@ -532,7 +536,7 @@ def upload_archival_object_page(build_directory, variables):
         )
         logger.info(f"🐛 BUILD DIRECTORY: {build_directory.name}")
         archival_object_page_key = (
-            Path(config("ALCHEMIST_URL_PATH_PREFIX"))
+            Path(config("ALCHEMIST_URL_PREFIX"))
             .joinpath(
                 variables["arrangement"]["collection_id"],
                 variables["archival_object"]["component_id"],
@@ -550,11 +554,11 @@ def upload_archival_object_page(build_directory, variables):
         logger.info(
             f"🐛 ARCHIVAL OBJECT PAGE FILE EXISTS: {Path(archival_object_page_file).exists()}"
         )
-        # TODO add config("ACCESS_BUCKET") to variables for fewer calls to decouple
+        # TODO add config("ALCHEMIST_BUCKET") to variables for fewer calls to decouple
         try:
             response = s3_client.upload_file(
                 archival_object_page_file,
-                config("ACCESS_BUCKET"),
+                config("ALCHEMIST_BUCKET"),
                 archival_object_page_key,
                 ExtraArgs={"ContentType": "text/html"},
             )
@@ -570,7 +574,7 @@ def get_thumbnail_url(variables):
     thumbnail_file = Path(sorted(variables["filepaths"])[0])
     thumbnail_id = "/".join(
         [
-            config("ALCHEMIST_URL_PATH_PREFIX"),
+            config("ALCHEMIST_URL_PREFIX"),
             variables["arrangement"]["collection_id"],
             thumbnail_file.parent.name,
             thumbnail_file.stem,
@@ -578,7 +582,7 @@ def get_thumbnail_url(variables):
     )
     return "/".join(
         [
-            config("ACCESS_IIIF_ENDPOINT").rstrip("/"),
+            config("ALCHEMIST_IIIF_ENDPOINT").rstrip("/"),
             thumbnail_id,
             "full",
             "200,",
@@ -653,7 +657,7 @@ def generate_iiif_manifest(build_directory, variables):
     try:
         if variables.get("alchemist_regenerate"):
             manifest_key = (
-                Path(config("ALCHEMIST_URL_PATH_PREFIX"))
+                Path(config("ALCHEMIST_URL_PREFIX"))
                 .joinpath(
                     variables["arrangement"]["collection_id"],
                     variables["archival_object"]["component_id"],
@@ -662,7 +666,7 @@ def generate_iiif_manifest(build_directory, variables):
                 .as_posix()
             )
             response = s3_client.get_object(
-                Bucket=config("ACCESS_BUCKET"),
+                Bucket=config("ALCHEMIST_BUCKET"),
                 Key=manifest_key,
             )
             manifest = json.loads(response["Body"].read())
@@ -672,8 +676,8 @@ def generate_iiif_manifest(build_directory, variables):
                 "@type": "sc:Manifest",
                 "@id": "/".join(
                     [
-                        config("ACCESS_SITE_BASE_URL").rstrip("/"),
-                        config("ALCHEMIST_URL_PATH_PREFIX"),
+                        config("ALCHEMIST_BASE_URL").rstrip("/"),
+                        config("ALCHEMIST_URL_PREFIX"),
                         variables["arrangement"]["collection_id"],
                         variables["archival_object"]["component_id"],
                         "manifest.json",
@@ -720,7 +724,7 @@ def generate_iiif_manifest(build_directory, variables):
                     manifest["sequences"][0]["canvases"].append(future.result())
         # save manifest file
         manifest_file = Path(build_directory.name).joinpath(
-            config("ALCHEMIST_URL_PATH_PREFIX"),
+            config("ALCHEMIST_URL_PREFIX"),
             variables["arrangement"]["collection_id"],
             variables["archival_object"]["component_id"],
             "manifest.json",
@@ -746,8 +750,8 @@ def create_canvas_metadata(filepath, variables):
     )
     canvas_id = "/".join(
         [
-            config("ACCESS_SITE_BASE_URL").rstrip("/"),
-            config("ALCHEMIST_URL_PATH_PREFIX"),
+            config("ALCHEMIST_BASE_URL").rstrip("/"),
+            config("ALCHEMIST_URL_PREFIX"),
             variables["arrangement"]["collection_id"],
             variables["archival_object"]["component_id"],
             "canvas",
@@ -756,14 +760,14 @@ def create_canvas_metadata(filepath, variables):
     )
     escaped_identifier = "/".join(
         [
-            config("ALCHEMIST_URL_PATH_PREFIX"),
+            config("ALCHEMIST_URL_PREFIX"),
             variables["arrangement"]["collection_id"],
             variables["archival_object"]["component_id"],
             f"{Path(filepath).stem}",
         ]
     )
     service_id = "/".join(
-        [config("ACCESS_IIIF_ENDPOINT").rstrip("/"), escaped_identifier]
+        [config("ALCHEMIST_IIIF_ENDPOINT").rstrip("/"), escaped_identifier]
     )
     resource_id = service_id + "/full/max/0/default.jpg"
     canvas = {
@@ -802,7 +806,7 @@ def upload_iiif_manifest(build_directory, variables):
         )
         logger.info(f"🐛 BUILD DIRECTORY: {build_directory.name}")
         manifest_key = (
-            Path(config("ALCHEMIST_URL_PATH_PREFIX"))
+            Path(config("ALCHEMIST_URL_PREFIX"))
             .joinpath(
                 variables["arrangement"]["collection_id"],
                 variables["archival_object"]["component_id"],
@@ -812,11 +816,11 @@ def upload_iiif_manifest(build_directory, variables):
         )
         manifest_file = Path(build_directory.name).joinpath(manifest_key).as_posix()
         logger.info(f"🐛 IIIF MANIFEST EXISTS: {Path(manifest_file).exists()}")
-        # TODO add config("ACCESS_BUCKET") to variables for fewer calls to decouple
+        # TODO add config("ALCHEMIST_BUCKET") to variables for fewer calls to decouple
         try:
             response = s3_client.upload_file(
                 manifest_file,
-                config("ACCESS_BUCKET"),
+                config("ALCHEMIST_BUCKET"),
                 manifest_key,
                 ExtraArgs={"ContentType": "application/json"},
             )
@@ -894,7 +898,7 @@ def create_pyramid_tiff(build_directory, variables):
             vips_source_image = variables["original_image_path"]
         pyramid_tiff_key = "/".join(
             [
-                config("ALCHEMIST_URL_PATH_PREFIX"),
+                config("ALCHEMIST_URL_PREFIX"),
                 variables["arrangement"]["collection_id"],
                 variables["archival_object"]["component_id"],
                 f'{Path(variables["original_image_path"]).stem}.ptif',
@@ -935,7 +939,7 @@ def publish_archival_object_access_files(build_directory, variables):
 
     archival_object_access_path = "/".join(
         [
-            config("ALCHEMIST_URL_PATH_PREFIX"),
+            config("ALCHEMIST_URL_PREFIX"),
             variables["arrangement"]["collection_id"],
             variables["archival_object"]["component_id"],
         ]
@@ -952,7 +956,7 @@ def publish_archival_object_access_files(build_directory, variables):
             sync = s5cmd_cmd(
                 "sync",
                 f"{build_directory.name}/{archival_object_access_path}/*",
-                f's3://{config("ACCESS_BUCKET")}/{archival_object_access_path}/',
+                f's3://{config("ALCHEMIST_BUCKET")}/{archival_object_access_path}/',
                 _env={
                     "AWS_ACCESS_KEY_ID": config("DISTILLERY_AWS_ACCESS_KEY_ID"),
                     "AWS_SECRET_ACCESS_KEY": config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
@@ -972,7 +976,7 @@ def publish_archival_object_access_files(build_directory, variables):
                 "sync",
                 "--delete",
                 f"{build_directory.name}/{archival_object_access_path}/*",
-                f's3://{config("ACCESS_BUCKET")}/{archival_object_access_path}/',
+                f's3://{config("ALCHEMIST_BUCKET")}/{archival_object_access_path}/',
                 _env={
                     "AWS_ACCESS_KEY_ID": config("DISTILLERY_AWS_ACCESS_KEY_ID"),
                     "AWS_SECRET_ACCESS_KEY": config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
@@ -995,7 +999,7 @@ def create_digital_object_file_versions(build_directory, variables):
     archival_object_directory = (
         Path(build_directory.name)
         .joinpath(
-            config("ALCHEMIST_URL_PATH_PREFIX"),
+            config("ALCHEMIST_URL_PREFIX"),
             variables["arrangement"]["collection_id"],
             variables["archival_object"]["component_id"],
         )
@@ -1005,8 +1009,8 @@ def create_digital_object_file_versions(build_directory, variables):
 
     archival_object_page_url = "/".join(
         [
-            config("ACCESS_SITE_BASE_URL").rstrip("/"),
-            config("ALCHEMIST_URL_PATH_PREFIX"),
+            config("ALCHEMIST_BASE_URL").rstrip("/"),
+            config("ALCHEMIST_URL_PREFIX"),
             variables["arrangement"]["collection_id"],
             variables["archival_object"]["component_id"],
         ]
