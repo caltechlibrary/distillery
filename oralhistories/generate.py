@@ -41,21 +41,6 @@ def generate_files(identifier):
             f"build/{identifier}/",
         ]
     )
-    # generate html
-    subprocess.run(
-        [
-            "pandoc",
-            "--standalone",
-            "--shift-heading-level-by=1",
-            "--table-of-contents",
-            "--from=markdown",
-            "--to=html",
-            "--template=.github/workflows/templates/web.html",
-            f"--output=build/{identifier}/index.html",
-            f"transcripts/{identifier}/{identifier}.md",
-        ]
-    )
-    print(f"🐞 file generated: build/{identifier}/index.html")
     # create intermediate html for pagedjs
     subprocess.run(
         [
@@ -83,6 +68,28 @@ def generate_files(identifier):
     print(f"🐞 file generated: build/{identifier}/{identifier}.pdf")
     os.remove(f"build/{identifier}/tmp.html")
     print(f"🐞 file deleted: build/{identifier}/tmp.html")
+    # generate html
+    subprocess.run(
+        [
+            "pandoc",
+            "--standalone",
+            "--shift-heading-level-by=1",
+            "--table-of-contents",
+            "--from=markdown",
+            "--to=html",
+            "--template=.github/workflows/templates/web.html",
+            "--variable=pdf-size:{}".format(
+                round(
+                    os.path.getsize(f"transcripts/{identifier}/{identifier}.pdf")
+                    / (1024 * 1024),
+                    2,
+                )
+            ),
+            f"--output=build/{identifier}/index.html",
+            f"transcripts/{identifier}/{identifier}.md",
+        ]
+    )
+    print(f"🐞 file generated: build/{identifier}/index.html")
 
 
 if __name__ == "__main__":
