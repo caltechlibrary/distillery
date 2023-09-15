@@ -118,8 +118,6 @@ ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID=EFGH1234567890
 ; -----
 ;ENV_RESET_TEST_DATA=/env/specific/path/to/reset/test/data
 ;ENV_ARCHIVESSPACE_RESET_CMD=sudo /bin/bash /env/specific/path/to/reset/archivesspace/db/script
-;ISLANDORA_USERNAME=username
-;ISLANDORA_PASSWORD=password
 ;ARCHIVESSPACE_SSH_HOST=127.0.0.1
 ;ARCHIVESSPACE_SSH_PORT=22
 ;ARCHIVESSPACE_SSH_USER=username
