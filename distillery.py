@@ -25,7 +25,6 @@ import sh
 from asnake.client import ASnakeClient
 from decouple import config
 from jpylyzer import jpylyzer
-from requests import HTTPError
 
 import statuslogger
 
