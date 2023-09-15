@@ -471,8 +471,8 @@ class DistilleryService(rpyc.Service):
                     status_logger.info(
                         "☑️  ACCESS PAGE CREATED: [**{}**]({}/{}/{}/{})".format(
                             self.variables["archival_object"]["component_id"],
-                            config("ACCESS_SITE_BASE_URL").rstrip("/"),
-                            config("ALCHEMIST_URL_PATH_PREFIX"),
+                            config("ALCHEMIST_BASE_URL").rstrip("/"),
+                            config("ALCHEMIST_URL_PREFIX"),
                             self.variables["arrangement"]["collection_id"],
                             self.variables["archival_object"]["component_id"],
                         )
@@ -694,7 +694,7 @@ class DistilleryService(rpyc.Service):
                 accessDistiller.transfer_archival_object_derivative_files(variables)
                 archival_object_path = "/".join(
                     [
-                        config("ALCHEMIST_URL_PATH_PREFIX"),
+                        config("ALCHEMIST_URL_PREFIX"),
                         variables["arrangement"]["collection_id"],
                         variables["archival_object"]["component_id"],
                     ]
@@ -708,7 +708,7 @@ class DistilleryService(rpyc.Service):
                         variables["archival_object"]["component_id"],
                         "/".join(
                             [
-                                config("ACCESS_SITE_BASE_URL").rstrip("/"),
+                                config("ALCHEMIST_BASE_URL").rstrip("/"),
                                 archival_object_path,
                             ]
                         ),
@@ -737,8 +737,8 @@ class DistilleryService(rpyc.Service):
                     status_logger.info(
                         "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{})".format(
                             variables["archival_object"]["component_id"],
-                            config("ACCESS_SITE_BASE_URL").rstrip("/"),
-                            config("ALCHEMIST_URL_PATH_PREFIX"),
+                            config("ALCHEMIST_BASE_URL").rstrip("/"),
+                            config("ALCHEMIST_URL_PREFIX"),
                             variables["arrangement"]["collection_id"],
                             variables["archival_object"]["component_id"],
                         )
@@ -764,8 +764,8 @@ class DistilleryService(rpyc.Service):
                     status_logger.info(
                         "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{})".format(
                             variables["archival_object"]["component_id"],
-                            config("ACCESS_SITE_BASE_URL").rstrip("/"),
-                            config("ALCHEMIST_URL_PATH_PREFIX"),
+                            config("ALCHEMIST_BASE_URL").rstrip("/"),
+                            config("ALCHEMIST_URL_PREFIX"),
                             variables["arrangement"]["collection_id"],
                             variables["archival_object"]["component_id"],
                         )
