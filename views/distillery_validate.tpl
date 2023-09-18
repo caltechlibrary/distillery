@@ -84,7 +84,7 @@
         } else if (text.indexOf('🈺') != -1) {
           clearInterval(id);
           if (p) {
-            p.innerHTML = p.innerHTML.replace("Validating", "✅ Validated");
+            p.innerHTML = p.innerHTML.replace("Validating", "✅ Successfully validated");
           }
           if (button) {
             button.innerHTML = "Run 🚀";

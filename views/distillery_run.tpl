@@ -64,7 +64,7 @@
         } else if (text.indexOf('🏁') != -1) {
           clearInterval(id);
           if (p) {
-            p.innerHTML = p.innerHTML.replace("Processing", "✅ Processed");
+            p.innerHTML = p.innerHTML.replace("Processing", "✅ Successfully processed");
           }
         }
         iframe.style.height = iframe.contentDocument.body.scrollHeight + 48 + 'px';

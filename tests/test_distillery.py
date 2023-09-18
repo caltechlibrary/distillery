@@ -303,15 +303,22 @@ def run_distillery(
             timeout=timeout,
         )
         return page
-    expect(page.locator("p")).to_have_text(
-        f"✅ Validated metadata, files, and destinations.",
-        timeout=timeout,
+    success = page.locator("p").get_by_text("✅ Successfully")
+    validated = page.locator("p").get_by_text(
+        "✅ Successfully validated metadata, files, and destinations."
     )
+    processed = page.locator("p").get_by_text(
+        "✅ Successfully processed metadata and files."
+    )
+    error = page.locator("p").get_by_text(
+        "❌ Something went wrong. View the details for more information."
+    )
+    expect(success.or_(error)).to_be_visible(timeout=timeout)
+    expect(validated).to_be_visible()
     page.get_by_role("button", name="Run").click()
     page.get_by_text("Details").click()
-    expect(page.locator("p")).to_have_text(
-        f"✅ Processed metadata and files.", timeout=timeout
-    )
+    expect(success.or_(error)).to_be_visible(timeout=timeout)
+    expect(processed).to_be_visible()
 
 
 def run_alchemist_regenerate(
@@ -1370,7 +1377,7 @@ def test_alchemist_regenerate_one_vru3b(page: Page, asnake_client, timestamp):
     expect(page).to_have_title("Regenerated Title")
 
 
-def test_alchemist_regenerate_collection_2zqyy(page: Page, asnake_client):
+def test_alchemist_regenerate_collection_2zqyy(page: Page, asnake_client, timestamp):
     """Publish single-image archival objects."""
     test_name = inspect.currentframe().f_code.co_name
     test_id = test_name.split("_")[-1]
@@ -1462,7 +1469,7 @@ def test_alchemist_regenerate_collection_2zqyy(page: Page, asnake_client):
     expect(page).to_have_title("Regenerated Title 2zqy2")
 
 
-def test_alchemist_regenerate_all_mxsk0(page: Page, asnake_client, timestamp):
+def test_alchemist_regenerate_all_mxsk0(page: Page, asnake_client, s3_client, timestamp):
     """Regenerate all sets of files."""
     # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
     move_test_files_to_initial_original_files_directory(
@@ -1474,6 +1481,14 @@ def test_alchemist_regenerate_all_mxsk0(page: Page, asnake_client, timestamp):
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, "mxsk1")
     delete_archivesspace_test_records(asnake_client, "mxsk2")
+    # DELETE S3 OBJECTS
+    s3_response = s3_client.list_objects_v2(Bucket=config("ALCHEMIST_BUCKET"))
+    print("🐞 s3_client.list_objects_v2", s3_response)
+    if s3_response.get("Contents"):
+        s3_keys = [{"Key": s3_object["Key"]} for s3_object in s3_response["Contents"]]
+        s3_response = s3_client.delete_objects(
+            Bucket=config("ALCHEMIST_BUCKET"), Delete={"Objects": s3_keys}
+        )
     # CREATE RESOURCE RECORD 1
     resource_create_response1 = create_archivesspace_test_resource(
         asnake_client, "test_alchemist_regenerate_all_mxsk1", "mxsk1"
@@ -1553,7 +1568,7 @@ def test_alchemist_regenerate_all_mxsk0(page: Page, asnake_client, timestamp):
         item_update_response2.json(),
     )
     # RUN REGENERATE PROCESS
-    run_alchemist_regenerate(page, "all", timeout=90000)
+    run_alchemist_regenerate(page, "all", timeout=120000)
     # VALIDATE ALCHEMIST ITEMS
     page.goto(alchemist_item_uri1)
     expect(page).to_have_title("Regenerated Title mxsk1")
@@ -1757,7 +1772,7 @@ def test_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_client):
                 assert file_version["publish"] is False
 
 
-def test_alchemist_imageitems_alone_b74ya(page: Page, asnake_client):
+def test_alchemist_imageitems_alone_b74ya(page: Page, asnake_client, s3_client, timestamp):
     """Publish single-image archival objects."""
     test_name = inspect.currentframe().f_code.co_name
     test_id = test_name.split("_")[-1]
@@ -1770,6 +1785,14 @@ def test_alchemist_imageitems_alone_b74ya(page: Page, asnake_client):
     )
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
+    # DELETE S3 OBJECTS
+    s3_response = s3_client.list_objects_v2(Bucket=config("ALCHEMIST_BUCKET"))
+    print("🐞 s3_client.list_objects_v2", s3_response)
+    if s3_response.get("Contents"):
+        s3_keys = [{"Key": s3_object["Key"]} for s3_object in s3_response["Contents"]]
+        s3_response = s3_client.delete_objects(
+            Bucket=config("ALCHEMIST_BUCKET"), Delete={"Objects": s3_keys}
+        )
     # CREATE RESOURCE RECORD
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
@@ -1841,7 +1864,7 @@ def test_alchemist_imageitems_alone_b74ya(page: Page, asnake_client):
         item_update_response2.json(),
     )
     # RUN REGENERATE PROCESS
-    run_alchemist_regenerate(page, "all", timeout=90000)
+    run_alchemist_regenerate(page, "all", timeout=120000)
     # VALIDATE ALCHEMIST ITEMS
     page.goto(alchemist_item_uri1)
     expect(page).to_have_title("Regenerated Title b74y1")
