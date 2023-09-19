@@ -58,6 +58,8 @@
 ;WORK_AWS_CMD=/usr/local/bin/aws
 ;WORK_CUT_CMD=/path/to/cut
 ;WORK_EXIFTOOL_CMD=/path/to/exiftool
+;WORK_FFMPEG_CMD=/usr/bin/ffmpeg
+;WORK_FFPROBE_CMD=/usr/bin/ffprobe
 ;WORK_GIT_CMD=/path/to/git
 ;WORK_KDU_COMPRESS_CMD=/path/to/kdu_compress
 ;WORK_MAGICK_CMD=/path/to/magick

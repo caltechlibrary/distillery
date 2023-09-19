@@ -5,6 +5,7 @@ import json
 import logging
 import mimetypes
 import os
+import shutil
 import subprocess
 import tempfile
 import time
@@ -325,16 +326,13 @@ class AccessPlatform:
 
     def archival_object_level_processing(self, variables):
         logger.info(f'ℹ️  {variables["archival_object"]["component_id"]}')
+        # TODO consider conditions for identifiying non-image file types
+        if len(variables["filepaths"]) == 1:
+            type, encoding = mimetypes.guess_type(variables["filepaths"][0])
+            if type == "video/mp4":
+                variables["mimetype"] = type
         generate_archival_object_page(self.build_directory, variables)
         generate_iiif_manifest(self.build_directory, variables)
-
-    def create_access_file(self, variables):
-        # TODO adapt for different file types
-        logger.debug(
-            f'🐞 variables["original_file_path"]: {variables["original_file_path"]}'
-        )
-        create_pyramid_tiff(self.build_directory, variables)
-        return
 
     def transfer_archival_object_derivative_files(self, variables):
         logger.info(f'ℹ️  {variables["archival_object"]["component_id"]}')
@@ -445,16 +443,22 @@ def generate_archival_object_page(build_directory, variables):
             trim_blocks=True,
             lstrip_blocks=True,
         )
-        template = environment.get_template("alchemist/archival_object.tpl")
-        iiif_manifest_url = "/".join(
-            [
-                config("ALCHEMIST_BASE_URL").rstrip("/"),
-                config("ALCHEMIST_URL_PREFIX"),
-                variables["arrangement"]["collection_id"],
-                variables["archival_object"]["component_id"],
-                "manifest.json",
-            ]
-        )
+        if variables.get("mimetype").startswith("video/"):
+            # TODO use IIIF Presentation API 3.0; manifest.json files can supply video
+            # NOTE template currently only handles mp4 files
+            template = environment.get_template("alchemist/video.tpl")
+            iiif_manifest_url = f'{variables["archival_object"]["component_id"]}.{variables["mimetype"].split("/")[-1]}'
+        else:
+            template = environment.get_template("alchemist/archival_object.tpl")
+            iiif_manifest_url = "/".join(
+                [
+                    config("ALCHEMIST_BASE_URL").rstrip("/"),
+                    config("ALCHEMIST_URL_PREFIX"),
+                    variables["arrangement"]["collection_id"],
+                    variables["archival_object"]["component_id"],
+                    "manifest.json",
+                ]
+            )
         if variables["arrangement"].get("series_title"):
             series_display = variables["arrangement"]["series_title"]
         else:
@@ -557,13 +561,23 @@ def upload_archival_object_page(build_directory, variables):
 
 
 def get_thumbnail_url(variables):
-    thumbnail_file = Path(sorted(variables["filepaths"])[0])
+    source_file = Path(sorted(variables["filepaths"])[0])
+    if source_file.suffix == ".mp4":
+        return "/".join(
+            [
+                config("ALCHEMIST_BASE_URL").rstrip("/"),
+                config("ALCHEMIST_URL_PREFIX"),
+                variables["arrangement"]["collection_id"],
+                variables["archival_object"]["component_id"],
+                "thumbnail.webp",
+            ]
+        )
     thumbnail_id = "/".join(
         [
             config("ALCHEMIST_URL_PREFIX"),
             variables["arrangement"]["collection_id"],
-            thumbnail_file.parent.name,
-            thumbnail_file.stem,
+            source_file.parent.name,
+            source_file.stem,
         ]
     )
     return "/".join(
@@ -579,6 +593,9 @@ def get_thumbnail_url(variables):
 
 
 def generate_iiif_manifest(build_directory, variables):
+    if variables.get("mimetype") == "video/mp4":
+        # TODO use IIIF Presentation API 3.0; manifest.json files can supply video
+        return
     metadata = []
     if variables["arrangement"].get("collection_title"):
         metadata.append(
@@ -825,10 +842,64 @@ def conditional_derivative_file_processing(filepath, build_directory, variables)
 
     if type.startswith("image/"):
         create_pyramid_tiff(build_directory, variables)
+    elif type.startswith("video/"):
+        video_key = "/".join(
+            [
+                config("ALCHEMIST_URL_PREFIX"),
+                variables["arrangement"]["collection_id"],
+                variables["archival_object"]["component_id"],
+                Path(variables["original_file_path"]).name,
+            ]
+        )
+        video_file_path = Path(build_directory.name).joinpath(video_key)
+        try:
+            video_file_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(variables["original_file_path"], video_file_path)
+            # create a thumbnail from the midpoint of the video
+            duration = subprocess.run(
+                [
+                    config("WORK_FFPROBE_CMD"),
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "format=duration",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    video_file_path.as_posix(),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+            midpoint = str(float(duration) / 2)
+            subprocess.run(
+                [
+                    config("WORK_FFMPEG_CMD"),
+                    "-y",
+                    "-v",
+                    "error",
+                    "-ss",
+                    midpoint,
+                    "-i",
+                    video_file_path.as_posix(),
+                    "-vframes",
+                    "1",
+                    "-vf",
+                    "scale=200:-1",
+                    video_file_path.parent.joinpath("thumbnail.webp").as_posix(),
+                ],
+                check=True,
+            )
+        except Exception:
+            logger.exception(
+                f'❌ VIDEO FILE COPY FAILED: {variables["original_file_path"]}'
+            )
+        else:
+            logger.info(f"☑️ VIDEO FILE COPIED: {video_key}")
     else:
         logger.error(
-            "❌ ONLY IMAGE FILES ARE SUPPORTED AT THIS TIME: {}".format(
-                variables["original_file_path"]
+            "❌ {} FILES ARE NOT SUPPORTED AT THIS TIME: {}".format(
+                type, variables["original_file_path"]
             )
         )
 
@@ -991,7 +1062,7 @@ def create_digital_object_file_versions(build_directory, variables):
     variables["filepaths"] = [
         f.absolute()
         for f in archival_object_directory.iterdir()
-        if f.is_file() and f.name.endswith(".ptif")
+        if f.is_file() and (f.name.endswith(".ptif") or f.name.endswith(".mp4"))
     ]
     logger.debug(f'🐞 FILEPATHS[0]: {sorted(variables["filepaths"])[0]}')
 
