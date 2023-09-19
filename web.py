@@ -366,10 +366,7 @@ def authorize_user():
 
 if __name__ == "__main__":
     # supply a user when running bottle locally
-    debug_user = {
-        "email_address": "hello@example.com",
-        "display_name": "World",
-    }
+    debug_user = {"email_address": "hello@example.com", "display_name": "World"}
     bottle.run(
         host=config("LOCALHOST"),
         port=config("LOCALPORT"),

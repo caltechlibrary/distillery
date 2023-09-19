@@ -23,7 +23,7 @@ logging.config.fileConfig(
     # set the logging configuration in the settings.ini file
     Path(__file__)
     .resolve()
-    .parent.joinpath("settings.ini"),
+    .parent.joinpath("settings.ini")
 )
 logger = logging.getLogger("oralhistories")
 
@@ -64,9 +64,7 @@ class OralHistoriesService(rpyc.Service):
             )
             self.digital_object_uri = self.create_digital_object()
             self.create_digital_object_component(
-                "Markdown",
-                self.component_id,
-                f"{self.component_id}.md",
+                "Markdown", self.component_id, f"{self.component_id}.md"
             )
             self.status_logger.info(
                 f'☑️  created [**{component_id}** Digital Object record]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={self.digital_object_uri}) in ArchivesSpace'
@@ -160,8 +158,8 @@ class OralHistoriesService(rpyc.Service):
                             )
                     else:
                         # look for an existing digital_object_component
-                        digital_object_component_uri = (
-                            self.find_digital_object_component(f'{line.split("/")[-1]}')
+                        digital_object_component_uri = self.find_digital_object_component(
+                            f'{line.split("/")[-1]}'
                         )
                         if digital_object_component_uri:
                             logger.info(
@@ -175,9 +173,7 @@ class OralHistoriesService(rpyc.Service):
                         else:
                             label = f'{line.rsplit(".")[-1].upper()} Asset: {line.split("/")[-1].rsplit(".", maxsplit=1)[0].split("-", maxsplit=3)[-1]}'
                         self.create_digital_object_component(
-                            label,
-                            line.split("/")[-2],
-                            line.split("/")[-1],
+                            label, line.split("/")[-2], line.split("/")[-1]
                         )
                 if line.split()[0] == "delete:":
                     if line.split(".")[-1] == "html":
@@ -201,8 +197,8 @@ class OralHistoriesService(rpyc.Service):
                         # TODO determine if resolver entry should be deleted
                     else:
                         # look for an existing digital_object_component
-                        digital_object_component_uri = (
-                            self.find_digital_object_component(f'{line.split("/")[-1]}')
+                        digital_object_component_uri = self.find_digital_object_component(
+                            f'{line.split("/")[-1]}'
                         )
                         if digital_object_component_uri:
                             # delete the digital_object_component
