@@ -52,17 +52,6 @@ def transfer_collection_datafile(collection_id, work_preservation_files):
     )
 
 
-def transfer_derivative_structure(variables):
-    """Transfer PRESERVATION_FILES/CollectionID to S3 bucket.
-
-    If something goes wrong with in copying the files to S3 there will
-    be no ArchivesSpace records to clean up.
-
-    VARIABLES USED:
-
-    """
-
-
 def transfer_archival_object_datafile(variables):
     """POST archival object data to S3 bucket as a JSON file."""
     # logger.info(f'🐞 str(variables["current_archival_object_datafile"]): {str(variables["current_archival_object_datafile"])}')
