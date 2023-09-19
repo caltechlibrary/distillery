@@ -127,10 +127,7 @@ def delete_archivesspace_test_records(asnake_client, resource_identifer):
 
 def move_test_files_to_initial_original_files_directory(test_name):
     shutil.move(
-        os.path.join(
-            config("TEST_FILES", default="tests/files"),
-            f"item-{test_name}",
-        ),
+        os.path.join(config("TEST_FILES", default="tests/files"), f"item-{test_name}"),
         config("INITIAL_ORIGINAL_FILES"),
     )
 
@@ -144,10 +141,7 @@ def invalidate_cloudfront_path(path="/*", caller_reference=str(time.time())):
     response = cloudfront_client.create_invalidation(
         DistributionId=config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID"),
         InvalidationBatch={
-            "Paths": {
-                "Quantity": 1,
-                "Items": [path],
-            },
+            "Paths": {"Quantity": 1, "Items": [path]},
             "CallerReference": caller_reference,
         },
     )
@@ -402,22 +396,8 @@ def wait_for_oralhistories_generated_files(git_repo, attempts=3, sleep_time=30):
 
 def copy_oralhistories_asset(test_id, filename, tmp_oralhistories, item_component_id):
     shutil.copyfile(
-        "/".join(
-            [
-                "tests",
-                "oralhistories",
-                test_id,
-                filename,
-            ]
-        ),
-        "/".join(
-            [
-                tmp_oralhistories,
-                "transcripts",
-                item_component_id,
-                filename,
-            ]
-        ),
+        "/".join(["tests", "oralhistories", test_id, filename]),
+        "/".join([tmp_oralhistories, "transcripts", item_component_id, filename]),
     )
 
 
@@ -457,10 +437,7 @@ def test_alchemist_fail_unpublished_archival_object_sjex6(page: Page, asnake_cli
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -468,19 +445,13 @@ def test_alchemist_fail_unpublished_archival_object_sjex6(page: Page, asnake_cli
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 archival_object_create_response:{test_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 archival_object_create_response:{test_id}", item_create_response.json())
     # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
     # set publish to False
     item = asnake_client.get(item_create_response.json()["uri"]).json()
     item["publish"] = False
     item_update_response = asnake_client.post(item["uri"], json=item)
-    print(
-        f"🐞 item_update_response:{test_id}",
-        item_update_response.json(),
-    )
+    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
     # RUN DISTILLERY ACCESS WORKFLOW
     page = run_distillery(page, ["access"], outcome="failure")
     # TODO check contents of iframe
@@ -497,19 +468,13 @@ def test_alchemist_fail_unpublished_ancestor_jvycv(page: Page, asnake_client):
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CUSTOMIZE RESOURCE RECORD
     # set publish to False
     resource = asnake_client.get(resource_create_response.json()["uri"]).json()
     resource["publish"] = False
     resource_update_response = asnake_client.post(resource["uri"], json=resource)
-    print(
-        f"🐞 resource_update_response:{test_id}",
-        resource_update_response.json(),
-    )
+    print(f"🐞 resource_update_response:{test_id}", resource_update_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -517,10 +482,7 @@ def test_alchemist_fail_unpublished_ancestor_jvycv(page: Page, asnake_client):
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{test_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
     # RUN DISTILLERY ACCESS WORKFLOW
     page = run_distillery(page, ["access"], outcome="failure")
     # TODO check contents of iframe
@@ -538,10 +500,7 @@ def test_alchemist_archivesspace_file_uri_v8v5r(page: Page, asnake_client):
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -549,10 +508,7 @@ def test_alchemist_archivesspace_file_uri_v8v5r(page: Page, asnake_client):
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{test_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
@@ -581,10 +537,7 @@ def test_alchemist_date_output_x2edw(page: Page, asnake_client, timestamp):
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -592,24 +545,13 @@ def test_alchemist_date_output_x2edw(page: Page, asnake_client, timestamp):
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{test_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
     # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
     item = asnake_client.get(item_create_response.json()["uri"]).json()
     # add dates
     item["dates"] = [
-        {
-            "label": "digitized",
-            "date_type": "single",
-            "begin": "2022-02-22",
-        },
-        {
-            "label": "creation",
-            "date_type": "single",
-            "begin": "1584-02-29",
-        },
+        {"label": "digitized", "date_type": "single", "begin": "2022-02-22"},
+        {"label": "creation", "date_type": "single", "begin": "1584-02-29"},
         {
             "label": "creation",
             "date_type": "inclusive",
@@ -629,10 +571,7 @@ def test_alchemist_date_output_x2edw(page: Page, asnake_client, timestamp):
         },
     ]
     item_update_response = asnake_client.post(item["uri"], json=item)
-    print(
-        f"🐞 item_update_response:{test_id}",
-        item_update_response.json(),
-    )
+    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
@@ -657,10 +596,7 @@ def test_alchemist_linked_agent_output_vdje3(page: Page, asnake_client, timestam
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -668,10 +604,7 @@ def test_alchemist_linked_agent_output_vdje3(page: Page, asnake_client, timestam
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{test_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
     # CREATE AGENT PERSON RECORDS
     agent_person_unpublished_create_response = create_archivesspace_test_agent_person(
         asnake_client, test_id, "Unpublished"
@@ -719,10 +652,7 @@ def test_alchemist_linked_agent_output_vdje3(page: Page, asnake_client, timestam
         },
     ]
     item_update_response = asnake_client.post(item["uri"], json=item)
-    print(
-        f"🐞 item_update_response:{test_id}",
-        item_update_response.json(),
-    )
+    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
@@ -756,10 +686,7 @@ def test_alchemist_extent_output_77cjj(page: Page, asnake_client, timestamp):
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -767,30 +694,16 @@ def test_alchemist_extent_output_77cjj(page: Page, asnake_client, timestamp):
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{test_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
     # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
     item = asnake_client.get(item_create_response.json()["uri"]).json()
     # add extents
     item["extents"] = [
-        {
-            "portion": "whole",
-            "number": "1",
-            "extent_type": "books",
-        },
-        {
-            "portion": "part",
-            "number": "2",
-            "extent_type": "photographs",
-        },
+        {"portion": "whole", "number": "1", "extent_type": "books"},
+        {"portion": "part", "number": "2", "extent_type": "photographs"},
     ]
     item_update_response = asnake_client.post(item["uri"], json=item)
-    print(
-        f"🐞 item_update_response:{test_id}",
-        item_update_response.json(),
-    )
+    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
@@ -814,10 +727,7 @@ def test_alchemist_subject_output_28s5q(page: Page, asnake_client, timestamp):
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -825,26 +735,13 @@ def test_alchemist_subject_output_28s5q(page: Page, asnake_client, timestamp):
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{test_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
     # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
     item = asnake_client.get(item_create_response.json()["uri"]).json()
     # add subjects
-    item["subjects"] = [
-        {
-            "ref": "/subjects/1",
-        },
-        {
-            "ref": "/subjects/2",
-        },
-    ]
+    item["subjects"] = [{"ref": "/subjects/1"}, {"ref": "/subjects/2"}]
     item_update_response = asnake_client.post(item["uri"], json=item)
-    print(
-        f"🐞 item_update_response:{test_id}",
-        item_update_response.json(),
-    )
+    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
@@ -868,10 +765,7 @@ def test_alchemist_note_output_u8vvf(page: Page, asnake_client, timestamp):
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -879,10 +773,7 @@ def test_alchemist_note_output_u8vvf(page: Page, asnake_client, timestamp):
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{test_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
     # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
     item = asnake_client.get(item_create_response.json()["uri"]).json()
     # add notes
@@ -948,7 +839,7 @@ def test_alchemist_note_output_u8vvf(page: Page, asnake_client, timestamp):
                     "jsonmodel_type": "note_text",
                     "content": "Published note. One published text subnote. Consequat nostrud ipsum irure reprehenderit qui veniam pariatur.",
                     "publish": True,
-                },
+                }
             ],
             "publish": True,
         },
@@ -977,7 +868,7 @@ def test_alchemist_note_output_u8vvf(page: Page, asnake_client, timestamp):
                     "jsonmodel_type": "note_text",
                     "content": "Unpublished note. One published text subnote. Laboris ipsum cupidatat consequat velit.",
                     "publish": True,
-                },
+                }
             ],
             "publish": False,
         },
@@ -1006,7 +897,7 @@ def test_alchemist_note_output_u8vvf(page: Page, asnake_client, timestamp):
                     "jsonmodel_type": "note_text",
                     "content": "Published note. One unpublished text subnote. Laborum cupidatat adipisicing cillum deserunt.",
                     "publish": False,
-                },
+                }
             ],
             "publish": True,
         },
@@ -1019,7 +910,7 @@ def test_alchemist_note_output_u8vvf(page: Page, asnake_client, timestamp):
                     "jsonmodel_type": "note_text",
                     "content": "Published note. One unpublished text subnote. Aliqua consequat mollit reprehenderit pariatur exercitation nisi culpa incididunt.",
                     "publish": False,
-                },
+                }
             ],
             "publish": True,
         },
@@ -1048,7 +939,7 @@ def test_alchemist_note_output_u8vvf(page: Page, asnake_client, timestamp):
                     "jsonmodel_type": "note_text",
                     "content": "Unpublished note. One unpublished text subnote. Esse in proident.",
                     "publish": False,
-                },
+                }
             ],
             "publish": False,
         },
@@ -1113,7 +1004,7 @@ def test_alchemist_note_output_u8vvf(page: Page, asnake_client, timestamp):
                     "jsonmodel_type": "note_text",
                     "content": "Published note. One published text subnote. Minim aute nulla laborum ullamco do incididunt nostrud irure eiusmod laborum elit deserunt.",
                     "publish": True,
-                },
+                }
             ],
             "publish": True,
         },
@@ -1126,16 +1017,13 @@ def test_alchemist_note_output_u8vvf(page: Page, asnake_client, timestamp):
                     "jsonmodel_type": "note_text",
                     "content": "Published note. One published text subnote. Eiusmod irure laboris eu reprehenderit proident exercitation qui nulla irure amet.",
                     "publish": True,
-                },
+                }
             ],
             "publish": True,
         },
     ]
     item_update_response = asnake_client.post(item["uri"], json=item)
-    print(
-        f"🐞 item_update_response:{test_id}",
-        item_update_response.json(),
-    )
+    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
@@ -1168,26 +1056,17 @@ def test_alchemist_ancestors_2gj5n(page: Page, asnake_client, timestamp):
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT SERIES RECORD
     series_create_response = create_archivesspace_test_archival_object_series(
         asnake_client, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 series_create_response:{test_id}",
-        series_create_response.json(),
-    )
+    print(f"🐞 series_create_response:{test_id}", series_create_response.json())
     # CREATE ARCHIVAL OBJECT SUBSERIES RECORD
     subseries_create_response = create_archivesspace_test_archival_object_subseries(
         asnake_client, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 subseries_create_response:{test_id}",
-        subseries_create_response.json(),
-    )
+    print(f"🐞 subseries_create_response:{test_id}", subseries_create_response.json())
     # set subseries as a child of series
     subseries_parent_position_post_response = asnake_client.post(
         f'{subseries_create_response.json()["uri"]}/parent',
@@ -1204,17 +1083,11 @@ def test_alchemist_ancestors_2gj5n(page: Page, asnake_client, timestamp):
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{test_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
     # set item as a child of subseries
     item_parent_position_post_response = asnake_client.post(
         f'{item_create_response.json()["uri"]}/parent',
-        params={
-            "parent": subseries_create_response.json()["id"],
-            "position": 1,
-        },
+        params={"parent": subseries_create_response.json()["id"], "position": 1},
     )
     print(
         "🐞 item_parent_position_post_response",
@@ -1257,10 +1130,7 @@ def test_alchemist_thumbnaillabel_sequence_yw3ff(page: Page, asnake_client, time
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -1268,10 +1138,7 @@ def test_alchemist_thumbnaillabel_sequence_yw3ff(page: Page, asnake_client, time
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{test_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
@@ -1297,10 +1164,7 @@ def test_alchemist_thumbnaillabel_filename_wef99(page: Page, asnake_client, time
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -1308,10 +1172,7 @@ def test_alchemist_thumbnaillabel_filename_wef99(page: Page, asnake_client, time
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{test_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"], thumbnail_label="filename")
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
@@ -1337,10 +1198,7 @@ def test_alchemist_regenerate_one_vru3b(page: Page, asnake_client, timestamp):
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -1348,10 +1206,7 @@ def test_alchemist_regenerate_one_vru3b(page: Page, asnake_client, timestamp):
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{test_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
@@ -1366,10 +1221,7 @@ def test_alchemist_regenerate_one_vru3b(page: Page, asnake_client, timestamp):
     # update title
     item["title"] = "Regenerated Title"
     item_update_response = asnake_client.post(item["uri"], json=item)
-    print(
-        f"🐞 item_update_response:{test_id}",
-        item_update_response.json(),
-    )
+    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
     # RUN REGENERATE PROCESS
     run_alchemist_regenerate(page, "one", component_id=item_component_id, timeout=90000)
     # VALIDATE ALCHEMIST ITEM
@@ -1394,10 +1246,7 @@ def test_alchemist_regenerate_collection_2zqyy(page: Page, asnake_client, timest
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD 1
     (
         item_create_response1,
@@ -1408,10 +1257,7 @@ def test_alchemist_regenerate_collection_2zqyy(page: Page, asnake_client, timest
         "2zqy1",
         resource_create_response.json()["uri"],
     )
-    print(
-        "🐞 item_create_response1:2zqy1",
-        item_create_response1.json(),
-    )
+    print("🐞 item_create_response1:2zqy1", item_create_response1.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD 2
     (
         item_create_response2,
@@ -1422,10 +1268,7 @@ def test_alchemist_regenerate_collection_2zqyy(page: Page, asnake_client, timest
         "2zqy2",
         resource_create_response.json()["uri"],
     )
-    print(
-        "🐞 item_create_response2:2zqy2",
-        item_create_response2.json(),
-    )
+    print("🐞 item_create_response2:2zqy2", item_create_response2.json())
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"])
     alchemist_item_uri1 = format_alchemist_item_uri(
@@ -1447,19 +1290,13 @@ def test_alchemist_regenerate_collection_2zqyy(page: Page, asnake_client, timest
     # update title
     item1["title"] = "Regenerated Title 2zqy1"
     item_update_response1 = asnake_client.post(item1["uri"], json=item1)
-    print(
-        "🐞 item_update_response1:2zqy1",
-        item_update_response1.json(),
-    )
+    print("🐞 item_update_response1:2zqy1", item_update_response1.json())
     # UPDATE ARCHIVAL OBJECT ITEM RECORD 2
     item2 = asnake_client.get(item_create_response2.json()["uri"]).json()
     # update title
     item2["title"] = "Regenerated Title 2zqy2"
     item_update_response2 = asnake_client.post(item2["uri"], json=item2)
-    print(
-        "🐞 item_update_response2:2zqy2",
-        item_update_response2.json(),
-    )
+    print("🐞 item_update_response2:2zqy2", item_update_response2.json())
     # RUN REGENERATE PROCESS
     run_alchemist_regenerate(page, "collection", collection_id=test_id, timeout=90000)
     # VALIDATE ALCHEMIST ITEMS
@@ -1469,7 +1306,9 @@ def test_alchemist_regenerate_collection_2zqyy(page: Page, asnake_client, timest
     expect(page).to_have_title("Regenerated Title 2zqy2")
 
 
-def test_alchemist_regenerate_all_mxsk0(page: Page, asnake_client, s3_client, timestamp):
+def test_alchemist_regenerate_all_mxsk0(
+    page: Page, asnake_client, s3_client, timestamp
+):
     """Regenerate all sets of files."""
     # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
     move_test_files_to_initial_original_files_directory(
@@ -1493,10 +1332,7 @@ def test_alchemist_regenerate_all_mxsk0(page: Page, asnake_client, s3_client, ti
     resource_create_response1 = create_archivesspace_test_resource(
         asnake_client, "test_alchemist_regenerate_all_mxsk1", "mxsk1"
     )
-    print(
-        "🐞 resource_create_response1:mxsk1",
-        resource_create_response1.json(),
-    )
+    print("🐞 resource_create_response1:mxsk1", resource_create_response1.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD 1
     (
         item_create_response1,
@@ -1507,18 +1343,12 @@ def test_alchemist_regenerate_all_mxsk0(page: Page, asnake_client, s3_client, ti
         "mxsk1",
         resource_create_response1.json()["uri"],
     )
-    print(
-        "🐞 item_create_response1:mxsk1",
-        item_create_response1.json(),
-    )
+    print("🐞 item_create_response1:mxsk1", item_create_response1.json())
     # CREATE RESOURCE RECORD 2
     resource_create_response2 = create_archivesspace_test_resource(
         asnake_client, "test_alchemist_regenerate_all_mxsk2", "mxsk2"
     )
-    print(
-        "🐞 resource_create_response2:mxsk2",
-        resource_create_response2.json(),
-    )
+    print("🐞 resource_create_response2:mxsk2", resource_create_response2.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD 2
     (
         item_create_response2,
@@ -1529,10 +1359,7 @@ def test_alchemist_regenerate_all_mxsk0(page: Page, asnake_client, s3_client, ti
         "mxsk2",
         resource_create_response2.json()["uri"],
     )
-    print(
-        "🐞 item_create_response2:mxsk2",
-        item_create_response2.json(),
-    )
+    print("🐞 item_create_response2:mxsk2", item_create_response2.json())
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"])
     alchemist_item_uri1 = format_alchemist_item_uri(
@@ -1554,19 +1381,13 @@ def test_alchemist_regenerate_all_mxsk0(page: Page, asnake_client, s3_client, ti
     # update title
     item1["title"] = "Regenerated Title mxsk1"
     item_update_response1 = asnake_client.post(item1["uri"], json=item1)
-    print(
-        "🐞 item_update_response1:mxsk1",
-        item_update_response1.json(),
-    )
+    print("🐞 item_update_response1:mxsk1", item_update_response1.json())
     # UPDATE ARCHIVAL OBJECT ITEM RECORD 2
     item2 = asnake_client.get(item_create_response2.json()["uri"]).json()
     # update title
     item2["title"] = "Regenerated Title mxsk2"
     item_update_response2 = asnake_client.post(item2["uri"], json=item2)
-    print(
-        "🐞 item_update_response2:mxsk2",
-        item_update_response2.json(),
-    )
+    print("🐞 item_update_response2:mxsk2", item_update_response2.json())
     # RUN REGENERATE PROCESS
     run_alchemist_regenerate(page, "all", timeout=120000)
     # VALIDATE ALCHEMIST ITEMS
@@ -1588,10 +1409,7 @@ def test_alchemist_fileversions_fail_2tgwm(page: Page, asnake_client):
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -1599,10 +1417,7 @@ def test_alchemist_fileversions_fail_2tgwm(page: Page, asnake_client):
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{test_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
     # CREATE DIGITAL OBJECT RECORD
     (
         digital_object_create_response,
@@ -1622,10 +1437,7 @@ def test_alchemist_fileversions_fail_2tgwm(page: Page, asnake_client):
         }
     ]
     item_update_response = asnake_client.post(item["uri"], json=item)
-    print(
-        f"🐞 item_update_response:{test_id}",
-        item_update_response.json(),
-    )
+    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"], outcome="failure")
     # TODO check contents of iframe
@@ -1643,10 +1455,7 @@ def test_alchemist_fileversions_overwrite_v3wqp(page: Page, asnake_client):
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -1654,10 +1463,7 @@ def test_alchemist_fileversions_overwrite_v3wqp(page: Page, asnake_client):
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{test_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
     # CREATE DIGITAL OBJECT RECORD
     (
         digital_object_create_response,
@@ -1677,10 +1483,7 @@ def test_alchemist_fileversions_overwrite_v3wqp(page: Page, asnake_client):
         }
     ]
     item_update_response = asnake_client.post(item["uri"], json=item)
-    print(
-        f"🐞 item_update_response:{test_id}",
-        item_update_response.json(),
-    )
+    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"], file_versions_op="overwrite")
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
@@ -1711,10 +1514,7 @@ def test_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_client):
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -1722,10 +1522,7 @@ def test_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_client):
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{test_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
     # CREATE DIGITAL OBJECT RECORD
     (
         digital_object_create_response,
@@ -1745,10 +1542,7 @@ def test_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_client):
         }
     ]
     item_update_response = asnake_client.post(item["uri"], json=item)
-    print(
-        f"🐞 item_update_response:{test_id}",
-        item_update_response.json(),
-    )
+    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"], file_versions_op="unpublish")
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
@@ -1772,7 +1566,9 @@ def test_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_client):
                 assert file_version["publish"] is False
 
 
-def test_alchemist_imageitems_alone_b74ya(page: Page, asnake_client, s3_client, timestamp):
+def test_alchemist_imageitems_alone_b74ya(
+    page: Page, asnake_client, s3_client, timestamp
+):
     """Publish single-image archival objects."""
     test_name = inspect.currentframe().f_code.co_name
     test_id = test_name.split("_")[-1]
@@ -1797,10 +1593,7 @@ def test_alchemist_imageitems_alone_b74ya(page: Page, asnake_client, s3_client, 
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD 1
     (
         item_create_response1,
@@ -1811,10 +1604,7 @@ def test_alchemist_imageitems_alone_b74ya(page: Page, asnake_client, s3_client, 
         "b74y1",
         resource_create_response.json()["uri"],
     )
-    print(
-        "🐞 item_create_response1:b74y1",
-        item_create_response1.json(),
-    )
+    print("🐞 item_create_response1:b74y1", item_create_response1.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD 2
     (
         item_create_response2,
@@ -1825,10 +1615,7 @@ def test_alchemist_imageitems_alone_b74ya(page: Page, asnake_client, s3_client, 
         "b74y2",
         resource_create_response.json()["uri"],
     )
-    print(
-        "🐞 item_create_response2:b74y2",
-        item_create_response2.json(),
-    )
+    print("🐞 item_create_response2:b74y2", item_create_response2.json())
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"])
     alchemist_item_uri1 = format_alchemist_item_uri(
@@ -1850,19 +1637,13 @@ def test_alchemist_imageitems_alone_b74ya(page: Page, asnake_client, s3_client, 
     # update title
     item1["title"] = "Regenerated Title b74y1"
     item_update_response1 = asnake_client.post(item1["uri"], json=item1)
-    print(
-        "🐞 item_update_response1:b74y1",
-        item_update_response1.json(),
-    )
+    print("🐞 item_update_response1:b74y1", item_update_response1.json())
     # UPDATE ARCHIVAL OBJECT ITEM RECORD 2
     item2 = asnake_client.get(item_create_response2.json()["uri"]).json()
     # update title
     item2["title"] = "Regenerated Title b74y2"
     item_update_response2 = asnake_client.post(item2["uri"], json=item2)
-    print(
-        "🐞 item_update_response2:b74y2",
-        item_update_response2.json(),
-    )
+    print("🐞 item_update_response2:b74y2", item_update_response2.json())
     # RUN REGENERATE PROCESS
     run_alchemist_regenerate(page, "all", timeout=120000)
     # VALIDATE ALCHEMIST ITEMS
@@ -1884,24 +1665,13 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CUSTOMIZE ARCHIVAL OBJECT RESOURCE RECORD
     resource = asnake_client.get(resource_create_response.json()["uri"]).json()
     # add dates
     resource["dates"] = [
-        {
-            "label": "digitized",
-            "date_type": "single",
-            "begin": "2022-02-22",
-        },
-        {
-            "label": "creation",
-            "date_type": "single",
-            "begin": "1584-02-29",
-        },
+        {"label": "digitized", "date_type": "single", "begin": "2022-02-22"},
+        {"label": "creation", "date_type": "single", "begin": "1584-02-29"},
         {
             "label": "creation",
             "date_type": "inclusive",
@@ -1921,32 +1691,18 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
         },
     ]
     resource_update_response = asnake_client.post(resource["uri"], json=resource)
-    print(
-        f"🐞 resource_update_response:{test_id}",
-        resource_update_response.json(),
-    )
+    print(f"🐞 resource_update_response:{test_id}", resource_update_response.json())
     # CREATE ARCHIVAL OBJECT SERIES RECORD
     series_create_response = create_archivesspace_test_archival_object_series(
         asnake_client, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 series_create_response:{test_id}",
-        series_create_response.json(),
-    )
+    print(f"🐞 series_create_response:{test_id}", series_create_response.json())
     # CUSTOMIZE ARCHIVAL OBJECT SERIES RECORD
     series = asnake_client.get(series_create_response.json()["uri"]).json()
     # add dates
     series["dates"] = [
-        {
-            "label": "digitized",
-            "date_type": "single",
-            "begin": "2022-02-22",
-        },
-        {
-            "label": "creation",
-            "date_type": "single",
-            "begin": "1584-02-29",
-        },
+        {"label": "digitized", "date_type": "single", "begin": "2022-02-22"},
+        {"label": "creation", "date_type": "single", "begin": "1584-02-29"},
         {
             "label": "creation",
             "date_type": "inclusive",
@@ -1966,18 +1722,12 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
         },
     ]
     series_update_response = asnake_client.post(series["uri"], json=series)
-    print(
-        f"🐞 series_update_response:{test_id}",
-        series_update_response.json(),
-    )
+    print(f"🐞 series_update_response:{test_id}", series_update_response.json())
     # CREATE ARCHIVAL OBJECT SUBSERIES RECORD
     subseries_create_response = create_archivesspace_test_archival_object_subseries(
         asnake_client, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 subseries_create_response:{test_id}",
-        subseries_create_response.json(),
-    )
+    print(f"🐞 subseries_create_response:{test_id}", subseries_create_response.json())
     # set subseries as a child of series
     subseries_parent_position_post_response = asnake_client.post(
         f'{subseries_create_response.json()["uri"]}/parent',
@@ -1991,16 +1741,8 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
     subseries = asnake_client.get(subseries_create_response.json()["uri"]).json()
     # add dates
     subseries["dates"] = [
-        {
-            "label": "digitized",
-            "date_type": "single",
-            "begin": "2022-02-22",
-        },
-        {
-            "label": "creation",
-            "date_type": "single",
-            "begin": "1584-02-29",
-        },
+        {"label": "digitized", "date_type": "single", "begin": "2022-02-22"},
+        {"label": "creation", "date_type": "single", "begin": "1584-02-29"},
         {
             "label": "creation",
             "date_type": "inclusive",
@@ -2020,10 +1762,7 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
         },
     ]
     subseries_update_response = asnake_client.post(subseries["uri"], json=subseries)
-    print(
-        f"🐞 subseries_update_response:{test_id}",
-        subseries_update_response.json(),
-    )
+    print(f"🐞 subseries_update_response:{test_id}", subseries_update_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -2031,17 +1770,11 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{test_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
     # set item as a child of subseries
     item_parent_position_post_response = asnake_client.post(
         f'{item_create_response.json()["uri"]}/parent',
-        params={
-            "parent": subseries_create_response.json()["id"],
-            "position": 1,
-        },
+        params={"parent": subseries_create_response.json()["id"], "position": 1},
     )
     print(
         "🐞 item_parent_position_post_response",
@@ -2074,22 +1807,9 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
     item = asnake_client.get(item_create_response.json()["uri"]).json()
     # add dates
     item["dates"] = [
-        {
-            "label": "digitized",
-            "date_type": "single",
-            "begin": "2022-02-22",
-        },
-        {
-            "label": "creation",
-            "date_type": "single",
-            "begin": "1584-02-29",
-        },
-        {
-            "label": "creation",
-            "date_type": "inclusive",
-            "begin": "1900",
-            "end": "1901",
-        },
+        {"label": "digitized", "date_type": "single", "begin": "2022-02-22"},
+        {"label": "creation", "date_type": "single", "begin": "1584-02-29"},
+        {"label": "creation", "date_type": "inclusive", "begin": "1900", "end": "1901"},
         {
             "label": "creation",
             "date_type": "inclusive",
@@ -2137,26 +1857,11 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
     ]
     # add extents
     item["extents"] = [
-        {
-            "portion": "whole",
-            "number": "1",
-            "extent_type": "books",
-        },
-        {
-            "portion": "part",
-            "number": "2",
-            "extent_type": "photographs",
-        },
+        {"portion": "whole", "number": "1", "extent_type": "books"},
+        {"portion": "part", "number": "2", "extent_type": "photographs"},
     ]
     # add subjects
-    item["subjects"] = [
-        {
-            "ref": "/subjects/1",
-        },
-        {
-            "ref": "/subjects/2",
-        },
-    ]
+    item["subjects"] = [{"ref": "/subjects/1"}, {"ref": "/subjects/2"}]
     # add notes
     item["notes"] = [
         {
@@ -2220,7 +1925,7 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
                     "jsonmodel_type": "note_text",
                     "content": "Published note. One published text subnote. Consequat nostrud ipsum irure reprehenderit qui veniam pariatur.",
                     "publish": True,
-                },
+                }
             ],
             "publish": True,
         },
@@ -2249,7 +1954,7 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
                     "jsonmodel_type": "note_text",
                     "content": "Unpublished note. One published text subnote. Laboris ipsum cupidatat consequat velit.",
                     "publish": True,
-                },
+                }
             ],
             "publish": False,
         },
@@ -2278,7 +1983,7 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
                     "jsonmodel_type": "note_text",
                     "content": "Published note. One unpublished text subnote. Laborum cupidatat adipisicing cillum deserunt.",
                     "publish": False,
-                },
+                }
             ],
             "publish": True,
         },
@@ -2291,7 +1996,7 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
                     "jsonmodel_type": "note_text",
                     "content": "Published note. One unpublished text subnote. Aliqua consequat mollit reprehenderit pariatur exercitation nisi culpa incididunt.",
                     "publish": False,
-                },
+                }
             ],
             "publish": True,
         },
@@ -2320,7 +2025,7 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
                     "jsonmodel_type": "note_text",
                     "content": "Unpublished note. One unpublished text subnote. Esse in proident.",
                     "publish": False,
-                },
+                }
             ],
             "publish": False,
         },
@@ -2385,7 +2090,7 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
                     "jsonmodel_type": "note_text",
                     "content": "Published note. One published text subnote. Minim aute nulla laborum ullamco do incididunt nostrud irure eiusmod laborum elit deserunt.",
                     "publish": True,
-                },
+                }
             ],
             "publish": True,
         },
@@ -2398,16 +2103,13 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
                     "jsonmodel_type": "note_text",
                     "content": "Published note. One published text subnote. Eiusmod irure laboris eu reprehenderit proident exercitation qui nulla irure amet.",
                     "publish": True,
-                },
+                }
             ],
             "publish": True,
         },
     ]
     item_update_response = asnake_client.post(item["uri"], json=item)
-    print(
-        f"🐞 item_update_response:{test_id}",
-        item_update_response.json(),
-    )
+    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
@@ -2470,10 +2172,7 @@ def test_s3_nonnumeric_sequence_gz36p(page: Page, asnake_client, s3_client):
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -2481,10 +2180,7 @@ def test_s3_nonnumeric_sequence_gz36p(page: Page, asnake_client, s3_client):
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{test_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
     # DELETE S3 OBJECTS
     s3_response = s3_client.list_objects_v2(
         Bucket=config("PRESERVATION_BUCKET"), Prefix=test_id
@@ -2540,10 +2236,7 @@ def test_s3_nonimage_files_7b3px(page: Page, asnake_client, s3_client):
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -2551,10 +2244,7 @@ def test_s3_nonimage_files_7b3px(page: Page, asnake_client, s3_client):
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{test_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
     # DELETE S3 OBJECTS
     s3_response = s3_client.list_objects_v2(
         Bucket=config("PRESERVATION_BUCKET"), Prefix=test_id
@@ -2611,10 +2301,7 @@ def test_tape_reuse_top_container_records_d3bym(page: Page, asnake_client):
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -2625,19 +2312,13 @@ def test_tape_reuse_top_container_records_d3bym(page: Page, asnake_client):
         "d3by1",
         resource_create_response.json()["uri"],
     )
-    print(
-        "🐞 item2_create_response:d3by1",
-        item_create_response.json(),
-    )
+    print("🐞 item2_create_response:d3by1", item_create_response.json())
     # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
     item = asnake_client.get(item_create_response.json()["uri"]).json()
     item["title"] = "Item d3by1"
     item["component_id"] = "item-test_tape_reuse_top_container_records_d3by1"
     item_update_response = asnake_client.post(item["uri"], json=item)
-    print(
-        "🐞 item_update_response:d3by1",
-        item_update_response.json(),
-    )
+    print("🐞 item_update_response:d3by1", item_update_response.json())
     # CREATE ARCHIVAL OBJECT ITEM2 RECORD
     (
         item2_create_response,
@@ -2648,19 +2329,13 @@ def test_tape_reuse_top_container_records_d3bym(page: Page, asnake_client):
         "d3by2",
         resource_create_response.json()["uri"],
     )
-    print(
-        "🐞 item2_create_response:d3by2",
-        item2_create_response.json(),
-    )
+    print("🐞 item2_create_response:d3by2", item2_create_response.json())
     # CUSTOMIZE ARCHIVAL OBJECT ITEM2 RECORD
     item2 = asnake_client.get(item2_create_response.json()["uri"]).json()
     item2["title"] = "Item d3by2"
     item2["component_id"] = "item-test_tape_reuse_top_container_records_d3by2"
     item2_update_response = asnake_client.post(item2["uri"], json=item2)
-    print(
-        "🐞 item2_update_response:d3by2",
-        item2_update_response.json(),
-    )
+    print("🐞 item2_update_response:d3by2", item2_update_response.json())
     # RUN DISTILLERY TAPE PROCESS
     # NOTE increase timeout because tape drive can be quite slow to start up
     run_distillery(page, ["onsite"], timeout=300000)
@@ -2696,10 +2371,7 @@ def test_oralhistories_add_publish_one_transcript_2d4ja(
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -2707,10 +2379,7 @@ def test_oralhistories_add_publish_one_transcript_2d4ja(
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{item_component_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{item_component_id}", item_create_response.json())
     # DELETE GITHUB TRANSCRIPTS
     # https://stackoverflow.com/a/72553300
     tmp_oralhistories = tempfile.mkdtemp()
@@ -2721,9 +2390,7 @@ def test_oralhistories_add_publish_one_transcript_2d4ja(
     )
     if os.path.exists(f"{tmp_oralhistories}/transcripts/{item_component_id}"):
         git_repo.index.remove(
-            [f"transcripts/{item_component_id}"],
-            working_tree=True,
-            r=True,
+            [f"transcripts/{item_component_id}"], working_tree=True, r=True
         )
         git_repo.index.commit(f"🤖 delete {item_component_id}")
         git_repo.remotes.origin.push()
@@ -2759,15 +2426,7 @@ def test_oralhistories_add_publish_one_transcript_2d4ja(
     # RUN ORALHISTORIES PROCESSES
     # add transcript
     run_oralhistories_add(
-        page,
-        "/".join(
-            [
-                "tests",
-                "oralhistories",
-                test_id,
-                f"{item_component_id}.docx",
-            ]
-        ),
+        page, "/".join(["tests", "oralhistories", test_id, f"{item_component_id}.docx"])
     )
     # wait for files to be updated by GitHub Actions
     assert wait_for_oralhistories_generated_files(git_repo)
@@ -2823,10 +2482,7 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -2834,10 +2490,7 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{item_component_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{item_component_id}", item_create_response.json())
     # CREATE AGENT PERSON RECORDS
     # interviewee
     interviewee = {
@@ -2852,10 +2505,7 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
     }
     # post
     interviewee_post_response = asnake_client.post("/agents/people", json=interviewee)
-    print(
-        f"🐞 interviewee_post_response",
-        interviewee_post_response.json(),
-    )
+    print(f"🐞 interviewee_post_response", interviewee_post_response.json())
     # interviewer
     interviewer = {
         "names": [
@@ -2869,10 +2519,7 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
     }
     # post
     interviewer_post_response = asnake_client.post("/agents/people", json=interviewer)
-    print(
-        f"🐞 interviewer_post_response",
-        interviewer_post_response.json(),
-    )
+    print(f"🐞 interviewer_post_response", interviewer_post_response.json())
     # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
     item = asnake_client.get(item_create_response.json()["uri"]).json()
     # add agents
@@ -2890,16 +2537,8 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
     ]
     # add dates
     item["dates"] = [
-        {
-            "label": "creation",
-            "begin": "2001-01-01",
-            "date_type": "single",
-        },
-        {
-            "label": "creation",
-            "begin": "2001-01-31",
-            "date_type": "single",
-        },
+        {"label": "creation", "begin": "2001-01-01", "date_type": "single"},
+        {"label": "creation", "begin": "2001-01-31", "date_type": "single"},
     ]
     # add abstract
     item["notes"] = [
@@ -2910,13 +2549,10 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
                 "Magna excepteur culpa ut culpa culpa labore id eu id dolor ut tempor esse ea. Sint incididunt reprehenderit eu consequat minim. Id in officia culpa sit. Minim eiusmod laboris ullamco esse nostrud. Excepteur occaecat ex reprehenderit labore elit aliqua. Labore labore proident cupidatat occaecat esse.\n\nNon consequat aliqua voluptate aute duis fugiat aliquip anim aute sunt minim dolore officia. Dolore magna laborum aliquip aliquip ut pariatur culpa veniam Lorem ad duis pariatur. Minim pariatur eiusmod id tempor dolor.\n\nQui veniam sunt ex cillum ullamco aliquip excepteur magna. Dolore nulla nulla laboris proident ea sint velit deserunt ullamco. Reprehenderit consectetur nulla consectetur et tempor tempor deserunt. Culpa quis anim tempor nostrud nulla commodo qui dolor quis duis enim aliquip."
             ],
             "publish": True,
-        },
+        }
     ]
     item_update_response = asnake_client.post(item["uri"], json=item)
-    print(
-        f"🐞 item_update_response:{test_id}",
-        item_update_response.json(),
-    )
+    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
     # DELETE GITHUB TRANSCRIPTS
     # https://stackoverflow.com/a/72553300
     tmp_oralhistories = tempfile.mkdtemp()
@@ -2927,9 +2563,7 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
     )
     if os.path.exists(f"{tmp_oralhistories}/transcripts/{item_component_id}"):
         git_repo.index.remove(
-            [f"transcripts/{item_component_id}"],
-            working_tree=True,
-            r=True,
+            [f"transcripts/{item_component_id}"], working_tree=True, r=True
         )
         git_repo.index.commit(f"🤖 delete {item_component_id}")
         git_repo.remotes.origin.push()
@@ -2965,29 +2599,13 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
     # RUN ORALHISTORIES PROCESSES
     # add transcript
     run_oralhistories_add(
-        page,
-        "/".join(
-            [
-                "tests",
-                "oralhistories",
-                test_id,
-                f"{item_component_id}.docx",
-            ]
-        ),
+        page, "/".join(["tests", "oralhistories", test_id, f"{item_component_id}.docx"])
     )
     # wait for files to be updated by GitHub Actions
     assert wait_for_oralhistories_generated_files(git_repo, 6, 15)
     # edit markdown
     with open(
-        "/".join(
-            [
-                "tests",
-                "oralhistories",
-                test_id,
-                f"{item_component_id}.tpl",
-            ]
-        ),
-        "r",
+        "/".join(["tests", "oralhistories", test_id, f"{item_component_id}.tpl"]), "r"
     ) as f:
         template = f.read()
     markdown = template.format(
@@ -3074,10 +2692,7 @@ def test_oralhistories_add_update_one_publish_one_transcript_4hete(
     resource_create_response = create_archivesspace_test_resource(
         asnake_client, test_name, test_id
     )
-    print(
-        f"🐞 resource_create_response:{test_id}",
-        resource_create_response.json(),
-    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
     (
         item_create_response,
@@ -3085,10 +2700,7 @@ def test_oralhistories_add_update_one_publish_one_transcript_4hete(
     ) = create_archivesspace_test_archival_object_item(
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
-    print(
-        f"🐞 item_create_response:{item_component_id}",
-        item_create_response.json(),
-    )
+    print(f"🐞 item_create_response:{item_component_id}", item_create_response.json())
     # DELETE GITHUB TRANSCRIPTS
     tmp_oralhistories = tempfile.mkdtemp()
     git_repo = git.Repo.clone_from(
@@ -3098,9 +2710,7 @@ def test_oralhistories_add_update_one_publish_one_transcript_4hete(
     )
     if os.path.exists(f"{tmp_oralhistories}/transcripts/{item_component_id}"):
         git_repo.index.remove(
-            [f"transcripts/{item_component_id}"],
-            working_tree=True,
-            r=True,
+            [f"transcripts/{item_component_id}"], working_tree=True, r=True
         )
         git_repo.index.commit(f"🤖 delete {item_component_id}")
         git_repo.remotes.origin.push()
@@ -3136,15 +2746,7 @@ def test_oralhistories_add_update_one_publish_one_transcript_4hete(
     # RUN ORALHISTORIES PROCESSES
     # add transcript
     run_oralhistories_add(
-        page,
-        "/".join(
-            [
-                "tests",
-                "oralhistories",
-                test_id,
-                f"{item_component_id}.docx",
-            ]
-        ),
+        page, "/".join(["tests", "oralhistories", test_id, f"{item_component_id}.docx"])
     )
     # wait for files to be updated by GitHub Actions
     assert wait_for_oralhistories_generated_files(git_repo, attempts=9, sleep_time=10)
@@ -3158,13 +2760,10 @@ def test_oralhistories_add_update_one_publish_one_transcript_4hete(
                 "Magna excepteur culpa ut culpa culpa labore id eu id dolor ut tempor esse ea. Sint incididunt reprehenderit eu consequat minim. Id in officia culpa sit. Minim eiusmod laboris ullamco esse nostrud. Excepteur occaecat ex reprehenderit labore elit aliqua. Labore labore proident cupidatat occaecat esse.\n\nNon consequat aliqua voluptate aute duis fugiat aliquip anim aute sunt minim dolore officia. Dolore magna laborum aliquip aliquip ut pariatur culpa veniam Lorem ad duis pariatur. Minim pariatur eiusmod id tempor dolor.\n\nQui veniam sunt ex cillum ullamco aliquip excepteur magna. Dolore nulla nulla laboris proident ea sint velit deserunt ullamco. Reprehenderit consectetur nulla consectetur et tempor tempor deserunt. Culpa quis anim tempor nostrud nulla commodo qui dolor quis duis enim aliquip."
             ],
             "publish": True,
-        },
+        }
     ]
     item_update_response = asnake_client.post(item["uri"], json=item)
-    print(
-        f"🐞 item_update_response:{test_id}",
-        item_update_response.json(),
-    )
+    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
     run_oralhistories_update(page, item_component_id)
     # wait for files to be updated by GitHub Actions
     assert wait_for_oralhistories_generated_files(git_repo, attempts=9, sleep_time=10)

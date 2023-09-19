@@ -71,7 +71,7 @@ def transfer_archival_object_derivative_files(variables):
     # NOTE output from tape_server connection is a string formatted like:
     # `5732142415872 5690046283776`
     tape_bytes = tape_server(
-        f'{config("TAPE_PYTHON3_CMD")} -c \'import shutil; total, used, free = shutil.disk_usage("{config("TAPE_LTO_MOUNTPOINT")}"); print(total, free)\'',
+        f'{config("TAPE_PYTHON3_CMD")} -c \'import shutil; total, used, free = shutil.disk_usage("{config("TAPE_LTO_MOUNTPOINT")}"); print(total, free)\''
     ).strip()
     # convert the string to a tuple and get the parts
     tape_total_bytes = tuple(map(int, tape_bytes.split(" ")))[0]

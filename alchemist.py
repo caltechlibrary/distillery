@@ -405,10 +405,7 @@ def invalidate_cloudfront_path(path="/*", caller_reference=str(time.time())):
     response = cloudfront_client.create_invalidation(
         DistributionId=config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID"),
         InvalidationBatch={
-            "Paths": {
-                "Quantity": 1,
-                "Items": [path],
-            },
+            "Paths": {"Quantity": 1, "Items": [path]},
             "CallerReference": caller_reference,
         },
     )
@@ -487,17 +484,10 @@ def generate_archival_object_page(build_directory, variables):
             .as_posix()
         )
         archival_object_page_file = (
-            Path(build_directory.name)
-            .joinpath(
-                archival_object_page_key,
-            )
-            .as_posix()
+            Path(build_directory.name).joinpath(archival_object_page_key).as_posix()
         )
         Path(archival_object_page_file).parent.mkdir(parents=True, exist_ok=True)
-        with open(
-            archival_object_page_file,
-            "w",
-        ) as f:
+        with open(archival_object_page_file, "w") as f:
             # supply data to template placeholders
             f.write(
                 template.render(
@@ -545,11 +535,7 @@ def upload_archival_object_page(build_directory, variables):
             .as_posix()
         )
         archival_object_page_file = (
-            Path(build_directory.name)
-            .joinpath(
-                archival_object_page_key,
-            )
-            .as_posix()
+            Path(build_directory.name).joinpath(archival_object_page_key).as_posix()
         )
         logger.info(
             f"🐛 ARCHIVAL OBJECT PAGE FILE EXISTS: {Path(archival_object_page_file).exists()}"
@@ -603,17 +589,11 @@ def generate_iiif_manifest(build_directory, variables):
         )
     if variables["arrangement"].get("series_title"):
         metadata.append(
-            {
-                "label": "Series",
-                "value": variables["arrangement"]["series_title"],
-            }
+            {"label": "Series", "value": variables["arrangement"]["series_title"]}
         )
     elif variables["arrangement"].get("series_display"):
         metadata.append(
-            {
-                "label": "Series",
-                "value": variables["arrangement"]["series_display"],
-            }
+            {"label": "Series", "value": variables["arrangement"]["series_display"]}
         )
     if variables["arrangement"].get("subseries_title"):
         metadata.append(
@@ -666,8 +646,7 @@ def generate_iiif_manifest(build_directory, variables):
                 .as_posix()
             )
             response = s3_client.get_object(
-                Bucket=config("ALCHEMIST_BUCKET"),
-                Key=manifest_key,
+                Bucket=config("ALCHEMIST_BUCKET"), Key=manifest_key
             )
             manifest = json.loads(response["Body"].read())
         else:
@@ -700,18 +679,14 @@ def generate_iiif_manifest(build_directory, variables):
                             ],
                             "profile": "http://iiif.io/api/image/2/level1.json",
                         },
-                    },
+                    }
                 }
             )
         manifest["metadata"] = metadata
         if attribution:
             manifest["attribution"] = attribution
         if not variables.get("alchemist_regenerate"):
-            manifest.update(
-                {
-                    "sequences": [{"@type": "sc:Sequence", "canvases": []}],
-                }
-            )
+            manifest.update({"sequences": [{"@type": "sc:Sequence", "canvases": []}]})
             with ProcessPoolExecutor() as executor:
                 futures = [
                     executor.submit(create_canvas_metadata, f, variables)
@@ -730,10 +705,7 @@ def generate_iiif_manifest(build_directory, variables):
             "manifest.json",
         )
         manifest_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(
-            manifest_file,
-            "w",
-        ) as f:
+        with open(manifest_file, "w") as f:
             f.write(json.dumps(manifest, indent=4))
         logger.info(f"✨ MANIFEST FILE GENERATED: {manifest_file}")
     except Exception as e:
@@ -1052,9 +1024,7 @@ def create_digital_object_file_versions(build_directory, variables):
         )
     elif digital_object_count == 1:
         distillery.save_digital_object_file_versions(
-            variables["archival_object"],
-            file_versions,
-            variables["file_versions_op"],
+            variables["archival_object"], file_versions, variables["file_versions_op"]
         )
     elif digital_object_count < 1:
         # returns new archival_object with digital_object instance included
@@ -1063,9 +1033,7 @@ def create_digital_object_file_versions(build_directory, variables):
             variables["archival_object"],
         ) = distillery.create_digital_object(variables["archival_object"])
         distillery.save_digital_object_file_versions(
-            variables["archival_object"],
-            file_versions,
-            variables["file_versions_op"],
+            variables["archival_object"], file_versions, variables["file_versions_op"]
         )
 
 

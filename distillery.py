@@ -421,10 +421,7 @@ class DistilleryService(rpyc.Service):
                     batch_directory.joinpath("STAGE_2_WORKING", dir_entry.name)
                 )
                 try:
-                    shutil.move(
-                        initial_archival_object,
-                        working_archival_object,
-                    )
+                    shutil.move(initial_archival_object, working_archival_object)
                 except BaseException:
                     message = "❌ UNABLE TO MOVE THE INITIAL FILES FOR WORKING"
                     status_logger.error(message)
@@ -832,13 +829,9 @@ def get_collection_tree(collection_uri):
 def save_collection_datafile(collection_data, directory):
     """Save the collection data to a JSON file."""
     collection_datafile_key = os.path.join(
-        collection_data["id_0"],
-        f"{collection_data['id_0']}.json",
+        collection_data["id_0"], f"{collection_data['id_0']}.json"
     )
-    filename = os.path.join(
-        directory,
-        collection_datafile_key,
-    )
+    filename = os.path.join(directory, collection_datafile_key)
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, "w") as f:
         f.write(json.dumps(collection_data, indent=4))
@@ -1307,7 +1300,7 @@ def save_digital_object_component_record(variables):
     ]:
         logger.debug(
             "🐞 DIGITAL_OBJECT_COMPONENT LABEL NOT FOUND: {}; CREATING DIGITAL_OBJECT_COMPONENT".format(
-                variables["preservation_file_info"]["filepath"].parent.name,
+                variables["preservation_file_info"]["filepath"].parent.name
             )
         )
         return create_digital_object_component(variables)
@@ -1522,9 +1515,7 @@ def create_lossless_jpeg2000_image(variables):
     )
     # Gather metadata for embedding into the JPEG 2000.
     xmp_dc = get_xmp_dc_metadata(
-        variables["arrangement"],
-        filepath_components,
-        variables["archival_object"],
+        variables["arrangement"], filepath_components, variables["archival_object"]
     )
     # Catch any conversion errors in order to skip file and continue.
     # TODO needs testing
@@ -1585,10 +1576,7 @@ def save_archival_object_datafile(arrangement, archival_object, directory):
         get_archival_object_directory_prefix(arrangement, archival_object),
         archival_object,
     )
-    filename = os.path.join(
-        directory,
-        archival_object_datafile_key,
-    )
+    filename = os.path.join(directory, archival_object_datafile_key)
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, "w") as f:
         f.write(json.dumps(archival_object, indent=4))
