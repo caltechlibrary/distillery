@@ -1653,6 +1653,39 @@ def test_alchemist_imageitems_alone_b74ya(
     expect(page).to_have_title("Regenerated Title b74y2")
 
 
+def test_alchemist_singleitem_video_frq8s(page: Page, asnake_client, timestamp):
+    test_name = inspect.currentframe().f_code.co_name
+    test_id = test_name.split("_")[-1]
+    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
+    move_test_files_to_initial_original_files_directory(
+        "test_alchemist_singleitem_video_frq8s.mp4"
+    )
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, test_id)
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_name, test_id
+    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
+    # CREATE ARCHIVAL OBJECT ITEM RECORD
+    (
+        item_create_response,
+        item_component_id,
+    ) = create_archivesspace_test_archival_object_item(
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
+    )
+    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
+    # RUN ALCHEMIST PROCESS
+    run_distillery(page, ["access"])
+    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
+    # INVALIDATE CLOUDFRONT ITEMS
+    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+        invalidate_cloudfront_path(caller_reference=timestamp)
+    # VALIDATE ALCHEMIST HTML
+    page.goto(alchemist_item_uri)
+    expect(page.locator("video")).to_be_visible()
+
+
 def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
     """Attempt to test every ArchivesSpace field."""
     test_name = inspect.currentframe().f_code.co_name
