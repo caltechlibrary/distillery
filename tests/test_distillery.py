@@ -803,7 +803,7 @@ def test_alchemist_extent_output_77cjj(page: Page, asnake_client, timestamp):
     expect(page.locator("#metadata")).to_contain_text("2 photographs", ignore_case=True)
 
 
-def test_alchemist_subject_output_28s3q(page: Page, asnake_client, timestamp):
+def test_alchemist_subject_output_28s5q(page: Page, asnake_client, timestamp):
     test_name = inspect.currentframe().f_code.co_name
     test_id = test_name.split("_")[-1]
     # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
