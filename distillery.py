@@ -58,11 +58,13 @@ asnake_client.authorize()
 @rpyc.service
 class DistilleryService(rpyc.Service):
     def _initiate_variables(self, destinations):
+        # TODO change all references from self.destinations to self.variables["destinations"]
         self.destinations = destinations
         self.onsite_medium = None
         self.cloud_platform = None
         self.access_platform = None
         self.variables = {}
+        self.variables["destinations"] = destinations
 
     def _import_modules(self):
         # NOTE self.destinations is a JSON string
@@ -448,19 +450,14 @@ class DistilleryService(rpyc.Service):
                     status_logger.info(
                         f"☑️  ARCHIVAL OBJECT DATA FILE CREATED: {archival_object_datafile_key}"
                     )
-                    # TODO create derivative files
-                    # TODO transfer derivative files
-                    # TODO create digital_object_component records
+                    prepare_preservation_files(self.variables)
 
                 if accessDistiller:
                     accessDistiller.archival_object_level_processing(self.variables)
-                    # TODO create derivative files
                     build_directory = accessDistiller.get_build_directory()
                     self.access_platform.loop_over_archival_object_files(
                         build_directory, self.variables
                     )
-                    # TODO transfer derivative files
-                    # TODO create digital_object records
 
                 if accessDistiller:
                     # NOTE working on variables["archival_object"]["component_id"]
@@ -1480,7 +1477,7 @@ def create_lossless_jpeg2000_image(variables):
                 "rgb",
                 "-storage-type",
                 "short",
-                variables["original_image_path"],
+                variables["original_file_path"],
                 "-",
                 _piped=True,
                 _bg=True,
@@ -1495,7 +1492,7 @@ def create_lossless_jpeg2000_image(variables):
     )
     # Compile filepath components.
     filepath_components = get_file_parts(
-        variables["original_image_path"]
+        variables["original_file_path"]
     )  # TODO rename function
     # Replace the original extension with `jp2` and store
     # `preservation_image_key` for the function to return as a string.
@@ -1517,7 +1514,7 @@ def create_lossless_jpeg2000_image(variables):
     logger.info("⏳ CONVERTING IMAGE...")
     image_conversion = magick_cmd.convert(
         "-quiet",
-        variables["original_image_path"],
+        variables["original_file_path"],
         "-quality",
         "0",
         preservation_image_path,
@@ -1576,7 +1573,7 @@ def create_lossless_jpeg2000_image(variables):
             f'❌ image signatures did not match: {filepath_components["filestem"]}'
         )
     logger.info(
-        f'☑️  IMAGE SIGNATURES MATCH:\n{original_image_signature.strip()} {variables["original_image_path"].split("/")[-1]}\n{preservation_image_signature.strip()} {preservation_image_path.split("/")[-1]}'
+        f'☑️  IMAGE SIGNATURES MATCH:\n{original_image_signature.strip()} {variables["original_file_path"].split("/")[-1]}\n{preservation_image_signature.strip()} {preservation_image_path.split("/")[-1]}'
     )
     return preservation_image_key
 
@@ -1634,6 +1631,61 @@ def write_xmp_metadata(filepath, metadata):
         "-overwrite_original",
         filepath,
     )
+
+
+def prepare_preservation_files(variables):
+    """Concurrently process files in the archival object directory."""
+    with ProcessPoolExecutor() as executor:
+        futures = [
+            executor.submit(conditional_preservation_file_processing, f, variables)
+            for f in variables["filepaths"]
+        ]
+    status_logger.info(
+        f'☑️  PRESERVATION FILE PROCESSING COMPLETE: {variables["archival_object"]["component_id"]}'
+    )
+
+
+def conditional_preservation_file_processing(filepath, variables):
+    variables["original_file_path"] = filepath
+
+    type, encoding = mimetypes.guess_type(variables["original_file_path"])
+
+    if "onsite" in variables["destinations"] or "cloud" in variables["destinations"]:
+        if type and type.startswith("image/"):
+            try:
+                preservation_image_key = create_lossless_jpeg2000_image(variables)
+            except Exception:
+                logger.exception(
+                    "❌ LOSSLESS JPEG 2000 CREATION FAILED: {}".format(
+                        variables["original_file_path"]
+                    )
+                )
+            else:
+                status_logger.info(
+                    f"☑️  LOSSLESS JPEG 2000 FILE CREATED: {preservation_image_key}"
+                )
+        else:
+            filepath_components = get_file_parts(variables["original_file_path"])
+            preservation_file_key = get_digital_object_component_file_key(
+                get_archival_object_directory_prefix(
+                    variables["arrangement"], variables["archival_object"]
+                ),
+                filepath_components,
+            )
+            preservation_file_path = Path(config("WORK_PRESERVATION_FILES")).joinpath(
+                preservation_file_key
+            )
+            try:
+                preservation_file_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(variables["original_file_path"], preservation_file_path)
+            except Exception:
+                logger.exception(
+                    "❌ ORIGINAL FILE COPY FAILED: {}".format(
+                        variables["original_file_path"]
+                    )
+                )
+            else:
+                status_logger.info(f"☑️  ORIGINAL FILE COPIED: {preservation_file_key}")
 
 
 def get_preservation_image_data(filepath):
