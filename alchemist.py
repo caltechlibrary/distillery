@@ -331,7 +331,7 @@ class AccessPlatform:
     def create_access_file(self, variables):
         # TODO adapt for different file types
         logger.debug(
-            f'🐞 variables["original_image_path"]: {variables["original_image_path"]}'
+            f'🐞 variables["original_file_path"]: {variables["original_file_path"]}'
         )
         create_pyramid_tiff(self.build_directory, variables)
         return
@@ -847,17 +847,16 @@ def loop_over_archival_object_files(build_directory, variables):
 
 
 def conditional_derivative_file_processing(filepath, build_directory, variables):
-    # TODO rename to variables["original_file_path"]
-    variables["original_image_path"] = filepath
+    variables["original_file_path"] = filepath
 
-    type, encoding = mimetypes.guess_type(variables["original_image_path"])
+    type, encoding = mimetypes.guess_type(variables["original_file_path"])
 
     if type.startswith("image/"):
         create_pyramid_tiff(build_directory, variables)
     else:
         logger.error(
             "❌ ONLY IMAGE FILES ARE SUPPORTED AT THIS TIME: {}".format(
-                variables["original_image_path"]
+                variables["original_file_path"]
             )
         )
 
@@ -868,7 +867,7 @@ def create_pyramid_tiff(build_directory, variables):
         if (
             os.popen(
                 '{} identify -format "%m" {}'.format(
-                    config("WORK_MAGICK_CMD"), variables["original_image_path"]
+                    config("WORK_MAGICK_CMD"), variables["original_file_path"]
                 )
             )
             .read()
@@ -877,7 +876,7 @@ def create_pyramid_tiff(build_directory, variables):
         ):
             vips_source_image = (
                 Path(build_directory.name)
-                .joinpath(f'{Path(variables["original_image_path"]).stem}.tmp.tiff')
+                .joinpath(f'{Path(variables["original_file_path"]).stem}.tmp.tiff')
                 .as_posix()
             )
             magick_output = subprocess.run(
@@ -885,7 +884,7 @@ def create_pyramid_tiff(build_directory, variables):
                     config("WORK_MAGICK_CMD"),
                     "convert",
                     "-quiet",
-                    variables["original_image_path"],
+                    variables["original_file_path"],
                     "-compress",
                     "None",
                     vips_source_image,
@@ -895,13 +894,13 @@ def create_pyramid_tiff(build_directory, variables):
                 check=True,
             )
         else:
-            vips_source_image = variables["original_image_path"]
+            vips_source_image = variables["original_file_path"]
         pyramid_tiff_key = "/".join(
             [
                 config("ALCHEMIST_URL_PREFIX"),
                 variables["arrangement"]["collection_id"],
                 variables["archival_object"]["component_id"],
-                f'{Path(variables["original_image_path"]).stem}.ptif',
+                f'{Path(variables["original_file_path"]).stem}.ptif',
             ]
         )
         pyramid_tiff_file = (
