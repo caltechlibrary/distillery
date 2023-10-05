@@ -77,7 +77,7 @@ class OralHistoriesService(rpyc.Service):
                 ).joinpath("transcripts", component_id)
                 self.bucket_destination = "s3://{}/{}/{}".format(
                     config("ORALHISTORIES_BUCKET"),
-                    config("ORALHISTORIES_PATH_PREFIX"),
+                    config("ORALHISTORIES_URL_PATH_PREFIX"),
                     component_id,
                 )
                 s3sync_output = self.publish_transcripts()
@@ -85,7 +85,7 @@ class OralHistoriesService(rpyc.Service):
                     "☑️  published [**{}** transcript]({}/{}/{}) to the web".format(
                         component_id,
                         config("ALCHEMIST_BASE_URL").rstrip("/"),
-                        config("ORALHISTORIES_PATH_PREFIX"),
+                        config("ORALHISTORIES_URL_PATH_PREFIX"),
                         component_id,
                     )
                 )
@@ -120,14 +120,12 @@ class OralHistoriesService(rpyc.Service):
                 base_url = "/".join(
                     [
                         config("ALCHEMIST_BASE_URL").rstrip("/"),
-                        config("ORALHISTORIES_PATH_PREFIX"),
+                        config("ORALHISTORIES_URL_PATH_PREFIX"),
                     ]
                 )
-                file_uri = "/".join(
-                    [base_url, line.split("/")[-2], line.split("/")[-1]]
-                )
+                file_uri = "/".join([base_url, line.split("/")[-2]])
                 if line.split()[0] == "upload:":
-                    if line.split(".")[-1] == "html":
+                    if line.split("/")[-1] == "index.html":
                         # add file_version to digital_object
                         file_versions = [
                             file_version["file_uri"]
@@ -153,13 +151,20 @@ class OralHistoriesService(rpyc.Service):
                         # set a redirect in the resolver
                         if config("RESOLVER_BUCKET", default=""):
                             self.set_resolver_redirect(
-                                f'archives/{line.split("/")[-1].split(".")[0]}',
+                                "/".join(
+                                    [
+                                        config(
+                                            "RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"
+                                        ),
+                                        f'{line.split("/")[-2]}',
+                                    ]
+                                ),
                                 file_uri,
                             )
                     else:
                         # look for an existing digital_object_component
-                        digital_object_component_uri = self.find_digital_object_component(
-                            f'{line.split("/")[-1]}'
+                        digital_object_component_uri = (
+                            self.find_digital_object_component(f'{line.split("/")[-1]}')
                         )
                         if digital_object_component_uri:
                             logger.info(
@@ -197,8 +202,8 @@ class OralHistoriesService(rpyc.Service):
                         # TODO determine if resolver entry should be deleted
                     else:
                         # look for an existing digital_object_component
-                        digital_object_component_uri = self.find_digital_object_component(
-                            f'{line.split("/")[-1]}'
+                        digital_object_component_uri = (
+                            self.find_digital_object_component(f'{line.split("/")[-1]}')
                         )
                         if digital_object_component_uri:
                             # delete the digital_object_component
@@ -211,10 +216,19 @@ class OralHistoriesService(rpyc.Service):
             if component_id:
                 if config("RESOLVER_BUCKET", default=""):
                     self.status_logger.info(
-                        f'☑️  created [**{component_id}** persistant URL entry]({config("RESOLVER_BASE_URL")}/{component_id}) in resolver'
+                        "☑️ created [**{}** persistant URL entry]({}/{}/{}) in resolver".format(
+                            component_id,
+                            config("RESOLVER_SERVICE_ENDPOINT").rstrip("/"),
+                            config("RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"),
+                            component_id,
+                        )
                     )
                 self.status_logger.info(
-                    f'☑️  published [**{component_id}** Digital Object record]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={self.digital_object_uri}) in ArchivesSpace'
+                    "☑️ published [**{}** Digital Object record]({}/resolve/readonly?uri={}) in ArchivesSpace".format(
+                        component_id,
+                        config("ASPACE_STAFF_URL").rstrip("/"),
+                        self.digital_object_uri,
+                    )
                 )
             else:
                 if config("RESOLVER_BUCKET", default=""):
@@ -341,8 +355,12 @@ class OralHistoriesService(rpyc.Service):
         metadata = {"title": archival_object["title"]}
         metadata["component_id"] = archival_object["component_id"]
         metadata["archival_object_uri"] = archival_object["uri"]
-        metadata["resolver_base_url"] = config("RESOLVER_BASE_URL", default="").rstrip(
-            "/"
+        metadata["resolver_url"] = "/".join(
+            [
+                config("RESOLVER_SERVICE_ENDPOINT").rstrip("/"),
+                config("RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"),
+                archival_object["component_id"],
+            ]
         )
         metadata["archivesspace_public_url"] = config("ASPACE_PUBLIC_URL").rstrip("/")
         if archival_object.get("dates"):

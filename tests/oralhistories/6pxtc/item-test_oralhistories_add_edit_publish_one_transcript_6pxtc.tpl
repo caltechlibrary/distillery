@@ -25,7 +25,7 @@ dates:
 {dates}
 interviewee: {interviewee}
 interviewer: {interviewer}
-resolver_base_url: "{resolver_base_url}"
+resolver_url: "{resolver_url}"
 title: {title}
 ---
 

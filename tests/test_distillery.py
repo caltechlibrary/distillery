@@ -2441,9 +2441,7 @@ def test_oralhistories_add_publish_one_transcript_2d4ja(
         resolver_s3_response = s3_client.list_objects_v2(
             Bucket=config("RESOLVER_BUCKET"),
             Prefix="{}/{}".format(
-                config("RESOLVER_BASE_URL")
-                .split(config("RESOLVER_BUCKET"))[-1]
-                .lstrip("/"),
+                config("RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"),
                 item_component_id,
             ),
         )
@@ -2471,14 +2469,20 @@ def test_oralhistories_add_publish_one_transcript_2d4ja(
     # VALIDATE RESOLVER URL & WEB TRANSCRIPT
     if config("RESOLVER_BUCKET", default=""):
         page.goto(
-            "/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id])
+            "/".join(
+                [
+                    config("RESOLVER_SERVICE_ENDPOINT").rstrip("/"),
+                    config("RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"),
+                    item_component_id,
+                ]
+            )
         )
     else:
         page.goto(
             "/".join(
                 [
                     config("ALCHEMIST_BASE_URL").rstrip("/"),
-                    config("ORALHISTORIES_PATH_PREFIX"),
+                    config("ORALHISTORIES_URL_PATH_PREFIX"),
                     item_component_id,
                 ]
             )
@@ -2488,7 +2492,7 @@ def test_oralhistories_add_publish_one_transcript_2d4ja(
         "/".join(
             [
                 config("ALCHEMIST_BASE_URL").rstrip("/"),
-                config("ORALHISTORIES_PATH_PREFIX"),
+                config("ORALHISTORIES_URL_PATH_PREFIX"),
                 item_component_id,
                 "",
             ]
@@ -2614,9 +2618,7 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
         resolver_s3_response = s3_client.list_objects_v2(
             Bucket=config("RESOLVER_BUCKET"),
             Prefix="{}/{}".format(
-                config("RESOLVER_BASE_URL")
-                .split(config("RESOLVER_BUCKET"))[-1]
-                .lstrip("/"),
+                config("RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"),
                 item_component_id,
             ),
         )
@@ -2651,7 +2653,13 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
         dates="- 2001-01-01\n- 2001-01-31",
         interviewee=f'{interviewee["names"][0]["rest_of_name"]} {interviewee["names"][0]["primary_name"]}',
         interviewer=f'{interviewer["names"][0]["rest_of_name"]} {interviewer["names"][0]["primary_name"]}',
-        resolver_base_url=config("RESOLVER_BASE_URL"),
+        resolver_url="/".join(
+            [
+                config("RESOLVER_SERVICE_ENDPOINT").rstrip("/"),
+                config("RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"),
+                item_component_id,
+            ]
+        ),
         title="Faculty Member Oral History Interview",
     )
     with open(
@@ -2685,14 +2693,20 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
     # VALIDATE RESOLVER URL & WEB TRANSCRIPT
     if config("RESOLVER_BUCKET", default=""):
         page.goto(
-            "/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id])
+            "/".join(
+                [
+                    config("RESOLVER_SERVICE_ENDPOINT").rstrip("/"),
+                    config("RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"),
+                    item_component_id,
+                ]
+            )
         )
     else:
         page.goto(
             "/".join(
                 [
                     config("ALCHEMIST_BASE_URL").rstrip("/"),
-                    config("ORALHISTORIES_PATH_PREFIX"),
+                    config("ORALHISTORIES_URL_PATH_PREFIX"),
                     item_component_id,
                 ]
             )
@@ -2702,7 +2716,7 @@ def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
         "/".join(
             [
                 config("ALCHEMIST_BASE_URL").rstrip("/"),
-                config("ORALHISTORIES_PATH_PREFIX"),
+                config("ORALHISTORIES_URL_PATH_PREFIX"),
                 item_component_id,
                 "",
             ]
@@ -2761,9 +2775,7 @@ def test_oralhistories_add_update_one_publish_one_transcript_4hete(
         resolver_s3_response = s3_client.list_objects_v2(
             Bucket=config("RESOLVER_BUCKET"),
             Prefix="{}/{}".format(
-                config("RESOLVER_BASE_URL")
-                .split(config("RESOLVER_BUCKET"))[-1]
-                .lstrip("/"),
+                config("RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"),
                 item_component_id,
             ),
         )
@@ -2808,14 +2820,20 @@ def test_oralhistories_add_update_one_publish_one_transcript_4hete(
     # VALIDATE RESOLVER URL & WEB TRANSCRIPT
     if config("RESOLVER_BUCKET", default=""):
         page.goto(
-            "/".join([config("RESOLVER_BASE_URL").rstrip("/"), item_component_id])
+            "/".join(
+                [
+                    config("RESOLVER_SERVICE_ENDPOINT").rstrip("/"),
+                    config("RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"),
+                    item_component_id,
+                ]
+            )
         )
     else:
         page.goto(
             "/".join(
                 [
                     config("ALCHEMIST_BASE_URL").rstrip("/"),
-                    config("ORALHISTORIES_PATH_PREFIX"),
+                    config("ORALHISTORIES_URL_PATH_PREFIX"),
                     item_component_id,
                 ]
             )
@@ -2825,7 +2843,7 @@ def test_oralhistories_add_update_one_publish_one_transcript_4hete(
         "/".join(
             [
                 config("ALCHEMIST_BASE_URL").rstrip("/"),
-                config("ORALHISTORIES_PATH_PREFIX"),
+                config("ORALHISTORIES_URL_PATH_PREFIX"),
                 item_component_id,
                 "",
             ]

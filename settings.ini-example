@@ -142,11 +142,11 @@ ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID=EFGH1234567890
 ;; as noted under `AWS` above, this bucket must be included in the user policy
 ;ORALHISTORIES_BUCKET=s3-bucket-name
 ;; ALCHEMIST_URL_PREFIX + CollectionID from ArchivesSpace
-;ORALHISTORIES_PATH_PREFIX=%(ALCHEMIST_URL_PREFIX)s/OralHistories
+;ORALHISTORIES_URL_PATH_PREFIX=%(ALCHEMIST_URL_PREFIX)s/OralHistories
 ;; s3 bucket for the resolver
 ;RESOLVER_BUCKET=s3-bucket-name
-;; resolver base url including the domain and any base path
-;RESOLVER_BASE_URL=https://resolver.example.org/archives
+;; resolver endpoint to which specific paths are appended
+;RESOLVER_SERVICE_ENDPOINT=https://resolver.example.org/
 
 [loggers]
 keys=root,alchemist,archivesspace,distillery,oralhistories,tape,web
