@@ -443,7 +443,7 @@ def generate_archival_object_page(build_directory, variables):
             trim_blocks=True,
             lstrip_blocks=True,
         )
-        if variables.get("mimetype").startswith("video/"):
+        if variables.get("mimetype") and variables["mimetype"].startswith("video/"):
             # TODO use IIIF Presentation API 3.0; manifest.json files can supply video
             # NOTE template currently only handles mp4 files
             template = environment.get_template("alchemist/video.tpl")
