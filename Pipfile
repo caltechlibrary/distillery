@@ -5,6 +5,10 @@ name = "pypi"
 
 [dev-packages]
 gitpython = "*"
+gtts = "*"
+moviepy = "*"
+opencv-python-headless = "*"
+pillow = "*"
 pytest-playwright = "*"
 
 [packages]
