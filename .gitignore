@@ -5,6 +5,8 @@ users.csv
 # DEVELOPMENT
 __pycache__
 .vscode
+**/node_modules/*
+scripts/*
 tests/_output
 
 # TEMPORARY
