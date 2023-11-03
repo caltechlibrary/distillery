@@ -467,7 +467,7 @@ def generate_audio_file(test_name):
     audio.save(os.path.join(config("INITIAL_ORIGINAL_FILES"), f"item-{test_name}.mp3"))
 
 
-def reset_files_and_records(asnake_client, test_name):
+def reset_files_and_records(test_name, asnake_client):
     test_id = test_name.split("_")[-1]
     # TODO refactor file deletion
     for f in glob.glob(os.path.join(config("INITIAL_ORIGINAL_FILES"), "*")):
@@ -496,7 +496,7 @@ def reset_files_and_records(asnake_client, test_name):
     delete_archivesspace_test_records(asnake_client, test_id)
 
 
-def generate_records(asnake_client, test_name, **kwargs):
+def generate_records(test_name, asnake_client, **kwargs):
     """TODO expand as needed for custom kwargs"""
     test_id = test_name.split("_")[-1]
     # CREATE RESOURCE RECORD
@@ -515,10 +515,10 @@ def generate_records(asnake_client, test_name, **kwargs):
     return item_create_response, item_component_id
 
 
-def setup_run(page, asnake_client, test_name, **kwargs):
-    reset_files_and_records(asnake_client, test_name)
+def setup_run(page, test_name, asnake_client, **kwargs):
+    reset_files_and_records(test_name, asnake_client)
     item_create_response, item_component_id = generate_records(
-        asnake_client, test_name, **kwargs
+        test_name, asnake_client, **kwargs
     )
     # RUN PROCESS
     if test_name.split("_")[1] == "alchemist":
@@ -2325,7 +2325,7 @@ def test_alchemist_archivesspace_digital_object_type_image_pw83h(
 ):
     """Confirm digital_object_type is set to still_image."""
     test_name = inspect.currentframe().f_code.co_name
-    item_create_response, item_component_id = setup_run(page, asnake_client, test_name)
+    item_create_response, item_component_id = setup_run(page, test_name, asnake_client)
     # VALIDATE DIGITAL OBJECT RECORD
     archival_object = asnake_client.get(
         f'{item_create_response.json()["uri"]}?resolve[]=digital_object'
@@ -2343,7 +2343,7 @@ def test_alchemist_archivesspace_digital_object_type_video_zewtg(
 ):
     """Confirm digital_object_type is set to moving_image."""
     test_name = inspect.currentframe().f_code.co_name
-    item_create_response, item_component_id = setup_run(page, asnake_client, test_name)
+    item_create_response, item_component_id = setup_run(page, test_name, asnake_client)
     # VALIDATE DIGITAL OBJECT RECORD
     archival_object = asnake_client.get(
         f'{item_create_response.json()["uri"]}?resolve[]=digital_object'
@@ -2363,7 +2363,7 @@ def test_alchemist_archivesspace_digital_object_type_audio_jwkr2(
     test_name = inspect.currentframe().f_code.co_name
     # TODO update outcome when alchemist handles audio
     item_create_response, item_component_id = setup_run(
-        page, asnake_client, test_name, outcome="failure"
+        page, test_name, asnake_client, outcome="failure"
     )
     # # VALIDATE DIGITAL OBJECT RECORD
     # archival_object = asnake_client.get(
