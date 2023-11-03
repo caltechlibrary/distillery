@@ -247,6 +247,7 @@ class DistilleryService(rpyc.Service):
             logger.debug(f"🐞 DIRPATH: {dirpath}")
             logger.debug(f"🐞 DIRNAMES: {dirnames}")
             logger.debug(f"🐞 FILENAMES: {filenames}")
+            filetype_supported = True
             validation_status = True
             if not dirnames and not filenames:
                 message = "❌ NO DIRECTORIES OR FILES FOUND"
@@ -258,6 +259,12 @@ class DistilleryService(rpyc.Service):
                     os.remove(Path(dirpath).joinpath(filename))
                 else:
                     status_logger.info(f"📄 {filename}")
+                    if self.access_platform:
+                        type, encoding = mimetypes.guess_type(
+                            Path(dirpath).joinpath(filename)
+                        )
+                        if not (type.startswith("image/") or type.endswith("/mp4")):
+                            filetype_supported = False
                     validation_status = is_archival_object_valid(
                         filename.rsplit(".", maxsplit=1)[0]
                     )
@@ -278,6 +285,10 @@ class DistilleryService(rpyc.Service):
             # and continuing to loop over filenames
             # https://stackoverflow.com/a/43618972
             dirnames[:] = []
+            if not filetype_supported:
+                message = "❌ UNSUPPORTED FILE TYPE"
+                status_logger.error(message)
+                raise RuntimeError(message)
             if not validation_status:
                 message = "❌ VALIDATION FAILURE"
                 status_logger.error(message)
