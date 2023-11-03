@@ -2317,6 +2317,10 @@ def test_s3_nonimage_files_7b3px(page: Page, asnake_client, s3_client):
             ]
 
 
+@pytest.mark.skipif(
+    not os.getenv("RUN_TAPE_TESTS"),
+    reason="environment variable RUN_TAPE_TESTS is not set",
+)
 def test_tape_reuse_top_container_records_d3bym(page: Page, asnake_client):
     """Items on the same tape should use the same top container record."""
     test_name = inspect.currentframe().f_code.co_name
