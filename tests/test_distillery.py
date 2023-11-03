@@ -12,6 +12,9 @@ import boto3
 import git
 
 from decouple import config
+from gtts import gTTS
+from moviepy.editor import TextClip, CompositeVideoClip, ColorClip
+from PIL import Image, ImageDraw, ImageFont
 from playwright.sync_api import Page, expect
 
 
@@ -399,6 +402,130 @@ def copy_oralhistories_asset(test_id, filename, tmp_oralhistories, item_componen
         "/".join(["tests", "oralhistories", test_id, filename]),
         "/".join([tmp_oralhistories, "transcripts", item_component_id, filename]),
     )
+
+
+def generate_image_file(test_name):
+    img = Image.new("RGB", (32, 18), "green")
+    drw = ImageDraw.Draw(img)
+    fnt = ImageFont.load_default()
+    drw.text((1, 1), test_name.split("_")[-1], fill="black", anchor="mm", font=fnt)
+    rsz = img.resize((1280, 720))
+    rsz.save(os.path.join(config("INITIAL_ORIGINAL_FILES"), f"item-{test_name}.tif"))
+
+
+def generate_video_file(test_name):
+    # 1. Create the Background Clip
+    # Set the overall video duration (includes the time for fade in and fade out effects)
+    duration = 1
+    width = 1280
+    height = 720
+    # Generate a white background clip with the defined size and duration
+    bg_clip = ColorClip(size=(width, height), color=(255, 255, 255)).set_duration(
+        duration
+    )
+
+    # 2. Setup the Text Clip
+    # Create a green-colored text clip with the defined font size
+    txt_clip = TextClip(
+        test_name.split("_")[-1],
+        fontsize=200,
+        stroke_color="rgb(0, 255, 0)",
+        stroke_width=10,
+        color="rgb(0, 255, 0)",
+    )
+    # Set the duration of the text clip to match the background
+    txt_clip = txt_clip.set_duration(duration)
+
+    # Center the text on the video frame
+    # Calculate the position to keep the text centered
+    text_width, text_height = txt_clip.size
+    x = (width - text_width) / 2
+    y = (height - text_height) / 2
+    # Set the text clip's position to the calculated center coordinates
+    txt_clip = txt_clip.set_position((x, y))
+
+    # Apply fade-in effect to the text
+    # Define the duration for the fade effect
+    fade_duration = 1
+    # Apply crossfade in to the text clip
+    bg_fading = bg_clip.crossfadein(fade_duration)
+
+    # 3. Merge the Background and Text Clips
+    # Composite both clips to form the final video
+    video = CompositeVideoClip([bg_fading, txt_clip])
+
+    # 4. Export the Resulting Video
+    # Save the composite video to a file with 30 frames per second
+    video.write_videofile(
+        os.path.join(config("INITIAL_ORIGINAL_FILES"), f"item-{test_name}.mp4"), fps=30
+    )
+    video.close()
+
+
+def generate_audio_file(test_name):
+    audio = gTTS(text=test_name.split("_")[-1])
+    audio.save(os.path.join(config("INITIAL_ORIGINAL_FILES"), f"item-{test_name}.mp3"))
+
+
+def reset_files_and_records(asnake_client, test_name):
+    test_id = test_name.split("_")[-1]
+    # TODO refactor file deletion
+    for f in glob.glob(os.path.join(config("INITIAL_ORIGINAL_FILES"), "*")):
+        shutil.move(f, config("TEST_FILES", default="tests/files"))
+    if "image" in test_name:
+        generate_image_file(test_name)
+        # TODO refactor file deletion
+        os.system(
+            f'/bin/rm -r {os.path.join(config("TEST_FILES", default="tests/files"), f"item-{test_name}.tif")}'
+        )
+    elif "video" in test_name:
+        generate_video_file(test_name)
+        # TODO refactor file deletion
+        os.system(
+            f'/bin/rm -r {os.path.join(config("TEST_FILES", default="tests/files"), f"item-{test_name}.mp4")}'
+        )
+    elif "audio" in test_name:
+        generate_audio_file(test_name)
+        # TODO refactor file deletion
+        os.system(
+            f'/bin/rm -r {os.path.join(config("TEST_FILES", default="tests/files"), f"item-{test_name}.mp3")}'
+        )
+    else:
+        move_test_files_to_initial_original_files_directory(test_name)
+    # DELETE ANY EXISTING TEST RECORDS
+    delete_archivesspace_test_records(asnake_client, test_id)
+
+
+def generate_records(asnake_client, test_name, **kwargs):
+    """TODO expand as needed for custom kwargs"""
+    test_id = test_name.split("_")[-1]
+    # CREATE RESOURCE RECORD
+    resource_create_response = create_archivesspace_test_resource(
+        asnake_client, test_name, test_id
+    )
+    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
+    # CREATE ARCHIVAL OBJECT ITEM RECORD
+    (
+        item_create_response,
+        item_component_id,
+    ) = create_archivesspace_test_archival_object_item(
+        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
+    )
+    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
+    return item_create_response, item_component_id
+
+
+def setup_run(page, asnake_client, test_name, **kwargs):
+    reset_files_and_records(asnake_client, test_name)
+    item_create_response, item_component_id = generate_records(
+        asnake_client, test_name, **kwargs
+    )
+    # RUN PROCESS
+    if test_name.split("_")[1] == "alchemist":
+        destinations = ["access"]
+    outcome = kwargs.get("outcome", "success")
+    run_distillery(page, destinations, outcome=outcome)
+    return item_create_response, item_component_id
 
 
 @pytest.mark.skipif(
@@ -2191,6 +2318,63 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
     expect(page.locator("#metadata")).not_to_contain_text(
         "unpublished", ignore_case=True
     )
+
+
+def test_alchemist_archivesspace_digital_object_type_image_pw83h(
+    page: Page, asnake_client
+):
+    """Confirm digital_object_type is set to still_image."""
+    test_name = inspect.currentframe().f_code.co_name
+    item_create_response, item_component_id = setup_run(page, asnake_client, test_name)
+    # VALIDATE DIGITAL OBJECT RECORD
+    archival_object = asnake_client.get(
+        f'{item_create_response.json()["uri"]}?resolve[]=digital_object'
+    ).json()
+    assert (
+        archival_object["instances"][0]["digital_object"]["_resolved"][
+            "digital_object_type"
+        ]
+        == "still_image"
+    )
+
+
+def test_alchemist_archivesspace_digital_object_type_video_zewtg(
+    page: Page, asnake_client
+):
+    """Confirm digital_object_type is set to moving_image."""
+    test_name = inspect.currentframe().f_code.co_name
+    item_create_response, item_component_id = setup_run(page, asnake_client, test_name)
+    # VALIDATE DIGITAL OBJECT RECORD
+    archival_object = asnake_client.get(
+        f'{item_create_response.json()["uri"]}?resolve[]=digital_object'
+    ).json()
+    assert (
+        archival_object["instances"][0]["digital_object"]["_resolved"][
+            "digital_object_type"
+        ]
+        == "moving_image"
+    )
+
+
+def test_alchemist_archivesspace_digital_object_type_audio_jwkr2(
+    page: Page, asnake_client
+):
+    """Confirm digital_object_type is set to sound_recording."""
+    test_name = inspect.currentframe().f_code.co_name
+    # TODO update outcome when alchemist handles audio
+    item_create_response, item_component_id = setup_run(
+        page, asnake_client, test_name, outcome="failure"
+    )
+    # # VALIDATE DIGITAL OBJECT RECORD
+    # archival_object = asnake_client.get(
+    #     f'{item_create_response.json()["uri"]}?resolve[]=digital_object'
+    # ).json()
+    # assert (
+    #     archival_object["instances"][0]["digital_object"]["_resolved"][
+    #         "digital_object_type"
+    #     ]
+    #     == "sound_recording"
+    # )
 
 
 def test_s3_nonnumeric_sequence_gz36p(page: Page, asnake_client, s3_client):
