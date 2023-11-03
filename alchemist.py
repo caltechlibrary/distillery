@@ -1066,15 +1066,26 @@ def create_digital_object_file_versions(build_directory, variables):
     ]
     logger.debug(f'🐞 FILEPATHS[0]: {sorted(variables["filepaths"])[0]}')
 
+    if variables["filepaths"][0].name.endswith(".ptif"):
+        digital_object_type = "still_image"
+    elif variables["filepaths"][0].name.endswith(".mp4"):
+        digital_object_type = "moving_image"
+    elif variables["filepaths"][0].name.endswith(".mp3"):
+        digital_object_type = "sound_recording"
+    else:
+        digital_object_type = ""
+
     file_versions = [
         {
             "file_uri": archival_object_page_url,
             "jsonmodel_type": "file_version",
+            "caption": f'{variables["archival_object"]["title"]} {digital_object_type.replace("_", " ")}',
             "publish": True,
         },
         {
             "file_uri": get_thumbnail_url(variables),
             "jsonmodel_type": "file_version",
+            "caption": variables["archival_object"]["title"],
             "publish": True,
             "use_statement": "image-thumbnail",
             "xlink_show_attribute": "embed",
@@ -1102,7 +1113,9 @@ def create_digital_object_file_versions(build_directory, variables):
         (
             digital_object_uri,
             variables["archival_object"],
-        ) = distillery.create_digital_object(variables["archival_object"])
+        ) = distillery.create_digital_object(
+            variables["archival_object"], digital_object_type=digital_object_type
+        )
         distillery.save_digital_object_file_versions(
             variables["archival_object"], file_versions, variables["file_versions_op"]
         )

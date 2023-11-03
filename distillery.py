@@ -886,10 +886,12 @@ def save_digital_object_file_versions(archival_object, file_versions, file_versi
         raise
 
 
-def create_digital_object(archival_object):
+def create_digital_object(archival_object, digital_object_type=""):
     digital_object = {}
     digital_object["digital_object_id"] = archival_object["component_id"]  # required
     digital_object["title"] = archival_object["title"]  # required
+    if digital_object_type:
+        digital_object["digital_object_type"] = digital_object_type
     # NOTE leaving created digital objects unpublished
     # digital_object['publish'] = True
 
