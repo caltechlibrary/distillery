@@ -587,6 +587,8 @@ def generate_records(test_name, asnake_client, **kwargs):
 @pytest.fixture
 def setup_test(page, asnake_client, s3_client):
     def _setup_test(test_name, file_count=1, outcome="success"):
+        print(f"🐞 file_count: {file_count}")
+        print(f"🐞 outcome: {outcome}")
         reset_files_and_records(
             test_name, asnake_client, s3_client, file_count=file_count
         )
@@ -597,7 +599,13 @@ def setup_test(page, asnake_client, s3_client):
         elif test_name.split("_")[1] == "s3":
             destinations = ["cloud"]
         run_distillery(page, destinations, outcome=outcome)
-        return item_create_response
+        alchemist_item_uri = format_alchemist_item_uri(
+            test_name, test_name.split("_")[-1]
+        )
+        return {
+            "item_create_response": item_create_response,
+            "alchemist_item_uri": alchemist_item_uri,
+        }
 
     return _setup_test
 
@@ -2400,10 +2408,10 @@ def test_alchemist_archivesspace_digital_object_type_image_pw83h(
 ):
     """Confirm digital_object_type is set to still_image."""
     test_name = inspect.currentframe().f_code.co_name
-    item_create_response = setup_test(test_name)
+    setup_output = setup_test(test_name)
     # VALIDATE DIGITAL OBJECT RECORD
     archival_object = asnake_client.get(
-        f'{item_create_response.json()["uri"]}?resolve[]=digital_object'
+        f'{setup_output["item_create_response"].json()["uri"]}?resolve[]=digital_object'
     ).json()
     assert (
         archival_object["instances"][0]["digital_object"]["_resolved"][
@@ -2418,10 +2426,10 @@ def test_alchemist_archivesspace_digital_object_type_video_zewtg(
 ):
     """Confirm digital_object_type is set to moving_image."""
     test_name = inspect.currentframe().f_code.co_name
-    item_create_response = setup_test(test_name)
+    setup_output = setup_test(test_name)
     # VALIDATE DIGITAL OBJECT RECORD
     archival_object = asnake_client.get(
-        f'{item_create_response.json()["uri"]}?resolve[]=digital_object'
+        f'{setup_output["item_create_response"].json()["uri"]}?resolve[]=digital_object'
     ).json()
     assert (
         archival_object["instances"][0]["digital_object"]["_resolved"][
@@ -2437,10 +2445,10 @@ def test_alchemist_archivesspace_digital_object_type_audio_jwkr2(
     """Confirm digital_object_type is set to sound_recording."""
     test_name = inspect.currentframe().f_code.co_name
     # TODO update outcome when alchemist handles audio
-    item_create_response = setup_test(test_name, outcome="failure")
+    setup_output = setup_test(test_name, outcome="failure")
     # # VALIDATE DIGITAL OBJECT RECORD
     # archival_object = asnake_client.get(
-    #     f'{item_create_response.json()["uri"]}?resolve[]=digital_object'
+    #     f'{setup_output["item_create_response"].json()["uri"]}?resolve[]=digital_object'
     # ).json()
     # assert (
     #     archival_object["instances"][0]["digital_object"]["_resolved"][
@@ -2453,7 +2461,7 @@ def test_alchemist_archivesspace_digital_object_type_audio_jwkr2(
 def test_s3_nonsequential_filenames_image_gz36p(setup_test, asnake_client, s3_client):
     """Confirm images with non-sequential filenames make it to S3 and ArchivesSpace."""
     test_name = inspect.currentframe().f_code.co_name
-    item_create_response = setup_test(test_name, file_count=3)
+    setup_output = setup_test(test_name)
     # VALIDATE S3 UPLOAD AND DIGITAL OBJECT RECORD
     # get a list of s3 objects under this collection prefix
     s3_response = s3_client.list_objects_v2(
@@ -2462,7 +2470,7 @@ def test_s3_nonsequential_filenames_image_gz36p(setup_test, asnake_client, s3_cl
     print("🐞 s3_client.list_objects_v2", s3_response)
     # ensure that the digital object components were created correctly
     archival_object = asnake_client.get(
-        f'{item_create_response.json()["uri"]}?resolve[]=digital_object'
+        f'{setup_output["item_create_response"].json()["uri"]}?resolve[]=digital_object'
     ).json()
     print(
         "🐞 digital_object",
@@ -2493,7 +2501,7 @@ def test_s3_nonsequential_filenames_image_gz36p(setup_test, asnake_client, s3_cl
 def test_s3_digital_object_components_mixed_7b3px(setup_test, asnake_client, s3_client):
     """Confirm mixed files make it to S3 and ArchivesSpace."""
     test_name = inspect.currentframe().f_code.co_name
-    item_create_response = setup_test(test_name)
+    setup_output = setup_test(test_name)
     # VALIDATE S3 UPLOADS AND DIGITAL OBJECT RECORD
     # get a list of s3 objects under this collection prefix
     s3_response = s3_client.list_objects_v2(
@@ -2502,7 +2510,7 @@ def test_s3_digital_object_components_mixed_7b3px(setup_test, asnake_client, s3_
     print("🐞 s3_client.list_objects_v2", s3_response)
     # ensure that the digital object components were created correctly
     archival_object = asnake_client.get(
-        f'{item_create_response.json()["uri"]}?resolve[]=digital_object'
+        f'{setup_output["item_create_response"].json()["uri"]}?resolve[]=digital_object'
     ).json()
     print(
         "🐞 digital_object",
