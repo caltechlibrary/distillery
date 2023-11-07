@@ -3,7 +3,9 @@ import glob
 import inspect
 import os
 import pytest
+import random
 import shutil
+import string
 import sys
 import tempfile
 import time
@@ -404,16 +406,25 @@ def copy_oralhistories_asset(test_id, filename, tmp_oralhistories, item_componen
     )
 
 
-def generate_image_file(test_name):
+def generate_image_file(file_stem, **kwargs):
     img = Image.new("RGB", (32, 18), "green")
     drw = ImageDraw.Draw(img)
     fnt = ImageFont.load_default()
-    drw.text((1, 1), test_name.split("_")[-1], fill="black", anchor="mm", font=fnt)
+    drw.text((1, 1), file_stem.split("_")[-1], fill="black", anchor="mm", font=fnt)
     rsz = img.resize((1280, 720))
-    rsz.save(os.path.join(config("INITIAL_ORIGINAL_FILES"), f"item-{test_name}.tif"))
+    if "directory" in kwargs:
+        file = os.path.join(
+            config("INITIAL_ORIGINAL_FILES"),
+            f'item-{kwargs["directory"]}',
+            f"{file_stem}.tif",
+        )
+        os.makedirs(os.path.dirname(file), exist_ok=True)
+    else:
+        file = os.path.join(config("INITIAL_ORIGINAL_FILES"), f"item-{file_stem}.tif")
+    rsz.save(file)
 
 
-def generate_video_file(test_name):
+def generate_video_file(test_name, **kwargs):
     # 1. Create the Background Clip
     # Set the overall video duration (includes the time for fade in and fade out effects)
     duration = 1
@@ -456,27 +467,82 @@ def generate_video_file(test_name):
 
     # 4. Export the Resulting Video
     # Save the composite video to a file with 30 frames per second
-    video.write_videofile(
-        os.path.join(config("INITIAL_ORIGINAL_FILES"), f"item-{test_name}.mp4"), fps=30
-    )
+    if "directory" in kwargs:
+        file = os.path.join(
+            config("INITIAL_ORIGINAL_FILES"),
+            f'item-{kwargs["directory"]}',
+            f"item-{test_name}.mp4",
+        )
+        os.makedirs(os.path.dirname(file), exist_ok=True)
+    else:
+        file = os.path.join(config("INITIAL_ORIGINAL_FILES"), f"item-{test_name}.mp4")
+    video.write_videofile(file, fps=30)
     video.close()
 
 
-def generate_audio_file(test_name):
+def generate_audio_file(test_name, **kwargs):
     audio = gTTS(text=test_name.split("_")[-1])
-    audio.save(os.path.join(config("INITIAL_ORIGINAL_FILES"), f"item-{test_name}.mp3"))
+    if "directory" in kwargs:
+        file = os.path.join(
+            config("INITIAL_ORIGINAL_FILES"),
+            f'item-{kwargs["directory"]}',
+            f"item-{test_name}.mp3",
+        )
+        os.makedirs(os.path.dirname(file), exist_ok=True)
+    else:
+        file = os.path.join(config("INITIAL_ORIGINAL_FILES"), f"item-{test_name}.mp3")
+    audio.save(file)
 
 
-def reset_files_and_records(test_name, asnake_client):
+def delete_s3_preservation_objects(s3_client, test_id):
+    s3_response = s3_client.list_objects_v2(
+        Bucket=config("PRESERVATION_BUCKET"), Prefix=test_id
+    )
+    print("🐞 s3_client.list_objects_v2", s3_response)
+    if s3_response.get("Contents"):
+        s3_keys = [{"Key": s3_object["Key"]} for s3_object in s3_response["Contents"]]
+        s3_response = s3_client.delete_objects(
+            Bucket=config("PRESERVATION_BUCKET"), Delete={"Objects": s3_keys}
+        )
+
+
+def reset_files_and_records(test_name, asnake_client, s3_client, **kwargs):
     test_id = test_name.split("_")[-1]
     # TODO refactor file deletion
     for f in glob.glob(os.path.join(config("INITIAL_ORIGINAL_FILES"), "*")):
         shutil.move(f, config("TEST_FILES", default="tests/files"))
-    if "image" in test_name:
-        generate_image_file(test_name)
+    if "mixed" in test_name:
+        # TODO 🐞 debug hang in magick stream
+        generate_image_file(test_name, directory=test_name)
+        generate_video_file(test_name, directory=test_name)
+        generate_audio_file(test_name, directory=test_name)
         # TODO refactor file deletion
         os.system(
-            f'/bin/rm -r {os.path.join(config("TEST_FILES", default="tests/files"), f"item-{test_name}.tif")}'
+            f'/bin/rm -r {os.path.join(config("TEST_FILES", default="tests/files"), f"item-{test_name}")}'
+        )
+        if config("WORK_STILLAGE_FILES", default=""):
+            os.system(f'/bin/rm -r {os.path.join(config("WORK_STILLAGE_FILES"), "*")}')
+        else:
+            os.system(
+                f'/bin/rm -r {os.path.join(os.path.dirname(config("WORK_PRESERVATION_FILES")), ".STILLAGE", "*")}'
+            )
+    elif "image" in test_name:
+        if "file_count" in kwargs and kwargs["file_count"] > 1:
+            for i in range(kwargs["file_count"]):
+                generate_image_file(
+                    "{}{}".format(
+                        "".join(
+                            random.choices(string.ascii_lowercase + string.digits, k=4)
+                        ),
+                        i,
+                    ),
+                    directory=test_name,
+                )
+        else:
+            generate_image_file(test_name)
+        # TODO refactor file deletion
+        os.system(
+            f'/bin/rm -r {os.path.join(config("TEST_FILES", default="tests/files"), f"*{test_id}*")}'
         )
     elif "video" in test_name:
         generate_video_file(test_name)
@@ -494,6 +560,9 @@ def reset_files_and_records(test_name, asnake_client):
         move_test_files_to_initial_original_files_directory(test_name)
     # DELETE ANY EXISTING TEST RECORDS
     delete_archivesspace_test_records(asnake_client, test_id)
+    # DELETE S3 OBJECTS
+    if test_name.split("_")[1] == "s3":
+        delete_s3_preservation_objects(s3_client, test_id)
 
 
 def generate_records(test_name, asnake_client, **kwargs):
@@ -512,20 +581,25 @@ def generate_records(test_name, asnake_client, **kwargs):
         asnake_client, test_name, test_id, resource_create_response.json()["uri"]
     )
     print(f"🐞 item_create_response:{test_id}", item_create_response.json())
-    return item_create_response, item_component_id
+    return item_create_response
 
 
-def setup_run(page, test_name, asnake_client, **kwargs):
-    reset_files_and_records(test_name, asnake_client)
-    item_create_response, item_component_id = generate_records(
-        test_name, asnake_client, **kwargs
-    )
-    # RUN PROCESS
-    if test_name.split("_")[1] == "alchemist":
-        destinations = ["access"]
-    outcome = kwargs.get("outcome", "success")
-    run_distillery(page, destinations, outcome=outcome)
-    return item_create_response, item_component_id
+@pytest.fixture
+def setup_test(page, asnake_client, s3_client):
+    def _setup_test(test_name, file_count=1, outcome="success"):
+        reset_files_and_records(
+            test_name, asnake_client, s3_client, file_count=file_count
+        )
+        item_create_response = generate_records(test_name, asnake_client)
+        # RUN PROCESS
+        if test_name.split("_")[1] == "alchemist":
+            destinations = ["access"]
+        elif test_name.split("_")[1] == "s3":
+            destinations = ["cloud"]
+        run_distillery(page, destinations, outcome=outcome)
+        return item_create_response
+
+    return _setup_test
 
 
 @pytest.mark.skipif(
@@ -640,6 +714,7 @@ def test_alchemist_archivesspace_file_uri_v8v5r(page: Page, asnake_client):
     run_distillery(page, ["access"])
     alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
     # VALIDATE DIGITAL OBJECT RECORD
+    # TODO get archival_object instead of digital_object
     results = asnake_client.get(
         "/repositories/2/find_by_id/digital_objects",
         params={"digital_object_id[]": f"{item_component_id}"},
@@ -2321,11 +2396,11 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
 
 
 def test_alchemist_archivesspace_digital_object_type_image_pw83h(
-    page: Page, asnake_client
+    setup_test, asnake_client
 ):
     """Confirm digital_object_type is set to still_image."""
     test_name = inspect.currentframe().f_code.co_name
-    item_create_response, item_component_id = setup_run(page, test_name, asnake_client)
+    item_create_response = setup_test(test_name)
     # VALIDATE DIGITAL OBJECT RECORD
     archival_object = asnake_client.get(
         f'{item_create_response.json()["uri"]}?resolve[]=digital_object'
@@ -2339,11 +2414,11 @@ def test_alchemist_archivesspace_digital_object_type_image_pw83h(
 
 
 def test_alchemist_archivesspace_digital_object_type_video_zewtg(
-    page: Page, asnake_client
+    setup_test, asnake_client
 ):
     """Confirm digital_object_type is set to moving_image."""
     test_name = inspect.currentframe().f_code.co_name
-    item_create_response, item_component_id = setup_run(page, test_name, asnake_client)
+    item_create_response = setup_test(test_name)
     # VALIDATE DIGITAL OBJECT RECORD
     archival_object = asnake_client.get(
         f'{item_create_response.json()["uri"]}?resolve[]=digital_object'
@@ -2357,14 +2432,12 @@ def test_alchemist_archivesspace_digital_object_type_video_zewtg(
 
 
 def test_alchemist_archivesspace_digital_object_type_audio_jwkr2(
-    page: Page, asnake_client
+    setup_test, asnake_client
 ):
     """Confirm digital_object_type is set to sound_recording."""
     test_name = inspect.currentframe().f_code.co_name
     # TODO update outcome when alchemist handles audio
-    item_create_response, item_component_id = setup_run(
-        page, test_name, asnake_client, outcome="failure"
-    )
+    item_create_response = setup_test(test_name, outcome="failure")
     # # VALIDATE DIGITAL OBJECT RECORD
     # archival_object = asnake_client.get(
     #     f'{item_create_response.json()["uri"]}?resolve[]=digital_object'
@@ -2377,128 +2450,81 @@ def test_alchemist_archivesspace_digital_object_type_audio_jwkr2(
     # )
 
 
-def test_s3_nonnumeric_sequence_gz36p(page: Page, asnake_client, s3_client):
-    """Confirm images with non-numeric sequence strings make it to S3 and ArchivesSpace."""
+def test_s3_nonsequential_filenames_image_gz36p(setup_test, asnake_client, s3_client):
+    """Confirm images with non-sequential filenames make it to S3 and ArchivesSpace."""
     test_name = inspect.currentframe().f_code.co_name
-    test_id = test_name.split("_")[-1]
-    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
-    move_test_files_to_initial_original_files_directory(test_name)
-    # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, test_id)
-    # CREATE RESOURCE RECORD
-    resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_name, test_id
-    )
-    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
-    # CREATE ARCHIVAL OBJECT ITEM RECORD
-    (
-        item_create_response,
-        item_component_id,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
-    )
-    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
-    # DELETE S3 OBJECTS
-    s3_response = s3_client.list_objects_v2(
-        Bucket=config("PRESERVATION_BUCKET"), Prefix=test_id
-    )
-    print("🐞 s3_client.list_objects_v2", s3_response)
-    if s3_response.get("Contents"):
-        s3_keys = [{"Key": s3_object["Key"]} for s3_object in s3_response["Contents"]]
-        s3_response = s3_client.delete_objects(
-            Bucket=config("PRESERVATION_BUCKET"), Delete={"Objects": s3_keys}
-        )
-    # RUN DISTILLERY CLOUD PROCESS
-    run_distillery(page, ["cloud"])
+    item_create_response = setup_test(test_name, file_count=3)
     # VALIDATE S3 UPLOAD AND DIGITAL OBJECT RECORD
     # get a list of s3 objects under this collection prefix
     s3_response = s3_client.list_objects_v2(
-        Bucket=config("PRESERVATION_BUCKET"), Prefix=test_id
+        Bucket=config("PRESERVATION_BUCKET"), Prefix=test_name.split("_")[-1]
     )
     print("🐞 s3_client.list_objects_v2", s3_response)
     # ensure that the digital object components were created correctly
-    results = asnake_client.get(
-        "/repositories/2/find_by_id/digital_objects",
-        params={"digital_object_id[]": f"{item_component_id}"},
+    archival_object = asnake_client.get(
+        f'{item_create_response.json()["uri"]}?resolve[]=digital_object'
     ).json()
-    print(f"🐞 find_by_id/digital_objects:{item_component_id}", results)
-    assert len(results["digital_objects"]) == 1
-    for digital_object in results["digital_objects"]:
-        tree = asnake_client.get(f'{digital_object["ref"]}/tree/root').json()
-        print(f'🐞 {digital_object["ref"]}/tree/root', tree)
-        # subtract 2, one for collection JSON file and one for the item JSON file
-        assert len(s3_response["Contents"]) - 2 == len(
-            tree["precomputed_waypoints"][""]["0"]
-        )
-        for waypoint in tree["precomputed_waypoints"][""]["0"]:
-            # split the s3 key from the file_uri_summary and ensure it matches
-            assert waypoint["file_uri_summary"].split(
-                f's3://{config("PRESERVATION_BUCKET")}/'
-            )[-1] in [s3_object["Key"] for s3_object in s3_response["Contents"]]
-            # split the original filename from the s3 key and match the label
-            assert waypoint["label"] in [
-                s3_object["Key"].split("/")[-2] for s3_object in s3_response["Contents"]
-            ]
+    print(
+        "🐞 digital_object",
+        archival_object["instances"][0]["digital_object"]["_resolved"],
+    )
+    assert len(archival_object["instances"]) == 1
+    tree = asnake_client.get(
+        f'{archival_object["instances"][0]["digital_object"]["ref"]}/tree/root'
+    ).json()
+    print(
+        f'🐞 {archival_object["instances"][0]["digital_object"]["ref"]}/tree/root', tree
+    )
+    # subtract 2, one for collection JSON file and one for the item JSON file
+    assert len(s3_response["Contents"]) - 2 == len(
+        tree["precomputed_waypoints"][""]["0"]
+    )
+    for waypoint in tree["precomputed_waypoints"][""]["0"]:
+        # split the s3 key from the file_uri_summary and ensure it matches
+        assert waypoint["file_uri_summary"].split(
+            f's3://{config("PRESERVATION_BUCKET")}/'
+        )[-1] in [s3_object["Key"] for s3_object in s3_response["Contents"]]
+        # split the original filename from the s3 key and match the label
+        assert waypoint["label"] in [
+            s3_object["Key"].split("/")[-2] for s3_object in s3_response["Contents"]
+        ]
 
 
-def test_s3_nonimage_files_7b3px(page: Page, asnake_client, s3_client):
-    """Confirm non-image files make it to S3 and ArchivesSpace."""
+def test_s3_digital_object_components_mixed_7b3px(setup_test, asnake_client, s3_client):
+    """Confirm mixed files make it to S3 and ArchivesSpace."""
     test_name = inspect.currentframe().f_code.co_name
-    test_id = test_name.split("_")[-1]
-    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
-    move_test_files_to_initial_original_files_directory(test_name)
-    # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, test_id)
-    # CREATE RESOURCE RECORD
-    resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_name, test_id
-    )
-    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
-    # CREATE ARCHIVAL OBJECT ITEM RECORD
-    (
-        item_create_response,
-        item_component_id,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
-    )
-    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
-    # DELETE S3 OBJECTS
-    s3_response = s3_client.list_objects_v2(
-        Bucket=config("PRESERVATION_BUCKET"), Prefix=test_id
-    )
-    print("🐞 s3_client.list_objects_v2", s3_response)
-    if s3_response.get("Contents"):
-        s3_keys = [{"Key": s3_object["Key"]} for s3_object in s3_response["Contents"]]
-        s3_response = s3_client.delete_objects(
-            Bucket=config("PRESERVATION_BUCKET"), Delete={"Objects": s3_keys}
-        )
-    # RUN DISTILLERY CLOUD PROCESS
-    run_distillery(page, ["cloud"])
+    item_create_response = setup_test(test_name)
+    # VALIDATE S3 UPLOADS AND DIGITAL OBJECT RECORD
     # get a list of s3 objects under this collection prefix
     s3_response = s3_client.list_objects_v2(
-        Bucket=config("PRESERVATION_BUCKET"), Prefix=test_id
+        Bucket=config("PRESERVATION_BUCKET"), Prefix=test_name.split("_")[-1]
     )
     print("🐞 s3_client.list_objects_v2", s3_response)
     # ensure that the digital object components were created correctly
-    results = asnake_client.get(
-        "/repositories/2/find_by_id/digital_objects",
-        params={"digital_object_id[]": f"{item_component_id}"},
+    archival_object = asnake_client.get(
+        f'{item_create_response.json()["uri"]}?resolve[]=digital_object'
     ).json()
-    print("🐞 find_by_id/digital_objects", results)
-    assert len(results["digital_objects"]) == 1
-    for digital_object in results["digital_objects"]:
-        tree = asnake_client.get(f'{digital_object["ref"]}/tree/root').json()
-        print(f'🐞 {digital_object["ref"]}/tree/root', tree)
-        assert len(tree["precomputed_waypoints"][""]["0"]) > 0
-        for waypoint in tree["precomputed_waypoints"][""]["0"]:
-            # split the s3 key from the file_uri_summary and ensure it matches
-            assert waypoint["file_uri_summary"].split(
-                f's3://{config("PRESERVATION_BUCKET")}/'
-            )[-1] in [s3_object["Key"] for s3_object in s3_response["Contents"]]
-            # split the original filename from the s3 key and match the label
-            assert waypoint["label"] in [
-                s3_object["Key"].split("/")[-2] for s3_object in s3_response["Contents"]
-            ]
+    print(
+        "🐞 digital_object",
+        archival_object["instances"][0]["digital_object"]["_resolved"],
+    )
+    assert len(archival_object["instances"]) == 1
+    tree = asnake_client.get(
+        f'{archival_object["instances"][0]["digital_object"]["ref"]}/tree/root'
+    ).json()
+    print(
+        f'🐞 {archival_object["instances"][0]["digital_object"]["ref"]}/tree/root', tree
+    )
+    assert len(tree["precomputed_waypoints"][""]["0"]) > 0
+    for waypoint in tree["precomputed_waypoints"][""]["0"]:
+        # split the s3 key from the file_uri_summary and ensure it matches
+        assert waypoint["file_uri_summary"].split(
+            f's3://{config("PRESERVATION_BUCKET")}/'
+        )[-1] in [s3_object["Key"] for s3_object in s3_response["Contents"]]
+        # split the original filename from the s3 key and match the label
+        assert waypoint["label"] in [
+            s3_object["Key"].split("/")[-2] for s3_object in s3_response["Contents"]
+        ]
 
 
 @pytest.mark.skipif(
