@@ -327,7 +327,7 @@ class AccessPlatform:
     def archival_object_level_processing(self, variables):
         logger.info(f'ℹ️  {variables["archival_object"]["component_id"]}')
         # TODO consider conditions for identifiying non-image file types
-        if len(variables["filepaths"]) == 1:
+        if variables.get("filepaths") and len(variables["filepaths"]) == 1:
             type, encoding = mimetypes.guess_type(variables["filepaths"][0])
             if type == "video/mp4":
                 variables["mimetype"] = type
