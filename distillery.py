@@ -368,7 +368,10 @@ class DistilleryService(rpyc.Service):
                 os.scandir(batch_directory.joinpath("STAGE_1_INITIAL")),
                 key=lambda dir_entry: dir_entry.name,
             ):
-                if dir_entry.is_file():
+                if dir_entry.name in [".DS_Store", "Thumbs.db"]:
+                    os.remove(dir_entry.path)
+                    continue
+                elif dir_entry.is_file():
                     dir_entry_stem = dir_entry.name.rsplit(".", maxsplit=1)[0]
                 elif dir_entry.is_dir():
                     dir_entry_stem = dir_entry.name
