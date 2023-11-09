@@ -37,7 +37,7 @@ logger = logging.getLogger("distillery")
 archivesspace_logger = logging.getLogger("archivesspace")
 status_logger = logging.getLogger("status")
 status_logger.setLevel(logging.INFO)
-status_logfile = Path(config("WORK_STATUS_FILES")).joinpath("status.log")
+status_logfile = Path(config("WORK_LOG_FILES")).joinpath("status.log")
 status_handler = logging.FileHandler(status_logfile)
 status_handler.setLevel(logging.INFO)
 status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
@@ -113,7 +113,7 @@ class DistilleryService(rpyc.Service):
             if isinstance(status_logger_handler, logging.FileHandler):
                 status_logger.removeHandler(status_logger_handler)
         # set the new handler
-        status_logfile = Path(config("WORK_STATUS_FILES")).joinpath(
+        status_logfile = Path(config("WORK_LOG_FILES")).joinpath(
             f"{batch_set_id}.validate.log"
         )
         status_handler = logging.FileHandler(status_logfile)
@@ -303,11 +303,6 @@ class DistilleryService(rpyc.Service):
 
         # send the character that stops javascript reloading in the web ui
         status_logger.info(f"🈺")  # Japanese “Open for Business” Button
-        # move the status_logfile to the logs directory
-        shutil.move(status_logfile, Path(config("WORK_LOG_FILES")))
-        logger.info(
-            f'☑️  MOVED VALIDATE LOG FILE: {Path(config("WORK_LOG_FILES")).joinpath(status_logfile.name)}'
-        )
 
     @rpyc.exposed
     def run(self, destinations, batch_set_id):
@@ -320,7 +315,7 @@ class DistilleryService(rpyc.Service):
             if isinstance(status_logger_handler, logging.FileHandler):
                 status_logger.removeHandler(status_logger_handler)
         # set the new handler
-        status_logfile = Path(config("WORK_STATUS_FILES")).joinpath(
+        status_logfile = Path(config("WORK_LOG_FILES")).joinpath(
             f"{batch_set_id}.run.log"
         )
         status_handler = logging.FileHandler(status_logfile)
@@ -653,11 +648,6 @@ class DistilleryService(rpyc.Service):
         else:
             # send the character that stops javascript reloading in the web ui
             status_logger.info(f"🏁")
-            # move the status_logfile to the logs directory
-            shutil.move(status_logfile, Path(config("WORK_LOG_FILES")))
-            logger.info(
-                f'☑️  MOVED RUN LOG FILE: {Path(config("WORK_LOG_FILES")).joinpath(status_logfile.name)}'
-            )
             # TODO delete PRESERVATION_FILES/CollectionID directory
 
     @rpyc.exposed
@@ -786,12 +776,6 @@ class DistilleryService(rpyc.Service):
         else:
             # send the character that stops javascript reloading in the web ui
             status_logger.info(f"🏁")
-            # copy the status_logfile to the logs directory
-            logfile_dst = Path(config("WORK_LOG_FILES")).joinpath(
-                f"{str(int(time.time()))}.alchemist_regenerate.log"
-            )
-            shutil.copy2(status_logfile, logfile_dst)
-            logger.info(f"☑️  COPIED ALCHEMIST_REGENERATE LOG FILE: {logfile_dst}")
 
 
 def get_collection_data(collection_id):
