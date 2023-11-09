@@ -41,11 +41,9 @@
 
 ; Files
 ; -----
-; NOTE both the WEB and WORK servers mount the volume that has the STATUS_FILES
+; NOTE both the WEB and WORK servers mount the volume that has the LOG_FILES
 
-;WEB_STATUS_FILES=/path/to/status/files
-;WORK_STATUS_FILES=/path/to/status/files
-
+;WEB_LOG_FILES=/path/to/log/files
 ;WORK_LOG_FILES=/path/to/log/files
 
 ; INITIAL_ORIGINAL_FILES: (directory) location before any processing; CASC puts archival object directories here

@@ -87,7 +87,7 @@ def distillery_validate():
 @bottle.route("/validate/log/<batch_set_id>")
 def distillery_validate_log(batch_set_id):
     with open(
-        Path(config("WEB_STATUS_FILES")).joinpath(f"{batch_set_id}.validate.log"),
+        Path(config("WEB_LOG_FILES")).joinpath(f"{batch_set_id}.validate.log"),
         encoding="utf-8",
     ) as f:
         return bottle.template("distillery_log", log=f.readlines())
@@ -120,7 +120,7 @@ def distillery_run():
 @bottle.route("/run/log/<batch_set_id>")
 def distillery_run_log(batch_set_id):
     with open(
-        Path(config("WEB_STATUS_FILES")).joinpath(f"{batch_set_id}.run.log"),
+        Path(config("WEB_LOG_FILES")).joinpath(f"{batch_set_id}.run.log"),
         encoding="utf-8",
     ) as f:
         return bottle.template("distillery_log", log=f.readlines())
@@ -152,7 +152,7 @@ def alchemist_regenerate():
     )
     if bottle.request.forms.get("component_id"):
         component_id = bottle.request.forms.get("component_id")
-        logfile = Path(config("WEB_STATUS_FILES")).joinpath(
+        logfile = Path(config("WEB_LOG_FILES")).joinpath(
             f"{component_id}.{timestamp}.alchemist_regenerate.log"
         )
         logfile.touch()
@@ -169,7 +169,7 @@ def alchemist_regenerate():
         )
     elif bottle.request.forms.get("collection_id"):
         collection_id = bottle.request.forms.get("collection_id")
-        logfile = Path(config("WEB_STATUS_FILES")).joinpath(
+        logfile = Path(config("WEB_LOG_FILES")).joinpath(
             f"{collection_id}.{timestamp}.alchemist_regenerate.log"
         )
         logfile.touch()
@@ -185,7 +185,7 @@ def alchemist_regenerate():
             timestamp=timestamp,
         )
     else:
-        logfile = Path(config("WEB_STATUS_FILES")).joinpath(
+        logfile = Path(config("WEB_LOG_FILES")).joinpath(
             f"_.{timestamp}.alchemist_regenerate.log"
         )
         logfile.touch()
@@ -202,7 +202,7 @@ def alchemist_regenerate():
 @bottle.route("/alchemist/regenerate/log/<component_id>/<timestamp>")
 def alchemist_regenerate_log(component_id, timestamp):
     with open(
-        Path(config("WEB_STATUS_FILES")).joinpath(
+        Path(config("WEB_LOG_FILES")).joinpath(
             f"{component_id}.{timestamp}.alchemist_regenerate.log"
         ),
         encoding="utf-8",
@@ -233,8 +233,8 @@ def oralhistories_post():
         upload = bottle.request.files.get("file")
         if Path(upload.filename).suffix in [".docx"]:
             component_id = Path(upload.filename).stem
-            # TODO ensure WEB_STATUS_FILES exists
-            logfile = Path(config("WEB_STATUS_FILES")).joinpath(
+            # TODO ensure WEB_LOG_FILES exists
+            logfile = Path(config("WEB_LOG_FILES")).joinpath(
                 f"{component_id}.{timestamp}.{op}.log"
             )
             logfile.touch()
@@ -266,7 +266,7 @@ def oralhistories_post():
         oralhistories_run = rpyc.async_(oralhistories_work_server_connection.root.run)
         if bottle.request.forms.get("component_id_publish"):
             component_id = bottle.request.forms.get("component_id_publish")
-            logfile = Path(config("WEB_STATUS_FILES")).joinpath(
+            logfile = Path(config("WEB_LOG_FILES")).joinpath(
                 f"{component_id}.{timestamp}.{op}.log"
             )
             logfile.touch()
@@ -283,9 +283,7 @@ def oralhistories_post():
                 op=op,
             )
         else:
-            logfile = Path(config("WEB_STATUS_FILES")).joinpath(
-                f"_.{timestamp}.{op}.log"
-            )
+            logfile = Path(config("WEB_LOG_FILES")).joinpath(f"_.{timestamp}.{op}.log")
             logfile.touch()
             async_result = oralhistories_run(publish=True, logfile=str(logfile))
             return bottle.template(
@@ -302,7 +300,7 @@ def oralhistories_post():
         oralhistories_run = rpyc.async_(oralhistories_work_server_connection.root.run)
         if bottle.request.forms.get("component_id_update"):
             component_id = bottle.request.forms.get("component_id_update")
-            logfile = Path(config("WEB_STATUS_FILES")).joinpath(
+            logfile = Path(config("WEB_LOG_FILES")).joinpath(
                 f"{component_id}.{timestamp}.{op}.log"
             )
             logfile.touch()
@@ -319,9 +317,7 @@ def oralhistories_post():
                 op=op,
             )
         else:
-            logfile = Path(config("WEB_STATUS_FILES")).joinpath(
-                f"_.{timestamp}.{op}.log"
-            )
+            logfile = Path(config("WEB_LOG_FILES")).joinpath(f"_.{timestamp}.{op}.log")
             logfile.touch()
             async_result = oralhistories_run(update=True, logfile=str(logfile))
             return bottle.template(
@@ -338,9 +334,7 @@ def oralhistories_post():
 @bottle.route("/oralhistories/log/<component_id>/<timestamp>/<op>")
 def oralhistories_log(component_id, timestamp, op):
     with open(
-        Path(config("WEB_STATUS_FILES")).joinpath(
-            f"{component_id}.{timestamp}.{op}.log"
-        ),
+        Path(config("WEB_LOG_FILES")).joinpath(f"{component_id}.{timestamp}.{op}.log"),
         encoding="utf-8",
     ) as f:
         return bottle.template("oralhistories_log", log=f.readlines())
