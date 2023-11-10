@@ -1942,6 +1942,8 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
     print(f"🐞 series_create_response:{test_id}", series_create_response.json())
     # CUSTOMIZE ARCHIVAL OBJECT SERIES RECORD
     series = asnake_client.get(series_create_response.json()["uri"]).json()
+    # set longer breadcrumb
+    series["title"] = "Series Title Longer Than 50 Characters"
     # add dates
     series["dates"] = [
         {"label": "digitized", "date_type": "single", "begin": "2022-02-22"},
@@ -1982,6 +1984,8 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
     )
     # CUSTOMIZE ARCHIVAL OBJECT SUBSERIES RECORD
     subseries = asnake_client.get(subseries_create_response.json()["uri"]).json()
+    # set longer breadcrumb
+    subseries["title"] = "Subseries Title Longer Than 50 Characters"
     # add dates
     subseries["dates"] = [
         {"label": "digitized", "date_type": "single", "begin": "2022-02-22"},
@@ -2369,10 +2373,10 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
         f'{test_name.capitalize().replace("_", " ")}'
     )
     expect(page.locator("hgroup nav li:nth-child(2)")).to_have_text(
-        f"[Series] {test_id}"
+        f"Series Title Longer Than 50 Characters"
     )
     expect(page.locator("hgroup nav li:nth-child(3)")).to_have_text(
-        f"[Sub-Series] {test_id}"
+        f"Subseries Title Longer Than 50 Characters"
     )
     expect(page.locator("hgroup nav li:nth-child(4)")).to_have_text(
         f"Open the Item {test_id} record within its collection guide."
