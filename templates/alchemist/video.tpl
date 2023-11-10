@@ -51,14 +51,15 @@
         align-items: flex-end;
       }
       body > header > nav > ul:first-of-type > li > svg {
+        /* for focus & hover outline */
         overflow: visible;
       }
       body > header > nav > ul:first-of-type > li > svg > a > rect {
-        fill: transparent;
-        stroke: transparent;
+        /* for focus & hover outline */
         transition: fill var(--pico-transition), stroke var(--pico-transition);
       }
       body > header > nav > ul:first-of-type > li > svg > a:focus-visible > rect {
+        /* for focus outline */
         stroke: var(--pico-primary-focus);
         stroke-width: calc(var(--pico-outline-width) * 1.5);
       }
@@ -98,12 +99,8 @@
         --pico-underline: var(--pico-muted-hover-underline);
         --pico-text-decoration: underline;
       }
-      hgroup nav li:last-child a {
-        display: flex;
-      }
       hgroup nav li:last-child a svg {
         height: 0.8em;
-        vertical-align: baseline;
       }
       #manifest {
         border: var(--pico-outline-width) solid transparent;
@@ -129,7 +126,6 @@
       .svg-underline {
         display: inline-block;
         overflow: hidden;
-        padding-inline: 0.1em 0.01em;
         position: relative;
         vertical-align: bottom;
       }
@@ -185,6 +181,31 @@
         --pico-primary-inverse: #fff;
       }
     </style>
+    <style>/* breadcrumbs */
+      /* inspiration from bootstrap */
+      nav[aria-label="breadcrumb"] ul {
+        display: flex;
+        flex-wrap: wrap;
+        padding-block: var(--pico-nav-element-spacing-vertical);
+      }
+      nav[aria-label="breadcrumb"] ul li {
+        padding-block: 0;
+        padding-inline-end: 0;
+      }
+      nav[aria-label="breadcrumb"] ul li:not(:last-child)::after {
+        width: 0;
+        margin-inline-start: 0;
+        content: "";
+      }
+      nav[aria-label="breadcrumb"] ul li + li::before {
+        color: var(--pico-muted-color);
+        content: var(--pico-nav-breadcrumb-divider);
+        position: absolute;
+      }
+      nav[aria-label="breadcrumb"] ul li + li a {
+        margin-inline-start: calc(var(--pico-nav-link-spacing-horizontal) * 1.25);
+      }
+    </style>
   </head>
   <body>
     <header class="container">
@@ -229,13 +250,13 @@
             {% endif %}
             <li>
               <a href="{{ archivesspace_public_url | trim('/') }}{{ archival_object_uri }}" title="Open the {{ title }} record within its collection guide.">
-                <span class="visually-hidden">Open the {{ title }} record within its collection guide.</span>
                 <span class="svg-underline">
                   <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
                     <!-- Font Awesome Free 6.4.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2023 Fonticons, Inc. -->
                     <path d="M432,320H400a16,16,0,0,0-16,16V448H64V128H208a16,16,0,0,0,16-16V80a16,16,0,0,0-16-16H48A48,48,0,0,0,0,112V464a48,48,0,0,0,48,48H400a48,48,0,0,0,48-48V336A16,16,0,0,0,432,320ZM488,0h-128c-21.37,0-32.05,25.91-17,41l35.73,35.73L135,320.37a24,24,0,0,0,0,34L157.67,377a24,24,0,0,0,34,0L435.28,133.32,471,169c15,15,41,4.5,41-17V24A24,24,0,0,0,488,0Z">
                   </svg>
                 </span>
+                <span class="visually-hidden">Open the {{ title }} record within its collection guide.</span>
               </a>
             </li>
           </ul>
@@ -252,7 +273,7 @@
         </p>
         {% endif %}
       </hgroup>
-      <video controls>
+      <video style="width:100%" controls>
         <source src="{{ iiif_manifest_url }}" type="video/mp4" />
       </video>
       <dl id="metadata">
