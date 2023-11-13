@@ -38,6 +38,7 @@ archivesspace_logger = logging.getLogger("archivesspace")
 status_logger = logging.getLogger("status")
 status_logger.setLevel(logging.INFO)
 status_logfile = Path(config("WORK_LOG_FILES")).joinpath("status.log")
+status_logfile.touch()
 status_handler = logging.FileHandler(status_logfile)
 status_handler.setLevel(logging.INFO)
 status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
@@ -116,6 +117,7 @@ class DistilleryService(rpyc.Service):
         status_logfile = Path(config("WORK_LOG_FILES")).joinpath(
             f"{batch_set_id}.validate.log"
         )
+        status_logfile.touch()
         status_handler = logging.FileHandler(status_logfile)
         status_handler.setLevel(logging.INFO)
         status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
@@ -318,6 +320,7 @@ class DistilleryService(rpyc.Service):
         status_logfile = Path(config("WORK_LOG_FILES")).joinpath(
             f"{batch_set_id}.run.log"
         )
+        status_logfile.touch()
         status_handler = logging.FileHandler(status_logfile)
         status_handler.setLevel(logging.INFO)
         status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
@@ -659,6 +662,7 @@ class DistilleryService(rpyc.Service):
         else:
             status_logger = logging.getLogger("_")
         status_logger.setLevel(logging.INFO)
+        Path(logfile).touch()
         status_handler = logging.FileHandler(logfile)
         status_handler.setLevel(logging.INFO)
         status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
