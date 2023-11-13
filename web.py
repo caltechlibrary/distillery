@@ -155,7 +155,6 @@ def alchemist_regenerate():
         logfile = Path(config("WEB_LOG_FILES")).joinpath(
             f"{component_id}.{timestamp}.alchemist_regenerate.log"
         )
-        logfile.touch()
         async_result = distillery_alchemist_regenerate(
             component_id=component_id, logfile=str(logfile)
         )
@@ -172,7 +171,6 @@ def alchemist_regenerate():
         logfile = Path(config("WEB_LOG_FILES")).joinpath(
             f"{collection_id}.{timestamp}.alchemist_regenerate.log"
         )
-        logfile.touch()
         async_result = distillery_alchemist_regenerate(
             collection_id=collection_id, logfile=str(logfile)
         )
@@ -188,7 +186,6 @@ def alchemist_regenerate():
         logfile = Path(config("WEB_LOG_FILES")).joinpath(
             f"_.{timestamp}.alchemist_regenerate.log"
         )
-        logfile.touch()
         async_result = distillery_alchemist_regenerate(logfile=str(logfile))
         return bottle.template(
             "alchemist_regenerate",
@@ -237,7 +234,6 @@ def oralhistories_post():
             logfile = Path(config("WEB_LOG_FILES")).joinpath(
                 f"{component_id}.{timestamp}.{op}.log"
             )
-            logfile.touch()
             upload.save(
                 config("ORALHISTORIES_WEB_UPLOADS"), overwrite=True
             )  # appends upload.filename automatically
@@ -269,7 +265,6 @@ def oralhistories_post():
             logfile = Path(config("WEB_LOG_FILES")).joinpath(
                 f"{component_id}.{timestamp}.{op}.log"
             )
-            logfile.touch()
             async_result = oralhistories_run(
                 component_id=component_id, publish=True, logfile=str(logfile)
             )
@@ -284,7 +279,6 @@ def oralhistories_post():
             )
         else:
             logfile = Path(config("WEB_LOG_FILES")).joinpath(f"_.{timestamp}.{op}.log")
-            logfile.touch()
             async_result = oralhistories_run(publish=True, logfile=str(logfile))
             return bottle.template(
                 "oralhistories_post",
@@ -303,7 +297,6 @@ def oralhistories_post():
             logfile = Path(config("WEB_LOG_FILES")).joinpath(
                 f"{component_id}.{timestamp}.{op}.log"
             )
-            logfile.touch()
             async_result = oralhistories_run(
                 component_id=component_id, update=True, logfile=str(logfile)
             )
@@ -318,7 +311,6 @@ def oralhistories_post():
             )
         else:
             logfile = Path(config("WEB_LOG_FILES")).joinpath(f"_.{timestamp}.{op}.log")
-            logfile.touch()
             async_result = oralhistories_run(update=True, logfile=str(logfile))
             return bottle.template(
                 "oralhistories_post",
