@@ -1790,6 +1790,7 @@ def test_alchemist_kitchen_sink_multi_item_image_k76zs(
     expect(page.locator("#metadata")).to_contain_text("Collection")
     expect(page.locator("#metadata")).to_contain_text("Series")
     expect(page.locator("#metadata")).to_contain_text("Sub-Series")
+    expect(page.locator("#metadata dt").filter(has_text="Identifier")).to_be_visible()
     expect(
         page.get_by_role(
             "link",
