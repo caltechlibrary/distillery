@@ -9,6 +9,7 @@ import string
 import sys
 import tempfile
 import time
+import urllib.request
 
 import boto3
 import git
@@ -190,7 +191,7 @@ def create_archivesspace_test_resource(asnake_client, test_name, test_id):
 
 
 def create_archivesspace_test_archival_object_item(
-    asnake_client, test_name, test_id, resource_uri
+    asnake_client, test_name, test_id, resource_uri, **kwargs
 ):
     item = {}
     # required
@@ -200,6 +201,24 @@ def create_archivesspace_test_archival_object_item(
     # optional
     item["component_id"] = f"item-{test_name}"
     item["publish"] = True
+    # customizations
+    if kwargs.get("customizations"):
+        for key, value in kwargs["customizations"].items():
+            if key == "linked_agents":
+                item[key] = []
+                for agent in value:
+                    ref = create_archivesspace_test_agent_person(
+                        asnake_client, test_id, agent
+                    )
+                    item[key].append(
+                        {
+                            "ref": ref.json()["uri"],
+                            "role": agent.get("role", "creator"),
+                            "relator": agent.get("relator"),
+                        }
+                    )
+            else:
+                item[key] = value
     # post
     item_post_response = asnake_client.post(
         "/repositories/2/archival_objects", json=item
@@ -208,7 +227,7 @@ def create_archivesspace_test_archival_object_item(
 
 
 def create_archivesspace_test_archival_object_series(
-    asnake_client, test_id, resource_uri
+    asnake_client, test_id, resource_uri, **kwargs
 ):
     series = {}
     # required
@@ -218,6 +237,10 @@ def create_archivesspace_test_archival_object_series(
     # optional
     series["component_id"] = f"series-{test_id}"
     series["publish"] = True
+    # customizations
+    if kwargs.get("customizations"):
+        for key, value in kwargs["customizations"].items():
+            series[key] = value
     # post
     series_post_response = asnake_client.post(
         "/repositories/2/archival_objects", json=series
@@ -226,7 +249,7 @@ def create_archivesspace_test_archival_object_series(
 
 
 def create_archivesspace_test_archival_object_subseries(
-    asnake_client, test_id, resource_uri
+    asnake_client, test_id, resource_uri, **kwargs
 ):
     subseries = {}
     # required
@@ -236,6 +259,10 @@ def create_archivesspace_test_archival_object_subseries(
     # optional
     subseries["component_id"] = f"subseries-{test_id}"
     subseries["publish"] = True
+    # customizations
+    if kwargs.get("customizations"):
+        for key, value in kwargs["customizations"].items():
+            subseries[key] = value
     # post
     subseries_post_response = asnake_client.post(
         "/repositories/2/archival_objects", json=subseries
@@ -243,19 +270,28 @@ def create_archivesspace_test_archival_object_subseries(
     return subseries_post_response
 
 
-def create_archivesspace_test_agent_person(asnake_client, test_id, unique_rest_of_name):
+def create_archivesspace_test_agent_person(asnake_client, test_id, customizations):
+    rest_of_name = "{} {}".format(
+        "Published" if customizations.get("publish") else "Unpublished",
+        customizations.get("role").capitalize(),
+    )
     person = {
         "names": [
             {
                 "name_order": "inverted",
                 "primary_name": test_id.capitalize(),
-                "rest_of_name": unique_rest_of_name,
-                "sort_name": f"{test_id.capitalize()}, {unique_rest_of_name}",
+                "rest_of_name": rest_of_name,
+                "sort_name": f"{test_id.capitalize()}, {rest_of_name}",
             }
-        ]
+        ],
+        "publish": customizations.get("publish", False),
     }
-    person_post_response = asnake_client.post("/agents/people", json=person)
-    return person_post_response
+    agent_person_create_response = asnake_client.post("/agents/people", json=person)
+    print(
+        "🐞 agent_person_create_response",
+        agent_person_create_response.json(),
+    )
+    return agent_person_create_response
 
 
 def create_archivesspace_test_digital_object(asnake_client, test_name, test_id):
@@ -407,11 +443,27 @@ def copy_oralhistories_asset(test_id, filename, tmp_oralhistories, item_componen
 
 
 def generate_image_file(file_stem, **kwargs):
-    img = Image.new("RGB", (32, 18), "green")
+    tmp_file, headers = urllib.request.urlretrieve(
+        config("TEST_IMG_URL", default="https://picsum.photos/1600/1200")
+    )
+    img = Image.open(tmp_file)
     drw = ImageDraw.Draw(img)
-    fnt = ImageFont.load_default()
-    drw.text((1, 1), file_stem.split("_")[-1], fill="black", anchor="mm", font=fnt)
-    rsz = img.resize((1280, 720))
+    fnt = ImageFont.truetype(
+        config(
+            "TEST_IMG_FONT",
+            default="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        ),
+        144,
+    )
+    drw.text(
+        (800, 600),
+        file_stem.split("_")[-1],
+        fill="white",
+        font=fnt,
+        anchor="mm",
+        stroke_width=10,
+        stroke_fill="black",
+    )
     if "directory" in kwargs:
         file = os.path.join(
             config("INITIAL_ORIGINAL_FILES"),
@@ -421,7 +473,8 @@ def generate_image_file(file_stem, **kwargs):
         os.makedirs(os.path.dirname(file), exist_ok=True)
     else:
         file = os.path.join(config("INITIAL_ORIGINAL_FILES"), f"item-{file_stem}.tif")
-    rsz.save(file)
+    img.save(file)
+    img.close()
 
 
 def generate_video_file(test_name, **kwargs):
@@ -532,9 +585,9 @@ def reset_files_and_records(test_name, asnake_client, s3_client, **kwargs):
                 generate_image_file(
                     "{}{}".format(
                         "".join(
-                            random.choices(string.ascii_lowercase + string.digits, k=4)
+                            random.choices(string.ascii_lowercase + string.digits, k=6)
                         ),
-                        i,
+                        str(i).zfill(2),
                     ),
                     directory=test_name,
                 )
@@ -574,25 +627,116 @@ def generate_records(test_name, asnake_client, **kwargs):
     )
     print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
     # CREATE ARCHIVAL OBJECT ITEM RECORD
+    # NOTE kwargs["item"] should be None or dict with customized values
     (
         item_create_response,
         item_component_id,
     ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
+        asnake_client,
+        test_name,
+        test_id,
+        resource_create_response.json()["uri"],
+        customizations=kwargs.get("item"),
     )
     print(f"🐞 item_create_response:{test_id}", item_create_response.json())
-    return item_create_response
+    # NOTE kwargs["series"] should be None or dict with customized values
+    if kwargs.get("series") is None:
+        return {
+            "resource_create_response": resource_create_response,
+            "item_create_response": item_create_response,
+        }
+    else:
+        # CREATE ARCHIVAL OBJECT SERIES RECORD
+        series_create_response = create_archivesspace_test_archival_object_series(
+            asnake_client,
+            test_id,
+            resource_create_response.json()["uri"],
+            customizations=kwargs["series"],
+        )
+        print(f"🐞 series_create_response:{test_id}", series_create_response.json())
+        # NOTE kwargs["subseries"] should be None or dict with customized values
+        if kwargs.get("subseries") is None:
+            # set item as a child of series
+            item_parent_position_post_response = asnake_client.post(
+                f'{item_create_response.json()["uri"]}/parent',
+                params={
+                    "parent": subseries_create_response.json()["id"],
+                    "position": 1,
+                },
+            )
+            print(
+                "🐞 item_parent_position_post_response",
+                item_parent_position_post_response.json(),
+            )
+            return {
+                "resource_create_response": resource_create_response,
+                "series_create_response": series_create_response,
+                "item_create_response": item_create_response,
+            }
+        else:
+            # CREATE ARCHIVAL OBJECT SUBSERIES RECORD
+            subseries_create_response = (
+                create_archivesspace_test_archival_object_subseries(
+                    asnake_client,
+                    test_id,
+                    resource_create_response.json()["uri"],
+                    customizations=kwargs["subseries"],
+                )
+            )
+            print(
+                f"🐞 subseries_create_response:{test_id}",
+                subseries_create_response.json(),
+            )
+            # set subseries as a child of series
+            subseries_parent_position_post_response = asnake_client.post(
+                f'{subseries_create_response.json()["uri"]}/parent',
+                params={"parent": series_create_response.json()["id"], "position": 1},
+            )
+            print(
+                "🐞 subseries_parent_position_post_response",
+                subseries_parent_position_post_response.json(),
+            )
+            # set item as a child of subseries
+            item_parent_position_post_response = asnake_client.post(
+                f'{item_create_response.json()["uri"]}/parent',
+                params={
+                    "parent": subseries_create_response.json()["id"],
+                    "position": 1,
+                },
+            )
+            print(
+                "🐞 item_parent_position_post_response",
+                item_parent_position_post_response.json(),
+            )
+            return {
+                "resource_create_response": resource_create_response,
+                "series_create_response": series_create_response,
+                "subseries_create_response": subseries_create_response,
+                "item_create_response": item_create_response,
+            }
 
 
 @pytest.fixture
-def setup_test(page, asnake_client, s3_client):
-    def _setup_test(test_name, file_count=1, outcome="success"):
+def setup_test(page, asnake_client, s3_client, timestamp):
+    def _setup_test(
+        test_name,
+        series=None,
+        subseries=None,
+        item=None,
+        file_count=1,
+        outcome="success",
+    ):
+        print("🐞 _setup_test...")
+        print(f"🐞 series: {series}")
+        print(f"🐞 subseries: {subseries}")
         print(f"🐞 file_count: {file_count}")
         print(f"🐞 outcome: {outcome}")
         reset_files_and_records(
             test_name, asnake_client, s3_client, file_count=file_count
         )
-        item_create_response = generate_records(test_name, asnake_client)
+        generated_records_responses = generate_records(
+            test_name, asnake_client, series=series, subseries=subseries, item=item
+        )
         # RUN PROCESS
         if test_name.split("_")[1] == "alchemist":
             destinations = ["access"]
@@ -602,8 +746,11 @@ def setup_test(page, asnake_client, s3_client):
         alchemist_item_uri = format_alchemist_item_uri(
             test_name, test_name.split("_")[-1]
         )
+        # INVALIDATE CLOUDFRONT ITEMS
+        if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+            invalidate_cloudfront_path(caller_reference=timestamp)
         return {
-            "item_create_response": item_create_response,
+            **generated_records_responses,
             "alchemist_item_uri": alchemist_item_uri,
         }
 
@@ -734,598 +881,6 @@ def test_alchemist_archivesspace_file_uri_v8v5r(page: Page, asnake_client):
         print("🐞 digital_object", digital_object)
         assert digital_object["publish"] is True
         assert digital_object["file_versions"][0]["file_uri"] == alchemist_item_uri
-
-
-def test_alchemist_date_output_x2edw(page: Page, asnake_client, timestamp):
-    test_name = inspect.currentframe().f_code.co_name
-    test_id = test_name.split("_")[-1]
-    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
-    move_test_files_to_initial_original_files_directory(test_name)
-    # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, test_id)
-    # CREATE RESOURCE RECORD
-    resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_name, test_id
-    )
-    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
-    # CREATE ARCHIVAL OBJECT ITEM RECORD
-    (
-        item_create_response,
-        item_component_id,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
-    )
-    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
-    # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
-    item = asnake_client.get(item_create_response.json()["uri"]).json()
-    # add dates
-    item["dates"] = [
-        {"label": "digitized", "date_type": "single", "begin": "2022-02-22"},
-        {"label": "creation", "date_type": "single", "begin": "1584-02-29"},
-        {
-            "label": "creation",
-            "date_type": "inclusive",
-            "begin": "1969-12-31",
-            "end": "1970-01-01",
-        },
-        {
-            "label": "creation",
-            "date_type": "bulk",
-            "begin": "1999-12-31",
-            "end": "2000-01-01",
-        },
-        {
-            "label": "creation",
-            "date_type": "single",
-            "expression": "ongoing into the future",
-        },
-    ]
-    item_update_response = asnake_client.post(item["uri"], json=item)
-    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
-    # RUN ALCHEMIST PROCESS
-    run_distillery(page, ["access"])
-    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
-    # INVALIDATE CLOUDFRONT ITEMS
-    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-        invalidate_cloudfront_path(caller_reference=timestamp)
-    # VALIDATE ALCHEMIST HTML
-    page.goto(alchemist_item_uri)
-    expect(page.locator("hgroup p:first-of-type")).to_have_text(
-        "1584 February 29; 1969 December 31 to 1970 January 1; 1999 December 31 to 2000 January 1; ongoing into the future"
-    )
-
-
-def test_alchemist_linked_agent_output_vdje3(page: Page, asnake_client, timestamp):
-    test_name = inspect.currentframe().f_code.co_name
-    test_id = test_name.split("_")[-1]
-    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
-    move_test_files_to_initial_original_files_directory(test_name)
-    # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, test_id)
-    # CREATE RESOURCE RECORD
-    resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_name, test_id
-    )
-    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
-    # CREATE ARCHIVAL OBJECT ITEM RECORD
-    (
-        item_create_response,
-        item_component_id,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
-    )
-    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
-    # CREATE AGENT PERSON RECORDS
-    agent_person_unpublished_create_response = create_archivesspace_test_agent_person(
-        asnake_client, test_id, "Unpublished"
-    )
-    print(
-        f"🐞 agent_person_unpublished_create_response:{test_id}",
-        agent_person_unpublished_create_response.json(),
-    )
-    agent_person_published_create_response = create_archivesspace_test_agent_person(
-        asnake_client, test_id, "Published"
-    )
-    print(
-        f"🐞 agent_person_published_create_response:{test_id}",
-        agent_person_published_create_response.json(),
-    )
-    # CUSTOMIZE AGENT PERSON RECORDS
-    agent_person_published = asnake_client.get(
-        agent_person_published_create_response.json()["uri"]
-    ).json()
-    agent_person_published["publish"] = True
-    agent_person_published_update_response = asnake_client.post(
-        agent_person_published["uri"], json=agent_person_published
-    )
-    # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
-    item = asnake_client.get(item_create_response.json()["uri"]).json()
-    # add linked_agents
-    item["linked_agents"] = [
-        {
-            "ref": agent_person_unpublished_create_response.json()["uri"],
-            "role": "creator",
-        },
-        {
-            "ref": agent_person_unpublished_create_response.json()["uri"],
-            "role": "subject",
-        },
-        {
-            "ref": agent_person_published_create_response.json()["uri"],
-            "relator": "ard",
-            "role": "creator",
-        },
-        {
-            "ref": agent_person_published_create_response.json()["uri"],
-            "relator": "act",
-            "role": "subject",
-        },
-    ]
-    item_update_response = asnake_client.post(item["uri"], json=item)
-    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
-    # RUN ALCHEMIST PROCESS
-    run_distillery(page, ["access"])
-    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
-    print(f"🐞 {alchemist_item_uri}")
-    # INVALIDATE CLOUDFRONT ITEMS
-    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-        invalidate_cloudfront_path(caller_reference=timestamp)
-    # VALIDATE ALCHEMIST HTML
-    page.goto(alchemist_item_uri)
-    expect(
-        page.get_by_role(
-            "link", name=f"{test_id.capitalize()}, Published [Artistic director]"
-        )
-    ).to_be_visible()
-    expect(
-        page.get_by_role("link", name=f"{test_id.capitalize()}, Published [Actor]")
-    ).to_be_visible()
-    expect(page.locator("#metadata")).not_to_contain_text(
-        "unpublished", ignore_case=True
-    )
-
-
-def test_alchemist_extent_output_77cjj(page: Page, asnake_client, timestamp):
-    test_name = inspect.currentframe().f_code.co_name
-    test_id = test_name.split("_")[-1]
-    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
-    move_test_files_to_initial_original_files_directory(test_name)
-    # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, test_id)
-    # CREATE RESOURCE RECORD
-    resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_name, test_id
-    )
-    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
-    # CREATE ARCHIVAL OBJECT ITEM RECORD
-    (
-        item_create_response,
-        item_component_id,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
-    )
-    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
-    # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
-    item = asnake_client.get(item_create_response.json()["uri"]).json()
-    # add extents
-    item["extents"] = [
-        {"portion": "whole", "number": "1", "extent_type": "books"},
-        {"portion": "part", "number": "2", "extent_type": "photographs"},
-    ]
-    item_update_response = asnake_client.post(item["uri"], json=item)
-    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
-    # RUN ALCHEMIST PROCESS
-    run_distillery(page, ["access"])
-    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
-    # INVALIDATE CLOUDFRONT ITEMS
-    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-        invalidate_cloudfront_path(caller_reference=timestamp)
-    # VALIDATE ALCHEMIST HTML
-    page.goto(alchemist_item_uri)
-    expect(page.locator("#metadata")).to_contain_text("1 books", ignore_case=True)
-    expect(page.locator("#metadata")).to_contain_text("2 photographs", ignore_case=True)
-
-
-def test_alchemist_subject_output_28s5q(page: Page, asnake_client, timestamp):
-    test_name = inspect.currentframe().f_code.co_name
-    test_id = test_name.split("_")[-1]
-    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
-    move_test_files_to_initial_original_files_directory(test_name)
-    # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, test_id)
-    # CREATE RESOURCE RECORD
-    resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_name, test_id
-    )
-    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
-    # CREATE ARCHIVAL OBJECT ITEM RECORD
-    (
-        item_create_response,
-        item_component_id,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
-    )
-    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
-    # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
-    item = asnake_client.get(item_create_response.json()["uri"]).json()
-    # add subjects
-    item["subjects"] = [{"ref": "/subjects/1"}, {"ref": "/subjects/2"}]
-    item_update_response = asnake_client.post(item["uri"], json=item)
-    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
-    # RUN ALCHEMIST PROCESS
-    run_distillery(page, ["access"])
-    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
-    # INVALIDATE CLOUDFRONT ITEMS
-    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-        invalidate_cloudfront_path(caller_reference=timestamp)
-    # VALIDATE ALCHEMIST HTML
-    page.goto(alchemist_item_uri)
-    expect(page.locator("#metadata")).to_contain_text("Commencement")
-    expect(page.locator("#metadata")).to_contain_text("Conferences")
-
-
-def test_alchemist_note_output_u8vvf(page: Page, asnake_client, timestamp):
-    test_name = inspect.currentframe().f_code.co_name
-    test_id = test_name.split("_")[-1]
-    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
-    move_test_files_to_initial_original_files_directory(test_name)
-    # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, test_id)
-    # CREATE RESOURCE RECORD
-    resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_name, test_id
-    )
-    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
-    # CREATE ARCHIVAL OBJECT ITEM RECORD
-    (
-        item_create_response,
-        item_component_id,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
-    )
-    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
-    # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
-    item = asnake_client.get(item_create_response.json()["uri"]).json()
-    # add notes
-    item["notes"] = [
-        {
-            "jsonmodel_type": "note_singlepart",
-            "type": "abstract",
-            "content": [
-                "Published note. One content item. Sint nulla ea nostrud est tempor non exercitation tempor ad consectetur nisi voluptate consequat."
-            ],
-            "publish": True,
-        },
-        {
-            "jsonmodel_type": "note_singlepart",
-            "type": "materialspec",
-            "content": [
-                "Published note. Multiple content items: One. Veniam enim ullamco non commodo enim ad incididunt quis.",
-                "Published note. Multiple content items: Two. Enim tempor ea nulla voluptate incididunt voluptate.",
-            ],
-            "publish": True,
-        },
-        {
-            "jsonmodel_type": "note_singlepart",
-            "type": "abstract",
-            "label": "Foo Note",
-            "content": [
-                "Published note. One content item. Laborum labore irure consequat dolore aute minim deserunt nostrud amet."
-            ],
-            "publish": True,
-        },
-        {
-            "jsonmodel_type": "note_singlepart",
-            "type": "abstract",
-            "label": "Foo Note",
-            "content": [
-                "Published note. Multiple content items: One. Consequat cupidatat enim duis Lorem ipsum.",
-                "Published note. Multiple content items: Two. Lorem ipsum velit cillum ex do officia pariatur pariatur duis est dolor.",
-            ],
-            "publish": True,
-        },
-        {
-            "jsonmodel_type": "note_singlepart",
-            "type": "abstract",
-            "content": [
-                "Unpublished note. One content item. Enim aute Lorem tempor exercitation enim adipisicing occaecat veniam ad duis excepteur culpa ut consectetur."
-            ],
-            "publish": False,
-        },
-        {
-            "jsonmodel_type": "note_singlepart",
-            "type": "abstract",
-            "content": [
-                "Unpublished note. Multiple content items: One. Consectetur cupidatat ea sunt sit enim minim officia ea ut tempor aute.",
-                "Unpublished note. Multiple content items: Two. Cillum dolore amet dolor labore do deserunt adipisicing dolore in aliquip nulla.",
-            ],
-            "publish": False,
-        },
-        {
-            "jsonmodel_type": "note_multipart",
-            "type": "scopecontent",
-            "subnotes": [
-                {
-                    "jsonmodel_type": "note_text",
-                    "content": "Published note. One published text subnote. Consequat nostrud ipsum irure reprehenderit qui veniam pariatur.",
-                    "publish": True,
-                }
-            ],
-            "publish": True,
-        },
-        {
-            "jsonmodel_type": "note_multipart",
-            "type": "userestrict",
-            "subnotes": [
-                {
-                    "jsonmodel_type": "note_text",
-                    "content": "Published note. Multiple published text subnotes: One. Officia nisi nisi incididunt excepteur nisi.",
-                    "publish": True,
-                },
-                {
-                    "jsonmodel_type": "note_text",
-                    "content": "Published note. Multiple published text subnotes: Two. Laborum commodo exercitation deserunt velit.",
-                    "publish": True,
-                },
-            ],
-            "publish": True,
-        },
-        {
-            "jsonmodel_type": "note_multipart",
-            "type": "scopecontent",
-            "subnotes": [
-                {
-                    "jsonmodel_type": "note_text",
-                    "content": "Unpublished note. One published text subnote. Laboris ipsum cupidatat consequat velit.",
-                    "publish": True,
-                }
-            ],
-            "publish": False,
-        },
-        {
-            "jsonmodel_type": "note_multipart",
-            "type": "scopecontent",
-            "subnotes": [
-                {
-                    "jsonmodel_type": "note_text",
-                    "content": "Unpublished note. Multiple published text subnotes: One. Laborum anim laborum est laborum.",
-                    "publish": True,
-                },
-                {
-                    "jsonmodel_type": "note_text",
-                    "content": "Unpublished note. Multiple published text subnotes: Two. Consectetur laborum laborum quis.",
-                    "publish": True,
-                },
-            ],
-            "publish": False,
-        },
-        {
-            "jsonmodel_type": "note_multipart",
-            "type": "scopecontent",
-            "subnotes": [
-                {
-                    "jsonmodel_type": "note_text",
-                    "content": "Published note. One unpublished text subnote. Laborum cupidatat adipisicing cillum deserunt.",
-                    "publish": False,
-                }
-            ],
-            "publish": True,
-        },
-        {
-            "jsonmodel_type": "note_multipart",
-            "type": "scopecontent",
-            "label": "Baz Note",
-            "subnotes": [
-                {
-                    "jsonmodel_type": "note_text",
-                    "content": "Published note. One unpublished text subnote. Aliqua consequat mollit reprehenderit pariatur exercitation nisi culpa incididunt.",
-                    "publish": False,
-                }
-            ],
-            "publish": True,
-        },
-        {
-            "jsonmodel_type": "note_multipart",
-            "type": "scopecontent",
-            "subnotes": [
-                {
-                    "jsonmodel_type": "note_text",
-                    "content": "Published note. Multiple unpublished text subnotes: One. Aliquip culpa pariatur consequat.",
-                    "publish": False,
-                },
-                {
-                    "jsonmodel_type": "note_text",
-                    "content": "Published note. Multiple unpublished text subnotes: Two. Tempor exercitation sunt.",
-                    "publish": False,
-                },
-            ],
-            "publish": True,
-        },
-        {
-            "jsonmodel_type": "note_multipart",
-            "type": "scopecontent",
-            "subnotes": [
-                {
-                    "jsonmodel_type": "note_text",
-                    "content": "Unpublished note. One unpublished text subnote. Esse in proident.",
-                    "publish": False,
-                }
-            ],
-            "publish": False,
-        },
-        {
-            "jsonmodel_type": "note_multipart",
-            "type": "scopecontent",
-            "subnotes": [
-                {
-                    "jsonmodel_type": "note_text",
-                    "content": "Unpublished note. Multiple unpublished text subnotes: One. Laborum laborum sunt.",
-                    "publish": False,
-                },
-                {
-                    "jsonmodel_type": "note_text",
-                    "content": "Unpublished note. Multiple unpublished text subnotes: Two. Sint adipisicing.",
-                    "publish": False,
-                },
-            ],
-            "publish": False,
-        },
-        {
-            "jsonmodel_type": "note_multipart",
-            "type": "scopecontent",
-            "label": "Bar Note",
-            "subnotes": [
-                {
-                    "jsonmodel_type": "note_text",
-                    "content": "Published note. Mixed publication status text subnotes: Published. Laboris id cupidatat.",
-                    "publish": True,
-                },
-                {
-                    "jsonmodel_type": "note_text",
-                    "content": "Published note. Mixed publication status text subnotes: Unpublished. Nostrud anim dolore anim consequat quis sit laborum non.",
-                    "publish": False,
-                },
-            ],
-            "publish": True,
-        },
-        {
-            "jsonmodel_type": "note_multipart",
-            "type": "scopecontent",
-            "subnotes": [
-                {
-                    "jsonmodel_type": "note_text",
-                    "content": "Unpublished note. Mixed publication status text subnotes: Published. Est nostrud laboris id sint amet proident officia commodo ut sint amet sint dolore sunt.",
-                    "publish": True,
-                },
-                {
-                    "jsonmodel_type": "note_text",
-                    "content": "Unpublished note. Mixed publication status text subnotes: Unpublished. Fugiat irure sunt magna nulla minim commodo dolor ea dolor aliquip enim magna fugiat.",
-                    "publish": False,
-                },
-            ],
-            "publish": False,
-        },
-        {
-            "jsonmodel_type": "note_multipart",
-            "type": "scopecontent",
-            "label": "Bar Note",
-            "subnotes": [
-                {
-                    "jsonmodel_type": "note_text",
-                    "content": "Published note. One published text subnote. Minim aute nulla laborum ullamco do incididunt nostrud irure eiusmod laborum elit deserunt.",
-                    "publish": True,
-                }
-            ],
-            "publish": True,
-        },
-        {
-            "jsonmodel_type": "note_multipart",
-            "type": "scopecontent",
-            "label": "Foo Note",
-            "subnotes": [
-                {
-                    "jsonmodel_type": "note_text",
-                    "content": "Published note. One published text subnote. Eiusmod irure laboris eu reprehenderit proident exercitation qui nulla irure amet.",
-                    "publish": True,
-                }
-            ],
-            "publish": True,
-        },
-    ]
-    item_update_response = asnake_client.post(item["uri"], json=item)
-    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
-    # RUN ALCHEMIST PROCESS
-    run_distillery(page, ["access"])
-    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
-    print(f"🐞 {alchemist_item_uri}")
-    # INVALIDATE CLOUDFRONT ITEMS
-    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-        invalidate_cloudfront_path(caller_reference=timestamp)
-    # VALIDATE ALCHEMIST HTML
-    page.goto(alchemist_item_uri)
-    expect(page.locator("#metadata")).to_contain_text("Abstract")
-    expect(page.locator("#metadata")).to_contain_text("Materials Specific Details")
-    expect(page.locator("#metadata")).to_contain_text("Foo Note")
-    expect(page.locator("#metadata")).to_contain_text("Scope and Contents")
-    expect(page.locator("#metadata")).to_contain_text("Conditions Governing Use")
-    expect(page.locator("#metadata")).to_contain_text("Bar Note")
-    expect(page.locator("#metadata")).not_to_contain_text(
-        "unpublished", ignore_case=True
-    )
-
-
-def test_alchemist_ancestors_2gj5n(page: Page, asnake_client, timestamp):
-    """Confirm ancestors display in Alchemist."""
-    test_name = inspect.currentframe().f_code.co_name
-    test_id = test_name.split("_")[-1]
-    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
-    move_test_files_to_initial_original_files_directory(test_name)
-    # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, test_id)
-    # CREATE RESOURCE RECORD
-    resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_name, test_id
-    )
-    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
-    # CREATE ARCHIVAL OBJECT SERIES RECORD
-    series_create_response = create_archivesspace_test_archival_object_series(
-        asnake_client, test_id, resource_create_response.json()["uri"]
-    )
-    print(f"🐞 series_create_response:{test_id}", series_create_response.json())
-    # CREATE ARCHIVAL OBJECT SUBSERIES RECORD
-    subseries_create_response = create_archivesspace_test_archival_object_subseries(
-        asnake_client, test_id, resource_create_response.json()["uri"]
-    )
-    print(f"🐞 subseries_create_response:{test_id}", subseries_create_response.json())
-    # set subseries as a child of series
-    subseries_parent_position_post_response = asnake_client.post(
-        f'{subseries_create_response.json()["uri"]}/parent',
-        params={"parent": series_create_response.json()["id"], "position": 1},
-    )
-    print(
-        "🐞 subseries_parent_position_post_response",
-        subseries_parent_position_post_response.json(),
-    )
-    # CREATE ARCHIVAL OBJECT ITEM RECORD
-    (
-        item_create_response,
-        item_component_id,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
-    )
-    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
-    # set item as a child of subseries
-    item_parent_position_post_response = asnake_client.post(
-        f'{item_create_response.json()["uri"]}/parent',
-        params={"parent": subseries_create_response.json()["id"], "position": 1},
-    )
-    print(
-        "🐞 item_parent_position_post_response",
-        item_parent_position_post_response.json(),
-    )
-    # RUN ALCHEMIST PROCESS
-    run_distillery(page, ["access"])
-    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
-    # INVALIDATE CLOUDFRONT ITEMS
-    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-        invalidate_cloudfront_path(caller_reference=timestamp)
-    # VALIDATE ALCHEMIST ITEM
-    page.goto(alchemist_item_uri)
-    expect(page.locator("hgroup nav li:nth-child(1)")).to_have_text(
-        f'{test_name.capitalize().replace("_", " ")}'
-    )
-    expect(page.locator("hgroup nav li:nth-child(2)")).to_have_text(
-        f"[Series] {test_id}"
-    )
-    expect(page.locator("hgroup nav li:nth-child(3)")).to_have_text(
-        f"[Sub-Series] {test_id}"
-    )
-    expect(page.locator("hgroup nav li:nth-child(4)")).to_have_text(
-        f"Open the Item {test_id} record within its collection guide."
-    )
-    expect(page.locator("#metadata")).to_contain_text("Collection")
-    expect(page.locator("#metadata")).to_contain_text("Series")
-    expect(page.locator("#metadata")).to_contain_text("Sub-Series")
 
 
 def test_alchemist_thumbnaillabel_sequence_yw3ff(page: Page, asnake_client, timestamp):
@@ -1896,162 +1451,38 @@ def test_alchemist_singleitem_video_frq8s(page: Page, asnake_client, timestamp):
     expect(page.locator("video")).to_be_visible()
 
 
-def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
-    """Attempt to test every ArchivesSpace field."""
+def test_alchemist_kitchen_sink_multi_item_image_k76zs(
+    setup_test, page: Page, asnake_client
+):
+    """Display every metadata field with a multi-item image object."""
     test_name = inspect.currentframe().f_code.co_name
-    test_id = test_name.split("_")[-1]
-    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
-    move_test_files_to_initial_original_files_directory(test_name)
-    # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, test_id)
-    # CREATE RESOURCE RECORD
-    resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_name, test_id
-    )
-    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
-    # CUSTOMIZE ARCHIVAL OBJECT RESOURCE RECORD
-    resource = asnake_client.get(resource_create_response.json()["uri"]).json()
-    # add dates
-    resource["dates"] = [
-        {"label": "digitized", "date_type": "single", "begin": "2022-02-22"},
-        {"label": "creation", "date_type": "single", "begin": "1584-02-29"},
-        {
-            "label": "creation",
-            "date_type": "inclusive",
-            "begin": "1969-12-31",
-            "end": "1970-01-01",
-        },
-        {
-            "label": "creation",
-            "date_type": "bulk",
-            "begin": "1999-12-31",
-            "end": "2000-01-01",
-        },
-        {
-            "label": "creation",
-            "date_type": "single",
-            "expression": "ongoing into the future",
-        },
-    ]
-    resource_update_response = asnake_client.post(resource["uri"], json=resource)
-    print(f"🐞 resource_update_response:{test_id}", resource_update_response.json())
-    # CREATE ARCHIVAL OBJECT SERIES RECORD
-    series_create_response = create_archivesspace_test_archival_object_series(
-        asnake_client, test_id, resource_create_response.json()["uri"]
-    )
-    print(f"🐞 series_create_response:{test_id}", series_create_response.json())
     # CUSTOMIZE ARCHIVAL OBJECT SERIES RECORD
-    series = asnake_client.get(series_create_response.json()["uri"]).json()
-    # set longer breadcrumb
+    series = {}
     series["title"] = "Series Title Longer Than 50 Characters"
-    # add dates
-    series["dates"] = [
-        {"label": "digitized", "date_type": "single", "begin": "2022-02-22"},
-        {"label": "creation", "date_type": "single", "begin": "1584-02-29"},
-        {
-            "label": "creation",
-            "date_type": "inclusive",
-            "begin": "1969-12-31",
-            "end": "1970-01-01",
-        },
-        {
-            "label": "creation",
-            "date_type": "bulk",
-            "begin": "1999-12-31",
-            "end": "2000-01-01",
-        },
-        {
-            "label": "creation",
-            "date_type": "single",
-            "expression": "ongoing into the future",
-        },
-    ]
-    series_update_response = asnake_client.post(series["uri"], json=series)
-    print(f"🐞 series_update_response:{test_id}", series_update_response.json())
-    # CREATE ARCHIVAL OBJECT SUBSERIES RECORD
-    subseries_create_response = create_archivesspace_test_archival_object_subseries(
-        asnake_client, test_id, resource_create_response.json()["uri"]
-    )
-    print(f"🐞 subseries_create_response:{test_id}", subseries_create_response.json())
-    # set subseries as a child of series
-    subseries_parent_position_post_response = asnake_client.post(
-        f'{subseries_create_response.json()["uri"]}/parent',
-        params={"parent": series_create_response.json()["id"], "position": 1},
-    )
-    print(
-        "🐞 subseries_parent_position_post_response",
-        subseries_parent_position_post_response.json(),
-    )
     # CUSTOMIZE ARCHIVAL OBJECT SUBSERIES RECORD
-    subseries = asnake_client.get(subseries_create_response.json()["uri"]).json()
-    # set longer breadcrumb
+    subseries = {}
     subseries["title"] = "Subseries Title Longer Than 50 Characters"
-    # add dates
-    subseries["dates"] = [
-        {"label": "digitized", "date_type": "single", "begin": "2022-02-22"},
-        {"label": "creation", "date_type": "single", "begin": "1584-02-29"},
+    # CUSTOMIZE AGENT PERSON RECORDS
+    linked_agents = [
         {
-            "label": "creation",
-            "date_type": "inclusive",
-            "begin": "1969-12-31",
-            "end": "1970-01-01",
+            "role": "creator",
         },
         {
-            "label": "creation",
-            "date_type": "bulk",
-            "begin": "1999-12-31",
-            "end": "2000-01-01",
+            "role": "subject",
         },
         {
-            "label": "creation",
-            "date_type": "single",
-            "expression": "ongoing into the future",
+            "relator": "ard",
+            "role": "creator",
+            "publish": True,
+        },
+        {
+            "relator": "act",
+            "role": "subject",
+            "publish": True,
         },
     ]
-    subseries_update_response = asnake_client.post(subseries["uri"], json=subseries)
-    print(f"🐞 subseries_update_response:{test_id}", subseries_update_response.json())
-    # CREATE ARCHIVAL OBJECT ITEM RECORD
-    (
-        item_create_response,
-        item_component_id,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
-    )
-    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
-    # set item as a child of subseries
-    item_parent_position_post_response = asnake_client.post(
-        f'{item_create_response.json()["uri"]}/parent',
-        params={"parent": subseries_create_response.json()["id"], "position": 1},
-    )
-    print(
-        "🐞 item_parent_position_post_response",
-        item_parent_position_post_response.json(),
-    )
-    # CREATE AGENT PERSON RECORDS
-    agent_person_unpublished_create_response = create_archivesspace_test_agent_person(
-        asnake_client, test_id, "Unpublished"
-    )
-    print(
-        f"🐞 agent_person_unpublished_create_response:{test_id}",
-        agent_person_unpublished_create_response.json(),
-    )
-    agent_person_published_create_response = create_archivesspace_test_agent_person(
-        asnake_client, test_id, "Published"
-    )
-    print(
-        f"🐞 agent_person_published_create_response:{test_id}",
-        agent_person_published_create_response.json(),
-    )
-    # CUSTOMIZE AGENT PERSON RECORDS
-    agent_person_published = asnake_client.get(
-        agent_person_published_create_response.json()["uri"]
-    ).json()
-    agent_person_published["publish"] = True
-    agent_person_published_update_response = asnake_client.post(
-        agent_person_published["uri"], json=agent_person_published
-    )
     # CUSTOMIZE ARCHIVAL OBJECT ITEM RECORD
-    item = asnake_client.get(item_create_response.json()["uri"]).json()
+    item = {}
     # add dates
     item["dates"] = [
         {"label": "digitized", "date_type": "single", "begin": "2022-02-22"},
@@ -2082,26 +1513,7 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
         },
     ]
     # add linked_agents
-    item["linked_agents"] = [
-        {
-            "ref": agent_person_unpublished_create_response.json()["uri"],
-            "role": "creator",
-        },
-        {
-            "ref": agent_person_unpublished_create_response.json()["uri"],
-            "role": "subject",
-        },
-        {
-            "ref": agent_person_published_create_response.json()["uri"],
-            "relator": "ard",
-            "role": "creator",
-        },
-        {
-            "ref": agent_person_published_create_response.json()["uri"],
-            "relator": "act",
-            "role": "subject",
-        },
-    ]
+    item["linked_agents"] = linked_agents
     # add extents
     item["extents"] = [
         {"portion": "whole", "number": "1", "extent_type": "books"},
@@ -2355,17 +1767,11 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
             "publish": True,
         },
     ]
-    item_update_response = asnake_client.post(item["uri"], json=item)
-    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
-    # RUN ALCHEMIST PROCESS
-    run_distillery(page, ["access"])
-    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
-    print(f"🐞 {alchemist_item_uri}")
-    # INVALIDATE CLOUDFRONT ITEMS
-    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-        invalidate_cloudfront_path(caller_reference=timestamp)
-    # VALIDATE ALCHEMIST ITEM
-    page.goto(alchemist_item_uri)
+    setup_output = setup_test(
+        test_name, series=series, subseries=subseries, item=item, file_count=2
+    )
+    # VALIDATE ALCHEMIST DISPLAY
+    page.goto(setup_output["alchemist_item_uri"])
     expect(page.locator("hgroup p:first-of-type")).to_have_text(
         "1584 February 29; 1900 to 1901; 1911 January to December; 1969 December 31 to 1970 January 1; 1999 December 31 to 2000 January 1; ongoing into the future"
     )
@@ -2379,20 +1785,24 @@ def test_alchemist_kitchen_sink_pd4s2(page: Page, asnake_client, timestamp):
         f"Subseries Title Longer Than 50 Characters"
     )
     expect(page.locator("hgroup nav li:nth-child(4)")).to_have_text(
-        f"Open the Item {test_id} record within its collection guide."
+        f'Open the Item {test_name.split("_")[-1]} record within its collection guide.'
     )
     expect(page.locator("#metadata")).to_contain_text("Collection")
     expect(page.locator("#metadata")).to_contain_text("Series")
     expect(page.locator("#metadata")).to_contain_text("Sub-Series")
     expect(
         page.get_by_role(
-            "link", name=f"{test_id.capitalize()}, Published [Artistic director]"
+            "link",
+            name=f'{test_name.split("_")[-1].capitalize()}, Published Creator [Artistic director]',
         )
     ).to_be_visible()
     expect(page.get_by_role("link", name="Commencement")).to_be_visible()
     expect(page.get_by_role("link", name="Conferences")).to_be_visible()
     expect(
-        page.get_by_role("link", name=f"{test_id.capitalize()}, Published [Actor]")
+        page.get_by_role(
+            "link",
+            name=f'{test_name.split("_")[-1].capitalize()}, Published Subject [Actor]',
+        )
     ).to_be_visible()
     expect(page.locator("#metadata")).to_contain_text("1 books", ignore_case=True)
     expect(page.locator("#metadata")).to_contain_text("2 photographs", ignore_case=True)
