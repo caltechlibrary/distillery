@@ -467,6 +467,8 @@ def generate_archival_object_page(build_directory, variables):
             subseries_display = variables["arrangement"]["subseries_title"]
         else:
             subseries_display = variables["arrangement"].get("subseries_display")
+        if variables["archival_object"]["component_id"]:
+            identifier_display = variables["archival_object"]["component_id"]
         creators = format_archival_object_creators_display(variables["archival_object"])
         dates_display = format_archival_object_dates_display(
             variables["archival_object"]
@@ -502,6 +504,7 @@ def generate_archival_object_page(build_directory, variables):
                     series_uri=variables["arrangement"].get("series_uri"),
                     subseries=subseries_display,
                     subseries_uri=variables["arrangement"].get("subseries_uri"),
+                    identifier=identifier_display,
                     dates=dates_display,
                     creators=creators,
                     extents=extents_display,
@@ -624,6 +627,13 @@ def generate_iiif_manifest(build_directory, variables):
             {
                 "label": "Sub-Series",
                 "value": variables["arrangement"]["subseries_display"],
+            }
+        )
+    if variables["archival_object"]["component_id"]:
+        metadata.append(
+            {
+                "label": "Identifier",
+                "value": variables["archival_object"]["component_id"],
             }
         )
     dates = format_archival_object_dates_display(variables["archival_object"])

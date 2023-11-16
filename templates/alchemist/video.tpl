@@ -291,6 +291,10 @@
         <dt>Sub-Series</dt>
         <dd><a href="{{ archivesspace_public_url | trim('/') }}{{ subseries_uri }}">{{ subseries }}</a></dd>
         {% endif %}
+        {% if identifier %}
+        <dt>Identifier</dt>
+        <dd><a href="{{ archivesspace_public_url | trim('/') }}{{ archival_object_uri }}">{{ identifier }}</a></dd>
+        {% endif %}
         {% if dates %}
         <dt>Dates</dt>
         {% for date in dates %}
