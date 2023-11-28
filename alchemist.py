@@ -590,7 +590,7 @@ def get_thumbnail_url(variables):
             "full",
             "200,",
             "0",
-            "default.jpg",
+            "default.webp",
         ]
     )
 
