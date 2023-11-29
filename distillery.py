@@ -722,7 +722,9 @@ class DistilleryService(rpyc.Service):
                 archival_object_prefixes = accessDistiller.regenerate_collection(
                     collection_id
                 )
-                timestamp = str(time.time())
+                if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+                    # invalidate existing paths so the status_logger links work
+                    self.access_platform.invalidate_cloudfront_path()
                 for archival_object_prefix in archival_object_prefixes:
                     component_id = archival_object_prefix.split("/")[-2]
                     variables["archival_object"] = find_archival_object(component_id)
@@ -731,10 +733,6 @@ class DistilleryService(rpyc.Service):
                     )
                     accessDistiller.archival_object_level_processing(variables)
                     accessDistiller.transfer_archival_object_derivative_files(variables)
-                    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-                        self.access_platform.invalidate_cloudfront_path(
-                            caller_reference=timestamp
-                        )
                     status_logger.info(
                         "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{}/{})".format(
                             variables["archival_object"]["component_id"],
@@ -744,12 +742,17 @@ class DistilleryService(rpyc.Service):
                             variables["archival_object"]["component_id"],
                         )
                     )
+                if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+                    # invalidate again to ensure all paths serve fresh content
+                    self.access_platform.invalidate_cloudfront_path()
             else:
                 # TODO DRY this out
                 # regenerate files for all items
                 status_logger.info("🟢 BEGIN REGENERATING ALL")
                 archival_object_prefixes = accessDistiller.regenerate_all()
-                timestamp = str(time.time())
+                if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+                    # invalidate existing paths so the status_logger links work
+                    self.access_platform.invalidate_cloudfront_path()
                 for archival_object_prefix in archival_object_prefixes:
                     component_id = archival_object_prefix.split("/")[-2]
                     variables["archival_object"] = find_archival_object(component_id)
@@ -758,10 +761,6 @@ class DistilleryService(rpyc.Service):
                     )
                     accessDistiller.archival_object_level_processing(variables)
                     accessDistiller.transfer_archival_object_derivative_files(variables)
-                    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-                        self.access_platform.invalidate_cloudfront_path(
-                            caller_reference=timestamp
-                        )
                     status_logger.info(
                         "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{}/{})".format(
                             variables["archival_object"]["component_id"],
@@ -771,6 +770,9 @@ class DistilleryService(rpyc.Service):
                             variables["archival_object"]["component_id"],
                         )
                     )
+                if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+                    # invalidate again to ensure all paths serve fresh content
+                    self.access_platform.invalidate_cloudfront_path()
         except Exception as e:
             status_logger.error("❌ SOMETHING WENT WRONG")
             status_logger.error(e)
