@@ -722,6 +722,7 @@ class DistilleryService(rpyc.Service):
                 archival_object_prefixes = accessDistiller.regenerate_collection(
                     collection_id
                 )
+                timestamp = str(time.time())
                 for archival_object_prefix in archival_object_prefixes:
                     component_id = archival_object_prefix.split("/")[-2]
                     variables["archival_object"] = find_archival_object(component_id)
@@ -730,7 +731,6 @@ class DistilleryService(rpyc.Service):
                     )
                     accessDistiller.archival_object_level_processing(variables)
                     accessDistiller.transfer_archival_object_derivative_files(variables)
-                    timestamp = str(time.time())
                     if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
                         self.access_platform.invalidate_cloudfront_path(
                             caller_reference=timestamp
@@ -749,6 +749,7 @@ class DistilleryService(rpyc.Service):
                 # regenerate files for all items
                 status_logger.info("🟢 BEGIN REGENERATING ALL")
                 archival_object_prefixes = accessDistiller.regenerate_all()
+                timestamp = str(time.time())
                 for archival_object_prefix in archival_object_prefixes:
                     component_id = archival_object_prefix.split("/")[-2]
                     variables["archival_object"] = find_archival_object(component_id)
@@ -757,7 +758,6 @@ class DistilleryService(rpyc.Service):
                     )
                     accessDistiller.archival_object_level_processing(variables)
                     accessDistiller.transfer_archival_object_derivative_files(variables)
-                    timestamp = str(time.time())
                     if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
                         self.access_platform.invalidate_cloudfront_path(
                             caller_reference=timestamp
