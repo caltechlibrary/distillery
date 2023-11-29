@@ -736,7 +736,7 @@ class DistilleryService(rpyc.Service):
                             caller_reference=timestamp
                         )
                     status_logger.info(
-                        "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{})".format(
+                        "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{}/{})".format(
                             variables["archival_object"]["component_id"],
                             config("ALCHEMIST_BASE_URL").rstrip("/"),
                             config("ALCHEMIST_URL_PREFIX"),
@@ -763,7 +763,7 @@ class DistilleryService(rpyc.Service):
                             caller_reference=timestamp
                         )
                     status_logger.info(
-                        "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{})".format(
+                        "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{}/{})".format(
                             variables["archival_object"]["component_id"],
                             config("ALCHEMIST_BASE_URL").rstrip("/"),
                             config("ALCHEMIST_URL_PREFIX"),
