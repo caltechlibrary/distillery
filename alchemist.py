@@ -460,13 +460,21 @@ def generate_archival_object_page(build_directory, variables):
                 ]
             )
         if variables["arrangement"].get("series_title"):
-            series_display = variables["arrangement"]["series_title"]
+            series_display_string = variables["arrangement"]["series_title"]
         else:
-            series_display = variables["arrangement"].get("series_display")
+            series_display_string = variables["arrangement"].get(
+                "series_display_string"
+            )
         if variables["arrangement"].get("subseries_title"):
-            subseries_display = variables["arrangement"]["subseries_title"]
+            subseries_display_string = variables["arrangement"]["subseries_title"]
         else:
-            subseries_display = variables["arrangement"].get("subseries_display")
+            subseries_display_string = variables["arrangement"].get(
+                "subseries_display_string"
+            )
+        if variables["arrangement"].get("file_title"):
+            file_display_string = variables["arrangement"]["file_title"]
+        else:
+            file_display_string = variables["arrangement"].get("file_display_string")
         if variables["archival_object"]["component_id"]:
             identifier_display = variables["archival_object"]["component_id"]
         creators = format_archival_object_creators_display(variables["archival_object"])
@@ -500,10 +508,12 @@ def generate_archival_object_page(build_directory, variables):
                     title=variables["archival_object"]["title"],
                     collection=variables["arrangement"].get("collection_title"),
                     collection_uri=variables["arrangement"]["collection_uri"],
-                    series=series_display,
+                    series=series_display_string,
                     series_uri=variables["arrangement"].get("series_uri"),
-                    subseries=subseries_display,
+                    subseries=subseries_display_string,
                     subseries_uri=variables["arrangement"].get("subseries_uri"),
+                    file=file_display_string,
+                    file_uri=variables["arrangement"].get("file_uri"),
                     identifier=identifier_display,
                     dates=dates_display,
                     creators=creators,
@@ -611,9 +621,12 @@ def generate_iiif_manifest(build_directory, variables):
         metadata.append(
             {"label": "Series", "value": variables["arrangement"]["series_title"]}
         )
-    elif variables["arrangement"].get("series_display"):
+    elif variables["arrangement"].get("series_display_string"):
         metadata.append(
-            {"label": "Series", "value": variables["arrangement"]["series_display"]}
+            {
+                "label": "Series",
+                "value": variables["arrangement"]["series_display_string"],
+            }
         )
     if variables["arrangement"].get("subseries_title"):
         metadata.append(
@@ -622,11 +635,25 @@ def generate_iiif_manifest(build_directory, variables):
                 "value": variables["arrangement"]["subseries_title"],
             }
         )
-    elif variables["arrangement"].get("subseries_display"):
+    elif variables["arrangement"].get("subseries_display_string"):
         metadata.append(
             {
                 "label": "Sub-Series",
-                "value": variables["arrangement"]["subseries_display"],
+                "value": variables["arrangement"]["subseries_display_string"],
+            }
+        )
+    if variables["arrangement"].get("file_title"):
+        metadata.append(
+            {
+                "label": "File",
+                "value": variables["arrangement"]["file_title"],
+            }
+        )
+    elif variables["arrangement"].get("file_display_string"):
+        metadata.append(
+            {
+                "label": "File",
+                "value": variables["arrangement"]["file_display_string"],
             }
         )
     if variables["archival_object"]["component_id"]:

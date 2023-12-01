@@ -868,6 +868,7 @@ def run(page, asnake_client, s3_client, timestamp):
         ancestors=["subseries", "series"],
         digital_file_count=1,
         expected_outcome="success",
+        timeout=60000,
     ):
         # argument values are passed from the calling test
         delete_content(test_name, asnake_client, collection_count=collection_count)
@@ -885,7 +886,7 @@ def run(page, asnake_client, s3_client, timestamp):
             destinations = ["access"]
         elif test_name.split("_")[1] == "s3":
             destinations = ["cloud"]
-        run_distillery(page, destinations, outcome=expected_outcome)
+        run_distillery(page, destinations, outcome=expected_outcome, timeout=timeout)
         # INVALIDATE CLOUDFRONT ITEMS
         if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
             invalidate_cloudfront_path(caller_reference=timestamp)
@@ -1666,8 +1667,10 @@ def test_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_client):
                 assert file_version["publish"] is False
 
 
-def test_alchemist_multiple_single_image_objects_edcb48(run, page: Page, asnake_client):
-    """Publish multiple single-image archival objects."""
+def test_alchemist_item_breadcrumbs_multiple_single_image_objects_edcb48(
+    run, page: Page, asnake_client
+):
+    """Publish multiple single-image archival objects and check breadcrumbs."""
     test_name = inspect.currentframe().f_code.co_name
     run_output = run(
         test_name,
@@ -1675,6 +1678,7 @@ def test_alchemist_multiple_single_image_objects_edcb48(run, page: Page, asnake_
         archival_object_count=2,
         level="item",
         ancestors=["file", "subseries", "series"],
+        timeout=90000,
     )
     # VALIDATE ALCHEMIST DISPLAY
     for i in run_output:
@@ -1690,7 +1694,7 @@ def test_alchemist_multiple_single_image_objects_edcb48(run, page: Page, asnake_
         )
         # validate breadcrumbs
         expect(page.locator("hgroup nav li:nth-child(1)")).to_have_text(
-            f'{test_name.capitalize().replace("_", " ").replace("xx", " ")}'
+            f'{test_name.capitalize().rsplit("_", maxsplit=1)[0].replace("_", " ")} {i["id_0"].replace("xx", " ")}'
         )
         expect(page.locator("hgroup nav li:nth-child(2)")).to_have_text(
             f'series {i["id_0"].replace("xx", " ")}'
@@ -1701,19 +1705,55 @@ def test_alchemist_multiple_single_image_objects_edcb48(run, page: Page, asnake_
         expect(page.locator("hgroup nav li:nth-child(4)")).to_have_text(
             f'file {i["id_0"].replace("xx", " ")}'
         )
-        expect(page.locator("hgroup nav li:nth-child(4)")).to_have_text(
-            f'open the {test_name.split("_")[-1]} collection guide metadata record'
+        expect(page.locator("hgroup nav li:nth-child(5)")).to_have_text(
+            f'open the {i["component_id"].split("_")[0]} {i["component_id"].split("_")[-1].replace("xx", " ")} collection guide metadata record'
         )
 
 
-@pytest.mark.skip
-def test_alchemist_multiple_single_image_objects_edcb48xx1():
+@pytest.mark.skip(reason="placeholder for deletion of multiple collection records")
+def test_alchemist_item_breadcrumbs_multiple_single_image_objects_edcb48xx1():
     return
 
 
-@pytest.mark.skip
-def test_alchemist_multiple_single_image_objects_edcb48xx2():
+@pytest.mark.skip(reason="placeholder for deletion of multiple collection records")
+def test_alchemist_item_breadcrumbs_multiple_single_image_objects_edcb48xx2():
     return
+
+
+def test_alchemist_file_breadcrumbs_multi_image_object_67707b(
+    run, page: Page, asnake_client
+):
+    """Publish a multi-image archival object and check breadcrumbs."""
+    test_name = inspect.currentframe().f_code.co_name
+    run_output = run(
+        test_name,
+        digital_file_count=2,
+    )
+    # VALIDATE ALCHEMIST DISPLAY
+    for i in run_output:
+        page.goto(
+            "/".join(
+                [
+                    config("ALCHEMIST_BASE_URL").rstrip("/"),
+                    config("ALCHEMIST_URL_PREFIX"),
+                    i["id_0"],
+                    i["component_id"],
+                ]
+            )
+        )
+        # validate breadcrumbs
+        expect(page.locator("hgroup nav li:nth-child(1)")).to_have_text(
+            f'{test_name.capitalize().rsplit("_", maxsplit=1)[0].replace("_", " ")} {i["id_0"].replace("xx", " ")}'
+        )
+        expect(page.locator("hgroup nav li:nth-child(2)")).to_have_text(
+            f'series {i["id_0"].replace("xx", " ")}'
+        )
+        expect(page.locator("hgroup nav li:nth-child(3)")).to_have_text(
+            f'subseries {i["id_0"].replace("xx", " ")}'
+        )
+        expect(page.locator("hgroup nav li:nth-child(4)")).to_have_text(
+            f'open the {i["component_id"].split("_")[0]} {i["component_id"].split("_")[-1].replace("xx", " ")} collection guide metadata record'
+        )
 
 
 def test_alchemist_singleitem_video_frq8s(page: Page, asnake_client, timestamp):

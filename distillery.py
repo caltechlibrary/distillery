@@ -1019,19 +1019,24 @@ def get_arrangement(archival_object):
     EXAMPLES:
     arrangement["repository_name"]
     arrangement["repository_code"]
-    arrangement["folder_display"]
-    arrangement["folder_title"]
+    arrangement["archival_object_display_string"]
+    arrangement["archival_object_level"]
+    arrangement["archival_object_title"]
     arrangement["collection_title"]
     arrangement["collection_id"]
     arrangement["collection_uri"]
-    arrangement["series_display"]
+    arrangement["series_display_string"]
     arrangement["series_id"]
     arrangement["series_title"]
     arrangement["series_uri"]
-    arrangement["subseries_display"]
+    arrangement["subseries_display_string"]
     arrangement["subseries_id"]
     arrangement["subseries_title"]
     arrangement["subseries_uri"]
+    arrangement["file_display_string"]
+    arrangement["file_id"]
+    arrangement["file_title"]
+    arrangement["file_uri"]
     """
     try:
         # TODO document assumptions about arrangement
@@ -1042,25 +1047,37 @@ def get_arrangement(archival_object):
         arrangement["repository_code"] = archival_object["repository"]["_resolved"][
             "repo_code"
         ]
-        arrangement["folder_display"] = archival_object["display_string"]
-        arrangement["folder_title"] = archival_object.get("title")
+        arrangement["archival_object_display_string"] = archival_object[
+            "display_string"
+        ]
+        arrangement["archival_object_level"] = archival_object["level"]
+        arrangement["archival_object_title"] = archival_object.get("title")
         for ancestor in archival_object["ancestors"]:
             if ancestor["level"] == "collection":
                 arrangement["collection_title"] = ancestor["_resolved"]["title"]
                 arrangement["collection_id"] = ancestor["_resolved"]["id_0"]
                 arrangement["collection_uri"] = ancestor["ref"]
             elif ancestor["level"] == "series":
-                arrangement["series_display"] = ancestor["_resolved"]["display_string"]
+                arrangement["series_display_string"] = ancestor["_resolved"][
+                    "display_string"
+                ]
                 arrangement["series_id"] = ancestor["_resolved"].get("component_id")
                 arrangement["series_title"] = ancestor["_resolved"].get("title")
                 arrangement["series_uri"] = ancestor["ref"]
             elif ancestor["level"] == "subseries":
-                arrangement["subseries_display"] = ancestor["_resolved"][
+                arrangement["subseries_display_string"] = ancestor["_resolved"][
                     "display_string"
                 ]
                 arrangement["subseries_id"] = ancestor["_resolved"].get("component_id")
                 arrangement["subseries_title"] = ancestor["_resolved"].get("title")
                 arrangement["subseries_uri"] = ancestor["ref"]
+            elif ancestor["level"] == "file":
+                arrangement["file_display_string"] = ancestor["_resolved"][
+                    "display_string"
+                ]
+                arrangement["file_id"] = ancestor["_resolved"].get("component_id")
+                arrangement["file_title"] = ancestor["_resolved"].get("title")
+                arrangement["file_uri"] = ancestor["ref"]
         logger.info("☑️  ARRANGEMENT LEVELS AGGREGATED")
         return arrangement
     except:
@@ -1113,7 +1130,7 @@ def get_archival_object_directory_prefix(arrangement, archival_object):
     FORMAT: resource:id_0/archival_object:component_id--archival_object:title/
     """
     archival_object_title = "".join(
-        [c if c.isalnum() else "-" for c in arrangement["folder_title"]]
+        [c if c.isalnum() else "-" for c in arrangement["archival_object_title"]]
     )
     prefix = "/".join(
         [
@@ -1149,7 +1166,10 @@ def get_digital_object_component_file_key(prefix, file_parts):
 def get_xmp_dc_metadata(arrangement, file_parts, archival_object):
     xmp_dc = {}
     xmp_dc["title"] = (
-        arrangement["folder_display"] + " [" + file_parts["sequence"] + "]"
+        arrangement["archival_object_display_string"]
+        + " ["
+        + file_parts["sequence"]
+        + "]"
     )
     # TODO(tk) check extent type for pages/images/computer files/etc
     if len(archival_object["extents"]) == 1:
@@ -1178,7 +1198,9 @@ def get_xmp_dc_metadata(arrangement, file_parts, archival_object):
                 )
                 for ancestor in archival_object["ancestors"]:
                     if ancestor["level"] == "subseries":
-                        xmp_dc["source"] += " / " + arrangement["subseries_display"]
+                        xmp_dc["source"] += (
+                            " / " + arrangement["subseries_display_string"]
+                        )
     xmp_dc[
         "rights"
     ] = "Caltech Archives has not determined the copyright in this image."
