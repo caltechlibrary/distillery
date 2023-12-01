@@ -1087,18 +1087,20 @@ def create_digital_object_file_versions(build_directory, variables):
 
     file_versions = [
         {
-            "file_uri": archival_object_page_url,
-            "jsonmodel_type": "file_version",
-            "caption": f'{variables["archival_object"]["title"]} {digital_object_type.replace("_", " ")}',
-            "publish": True,
-        },
-        {
             "file_uri": get_thumbnail_url(variables),
             "jsonmodel_type": "file_version",
+            "is_representative": True,
             "caption": variables["archival_object"]["title"],
             "publish": True,
             "use_statement": "image-thumbnail",
             "xlink_show_attribute": "embed",
+        },
+        {
+            "file_uri": archival_object_page_url,
+            "jsonmodel_type": "file_version",
+            "caption": f'{variables["archival_object"]["title"]} {digital_object_type.replace("_", " ")}',
+            "publish": True,
+            "use_statement": "Web-Access",
         },
     ]
 
