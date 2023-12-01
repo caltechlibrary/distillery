@@ -2,10 +2,10 @@ import datetime
 import glob
 import inspect
 import os
-import pytest
 import random
 import shutil
 import string
+import subprocess
 import sys
 import tempfile
 import time
@@ -13,10 +13,10 @@ import urllib.request
 
 import boto3
 import git
+import pytest
 
 from decouple import config
 from gtts import gTTS
-from moviepy.editor import TextClip, CompositeVideoClip, ColorClip
 from PIL import Image, ImageDraw, ImageFont
 from playwright.sync_api import Page, expect
 
@@ -478,59 +478,39 @@ def generate_image_file(file_stem, **kwargs):
 
 
 def generate_video_file(test_name, **kwargs):
-    # 1. Create the Background Clip
-    # Set the overall video duration (includes the time for fade in and fade out effects)
-    duration = 1
-    width = 1280
-    height = 720
-    # Generate a white background clip with the defined size and duration
-    bg_clip = ColorClip(size=(width, height), color=(255, 255, 255)).set_duration(
-        duration
-    )
-
-    # 2. Setup the Text Clip
-    # Create a green-colored text clip with the defined font size
-    txt_clip = TextClip(
-        test_name.split("_")[-1],
-        fontsize=200,
-        stroke_color="rgb(0, 255, 0)",
-        stroke_width=10,
-        color="rgb(0, 255, 0)",
-    )
-    # Set the duration of the text clip to match the background
-    txt_clip = txt_clip.set_duration(duration)
-
-    # Center the text on the video frame
-    # Calculate the position to keep the text centered
-    text_width, text_height = txt_clip.size
-    x = (width - text_width) / 2
-    y = (height - text_height) / 2
-    # Set the text clip's position to the calculated center coordinates
-    txt_clip = txt_clip.set_position((x, y))
-
-    # Apply fade-in effect to the text
-    # Define the duration for the fade effect
-    fade_duration = 1
-    # Apply crossfade in to the text clip
-    bg_fading = bg_clip.crossfadein(fade_duration)
-
-    # 3. Merge the Background and Text Clips
-    # Composite both clips to form the final video
-    video = CompositeVideoClip([bg_fading, txt_clip])
-
-    # 4. Export the Resulting Video
-    # Save the composite video to a file with 30 frames per second
     if "directory" in kwargs:
-        file = os.path.join(
+        output_file = os.path.join(
             config("INITIAL_ORIGINAL_FILES"),
             f'item-{kwargs["directory"]}',
             f"item-{test_name}.mp4",
         )
-        os.makedirs(os.path.dirname(file), exist_ok=True)
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
     else:
-        file = os.path.join(config("INITIAL_ORIGINAL_FILES"), f"item-{test_name}.mp4")
-    video.write_videofile(file, fps=30)
-    video.close()
+        output_file = os.path.join(
+            config("INITIAL_ORIGINAL_FILES"), f"item-{test_name}.mp4"
+        )
+    timecode_text = "text='timestamp:%{pts\:hms}': x=(w-text_w)/2: y=100: font=Mono: fontsize=64: fontcolor=Yellow: box=1: boxcolor=Black: boxborderw=10"
+    testname_text = f'text={test_name.split("_")[-1]}: x=(w-text_w)/2: y=(h-text_h)/2: fontsize=196: fontcolor=White: shadowx=3: shadowy=3'
+    subprocess.run(
+        [
+            config("WORK_FFMPEG_CMD"),
+            "-f",
+            "lavfi",
+            "-i",
+            "smptebars=s=1280x720",
+            "-vf",
+            f"drawtext={timecode_text}, drawtext={testname_text}",
+            "-c:v",
+            "libx264",
+            "-r",
+            "30",
+            "-frames:v",
+            "90",
+            "-y",
+            output_file,
+        ],
+        check=True,
+    )
 
 
 def generate_audio_file(test_name, **kwargs):
