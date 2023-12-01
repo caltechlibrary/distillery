@@ -42,11 +42,13 @@ def set_timeout(page: Page):
 @pytest.fixture(autouse=True)
 def distillery_0000_reset_files():
     for d in glob.glob(os.path.join(config("INITIAL_ORIGINAL_FILES"), "*/")):
-        shutil.move(d, config("TEST_FILES", default="tests/files"))
+        if d.split("/")[-1].split("-")[0] == "item":
+            shutil.move(d, config("TEST_FILES", default="tests/files"))
     for batch in glob.glob(os.path.join(config("BATCH_SETS_DIRECTORY"), "*/")):
         for stage in glob.glob(os.path.join(batch, "*/")):
             for i in glob.glob(os.path.join(stage, "*")):
-                shutil.move(i, config("TEST_FILES", default="tests/files"))
+                if i.split("/")[-1].split("-")[0] == "item":
+                    shutil.move(i, config("TEST_FILES", default="tests/files"))
         os.system(f"/bin/rm -r {batch}")
     for d in glob.glob(os.path.join(config("WORK_PRESERVATION_FILES"), "*/")):
         os.system(f"/bin/rm -r {d}")
@@ -537,6 +539,359 @@ def delete_s3_preservation_objects(s3_client, test_id):
         s3_response = s3_client.delete_objects(
             Bucket=config("PRESERVATION_BUCKET"), Delete={"Objects": s3_keys}
         )
+
+
+def generate_content(test_name, asnake_client, **kwargs):
+    def _create_archivesspace_resource(asnake_client, test_name, **kwargs):
+        resource = {}
+        # required
+        # NOTE `id_0` is limited to 50 characters
+        if kwargs.get("j"):
+            resource[
+                "title"
+            ] = f'{test_name.capitalize().replace("_", " ")} {kwargs["j"]}'
+            resource["id_0"] = f'{test_name.split("_")[-1]}xx{kwargs["j"]}'
+        else:
+            resource["title"] = f'{test_name.capitalize().replace("_", " ")}'
+            resource["id_0"] = test_name.split("_")[-1]
+        resource["level"] = "collection"
+        resource["finding_aid_language"] = "eng"
+        resource["finding_aid_script"] = "Latn"
+        resource["lang_materials"] = [
+            {"language_and_script": {"language": "eng", "script": "Latn"}}
+        ]
+        resource["dates"] = [
+            {
+                "label": "creation",
+                "date_type": "single",
+                "begin": str(datetime.date.today()),
+            }
+        ]
+        resource["extents"] = [
+            {"portion": "whole", "number": "1", "extent_type": "boxes"}
+        ]
+        # optional
+        resource["publish"] = True
+        # post
+        response = asnake_client.post("/repositories/2/resources", json=resource)
+        print("🐞 RESOURCE", response.json())
+        return {
+            "uri": response.json()["uri"],
+            "id_0": resource["id_0"],
+        }
+
+    def _create_archival_object(asnake_client, test_name, resource_uri, **kwargs):
+        archival_object = {}
+        archival_object["level"] = kwargs.get("level")
+        archival_object["resource"] = {"ref": resource_uri}
+        if kwargs.get("j"):
+            if kwargs.get("i"):
+                archival_object[
+                    "title"
+                ] = f'{kwargs.get("level")} {test_name.split("_")[-1]} {kwargs["j"]} {kwargs["i"]}'
+                archival_object[
+                    "component_id"
+                ] = f'{kwargs.get("level")}__{test_name}xx{kwargs["j"]}xx{kwargs["i"]}'
+            else:
+                archival_object[
+                    "title"
+                ] = f'{kwargs.get("level")} {test_name.split("_")[-1]} {kwargs["j"]}'
+                archival_object[
+                    "component_id"
+                ] = f'{kwargs.get("level")}__{test_name}xx{kwargs["j"]}'
+        else:
+            archival_object[
+                "title"
+            ] = f'{kwargs.get("level")} {test_name.split("_")[-1]}'
+            archival_object["component_id"] = f'{kwargs.get("level")}__{test_name}'
+        archival_object["publish"] = True
+        # customizations
+        if kwargs.get("customizations"):
+            for key, value in kwargs["customizations"].items():
+                if key == "linked_agents":
+                    archival_object[key] = []
+                    for agent in value:
+                        ref = create_archivesspace_test_agent_person(
+                            asnake_client, test_name.split("_")[-1], agent
+                        )
+                        archival_object[key].append(
+                            {
+                                "ref": ref.json()["uri"],
+                                "role": agent.get("role", "creator"),
+                                "relator": agent.get("relator"),
+                            }
+                        )
+                else:
+                    archival_object[key] = value
+        # post
+        response = asnake_client.post(
+            "/repositories/2/archival_objects", json=archival_object
+        )
+        return {
+            "uri": response.json()["uri"],
+            "component_id": archival_object["component_id"],
+        }
+
+    def _create_ancestors(asnake_client, test_name, resource_uri, **kwargs):
+        if "series" in kwargs.get("ancestors"):
+            kwargs["level"] = "series"
+            _series = _create_archival_object(
+                asnake_client, test_name, resource_uri, **kwargs
+            )
+            if "subseries" in kwargs.get("ancestors"):
+                kwargs["level"] = "subseries"
+                _subseries = _create_archival_object(
+                    asnake_client, test_name, resource_uri, **kwargs
+                )
+                asnake_client.post(
+                    f'{_subseries["uri"]}/parent',
+                    params={"parent": _series["uri"].rsplit("/")[-1], "position": 1},
+                )
+                if "file" in kwargs.get("ancestors"):
+                    kwargs["level"] = "file"
+                    _file = _create_archival_object(
+                        asnake_client, test_name, resource_uri, **kwargs
+                    )
+                    asnake_client.post(
+                        f'{_file["uri"]}/parent',
+                        params={
+                            "parent": _subseries["uri"].rsplit("/")[-1],
+                            "position": 1,
+                        },
+                    )
+                    return _file["uri"].rsplit("/")[-1]
+                else:
+                    return _subseries["uri"].rsplit("/")[-1]
+            else:
+                return _series["uri"].rsplit("/")[-1]
+        elif "subseries" in kwargs.get("ancestors"):
+            kwargs["level"] = "subseries"
+            _subseries = _create_archival_object(
+                asnake_client, test_name, resource_uri, **kwargs
+            )
+            if "file" in kwargs.get("ancestors"):
+                kwargs["level"] = "file"
+                _file = _create_archival_object(
+                    asnake_client, test_name, resource_uri, **kwargs
+                )
+                asnake_client.post(
+                    f'{_file["uri"]}/parent',
+                    params={"parent": _subseries["uri"].rsplit("/")[-1], "position": 1},
+                )
+                return _file["uri"].rsplit("/")[-1]
+            else:
+                return _subseries["uri"].rsplit("/")[-1]
+        elif "file" in kwargs.get("ancestors"):
+            kwargs["level"] = "file"
+            _file = _create_archival_object(
+                asnake_client, test_name, resource_uri, **kwargs
+            )
+            return _file["uri"].rsplit("/")[-1]
+        else:
+            return None
+
+    def _nest_archival_object(archival_object_uri, parent_id):
+        asnake_client.post(
+            f"{archival_object_uri}/parent", params={"parent": parent_id, "position": 1}
+        )
+
+    def _generate_image_file(file_stem, **kwargs):
+        tmp_file, headers = urllib.request.urlretrieve(
+            config("TEST_IMG_URL", default="https://picsum.photos/1600/1200")
+        )
+        img = Image.open(tmp_file)
+        drw = ImageDraw.Draw(img)
+        fnt = ImageFont.truetype(
+            config(
+                "TEST_IMG_FONT",
+                default="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            ),
+            144,
+        )
+        drw.text(
+            (800, 600),
+            file_stem.split("_")[-1],
+            fill="white",
+            font=fnt,
+            anchor="mm",
+            stroke_width=10,
+            stroke_fill="black",
+        )
+        if "directory" in kwargs:
+            file = os.path.join(
+                config("INITIAL_ORIGINAL_FILES"),
+                kwargs["directory"],
+                f"{file_stem}.tif",
+            )
+            os.makedirs(os.path.dirname(file), exist_ok=True)
+        else:
+            file = os.path.join(config("INITIAL_ORIGINAL_FILES"), f"{file_stem}.tif")
+        img.save(file)
+        img.close()
+
+    def _create_digital_files(component_id, **kwargs):
+        if "image" in component_id:
+            if kwargs.get("digital_file_count") > 1:
+                for i in range(1, kwargs.get("digital_file_count") + 1):
+                    _generate_image_file(
+                        "{}{}".format(
+                            "".join(
+                                random.choices(
+                                    string.ascii_lowercase + string.digits, k=6
+                                )
+                            ),
+                            str(i).zfill(2),
+                        ),
+                        directory=component_id,
+                        **kwargs,
+                    )
+            else:
+                _generate_image_file(component_id, **kwargs)
+
+    _content_attributes = []
+    if kwargs.get("archival_object_count") == 1:
+        _resource = _create_archivesspace_resource(asnake_client, test_name)
+        parent_id = _create_ancestors(
+            asnake_client, test_name, _resource["uri"], **kwargs
+        )
+        _archival_object = _create_archival_object(
+            asnake_client, test_name, _resource["uri"], **kwargs
+        )
+        if parent_id:
+            _nest_archival_object(_archival_object["uri"], parent_id)
+        _create_digital_files(_archival_object["component_id"], **kwargs)
+        _content_attributes.append(
+            {
+                "archival_object_uri": _archival_object["uri"],
+                "component_id": _archival_object["component_id"],
+                "resource_uri": _resource["uri"],
+                "id_0": _resource["id_0"],
+            }
+        )
+    elif kwargs.get("archival_object_count") > 1:
+        if kwargs.get("collection_count") == 1:
+            _resource = _create_archivesspace_resource(asnake_client, test_name)
+            parent_id = _create_ancestors(
+                asnake_client, test_name, _resource["uri"], **kwargs
+            )
+            for i in range(1, kwargs.get("archival_object_count") + 1):
+                _archival_object = _create_archival_object(
+                    asnake_client, test_name, _resource["uri"], i=i, **kwargs
+                )
+                if parent_id:
+                    _nest_archival_object(_archival_object["uri"], parent_id)
+                _create_digital_files(_archival_object["component_id"], **kwargs)
+                _content_attributes.append(
+                    {
+                        "archival_object_uri": _archival_object["uri"],
+                        "component_id": _archival_object["component_id"],
+                        "resource_uri": _resource["uri"],
+                        "id_0": _resource["id_0"],
+                    }
+                )
+        elif kwargs.get("collection_count") > 1:
+            for j in range(1, kwargs.get("collection_count") + 1):
+                _resource = _create_archivesspace_resource(
+                    asnake_client, test_name, j=j
+                )
+                parent_id = _create_ancestors(
+                    asnake_client,
+                    test_name,
+                    _resource["uri"],
+                    i=0,
+                    j=j,
+                    **kwargs,
+                )
+                for i in range(1, kwargs.get("archival_object_count") + 1):
+                    _archival_object = _create_archival_object(
+                        asnake_client,
+                        test_name,
+                        _resource["uri"],
+                        i=i,
+                        j=j,
+                        **kwargs,
+                    )
+                    if parent_id:
+                        _nest_archival_object(_archival_object["uri"], parent_id)
+                    _create_digital_files(_archival_object["component_id"], **kwargs)
+                    _content_attributes.append(
+                        {
+                            "archival_object_uri": _archival_object["uri"],
+                            "component_id": _archival_object["component_id"],
+                            "resource_uri": _resource["uri"],
+                            "id_0": _resource["id_0"],
+                        }
+                    )
+        else:
+            print("🐞 UNEXPECTED collection_count:", kwargs.get("collection_count"))
+    else:
+        print(
+            "🐞 UNEXPECTED archival_object_count:", kwargs.get("archival_object_count")
+        )
+    return _content_attributes
+
+
+def delete_content(test_name, asnake_client, **kwargs):
+    # DELETE ANY EXISTING TEST RECORDS
+    if kwargs.get("collection_count") == 1:
+        delete_archivesspace_test_records(asnake_client, test_name.split("_")[-1])
+    elif kwargs.get("collection_count") > 1:
+        for j in range(1, kwargs.get("collection_count") + 1):
+            delete_archivesspace_test_records(
+                asnake_client, f'{test_name.split("_")[-1]}xx{j}'
+            )
+    else:
+        print("🐞 UNEXPECTED collection_count:", kwargs.get("collection_count"))
+    # DELETE INITIAL_ORIGINAL_FILES FROM FAILED TESTS
+    for pathname in glob.glob(
+        os.path.join(config("INITIAL_ORIGINAL_FILES"), f'*{test_name.split("_")[-1]}*')
+    ):
+        os.system(f"/bin/rm -r {pathname}")
+    # DELETE FILES IN BATCH_SETS_DIRECTORY FROM PASSED TESTS
+    for pathname in glob.glob(
+        os.path.join(
+            config("BATCH_SETS_DIRECTORY"), f'**/*{test_name.split("_")[-1]}*'
+        ),
+        recursive=True,
+    ):
+        os.system(f"/bin/rm -r {pathname}")
+
+
+@pytest.fixture
+def run(page, asnake_client, s3_client, timestamp):
+    # default parameters if not passed from calling test
+    def _run(
+        test_name,
+        collection_count=1,
+        archival_object_count=1,
+        level="file",
+        ancestors=["subseries", "series"],
+        digital_file_count=1,
+        expected_outcome="success",
+    ):
+        # argument values are passed from the calling test
+        delete_content(test_name, asnake_client, collection_count=collection_count)
+        content_attributes = generate_content(
+            test_name,
+            asnake_client,
+            collection_count=collection_count,
+            archival_object_count=archival_object_count,
+            level=level,
+            ancestors=ancestors,
+            digital_file_count=digital_file_count,
+        )
+        # RUN PROCESS
+        if test_name.split("_")[1] == "alchemist":
+            destinations = ["access"]
+        elif test_name.split("_")[1] == "s3":
+            destinations = ["cloud"]
+        run_distillery(page, destinations, outcome=expected_outcome)
+        # INVALIDATE CLOUDFRONT ITEMS
+        if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+            invalidate_cloudfront_path(caller_reference=timestamp)
+        return content_attributes
+
+    return _run
 
 
 def reset_files_and_records(test_name, asnake_client, s3_client, **kwargs):
@@ -1311,91 +1666,54 @@ def test_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_client):
                 assert file_version["publish"] is False
 
 
-def test_alchemist_imageitems_alone_b74ya(
-    page: Page, asnake_client, s3_client, timestamp
-):
-    """Publish single-image archival objects."""
+def test_alchemist_multiple_single_image_objects_edcb48(run, page: Page, asnake_client):
+    """Publish multiple single-image archival objects."""
     test_name = inspect.currentframe().f_code.co_name
-    test_id = test_name.split("_")[-1]
-    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
-    move_test_files_to_initial_original_files_directory(
-        "test_alchemist_imageitems_alone_b74y1.jpg"
+    run_output = run(
+        test_name,
+        collection_count=2,
+        archival_object_count=2,
+        level="item",
+        ancestors=["file", "subseries", "series"],
     )
-    move_test_files_to_initial_original_files_directory(
-        "test_alchemist_imageitems_alone_b74y2.jpg"
-    )
-    # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, test_id)
-    # DELETE S3 OBJECTS
-    s3_response = s3_client.list_objects_v2(Bucket=config("ALCHEMIST_BUCKET"))
-    print("🐞 s3_client.list_objects_v2", s3_response)
-    if s3_response.get("Contents"):
-        s3_keys = [{"Key": s3_object["Key"]} for s3_object in s3_response["Contents"]]
-        s3_response = s3_client.delete_objects(
-            Bucket=config("ALCHEMIST_BUCKET"), Delete={"Objects": s3_keys}
+    # VALIDATE ALCHEMIST DISPLAY
+    for i in run_output:
+        page.goto(
+            "/".join(
+                [
+                    config("ALCHEMIST_BASE_URL").rstrip("/"),
+                    config("ALCHEMIST_URL_PREFIX"),
+                    i["id_0"],
+                    i["component_id"],
+                ]
+            )
         )
-    # CREATE RESOURCE RECORD
-    resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_name, test_id
-    )
-    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
-    # CREATE ARCHIVAL OBJECT ITEM RECORD 1
-    (
-        item_create_response1,
-        item_component_id1,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client,
-        "test_alchemist_imageitems_alone_b74y1",
-        "b74y1",
-        resource_create_response.json()["uri"],
-    )
-    print("🐞 item_create_response1:b74y1", item_create_response1.json())
-    # CREATE ARCHIVAL OBJECT ITEM RECORD 2
-    (
-        item_create_response2,
-        item_component_id2,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client,
-        "test_alchemist_imageitems_alone_b74y2",
-        "b74y2",
-        resource_create_response.json()["uri"],
-    )
-    print("🐞 item_create_response2:b74y2", item_create_response2.json())
-    # RUN ALCHEMIST PROCESS
-    run_distillery(page, ["access"])
-    alchemist_item_uri1 = format_alchemist_item_uri(
-        "test_alchemist_imageitems_alone_b74y1", test_id
-    )
-    alchemist_item_uri2 = format_alchemist_item_uri(
-        "test_alchemist_imageitems_alone_b74y2", test_id
-    )
-    # INVALIDATE CLOUDFRONT ITEMS
-    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-        invalidate_cloudfront_path(caller_reference=timestamp)
-    # VALIDATE ALCHEMIST ITEMS
-    page.goto(alchemist_item_uri1)
-    expect(page).to_have_title("Item b74y1")
-    page.goto(alchemist_item_uri2)
-    expect(page).to_have_title("Item b74y2")
-    # UPDATE ARCHIVAL OBJECT ITEM RECORD 1
-    item1 = asnake_client.get(item_create_response1.json()["uri"]).json()
-    # update title
-    item1["title"] = "Regenerated Title b74y1"
-    item_update_response1 = asnake_client.post(item1["uri"], json=item1)
-    print("🐞 item_update_response1:b74y1", item_update_response1.json())
-    # UPDATE ARCHIVAL OBJECT ITEM RECORD 2
-    item2 = asnake_client.get(item_create_response2.json()["uri"]).json()
-    # update title
-    item2["title"] = "Regenerated Title b74y2"
-    item_update_response2 = asnake_client.post(item2["uri"], json=item2)
-    print("🐞 item_update_response2:b74y2", item_update_response2.json())
-    # RUN REGENERATE PROCESS
-    run_alchemist_regenerate(page, "all", timeout=120000)
-    # VALIDATE ALCHEMIST ITEMS
-    page.goto(alchemist_item_uri1)
-    expect(page).to_have_title("Regenerated Title b74y1")
-    page.goto(alchemist_item_uri2)
-    expect(page).to_have_title("Regenerated Title b74y2")
+        # validate breadcrumbs
+        expect(page.locator("hgroup nav li:nth-child(1)")).to_have_text(
+            f'{test_name.capitalize().replace("_", " ").replace("xx", " ")}'
+        )
+        expect(page.locator("hgroup nav li:nth-child(2)")).to_have_text(
+            f'series {i["id_0"].replace("xx", " ")}'
+        )
+        expect(page.locator("hgroup nav li:nth-child(3)")).to_have_text(
+            f'subseries {i["id_0"].replace("xx", " ")}'
+        )
+        expect(page.locator("hgroup nav li:nth-child(4)")).to_have_text(
+            f'file {i["id_0"].replace("xx", " ")}'
+        )
+        expect(page.locator("hgroup nav li:nth-child(4)")).to_have_text(
+            f'open the {test_name.split("_")[-1]} collection guide metadata record'
+        )
+
+
+@pytest.mark.skip
+def test_alchemist_multiple_single_image_objects_edcb48xx1():
+    return
+
+
+@pytest.mark.skip
+def test_alchemist_multiple_single_image_objects_edcb48xx2():
+    return
 
 
 def test_alchemist_singleitem_video_frq8s(page: Page, asnake_client, timestamp):
