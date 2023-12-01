@@ -489,7 +489,7 @@ def generate_video_file(test_name, **kwargs):
         output_file = os.path.join(
             config("INITIAL_ORIGINAL_FILES"), f"item-{test_name}.mp4"
         )
-    timecode_text = "text='timestamp:%{pts\:hms}': x=(w-text_w)/2: y=100: font=Mono: fontsize=64: fontcolor=Yellow: box=1: boxcolor=Black: boxborderw=10"
+    timecode_text = r"text='timestamp:%{pts\:hms}': x=(w-text_w)/2: y=100: font=Mono: fontsize=64: fontcolor=Yellow: box=1: boxcolor=Black: boxborderw=10"
     testname_text = f'text={test_name.split("_")[-1]}: x=(w-text_w)/2: y=(h-text_h)/2: fontsize=196: fontcolor=White: shadowx=3: shadowy=3'
     subprocess.run(
         [
