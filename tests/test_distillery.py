@@ -318,6 +318,25 @@ def create_archivesspace_test_digital_object(asnake_client, test_name, test_id):
     return digital_object_post_response, digital_object["digital_object_id"]
 
 
+def unblock_archivesspace_ports():
+    subprocess.run(
+        [
+            config("WORK_SSH_CMD", default="/usr/bin/ssh"),
+            "-i",
+            config("ARCHIVESSPACE_SSH_KEY"),
+            "-p",
+            config("ARCHIVESSPACE_SSH_PORT", default="22"),
+            f'{config("ARCHIVESSPACE_SSH_USER")}@{config("ARCHIVESSPACE_SSH_HOST")}',
+            *config(
+                "ARCHIVESSPACE_SIMULATE_ONLINE_CMD",
+                default="sudo ufw disable",
+            ).split(),
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+
 def run_distillery(
     page: Page,
     destinations,
@@ -333,7 +352,7 @@ def run_distillery(
             page.locator(f'input[value="{file_versions_op}"]').check()
             page.locator(f'input[value="{thumbnail_label}"]').check()
     page.get_by_role("button", name="Validate").click()
-    page.get_by_text("Details").click()
+    page.locator("summary").click()
     if outcome == "failure":
         expect(page.locator("p")).to_have_text(
             "❌ Something went wrong. View the details for more information.",
@@ -353,30 +372,72 @@ def run_distillery(
     expect(success.or_(error)).to_be_visible(timeout=timeout)
     expect(validated).to_be_visible()
     page.get_by_role("button", name="Run").click()
-    page.get_by_text("Details").click()
+    page.locator("summary").click()
     expect(success.or_(error)).to_be_visible(timeout=timeout)
     expect(processed).to_be_visible()
 
 
 def run_alchemist_regenerate(
-    page: Page, regeneratees, component_id="", collection_id="", timeout=60000
+    page: Page,
+    content_attributes,
+    regenerate,
+    simulate_archivesspace_offline,
+    timeout=300000,
 ):
     page.goto("/".join([config("DISTILLERY_BASE_URL").rstrip("/"), "alchemist"]))
-    if regeneratees == "one":
+    if regenerate == "one":
         page.get_by_label("Regenerate files for one item").check()
-        assert component_id
-        page.get_by_label("Component Unique Identifier").fill(component_id)
-    if regeneratees == "collection":
+        assert content_attributes[0]["component_id"]
+        page.get_by_label("Component Unique Identifier").fill(
+            content_attributes[0]["component_id"]
+        )
+    if regenerate == "collection":
         page.get_by_label("Regenerate files for a collection").check()
-        assert collection_id
-        page.get_by_label("Collection Identifier").fill(collection_id)
-    elif regeneratees == "all":
+        assert content_attributes[0]["id_0"]
+        page.get_by_label("Collection Identifier").fill(content_attributes[0]["id_0"])
+    elif regenerate == "all":
         page.get_by_label("Regenerate files for all items").check()
     page.get_by_role("button", name="Regenerate").click()
-    page.get_by_text("Details").click()
-    expect(page.locator("p")).to_contain_text(
-        f"✅ Regenerated metadata and files for ", timeout=timeout
-    )
+    page.locator("summary").click()
+    if simulate_archivesspace_offline:
+        print("🐞 SIMULATING ARCHIVESSPACE OFFLINE")
+        subprocess.run(
+            [
+                config("WORK_SSH_CMD", default="/usr/bin/ssh"),
+                "-i",
+                config("ARCHIVESSPACE_SSH_KEY"),
+                "-p",
+                config("ARCHIVESSPACE_SSH_PORT", default="22"),
+                f'{config("ARCHIVESSPACE_SSH_USER")}@{config("ARCHIVESSPACE_SSH_HOST")}',
+                *config(
+                    "ARCHIVESSPACE_SIMULATE_OFFLINE_CMD",
+                    default="sudo ufw allow 22 && sudo ufw --force enable",
+                ).split(),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        # NOTE we need to wait for the CloudFront invalidations to complete and
+        # then wait for requests to time out when looking for ArchivesSpace
+        print("🐞 SLEEPING 5 MINUTES...")
+        time.sleep(60)
+        expect(page.get_by_text("❌ Something went wrong.")).not_to_be_visible()
+        print("🐞 ... 4 MINUTES")
+        time.sleep(60)
+        expect(page.get_by_text("❌ Something went wrong.")).not_to_be_visible()
+        print("🐞 ... 3 MINUTES")
+        time.sleep(60)
+        expect(page.get_by_text("❌ Something went wrong.")).not_to_be_visible()
+        print("🐞 ... 2 MINUTES")
+        time.sleep(60)
+        expect(page.get_by_text("❌ Something went wrong.")).not_to_be_visible()
+        print("🐞 ... 1 MINUTE")
+        time.sleep(60)
+        expect(page.get_by_text("❌ Something went wrong.")).not_to_be_visible()
+        print("🐞 SIMULATING ARCHIVESSPACE ONLINE")
+        unblock_archivesspace_ports()
+    expect(page.get_by_text("❌ Something went wrong.")).not_to_be_visible()
+    expect(page.locator("p")).to_contain_text(f"✅ Regenerated")
 
 
 def run_oralhistories_add(page: Page, file, outcome="success"):
@@ -546,14 +607,8 @@ def generate_content(test_name, asnake_client, **kwargs):
         resource = {}
         # required
         # NOTE `id_0` is limited to 50 characters
-        if kwargs.get("j"):
-            resource[
-                "title"
-            ] = f'{test_name.capitalize().replace("_", " ")} {kwargs["j"]}'
-            resource["id_0"] = f'{test_name.split("_")[-1]}xx{kwargs["j"]}'
-        else:
-            resource["title"] = f'{test_name.capitalize().replace("_", " ")}'
-            resource["id_0"] = test_name.split("_")[-1]
+        resource["title"] = f'{test_name.capitalize().replace("_", " ")} {kwargs["j"]}'
+        resource["id_0"] = f'{test_name.split("_")[-1]}xx{kwargs["j"]}'
         resource["level"] = "collection"
         resource["finding_aid_language"] = "eng"
         resource["finding_aid_script"] = "Latn"
@@ -584,26 +639,12 @@ def generate_content(test_name, asnake_client, **kwargs):
         archival_object = {}
         archival_object["level"] = kwargs.get("level")
         archival_object["resource"] = {"ref": resource_uri}
-        if kwargs.get("j"):
-            if kwargs.get("i"):
-                archival_object[
-                    "title"
-                ] = f'{kwargs.get("level")} {test_name.split("_")[-1]} {kwargs["j"]} {kwargs["i"]}'
-                archival_object[
-                    "component_id"
-                ] = f'{kwargs.get("level")}__{test_name}xx{kwargs["j"]}xx{kwargs["i"]}'
-            else:
-                archival_object[
-                    "title"
-                ] = f'{kwargs.get("level")} {test_name.split("_")[-1]} {kwargs["j"]}'
-                archival_object[
-                    "component_id"
-                ] = f'{kwargs.get("level")}__{test_name}xx{kwargs["j"]}'
-        else:
-            archival_object[
-                "title"
-            ] = f'{kwargs.get("level")} {test_name.split("_")[-1]}'
-            archival_object["component_id"] = f'{kwargs.get("level")}__{test_name}'
+        archival_object[
+            "title"
+        ] = f'{kwargs.get("level")} {test_name.split("_")[-1]} {kwargs["j"]} {kwargs["i"]}'
+        archival_object[
+            "component_id"
+        ] = f'{kwargs.get("level")}__{test_name}xx{kwargs["j"]}xx{kwargs["i"]}'
         archival_object["publish"] = True
         # customizations
         if kwargs.get("customizations"):
@@ -627,6 +668,7 @@ def generate_content(test_name, asnake_client, **kwargs):
         response = asnake_client.post(
             "/repositories/2/archival_objects", json=archival_object
         )
+        print(f'🐞 ARCHIVAL OBJECT {archival_object["component_id"]}', response.json())
         return {
             "uri": response.json()["uri"],
             "component_id": archival_object["component_id"],
@@ -728,9 +770,14 @@ def generate_content(test_name, asnake_client, **kwargs):
             file = os.path.join(config("INITIAL_ORIGINAL_FILES"), f"{file_stem}.tif")
         img.save(file)
         img.close()
+        print(f"🐞 GENERATED FILE {file}")
 
     def _create_digital_files(component_id, **kwargs):
-        if "image" in component_id:
+        if "audio" in component_id:
+            pass
+        elif "video" in component_id:
+            pass
+        else:
             if kwargs.get("digital_file_count") > 1:
                 for i in range(1, kwargs.get("digital_file_count") + 1):
                     _generate_image_file(
@@ -749,99 +796,131 @@ def generate_content(test_name, asnake_client, **kwargs):
                 _generate_image_file(component_id, **kwargs)
 
     _content_attributes = []
-    if kwargs.get("archival_object_count") == 1:
-        _resource = _create_archivesspace_resource(asnake_client, test_name)
+    for j in range(1, kwargs.get("collection_count") + 1):
+        _resource = _create_archivesspace_resource(asnake_client, test_name, j=j)
         parent_id = _create_ancestors(
-            asnake_client, test_name, _resource["uri"], **kwargs
+            asnake_client,
+            test_name,
+            _resource["uri"],
+            i=0,
+            j=j,
+            **kwargs,
         )
-        _archival_object = _create_archival_object(
-            asnake_client, test_name, _resource["uri"], **kwargs
-        )
-        if parent_id:
-            _nest_archival_object(_archival_object["uri"], parent_id)
-        _create_digital_files(_archival_object["component_id"], **kwargs)
-        _content_attributes.append(
-            {
-                "archival_object_uri": _archival_object["uri"],
-                "component_id": _archival_object["component_id"],
-                "resource_uri": _resource["uri"],
-                "id_0": _resource["id_0"],
-            }
-        )
-    elif kwargs.get("archival_object_count") > 1:
-        if kwargs.get("collection_count") == 1:
-            _resource = _create_archivesspace_resource(asnake_client, test_name)
-            parent_id = _create_ancestors(
-                asnake_client, test_name, _resource["uri"], **kwargs
+        for i in range(1, kwargs.get("archival_object_count") + 1):
+            _archival_object = _create_archival_object(
+                asnake_client,
+                test_name,
+                _resource["uri"],
+                i=i,
+                j=j,
+                **kwargs,
             )
-            for i in range(1, kwargs.get("archival_object_count") + 1):
-                _archival_object = _create_archival_object(
-                    asnake_client, test_name, _resource["uri"], i=i, **kwargs
-                )
-                if parent_id:
-                    _nest_archival_object(_archival_object["uri"], parent_id)
-                _create_digital_files(_archival_object["component_id"], **kwargs)
-                _content_attributes.append(
-                    {
-                        "archival_object_uri": _archival_object["uri"],
-                        "component_id": _archival_object["component_id"],
-                        "resource_uri": _resource["uri"],
-                        "id_0": _resource["id_0"],
-                    }
-                )
-        elif kwargs.get("collection_count") > 1:
-            for j in range(1, kwargs.get("collection_count") + 1):
-                _resource = _create_archivesspace_resource(
-                    asnake_client, test_name, j=j
-                )
-                parent_id = _create_ancestors(
-                    asnake_client,
-                    test_name,
-                    _resource["uri"],
-                    i=0,
-                    j=j,
-                    **kwargs,
-                )
-                for i in range(1, kwargs.get("archival_object_count") + 1):
-                    _archival_object = _create_archival_object(
-                        asnake_client,
-                        test_name,
-                        _resource["uri"],
-                        i=i,
-                        j=j,
-                        **kwargs,
-                    )
-                    if parent_id:
-                        _nest_archival_object(_archival_object["uri"], parent_id)
-                    _create_digital_files(_archival_object["component_id"], **kwargs)
-                    _content_attributes.append(
-                        {
-                            "archival_object_uri": _archival_object["uri"],
-                            "component_id": _archival_object["component_id"],
-                            "resource_uri": _resource["uri"],
-                            "id_0": _resource["id_0"],
-                        }
-                    )
-        else:
-            print("🐞 UNEXPECTED collection_count:", kwargs.get("collection_count"))
-    else:
-        print(
-            "🐞 UNEXPECTED archival_object_count:", kwargs.get("archival_object_count")
-        )
+            if parent_id:
+                _nest_archival_object(_archival_object["uri"], parent_id)
+            _create_digital_files(_archival_object["component_id"], **kwargs)
+            _content_attributes.append(
+                {
+                    "archival_object_uri": _archival_object["uri"],
+                    "component_id": _archival_object["component_id"],
+                    "resource_uri": _resource["uri"],
+                    "id_0": _resource["id_0"],
+                }
+            )
     return _content_attributes
+
+
+def update_content(page: Page, asnake_client, content_attributes, regenerate):
+    if regenerate == "one":
+        # VALIDATE EXISTING ALCHEMIST OBJECT
+        alchemist_object_path = "/".join(
+            [
+                config("ALCHEMIST_URL_PREFIX"),
+                content_attributes[0]["id_0"],
+                content_attributes[0]["component_id"],
+            ]
+        )
+        if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+            invalidate_cloudfront_path(path=f"/{alchemist_object_path}/*")
+        page.goto(
+            "/".join([config("ALCHEMIST_BASE_URL").rstrip("/"), alchemist_object_path])
+        )
+        expect(page.locator("hgroup > h1")).not_to_contain_text("UPDATED")
+        # SET VARIABLES
+        archival_object_uri = content_attributes[0]["archival_object_uri"]
+        # UPDATE ARCHIVAL OBJECT
+        print(
+            f'🐞 UPDATING ARCHIVAL OBJECT {content_attributes[0]["component_id"]}: {archival_object_uri}'
+        )
+        archival_object = asnake_client.get(archival_object_uri).json()
+        archival_object["title"] = f"UPDATED {archival_object['title']}"
+        # POST
+        asnake_client.post(archival_object_uri, json=archival_object)
+    elif regenerate == "collection":
+        alchemist_collection_path = "/".join(
+            [
+                config("ALCHEMIST_URL_PREFIX"),
+                content_attributes[0]["id_0"],
+            ]
+        )
+        if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+            invalidate_cloudfront_path(path=f"/{alchemist_collection_path}/*")
+        for content_attribute in content_attributes:
+            # VALIDATE EXISTING ALCHEMIST OBJECTS
+            page.goto(
+                "/".join(
+                    [
+                        config("ALCHEMIST_BASE_URL").rstrip("/"),
+                        alchemist_collection_path,
+                        content_attributes[0]["component_id"],
+                    ]
+                )
+            )
+            expect(page.locator("hgroup > h1")).not_to_contain_text("UPDATED")
+            if content_attribute["id_0"] == content_attributes[0]["id_0"]:
+                # SET VARIABLES
+                archival_object_uri = content_attribute["archival_object_uri"]
+                # UPDATE ARCHIVAL OBJECT
+                print(
+                    f'🐞 UPDATING ARCHIVAL OBJECT {content_attribute["component_id"]}: {archival_object_uri}'
+                )
+                archival_object = asnake_client.get(archival_object_uri).json()
+                archival_object["title"] = f"UPDATED {archival_object['title']}"
+                # POST
+                asnake_client.post(archival_object_uri, json=archival_object)
+    elif regenerate == "all":
+        if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+            invalidate_cloudfront_path()
+        for content_attribute in content_attributes:
+            # VALIDATE EXISTING ALCHEMIST OBJECTS
+            page.goto(
+                "/".join(
+                    [
+                        config("ALCHEMIST_BASE_URL").rstrip("/"),
+                        config("ALCHEMIST_URL_PREFIX"),
+                        content_attribute["id_0"],
+                        content_attribute["component_id"],
+                    ]
+                )
+            )
+            expect(page.locator("hgroup > h1")).not_to_contain_text("UPDATED")
+            # SET VARIABLES
+            archival_object_uri = content_attribute["archival_object_uri"]
+            # UPDATE ARCHIVAL OBJECT
+            print(
+                f'🐞 UPDATING ARCHIVAL OBJECT {content_attribute["component_id"]}: {archival_object_uri}'
+            )
+            archival_object = asnake_client.get(archival_object_uri).json()
+            archival_object["title"] = f"UPDATED {archival_object['title']}"
+            # POST
+            asnake_client.post(archival_object_uri, json=archival_object)
 
 
 def delete_content(test_name, asnake_client, **kwargs):
     # DELETE ANY EXISTING TEST RECORDS
-    if kwargs.get("collection_count") == 1:
-        delete_archivesspace_test_records(asnake_client, test_name.split("_")[-1])
-    elif kwargs.get("collection_count") > 1:
-        for j in range(1, kwargs.get("collection_count") + 1):
-            delete_archivesspace_test_records(
-                asnake_client, f'{test_name.split("_")[-1]}xx{j}'
-            )
-    else:
-        print("🐞 UNEXPECTED collection_count:", kwargs.get("collection_count"))
+    for j in range(1, kwargs.get("collection_count") + 1):
+        delete_archivesspace_test_records(
+            asnake_client, f'{test_name.split("_")[-1]}xx{j}'
+        )
     # DELETE INITIAL_ORIGINAL_FILES FROM FAILED TESTS
     for pathname in glob.glob(
         os.path.join(config("INITIAL_ORIGINAL_FILES"), f'*{test_name.split("_")[-1]}*')
@@ -858,7 +937,7 @@ def delete_content(test_name, asnake_client, **kwargs):
 
 
 @pytest.fixture
-def run(page, asnake_client, s3_client, timestamp):
+def run(page, asnake_client, s3_client, timestamp, request):
     # default parameters if not passed from calling test
     def _run(
         test_name,
@@ -868,10 +947,15 @@ def run(page, asnake_client, s3_client, timestamp):
         ancestors=["subseries", "series"],
         digital_file_count=1,
         expected_outcome="success",
-        timeout=60000,
+        simulate_archivesspace_offline=False,
+        regenerate=None,
     ):
+        print("...")
         # argument values are passed from the calling test
+        unblock_archivesspace_ports()
+        print("🐞 DELETING PREVIOUS TEST CONTENT")
         delete_content(test_name, asnake_client, collection_count=collection_count)
+        print("🐞 GENERATING TEST CONTENT")
         content_attributes = generate_content(
             test_name,
             asnake_client,
@@ -886,11 +970,23 @@ def run(page, asnake_client, s3_client, timestamp):
             destinations = ["access"]
         elif test_name.split("_")[1] == "s3":
             destinations = ["cloud"]
-        run_distillery(page, destinations, outcome=expected_outcome, timeout=timeout)
-        # INVALIDATE CLOUDFRONT ITEMS
-        if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-            invalidate_cloudfront_path(caller_reference=timestamp)
+        print("🐞 RUNNING DISTILLERY")
+        run_distillery(page, destinations, outcome=expected_outcome)
+        if regenerate:
+            update_content(page, asnake_client, content_attributes, regenerate)
+            print("🐞 RUNNING ALCHEMIST REGENERATE")
+            run_alchemist_regenerate(
+                page,
+                content_attributes,
+                regenerate=regenerate,
+                simulate_archivesspace_offline=simulate_archivesspace_offline,
+            )
         return content_attributes
+
+    def _unblock_archivesspace_ports():
+        unblock_archivesspace_ports()
+
+    request.addfinalizer(_unblock_archivesspace_ports)
 
     return _run
 
@@ -1287,215 +1383,111 @@ def test_alchemist_thumbnaillabel_filename_wef99(page: Page, asnake_client, time
     expect(page.locator("#thumb-2")).to_have_text("lQGJCMY5qcM-unsplash_last")
 
 
-def test_alchemist_regenerate_one_vru3b(page: Page, asnake_client, timestamp):
-    """Regenerate one set of files."""
+def test_alchemist_regenerate_one_986204(run, page: Page, asnake_client, timestamp):
+    """Regenerate all Alchemist assets for one object."""
     test_name = inspect.currentframe().f_code.co_name
-    test_id = test_name.split("_")[-1]
-    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
-    move_test_files_to_initial_original_files_directory(test_name)
-    # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, test_id)
-    # CREATE RESOURCE RECORD
-    resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_name, test_id
+    run_output = run(
+        test_name,
+        archival_object_count=2,
+        level="file",
+        ancestors=["subseries", "series"],
+        timeout=100000,
+        simulate_archivesspace_offline=True,
+        regenerate="one",
     )
-    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
-    # CREATE ARCHIVAL OBJECT ITEM RECORD
-    (
-        item_create_response,
-        item_component_id,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
-    )
-    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
-    # RUN ALCHEMIST PROCESS
-    run_distillery(page, ["access"])
-    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
-    # INVALIDATE CLOUDFRONT ITEMS
-    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-        invalidate_cloudfront_path(caller_reference=timestamp)
-    # VALIDATE ALCHEMIST ITEM
-    page.goto(alchemist_item_uri)
-    expect(page).to_have_title(f"Item {test_id}")
-    # UPDATE ARCHIVAL OBJECT ITEM RECORD
-    item = asnake_client.get(item_create_response.json()["uri"]).json()
-    # update title
-    item["title"] = "Regenerated Title"
-    item_update_response = asnake_client.post(item["uri"], json=item)
-    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
-    # RUN REGENERATE PROCESS
-    run_alchemist_regenerate(page, "one", component_id=item_component_id, timeout=90000)
-    # VALIDATE ALCHEMIST ITEM
-    page.goto(alchemist_item_uri)
-    expect(page).to_have_title("Regenerated Title")
-
-
-def test_alchemist_regenerate_collection_2zqyy(page: Page, asnake_client, timestamp):
-    """Publish single-image archival objects."""
-    test_name = inspect.currentframe().f_code.co_name
-    test_id = test_name.split("_")[-1]
-    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
-    move_test_files_to_initial_original_files_directory(
-        "test_alchemist_regenerate_collection_2zqy1"
-    )
-    move_test_files_to_initial_original_files_directory(
-        "test_alchemist_regenerate_collection_2zqy2"
-    )
-    # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, test_id)
-    # CREATE RESOURCE RECORD
-    resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_name, test_id
-    )
-    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
-    # CREATE ARCHIVAL OBJECT ITEM RECORD 1
-    (
-        item_create_response1,
-        item_component_id1,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client,
-        "test_alchemist_regenerate_collection_2zqy1",
-        "2zqy1",
-        resource_create_response.json()["uri"],
-    )
-    print("🐞 item_create_response1:2zqy1", item_create_response1.json())
-    # CREATE ARCHIVAL OBJECT ITEM RECORD 2
-    (
-        item_create_response2,
-        item_component_id2,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client,
-        "test_alchemist_regenerate_collection_2zqy2",
-        "2zqy2",
-        resource_create_response.json()["uri"],
-    )
-    print("🐞 item_create_response2:2zqy2", item_create_response2.json())
-    # RUN ALCHEMIST PROCESS
-    run_distillery(page, ["access"])
-    alchemist_item_uri1 = format_alchemist_item_uri(
-        "test_alchemist_regenerate_collection_2zqy1", test_id
-    )
-    alchemist_item_uri2 = format_alchemist_item_uri(
-        "test_alchemist_regenerate_collection_2zqy2", test_id
-    )
-    # INVALIDATE CLOUDFRONT ITEMS
-    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-        invalidate_cloudfront_path(caller_reference=timestamp)
-    # VALIDATE ALCHEMIST ITEMS
-    page.goto(alchemist_item_uri1)
-    expect(page).to_have_title("Item 2zqy1")
-    page.goto(alchemist_item_uri2)
-    expect(page).to_have_title("Item 2zqy2")
-    # UPDATE ARCHIVAL OBJECT ITEM RECORD 1
-    item1 = asnake_client.get(item_create_response1.json()["uri"]).json()
-    # update title
-    item1["title"] = "Regenerated Title 2zqy1"
-    item_update_response1 = asnake_client.post(item1["uri"], json=item1)
-    print("🐞 item_update_response1:2zqy1", item_update_response1.json())
-    # UPDATE ARCHIVAL OBJECT ITEM RECORD 2
-    item2 = asnake_client.get(item_create_response2.json()["uri"]).json()
-    # update title
-    item2["title"] = "Regenerated Title 2zqy2"
-    item_update_response2 = asnake_client.post(item2["uri"], json=item2)
-    print("🐞 item_update_response2:2zqy2", item_update_response2.json())
-    # RUN REGENERATE PROCESS
-    run_alchemist_regenerate(page, "collection", collection_id=test_id, timeout=90000)
-    # VALIDATE ALCHEMIST ITEMS
-    page.goto(alchemist_item_uri1)
-    expect(page).to_have_title("Regenerated Title 2zqy1")
-    page.goto(alchemist_item_uri2)
-    expect(page).to_have_title("Regenerated Title 2zqy2")
-
-
-def test_alchemist_regenerate_all_mxsk0(
-    page: Page, asnake_client, s3_client, timestamp
-):
-    """Regenerate all sets of files."""
-    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
-    move_test_files_to_initial_original_files_directory(
-        "test_alchemist_regenerate_all_mxsk1"
-    )
-    move_test_files_to_initial_original_files_directory(
-        "test_alchemist_regenerate_all_mxsk2"
-    )
-    # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, "mxsk1")
-    delete_archivesspace_test_records(asnake_client, "mxsk2")
-    # DELETE S3 OBJECTS
-    s3_response = s3_client.list_objects_v2(Bucket=config("ALCHEMIST_BUCKET"))
-    print("🐞 s3_client.list_objects_v2", s3_response)
-    if s3_response.get("Contents"):
-        s3_keys = [{"Key": s3_object["Key"]} for s3_object in s3_response["Contents"]]
-        s3_response = s3_client.delete_objects(
-            Bucket=config("ALCHEMIST_BUCKET"), Delete={"Objects": s3_keys}
+    # VALIDATE REGENERATED ALCHEMIST PAGES
+    for _ in run_output:
+        page.goto(
+            "/".join(
+                [
+                    config("ALCHEMIST_BASE_URL").rstrip("/"),
+                    config("ALCHEMIST_URL_PREFIX"),
+                    _["id_0"],
+                    _["component_id"],
+                ]
+            )
         )
-    # CREATE RESOURCE RECORD 1
-    resource_create_response1 = create_archivesspace_test_resource(
-        asnake_client, "test_alchemist_regenerate_all_mxsk1", "mxsk1"
+        if _["component_id"] == run_output[0]["component_id"]:
+            expect(page.locator("hgroup > h1")).to_contain_text("UPDATED")
+        else:
+            expect(page.locator("hgroup > h1")).not_to_contain_text("UPDATED")
+
+
+def test_alchemist_regenerate_collection_84bc89(
+    run, page: Page, asnake_client, timestamp
+):
+    """Regenerate all Alchemist assets for a collection."""
+    test_name = inspect.currentframe().f_code.co_name
+    run_output = run(
+        test_name,
+        collection_count=2,
+        level="file",
+        ancestors=["subseries", "series"],
+        simulate_archivesspace_offline=True,
+        regenerate="collection",
     )
-    print("🐞 resource_create_response1:mxsk1", resource_create_response1.json())
-    # CREATE ARCHIVAL OBJECT ITEM RECORD 1
-    (
-        item_create_response1,
-        item_component_id1,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client,
-        "test_alchemist_regenerate_all_mxsk1",
-        "mxsk1",
-        resource_create_response1.json()["uri"],
+    # VALIDATE REGENERATED ALCHEMIST PAGES
+    for _ in run_output:
+        page.goto(
+            "/".join(
+                [
+                    config("ALCHEMIST_BASE_URL").rstrip("/"),
+                    config("ALCHEMIST_URL_PREFIX"),
+                    _["id_0"],
+                    _["component_id"],
+                ]
+            )
+        )
+        if _["id_0"] == run_output[0]["id_0"]:
+            expect(page.locator("hgroup > h1")).to_contain_text("UPDATED")
+        else:
+            expect(page.locator("hgroup > h1")).not_to_contain_text("UPDATED")
+
+
+@pytest.mark.skip(reason="placeholder for deletion of multiple collection records")
+def test_alchemist_regenerate_collection_84bc89xx1():
+    return
+
+
+@pytest.mark.skip(reason="placeholder for deletion of multiple collection records")
+def test_alchemist_regenerate_collection_84bc89xx2():
+    return
+
+
+def test_alchemist_regenerate_all_546ebc(run, page: Page, asnake_client, timestamp):
+    """Regenerate all Alchemist assets."""
+    test_name = inspect.currentframe().f_code.co_name
+    run_output = run(
+        test_name,
+        collection_count=2,
+        level="file",
+        ancestors=["subseries", "series"],
+        simulate_archivesspace_offline=True,
+        regenerate="all",
     )
-    print("🐞 item_create_response1:mxsk1", item_create_response1.json())
-    # CREATE RESOURCE RECORD 2
-    resource_create_response2 = create_archivesspace_test_resource(
-        asnake_client, "test_alchemist_regenerate_all_mxsk2", "mxsk2"
-    )
-    print("🐞 resource_create_response2:mxsk2", resource_create_response2.json())
-    # CREATE ARCHIVAL OBJECT ITEM RECORD 2
-    (
-        item_create_response2,
-        item_component_id2,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client,
-        "test_alchemist_regenerate_all_mxsk2",
-        "mxsk2",
-        resource_create_response2.json()["uri"],
-    )
-    print("🐞 item_create_response2:mxsk2", item_create_response2.json())
-    # RUN ALCHEMIST PROCESS
-    run_distillery(page, ["access"])
-    alchemist_item_uri1 = format_alchemist_item_uri(
-        "test_alchemist_regenerate_all_mxsk1", "mxsk1"
-    )
-    alchemist_item_uri2 = format_alchemist_item_uri(
-        "test_alchemist_regenerate_all_mxsk2", "mxsk2"
-    )
-    # INVALIDATE CLOUDFRONT ITEMS
-    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-        invalidate_cloudfront_path(caller_reference=timestamp)
-    # VALIDATE ALCHEMIST ITEMS
-    page.goto(alchemist_item_uri1)
-    expect(page).to_have_title("Item mxsk1")
-    page.goto(alchemist_item_uri2)
-    expect(page).to_have_title("Item mxsk2")
-    # UPDATE ARCHIVAL OBJECT ITEM RECORD 1
-    item1 = asnake_client.get(item_create_response1.json()["uri"]).json()
-    # update title
-    item1["title"] = "Regenerated Title mxsk1"
-    item_update_response1 = asnake_client.post(item1["uri"], json=item1)
-    print("🐞 item_update_response1:mxsk1", item_update_response1.json())
-    # UPDATE ARCHIVAL OBJECT ITEM RECORD 2
-    item2 = asnake_client.get(item_create_response2.json()["uri"]).json()
-    # update title
-    item2["title"] = "Regenerated Title mxsk2"
-    item_update_response2 = asnake_client.post(item2["uri"], json=item2)
-    print("🐞 item_update_response2:mxsk2", item_update_response2.json())
-    # RUN REGENERATE PROCESS
-    run_alchemist_regenerate(page, "all", timeout=120000)
-    # VALIDATE ALCHEMIST ITEMS
-    page.goto(alchemist_item_uri1)
-    expect(page).to_have_title("Regenerated Title mxsk1")
-    page.goto(alchemist_item_uri2)
-    expect(page).to_have_title("Regenerated Title mxsk2")
+    # VALIDATE REGENERATED ALCHEMIST PAGES
+    for _ in run_output:
+        page.goto(
+            "/".join(
+                [
+                    config("ALCHEMIST_BASE_URL").rstrip("/"),
+                    config("ALCHEMIST_URL_PREFIX"),
+                    _["id_0"],
+                    _["component_id"],
+                ]
+            )
+        )
+        expect(page.locator("hgroup > h1")).to_contain_text("UPDATED")
+
+
+@pytest.mark.skip(reason="placeholder for deletion of multiple collection records")
+def test_alchemist_regenerate_all_546ebcxx1():
+    return
+
+
+@pytest.mark.skip(reason="placeholder for deletion of multiple collection records")
+def test_alchemist_regenerate_all_546ebcxx2():
+    return
 
 
 def test_alchemist_fileversions_fail_2tgwm(page: Page, asnake_client):
