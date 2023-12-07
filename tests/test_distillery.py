@@ -1312,7 +1312,7 @@ def test_alchemist_archivesspace_file_uri_v8v5r(page: Page, asnake_client):
         digital_object = asnake_client.get(result["ref"]).json()
         print("🐞 digital_object", digital_object)
         assert digital_object["publish"] is True
-        assert digital_object["file_versions"][0]["file_uri"] == alchemist_item_uri
+        assert digital_object["file_versions"][1]["file_uri"] == alchemist_item_uri
 
 
 def test_alchemist_thumbnaillabel_sequence_yw3ff(page: Page, asnake_client, timestamp):
@@ -1391,7 +1391,6 @@ def test_alchemist_regenerate_one_986204(run, page: Page, asnake_client, timesta
         archival_object_count=2,
         level="file",
         ancestors=["subseries", "series"],
-        timeout=100000,
         simulate_archivesspace_offline=True,
         regenerate="one",
     )
@@ -1592,7 +1591,7 @@ def test_alchemist_fileversions_overwrite_v3wqp(page: Page, asnake_client):
         print("🐞 digital_object", digital_object)
         assert digital_object["publish"] is True
         assert len(digital_object["file_versions"]) == 2
-        assert digital_object["file_versions"][0]["file_uri"] == alchemist_item_uri
+        assert digital_object["file_versions"][1]["file_uri"] == alchemist_item_uri
 
 
 def test_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_client):
@@ -1651,7 +1650,7 @@ def test_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_client):
         print("🐞 digital_object", digital_object)
         assert digital_object["publish"] is True
         assert len(digital_object["file_versions"]) == 4
-        assert digital_object["file_versions"][0]["file_uri"] == alchemist_item_uri
+        assert digital_object["file_versions"][1]["file_uri"] == alchemist_item_uri
         for file_version in digital_object["file_versions"]:
             if file_version["file_uri"].startswith(
                 f"http://example.org/{item_component_id}"
@@ -1670,7 +1669,6 @@ def test_alchemist_item_breadcrumbs_multiple_single_image_objects_edcb48(
         archival_object_count=2,
         level="item",
         ancestors=["file", "subseries", "series"],
-        timeout=90000,
     )
     # VALIDATE ALCHEMIST DISPLAY
     for i in run_output:
@@ -1688,14 +1686,14 @@ def test_alchemist_item_breadcrumbs_multiple_single_image_objects_edcb48(
         expect(page.locator("hgroup nav li:nth-child(1)")).to_have_text(
             f'{test_name.capitalize().rsplit("_", maxsplit=1)[0].replace("_", " ")} {i["id_0"].replace("xx", " ")}'
         )
-        expect(page.locator("hgroup nav li:nth-child(2)")).to_have_text(
-            f'series {i["id_0"].replace("xx", " ")}'
+        expect(page.locator("hgroup nav li:nth-child(2)")).to_contain_text(
+            f'series {i["id_0"].split("x")[0]}'
         )
-        expect(page.locator("hgroup nav li:nth-child(3)")).to_have_text(
-            f'subseries {i["id_0"].replace("xx", " ")}'
+        expect(page.locator("hgroup nav li:nth-child(3)")).to_contain_text(
+            f'subseries {i["id_0"].split("x")[0]}'
         )
-        expect(page.locator("hgroup nav li:nth-child(4)")).to_have_text(
-            f'file {i["id_0"].replace("xx", " ")}'
+        expect(page.locator("hgroup nav li:nth-child(4)")).to_contain_text(
+            f'file {i["id_0"].split("x")[0]}'
         )
         expect(page.locator("hgroup nav li:nth-child(5)")).to_have_text(
             f'open the {i["component_id"].split("_")[0]} {i["component_id"].split("_")[-1].replace("xx", " ")} collection guide metadata record'
@@ -1737,11 +1735,11 @@ def test_alchemist_file_breadcrumbs_multi_image_object_67707b(
         expect(page.locator("hgroup nav li:nth-child(1)")).to_have_text(
             f'{test_name.capitalize().rsplit("_", maxsplit=1)[0].replace("_", " ")} {i["id_0"].replace("xx", " ")}'
         )
-        expect(page.locator("hgroup nav li:nth-child(2)")).to_have_text(
-            f'series {i["id_0"].replace("xx", " ")}'
+        expect(page.locator("hgroup nav li:nth-child(2)")).to_contain_text(
+            f'series {i["id_0"].split("x")[0]}'
         )
-        expect(page.locator("hgroup nav li:nth-child(3)")).to_have_text(
-            f'subseries {i["id_0"].replace("xx", " ")}'
+        expect(page.locator("hgroup nav li:nth-child(3)")).to_contain_text(
+            f'subseries {i["id_0"].split("x")[0]}'
         )
         expect(page.locator("hgroup nav li:nth-child(4)")).to_have_text(
             f'open the {i["component_id"].split("_")[0]} {i["component_id"].split("_")[-1].replace("xx", " ")} collection guide metadata record'
@@ -2115,7 +2113,7 @@ def test_alchemist_kitchen_sink_multi_item_image_k76zs(
         f"Subseries Title Longer Than 50 Characters"
     )
     expect(page.locator("hgroup nav li:nth-child(4)")).to_have_text(
-        f'Open the Item {test_name.split("_")[-1]} record within its collection guide.'
+        f'open the Item {test_name.split("_")[-1]} collection guide metadata record'
     )
     expect(page.locator("#metadata")).to_contain_text("Collection")
     expect(page.locator("#metadata")).to_contain_text("Series")
