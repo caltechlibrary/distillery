@@ -12,6 +12,7 @@ pytest-playwright = "*"
 
 [packages]
 archivessnake = "*"
+backoff = "*"
 boto3 = "*"
 botocore = "*"
 bottle = "*"
