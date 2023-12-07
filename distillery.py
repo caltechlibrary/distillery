@@ -724,7 +724,9 @@ class DistilleryService(rpyc.Service):
                 )
                 if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
                     # invalidate existing paths so the status_logger links work
-                    self.access_platform.invalidate_cloudfront_path()
+                    self.access_platform.invalidate_cloudfront_path(
+                        path=f'/{config("ALCHEMIST_URL_PREFIX")}/{collection_id}/*'
+                    )
                 for archival_object_prefix in archival_object_prefixes:
                     component_id = archival_object_prefix.split("/")[-2]
                     variables["archival_object"] = find_archival_object(component_id)
@@ -744,7 +746,9 @@ class DistilleryService(rpyc.Service):
                     )
                 if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
                     # invalidate again to ensure all paths serve fresh content
-                    self.access_platform.invalidate_cloudfront_path()
+                    self.access_platform.invalidate_cloudfront_path(
+                        path=f'/{config("ALCHEMIST_URL_PREFIX")}/{collection_id}/*'
+                    )
             else:
                 # TODO DRY this out
                 # regenerate files for all items
