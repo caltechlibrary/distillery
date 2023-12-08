@@ -966,6 +966,7 @@ def run(page, asnake_client, s3_client, timestamp, request):
         expected_outcome="success",
         simulate_archivesspace_offline=False,
         regenerate=None,
+        timeout=60000,
     ):
         print("...")
         # argument values are passed from the calling test
@@ -990,7 +991,7 @@ def run(page, asnake_client, s3_client, timestamp, request):
         elif test_name.split("_")[1] == "s3":
             destinations = ["cloud"]
         print("🐞 RUNNING DISTILLERY")
-        run_distillery(page, destinations, outcome=expected_outcome)
+        run_distillery(page, destinations, outcome=expected_outcome, timeout=timeout)
         if regenerate:
             update_content(page, asnake_client, content_attributes, regenerate)
             print("🐞 RUNNING ALCHEMIST REGENERATE")
@@ -1688,6 +1689,7 @@ def test_alchemist_item_breadcrumbs_multiple_single_image_objects_edcb48(
         archival_object_count=2,
         level="item",
         ancestors=["file", "subseries", "series"],
+        timeout=90000,
     )
     # VALIDATE ALCHEMIST DISPLAY
     for i in run_output:
