@@ -141,6 +141,8 @@ def move_test_files_to_initial_original_files_directory(test_name):
 
 
 def invalidate_cloudfront_path(path="/*", caller_reference=str(time.time())):
+    print(f"🐞 CLOUDFRONT INVALIDATION PATH: {path}")
+    print(f"🐞 CLOUDFRONT INVALIDATION CALLER_REFERENCE: {caller_reference}")
     cloudfront_client = boto3.client(
         "cloudfront",
         aws_access_key_id=config("DISTILLERY_AWS_ACCESS_KEY_ID"),
@@ -437,7 +439,7 @@ def run_alchemist_regenerate(
         print("🐞 SIMULATING ARCHIVESSPACE ONLINE")
         unblock_archivesspace_ports()
     expect(page.get_by_text("❌ Something went wrong.")).not_to_be_visible()
-    expect(page.locator("p")).to_contain_text(f"✅ Regenerated")
+    expect(page.locator("p")).to_contain_text(f"✅ Regenerated", timeout=30000)
 
 
 def run_oralhistories_add(page: Page, file, outcome="success"):
@@ -840,7 +842,9 @@ def update_content(page: Page, asnake_client, content_attributes, regenerate):
             ]
         )
         if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-            invalidate_cloudfront_path(path=f"/{alchemist_object_path}/*")
+            invalidate_cloudfront_path(
+                path=f"/{alchemist_object_path}/*", caller_reference=str(time.time())
+            )
         page.goto(
             "/".join([config("ALCHEMIST_BASE_URL").rstrip("/"), alchemist_object_path])
         )
@@ -863,7 +867,10 @@ def update_content(page: Page, asnake_client, content_attributes, regenerate):
             ]
         )
         if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-            invalidate_cloudfront_path(path=f"/{alchemist_collection_path}/*")
+            invalidate_cloudfront_path(
+                path=f"/{alchemist_collection_path}/*",
+                caller_reference=str(time.time()),
+            )
         for content_attribute in content_attributes:
             # VALIDATE EXISTING ALCHEMIST OBJECTS
             page.goto(
@@ -889,7 +896,7 @@ def update_content(page: Page, asnake_client, content_attributes, regenerate):
                 asnake_client.post(archival_object_uri, json=archival_object)
     elif regenerate == "all":
         if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-            invalidate_cloudfront_path()
+            invalidate_cloudfront_path(caller_reference=str(time.time()))
         for content_attribute in content_attributes:
             # VALIDATE EXISTING ALCHEMIST OBJECTS
             page.goto(
@@ -915,7 +922,7 @@ def update_content(page: Page, asnake_client, content_attributes, regenerate):
             asnake_client.post(archival_object_uri, json=archival_object)
 
 
-def delete_content(test_name, asnake_client, **kwargs):
+def delete_content(test_name, asnake_client, s3_client, **kwargs):
     # DELETE ANY EXISTING TEST RECORDS
     for j in range(1, kwargs.get("collection_count") + 1):
         delete_archivesspace_test_records(
@@ -934,6 +941,16 @@ def delete_content(test_name, asnake_client, **kwargs):
         recursive=True,
     ):
         os.system(f"/bin/rm -r {pathname}")
+    # DELETE S3 OBJECTS
+    if test_name.split("_")[1] == "alchemist":
+        bucket = config("ALCHEMIST_BUCKET")
+        prefix = f'{config("ALCHEMIST_URL_PREFIX")}/'
+    s3_response = s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+    if s3_response.get("Contents"):
+        s3_keys = [{"Key": s3_object["Key"]} for s3_object in s3_response["Contents"]]
+        s3_response = s3_client.delete_objects(
+            Bucket=bucket, Delete={"Objects": s3_keys}
+        )
 
 
 @pytest.fixture
@@ -954,7 +971,9 @@ def run(page, asnake_client, s3_client, timestamp, request):
         # argument values are passed from the calling test
         unblock_archivesspace_ports()
         print("🐞 DELETING PREVIOUS TEST CONTENT")
-        delete_content(test_name, asnake_client, collection_count=collection_count)
+        delete_content(
+            test_name, asnake_client, s3_client, collection_count=collection_count
+        )
         print("🐞 GENERATING TEST CONTENT")
         content_attributes = generate_content(
             test_name,

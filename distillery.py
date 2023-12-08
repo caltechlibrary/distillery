@@ -4,6 +4,7 @@
 # processing functionality; see web.py for bottlepy web application
 
 import hashlib
+import http
 import importlib
 import json
 import logging
@@ -15,10 +16,13 @@ import random
 import shutil
 import string
 import time
+import urllib3
 
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
+import backoff
+import requests
 import rpyc
 import sh
 
@@ -817,10 +821,49 @@ def get_collection_uri(collection_id):
     return search_results_json["resources"][0]["ref"]
 
 
+@backoff.on_exception(
+    backoff.expo,
+    (
+        http.client.RemoteDisconnected,
+        urllib3.exceptions.ProtocolError,
+        urllib3.exceptions.NewConnectionError,
+        urllib3.exceptions.MaxRetryError,
+        requests.exceptions.ConnectionError,
+    ),
+    max_time=1800,
+)
 def archivessnake_get(uri):
-    response = asnake_client.get(uri)
-    response.raise_for_status()
-    return response
+    return asnake_client.get(uri)
+
+
+@backoff.on_exception(
+    backoff.expo,
+    (
+        http.client.RemoteDisconnected,
+        urllib3.exceptions.ProtocolError,
+        urllib3.exceptions.NewConnectionError,
+        urllib3.exceptions.MaxRetryError,
+        requests.exceptions.ConnectionError,
+    ),
+    max_time=1800,
+)
+def archivessnake_post(uri, object):
+    return asnake_client.post(uri, json=object)
+
+
+@backoff.on_exception(
+    backoff.expo,
+    (
+        http.client.RemoteDisconnected,
+        urllib3.exceptions.ProtocolError,
+        urllib3.exceptions.NewConnectionError,
+        urllib3.exceptions.MaxRetryError,
+        requests.exceptions.ConnectionError,
+    ),
+    max_time=1800,
+)
+def archivessnake_delete(uri):
+    return asnake_client.delete(uri)
 
 
 def get_collection_tree(collection_uri):
@@ -845,23 +888,6 @@ def save_collection_datafile(collection_data, directory):
         f.write(json.dumps(collection_data, indent=4))
     logger.info(f"☑️  COLLECTION DATA FILE SAVED: {filename}")
     return collection_datafile_key
-
-
-def archivessnake_post(uri, object):
-    try:
-        response = asnake_client.post(uri, json=object)
-        logger.debug(f"🐞 RESPONSE: {response.json()}")
-        return response
-    except:
-        logger.exception("‼️")
-        raise
-
-
-def archivessnake_delete(uri):
-    response = asnake_client.delete(uri)
-    response.raise_for_status()
-    # TODO handle error responses
-    return response
 
 
 def save_digital_object_file_versions(archival_object, file_versions, file_versions_op):
@@ -1240,18 +1266,9 @@ def get_xmp_dc_metadata(arrangement, file_parts, archival_object):
     return xmp_dc
 
 
-def post_digital_object_component(json_data):
-    post_response = asnake_client.post(
-        "/repositories/2/digital_object_components", json=json_data
-    )
-    post_response.raise_for_status()
-    archivesspace_logger.info(post_response.json()["uri"])
-    return post_response
-
-
 def find_digital_object(digital_object_digital_object_id):
     """Return digital_object URI using the digital_object_id."""
-    find_by_id_response = asnake_client.get(
+    find_by_id_response = archivessnake_get(
         f"/repositories/2/find_by_id/digital_objects?digital_object_id[]={digital_object_digital_object_id}"
     )
     find_by_id_response.raise_for_status()
@@ -1266,7 +1283,7 @@ def find_digital_object(digital_object_digital_object_id):
 
 def get_digital_object(digital_object_component_id):
     """Return digital_object metadata using the digital_object_component_id."""
-    find_by_id_response = asnake_client.get(
+    find_by_id_response = archivessnake_get(
         f"/repositories/2/find_by_id/digital_object_components?digital_object_id[]={digital_object_component_id}"
     )
     find_by_id_response.raise_for_status()
@@ -1276,7 +1293,7 @@ def get_digital_object(digital_object_component_id):
         raise ValueError(
             f"Multiple digital_objects found with digital_object_component_id: {digital_object_component_id}"
         )
-    digital_object_get_response = asnake_client.get(
+    digital_object_get_response = archivessnake_get(
         f"{find_by_id_response.json()['digital_objects'][0]['ref']}"
     )
     digital_object_get_response.raise_for_status()
@@ -1623,16 +1640,16 @@ def save_preservation_file(source, destination):
 
 def set_digital_object_id(uri, digital_object_id):
     # raises an HTTPError exception if unsuccessful
-    get_response_json = asnake_client.get(uri).json()
+    get_response_json = archivessnake_get(uri).json()
     get_response_json["digital_object_id"] = digital_object_id
-    post_response = asnake_client.post(uri, json=get_response_json)
+    post_response = archivessnake_post(uri, get_response_json)
     post_response.raise_for_status()
     return
 
 
 def update_digital_object(uri, data):
     # raises an HTTPError exception if unsuccessful
-    response = asnake_client.post(uri, json=data)
+    response = archivessnake_post(uri, data)
     logger.debug(f"🐞 RESPONSE: {response.json()}")
     response.raise_for_status()
     archivesspace_logger.info(response.json()["uri"])
