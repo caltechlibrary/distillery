@@ -16,7 +16,6 @@ import random
 import shutil
 import string
 import time
-import urllib3
 
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -25,6 +24,7 @@ import backoff
 import requests
 import rpyc
 import sh
+import urllib3
 
 from asnake.client import ASnakeClient
 from decouple import config
