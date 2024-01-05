@@ -393,7 +393,9 @@ class AccessPlatform:
         return archival_object_prefixes
 
 
-def invalidate_cloudfront_path(path="/*", caller_reference=str(time.time())):
+def invalidate_cloudfront_path(path="/*", caller_reference=None):
+    if not caller_reference:
+        caller_reference = str(time.time())
     cloudfront_client = boto3.client(
         "cloudfront",
         aws_access_key_id=config("DISTILLERY_AWS_ACCESS_KEY_ID"),
