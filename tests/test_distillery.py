@@ -140,7 +140,9 @@ def move_test_files_to_initial_original_files_directory(test_name):
     )
 
 
-def invalidate_cloudfront_path(path="/*", caller_reference=str(time.time())):
+def invalidate_cloudfront_path(path="/*", caller_reference=None):
+    if not caller_reference:
+        caller_reference = str(time.time())
     print(f"🐞 CLOUDFRONT INVALIDATION PATH: {path}")
     print(f"🐞 CLOUDFRONT INVALIDATION CALLER_REFERENCE: {caller_reference}")
     cloudfront_client = boto3.client(
