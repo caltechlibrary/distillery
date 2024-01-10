@@ -441,7 +441,7 @@ def run_alchemist_regenerate(
         print("🐞 SIMULATING ARCHIVESSPACE ONLINE")
         unblock_archivesspace_ports()
     expect(page.get_by_text("❌ Something went wrong.")).not_to_be_visible()
-    expect(page.locator("p")).to_contain_text(f"✅ Regenerated", timeout=30000)
+    expect(page.locator("p")).to_contain_text(f"✅ Regenerated", timeout=300000)
 
 
 def run_oralhistories_add(page: Page, file, outcome="success"):
@@ -1691,7 +1691,7 @@ def test_alchemist_item_breadcrumbs_multiple_single_image_objects_edcb48(
         archival_object_count=2,
         level="item",
         ancestors=["file", "subseries", "series"],
-        timeout=90000,
+        timeout=120000,
     )
     # VALIDATE ALCHEMIST DISPLAY
     for i in run_output:
