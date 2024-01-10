@@ -672,7 +672,7 @@ def generate_content(test_name, asnake_client, **kwargs):
         response = asnake_client.post(
             "/repositories/2/archival_objects", json=archival_object
         )
-        print(f'🐞 ARCHIVAL OBJECT {archival_object["component_id"]}', response.json())
+        print(f'🐞 ARCHIVAL OBJECT {archival_object["component_id"]}', response.json(), f'{config("ASPACE_STAFF_URL").rstrip("/")}/resolve/readonly?uri={response.json()["uri"]}')
         return {
             "uri": response.json()["uri"],
             "component_id": archival_object["component_id"],
@@ -1695,16 +1695,16 @@ def test_alchemist_item_breadcrumbs_multiple_single_image_objects_edcb48(
     )
     # VALIDATE ALCHEMIST DISPLAY
     for i in run_output:
-        page.goto(
-            "/".join(
-                [
-                    config("ALCHEMIST_BASE_URL").rstrip("/"),
-                    config("ALCHEMIST_URL_PREFIX"),
-                    i["id_0"],
-                    i["component_id"],
-                ]
-            )
+        alchemist_item_url = "/".join(
+            [
+                config("ALCHEMIST_BASE_URL").rstrip("/"),
+                config("ALCHEMIST_URL_PREFIX"),
+                i["id_0"],
+                i["component_id"],
+            ]
         )
+        print(f"🐞 {alchemist_item_url}")
+        page.goto(alchemist_item_url)
         # validate breadcrumbs
         expect(page.locator("hgroup nav li:nth-child(1)")).to_have_text(
             f'{test_name.capitalize().rsplit("_", maxsplit=1)[0].replace("_", " ")} {i["id_0"].replace("xx", " ")}'
@@ -1744,16 +1744,16 @@ def test_alchemist_file_breadcrumbs_multi_image_object_67707b(
     )
     # VALIDATE ALCHEMIST DISPLAY
     for i in run_output:
-        page.goto(
-            "/".join(
-                [
-                    config("ALCHEMIST_BASE_URL").rstrip("/"),
-                    config("ALCHEMIST_URL_PREFIX"),
-                    i["id_0"],
-                    i["component_id"],
-                ]
-            )
+        alchemist_item_url = "/".join(
+            [
+                config("ALCHEMIST_BASE_URL").rstrip("/"),
+                config("ALCHEMIST_URL_PREFIX"),
+                i["id_0"],
+                i["component_id"],
+            ]
         )
+        print(f"🐞 {alchemist_item_url}")
+        page.goto(alchemist_item_url)
         # validate breadcrumbs
         expect(page.locator("hgroup nav li:nth-child(1)")).to_have_text(
             f'{test_name.capitalize().rsplit("_", maxsplit=1)[0].replace("_", " ")} {i["id_0"].replace("xx", " ")}'
