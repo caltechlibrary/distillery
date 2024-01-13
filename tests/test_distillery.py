@@ -96,16 +96,21 @@ def delete_archivesspace_test_records(asnake_client, resource_identifer):
         result = asnake_client.get(uri).json()
         for instance in result["instances"]:
             if instance.get("digital_object"):
+                print(f'🐞 DELETING DIGITAL_OBJECT {instance["digital_object"]["ref"]}')
                 digital_object_delete_response = asnake_client.delete(
                     instance["digital_object"]["ref"]
                 )
             if instance.get("sub_container") and instance["sub_container"].get(
                 "top_container"
             ):
+                print(
+                    f'🐞 DELETING TOP_CONTAINER {instance["sub_container"]["top_container"]["ref"]}'
+                )
                 top_container_delete_response = asnake_client.delete(
                     instance["sub_container"]["top_container"]["ref"]
                 )
         for linked_agent in result["linked_agents"]:
+            print(f'🐞 DELETING LINKED_AGENT {linked_agent["ref"]}')
             linked_agent_delete_response = asnake_client.delete(linked_agent["ref"])
 
     def recursive_delete(node, resource_ref):
@@ -121,6 +126,7 @@ def delete_archivesspace_test_records(asnake_client, resource_identifer):
         "/repositories/2/find_by_id/resources",
         params={"identifier[]": [f'["{resource_identifer}"]']},
     ).json()
+    print(f'🐞 RESOURCE_FIND_BY_ID_RESULTS["RESOURCES"]: {resource_find_by_id_results}')
     for result in resource_find_by_id_results["resources"]:
         delete_related_records(result["ref"])
         resource_tree = asnake_client.get(f'{result["ref"]}/tree/root').json()
@@ -130,6 +136,7 @@ def delete_archivesspace_test_records(asnake_client, resource_identifer):
         for child in resource_children:
             delete_related_records(child["uri"])
             recursive_delete(child, result["ref"])
+        print(f'🐞 DELETING RESOURCE {result["ref"]}')
         asnake_client.delete(result["ref"])
 
 
@@ -607,6 +614,11 @@ def delete_s3_preservation_objects(s3_client, test_id):
 
 
 def generate_content(test_name, asnake_client, **kwargs):
+    # NOTE "mixed" will always generate one each of audio, video, image
+    # regardless of archival_object_count value
+    if "mixed" in test_name:
+        kwargs["archival_object_count"] = 3
+
     def _create_archivesspace_resource(asnake_client, test_name, **kwargs):
         resource = {}
         # required
@@ -672,7 +684,11 @@ def generate_content(test_name, asnake_client, **kwargs):
         response = asnake_client.post(
             "/repositories/2/archival_objects", json=archival_object
         )
-        print(f'🐞 ARCHIVAL OBJECT {archival_object["component_id"]}', response.json(), f'{config("ASPACE_STAFF_URL").rstrip("/")}/resolve/readonly?uri={response.json()["uri"]}')
+        print(
+            f'🐞 ARCHIVAL OBJECT {archival_object["component_id"]}',
+            response.json(),
+            f'{config("ASPACE_STAFF_URL").rstrip("/")}/resolve/readonly?uri={response.json()["uri"]}',
+        )
         return {
             "uri": response.json()["uri"],
             "component_id": archival_object["component_id"],
@@ -741,6 +757,58 @@ def generate_content(test_name, asnake_client, **kwargs):
             f"{archival_object_uri}/parent", params={"parent": parent_id, "position": 1}
         )
 
+    def _generate_audio_file(file_stem, **kwargs):
+        audio = gTTS(text=file_stem.split("_")[-1])
+        if "directory" in kwargs:
+            output_file = os.path.join(
+                config("INITIAL_ORIGINAL_FILES"),
+                kwargs["directory"],
+                f"{file_stem}.mp3",
+            )
+            os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        else:
+            output_file = os.path.join(
+                config("INITIAL_ORIGINAL_FILES"), f"{file_stem}.mp3"
+            )
+        audio.save(output_file)
+        print(f"🐞 GENERATED FILE {output_file}")
+
+    def _generate_video_file(file_stem, **kwargs):
+        if "directory" in kwargs:
+            output_file = os.path.join(
+                config("INITIAL_ORIGINAL_FILES"),
+                kwargs["directory"],
+                f"{file_stem}.mp4",
+            )
+            os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        else:
+            output_file = os.path.join(
+                config("INITIAL_ORIGINAL_FILES"), f"{file_stem}.mp4"
+            )
+        timecode_text = r"text='timestamp:%{pts\:hms}': x=(w-text_w)/2: y=100: font=Mono: fontsize=64: fontcolor=Yellow: box=1: boxcolor=Black: boxborderw=10"
+        testname_text = f'text={file_stem.split("_")[-1]}: x=(w-text_w)/2: y=(h-text_h)/2: fontsize=196: fontcolor=White: shadowx=3: shadowy=3'
+        subprocess.run(
+            [
+                config("WORK_FFMPEG_CMD"),
+                "-f",
+                "lavfi",
+                "-i",
+                "smptebars=s=1280x720",
+                "-vf",
+                f"drawtext={timecode_text}, drawtext={testname_text}",
+                "-c:v",
+                "libx264",
+                "-r",
+                "30",
+                "-frames:v",
+                "90",
+                "-y",
+                output_file,
+            ],
+            check=True,
+        )
+        print(f"🐞 GENERATED FILE {output_file}")
+
     def _generate_image_file(file_stem, **kwargs):
         tmp_file, headers = urllib.request.urlretrieve(
             config("TEST_IMG_URL", default="https://picsum.photos/1600/1200")
@@ -764,24 +832,65 @@ def generate_content(test_name, asnake_client, **kwargs):
             stroke_fill="black",
         )
         if "directory" in kwargs:
-            file = os.path.join(
+            output_file = os.path.join(
                 config("INITIAL_ORIGINAL_FILES"),
                 kwargs["directory"],
                 f"{file_stem}.tif",
             )
-            os.makedirs(os.path.dirname(file), exist_ok=True)
+            os.makedirs(os.path.dirname(output_file), exist_ok=True)
         else:
-            file = os.path.join(config("INITIAL_ORIGINAL_FILES"), f"{file_stem}.tif")
-        img.save(file)
+            output_file = os.path.join(
+                config("INITIAL_ORIGINAL_FILES"), f"{file_stem}.tif"
+            )
+        img.save(output_file)
         img.close()
-        print(f"🐞 GENERATED FILE {file}")
+        print(f"🐞 GENERATED FILE {output_file}")
 
     def _create_digital_files(component_id, **kwargs):
-        if "audio" in component_id:
-            pass
+        if "mixed" in component_id:
+            # NOTE "mixed" will always generate one each of audio, video, image
+            # regardless of archival_object_count value
+            if component_id.endswith("1"):
+                _generate_audio_file(component_id, **kwargs)
+            elif component_id.endswith("2"):
+                _generate_video_file(component_id, **kwargs)
+            elif component_id.endswith("3"):
+                _generate_image_file(component_id, **kwargs)
+        elif "audio" in component_id:
+            if kwargs.get("digital_file_count") > 1:
+                for i in range(1, kwargs.get("digital_file_count") + 1):
+                    _generate_audio_file(
+                        "{}{}".format(
+                            "".join(
+                                random.choices(
+                                    string.ascii_lowercase + string.digits, k=6
+                                )
+                            ),
+                            str(i).zfill(2),
+                        ),
+                        directory=component_id,
+                        **kwargs,
+                    )
+            else:
+                _generate_audio_file(component_id, **kwargs)
         elif "video" in component_id:
-            pass
-        else:
+            if kwargs.get("digital_file_count") > 1:
+                for i in range(1, kwargs.get("digital_file_count") + 1):
+                    _generate_video_file(
+                        "{}{}".format(
+                            "".join(
+                                random.choices(
+                                    string.ascii_lowercase + string.digits, k=6
+                                )
+                            ),
+                            str(i).zfill(2),
+                        ),
+                        directory=component_id,
+                        **kwargs,
+                    )
+            else:
+                _generate_video_file(component_id, **kwargs)
+        else:  # create images by default
             if kwargs.get("digital_file_count") > 1:
                 for i in range(1, kwargs.get("digital_file_count") + 1):
                     _generate_image_file(
@@ -925,14 +1034,15 @@ def update_content(page: Page, asnake_client, content_attributes, regenerate):
 
 
 def delete_content(test_name, asnake_client, s3_client, **kwargs):
-    # DELETE ANY EXISTING TEST RECORDS
+    # DELETE ANY EXISTING TEST RECORDS IN ARCHIVESSPACE
     for j in range(1, kwargs.get("collection_count") + 1):
+        print(f"🐞 DELETING ARCHIVESSPACE RECORDS FOR {test_name.split('_')[-1]}xx{j}")
         delete_archivesspace_test_records(
             asnake_client, f'{test_name.split("_")[-1]}xx{j}'
         )
     # DELETE INITIAL_ORIGINAL_FILES FROM FAILED TESTS
     for pathname in glob.glob(
-        os.path.join(config("INITIAL_ORIGINAL_FILES"), f'*{test_name.split("_")[-1]}*')
+        os.path.join(config("INITIAL_ORIGINAL_FILES"), "*")
     ):
         os.system(f"/bin/rm -r {pathname}")
     # DELETE FILES IN BATCH_SETS_DIRECTORY FROM PASSED TESTS
@@ -943,13 +1053,23 @@ def delete_content(test_name, asnake_client, s3_client, **kwargs):
         recursive=True,
     ):
         os.system(f"/bin/rm -r {pathname}")
+    if config("WORK_STILLAGE_FILES", default=""):
+        os.system(f'/bin/rm -r {os.path.join(config("WORK_STILLAGE_FILES"), "*")}')
+    else:
+        os.system(
+            f'/bin/rm -r {os.path.join(os.path.dirname(config("WORK_PRESERVATION_FILES")), ".STILLAGE", "*")}'
+        )
     # DELETE S3 OBJECTS
     if test_name.split("_")[1] == "alchemist":
         bucket = config("ALCHEMIST_BUCKET")
         prefix = f'{config("ALCHEMIST_URL_PREFIX")}/'
+    elif test_name.split("_")[1] == "s3":
+        bucket = config("PRESERVATION_BUCKET")
+        prefix = f'{test_name.split("_")[-1]}'
     s3_response = s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
     if s3_response.get("Contents"):
         s3_keys = [{"Key": s3_object["Key"]} for s3_object in s3_response["Contents"]]
+        print(f"🐞 DELETING S3 OBJECTS: {s3_keys}")
         s3_response = s3_client.delete_objects(
             Bucket=bucket, Delete={"Objects": s3_keys}
         )
@@ -1298,43 +1418,40 @@ def test_alchemist_fail_unpublished_ancestor_jvycv(page: Page, asnake_client):
     # TODO check contents of iframe
 
 
-def test_alchemist_archivesspace_file_uri_v8v5r(page: Page, asnake_client):
-    """Confirm file_uri for Alchemist item makes it to ArchivesSpace."""
+def test_alchemist_archivesspace_file_uri_39d132(run, page: Page, asnake_client):
+    """Confirm ArchivesSpace file_uri matches Alchemist item URL."""
     test_name = inspect.currentframe().f_code.co_name
-    test_id = test_name.split("_")[-1]
-    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
-    move_test_files_to_initial_original_files_directory(test_name)
-    # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, test_id)
-    # CREATE RESOURCE RECORD
-    resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_name, test_id
+    run_output = run(
+        test_name,
+        level="item",
+        ancestors=[],
     )
-    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
-    # CREATE ARCHIVAL OBJECT ITEM RECORD
-    (
-        item_create_response,
-        item_component_id,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
-    )
-    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
-    # RUN ALCHEMIST PROCESS
-    run_distillery(page, ["access"])
-    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
-    # VALIDATE DIGITAL OBJECT RECORD
-    # TODO get archival_object instead of digital_object
-    results = asnake_client.get(
-        "/repositories/2/find_by_id/digital_objects",
-        params={"digital_object_id[]": f"{item_component_id}"},
-    ).json()
-    print(f"🐞 find_by_id/digital_objects:{item_component_id}", results)
-    assert len(results["digital_objects"]) == 1
-    for result in results["digital_objects"]:
-        digital_object = asnake_client.get(result["ref"]).json()
-        print("🐞 digital_object", digital_object)
-        assert digital_object["publish"] is True
-        assert digital_object["file_versions"][1]["file_uri"] == alchemist_item_uri
+    # VALIDATE URI/URL MATCH
+    for _ in run_output:
+        alchemist_item_url = "/".join(
+            [
+                config("ALCHEMIST_BASE_URL").rstrip("/"),
+                config("ALCHEMIST_URL_PREFIX"),
+                _["id_0"],
+                _["component_id"],
+            ]
+        )
+        print(f"🐞 {alchemist_item_url}")
+        page.goto(alchemist_item_url)
+        archival_object = asnake_client.get(
+            f'{_["archival_object_uri"]}?resolve[]=digital_object'
+        ).json()
+        assert len(archival_object["instances"]) == 1
+        assert (
+            archival_object["instances"][0]["digital_object"]["_resolved"][
+                "file_versions"
+            ][1]["file_uri"]
+            == alchemist_item_url
+        )
+        assert (
+            archival_object["instances"][0]["digital_object"]["_resolved"]["publish"]
+            is True
+        )
 
 
 def test_alchemist_thumbnaillabel_sequence_yw3ff(page: Page, asnake_client, timestamp):
@@ -2224,81 +2341,150 @@ def test_alchemist_archivesspace_digital_object_type_audio_jwkr2(
     # )
 
 
-def test_s3_nonsequential_filenames_image_gz36p(setup_test, asnake_client, s3_client):
-    """Confirm images with non-sequential filenames make it to S3 and ArchivesSpace."""
+def test_s3_archivesspace_entries_multiple_single_image_objects_7d6f50(
+    run, asnake_client, s3_client
+):
+    """Ensure single-image archival objects have entries in S3 and ArchivesSpace."""
     test_name = inspect.currentframe().f_code.co_name
-    setup_output = setup_test(test_name)
-    # VALIDATE S3 UPLOAD AND DIGITAL OBJECT RECORD
-    # get a list of s3 objects under this collection prefix
-    s3_response = s3_client.list_objects_v2(
-        Bucket=config("PRESERVATION_BUCKET"), Prefix=test_name.split("_")[-1]
+    run_output = run(
+        test_name,
+        collection_count=2,
+        archival_object_count=2,
+        level="item",
+        ancestors=[],
+        timeout=120000,
     )
-    print("🐞 s3_client.list_objects_v2", s3_response)
-    # ensure that the digital object components were created correctly
-    archival_object = asnake_client.get(
-        f'{setup_output["item_create_response"].json()["uri"]}?resolve[]=digital_object'
-    ).json()
-    print(
-        "🐞 digital_object",
-        archival_object["instances"][0]["digital_object"]["_resolved"],
-    )
-    assert len(archival_object["instances"]) == 1
-    tree = asnake_client.get(
-        f'{archival_object["instances"][0]["digital_object"]["ref"]}/tree/root'
-    ).json()
-    print(
-        f'🐞 {archival_object["instances"][0]["digital_object"]["ref"]}/tree/root', tree
-    )
-    # subtract 2, one for collection JSON file and one for the item JSON file
-    assert len(s3_response["Contents"]) - 2 == len(
-        tree["precomputed_waypoints"][""]["0"]
-    )
-    for waypoint in tree["precomputed_waypoints"][""]["0"]:
-        # split the s3 key from the file_uri_summary and ensure it matches
-        assert waypoint["file_uri_summary"].split(
-            f's3://{config("PRESERVATION_BUCKET")}/'
-        )[-1] in [s3_object["Key"] for s3_object in s3_response["Contents"]]
-        # split the original filename from the s3 key and match the label
-        assert waypoint["label"] in [
-            s3_object["Key"].split("/")[-2] for s3_object in s3_response["Contents"]
-        ]
+    # VALIDATE S3 UPLOADS AND ARCHIVESSPACE RECORDS
+    for i in run_output:
+        # get a list of s3 objects under this collection prefix
+        s3_response = s3_client.list_objects_v2(
+            Bucket=config("PRESERVATION_BUCKET"), Prefix=i["id_0"]
+        )
+        # get the digital_object tree
+        archival_object = asnake_client.get(
+            f'{i["archival_object_uri"]}?resolve[]=digital_object'
+        ).json()
+        assert len(archival_object["instances"]) == 1
+        tree = asnake_client.get(
+            f'{archival_object["instances"][0]["digital_object"]["ref"]}/tree/root'
+        ).json()
+        for waypoint in tree["precomputed_waypoints"][""]["0"]:
+            # ensure the s3 key matches the value in the file_uri_summary
+            assert waypoint["file_uri_summary"].split(
+                f's3://{config("PRESERVATION_BUCKET")}/'
+            )[-1] in [s3_object["Key"] for s3_object in s3_response["Contents"]]
+            # ensure the original filename from the s3 key matches the digital_object_component label
+            assert waypoint["label"] in [
+                s3_object["Key"].split("/")[-2] for s3_object in s3_response["Contents"]
+            ]
 
 
-def test_s3_digital_object_components_mixed_7b3px(setup_test, asnake_client, s3_client):
-    """Confirm mixed files make it to S3 and ArchivesSpace."""
+@pytest.mark.skip(reason="placeholder for deletion of multiple collection records")
+def test_s3_archivesspace_entries_multiple_single_image_objects_7d6f50xx1():
+    return
+
+
+@pytest.mark.skip(reason="placeholder for deletion of multiple collection records")
+def test_s3_archivesspace_entries_multiple_single_image_objects_7d6f50xx2():
+    return
+
+
+def test_s3_archivesspace_entries_multiple_multi_image_objects_3355ff(
+    run, asnake_client, s3_client
+):
+    """Ensure multi-image archival objects have entries in S3 and ArchivesSpace."""
     test_name = inspect.currentframe().f_code.co_name
-    setup_output = setup_test(test_name)
-    # VALIDATE S3 UPLOADS AND DIGITAL OBJECT RECORD
-    # get a list of s3 objects under this collection prefix
-    s3_response = s3_client.list_objects_v2(
-        Bucket=config("PRESERVATION_BUCKET"), Prefix=test_name.split("_")[-1]
+    run_output = run(
+        test_name,
+        collection_count=2,
+        archival_object_count=2,
+        level="file",
+        ancestors=["subseries", "series"],
+        digital_file_count=2,
+        timeout=120000,
     )
-    print("🐞 s3_client.list_objects_v2", s3_response)
-    # ensure that the digital object components were created correctly
-    archival_object = asnake_client.get(
-        f'{setup_output["item_create_response"].json()["uri"]}?resolve[]=digital_object'
-    ).json()
-    print(
-        "🐞 digital_object",
-        archival_object["instances"][0]["digital_object"]["_resolved"],
+    # VALIDATE S3 UPLOADS AND ARCHIVESSPACE RECORDS
+    for i in run_output:
+        # get a list of s3 objects under this collection prefix
+        s3_response = s3_client.list_objects_v2(
+            Bucket=config("PRESERVATION_BUCKET"), Prefix=i["id_0"]
+        )
+        # get the digital_object tree
+        archival_object = asnake_client.get(
+            f'{i["archival_object_uri"]}?resolve[]=digital_object'
+        ).json()
+        assert len(archival_object["instances"]) == 1
+        tree = asnake_client.get(
+            f'{archival_object["instances"][0]["digital_object"]["ref"]}/tree/root'
+        ).json()
+        for waypoint in tree["precomputed_waypoints"][""]["0"]:
+            # ensure the s3 key matches the value in the file_uri_summary
+            assert waypoint["file_uri_summary"].split(
+                f's3://{config("PRESERVATION_BUCKET")}/'
+            )[-1] in [s3_object["Key"] for s3_object in s3_response["Contents"]]
+            # ensure the original filename from the s3 key matches the digital_object_component label
+            assert waypoint["label"] in [
+                s3_object["Key"].split("/")[-2] for s3_object in s3_response["Contents"]
+            ]
+
+
+@pytest.mark.skip(reason="placeholder for deletion of multiple collection records")
+def test_s3_archivesspace_entries_multiple_multi_image_objects_3355ffxx1():
+    return
+
+
+@pytest.mark.skip(reason="placeholder for deletion of multiple collection records")
+def test_s3_archivesspace_entries_multiple_multi_image_objects_3355ffxx2():
+    return
+
+
+def test_s3_archivesspace_entries_multiple_single_mixed_objects_5cae65(
+    run, asnake_client, s3_client
+):
+    """Ensure single mixed format archival objects have entries in S3 and ArchivesSpace."""
+    test_name = inspect.currentframe().f_code.co_name
+    # NOTE "mixed" will always generate one each of audio, video, image
+    # regardless of archival_object_count value
+    run_output = run(
+        test_name,
+        collection_count=2,
+        level="item",
+        ancestors=[],
+        timeout=120000,
     )
-    assert len(archival_object["instances"]) == 1
-    tree = asnake_client.get(
-        f'{archival_object["instances"][0]["digital_object"]["ref"]}/tree/root'
-    ).json()
-    print(
-        f'🐞 {archival_object["instances"][0]["digital_object"]["ref"]}/tree/root', tree
-    )
-    assert len(tree["precomputed_waypoints"][""]["0"]) > 0
-    for waypoint in tree["precomputed_waypoints"][""]["0"]:
-        # split the s3 key from the file_uri_summary and ensure it matches
-        assert waypoint["file_uri_summary"].split(
-            f's3://{config("PRESERVATION_BUCKET")}/'
-        )[-1] in [s3_object["Key"] for s3_object in s3_response["Contents"]]
-        # split the original filename from the s3 key and match the label
-        assert waypoint["label"] in [
-            s3_object["Key"].split("/")[-2] for s3_object in s3_response["Contents"]
-        ]
+    # VALIDATE S3 UPLOADS AND ARCHIVESSPACE RECORDS
+    for i in run_output:
+        # get a list of s3 objects under this collection prefix
+        s3_response = s3_client.list_objects_v2(
+            Bucket=config("PRESERVATION_BUCKET"), Prefix=i["id_0"]
+        )
+        # get the digital_object tree
+        archival_object = asnake_client.get(
+            f'{i["archival_object_uri"]}?resolve[]=digital_object'
+        ).json()
+        assert len(archival_object["instances"]) == 1
+        tree = asnake_client.get(
+            f'{archival_object["instances"][0]["digital_object"]["ref"]}/tree/root'
+        ).json()
+        for waypoint in tree["precomputed_waypoints"][""]["0"]:
+            # ensure the s3 key matches the value in the file_uri_summary
+            assert waypoint["file_uri_summary"].split(
+                f's3://{config("PRESERVATION_BUCKET")}/'
+            )[-1] in [s3_object["Key"] for s3_object in s3_response["Contents"]]
+            # ensure the original filename from the s3 key matches the digital_object_component label
+            assert waypoint["label"] in [
+                s3_object["Key"].split("/")[-2] for s3_object in s3_response["Contents"]
+            ]
+
+
+@pytest.mark.skip(reason="placeholder for deletion of multiple collection records")
+def test_s3_archivesspace_entries_multiple_single_mixed_objects_5cae65xx1():
+    return
+
+
+@pytest.mark.skip(reason="placeholder for deletion of multiple collection records")
+def test_s3_archivesspace_entries_multiple_single_mixed_objects_5cae65xx2():
+    return
 
 
 @pytest.mark.skipif(

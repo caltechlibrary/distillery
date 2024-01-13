@@ -15,20 +15,16 @@ import os
 import random
 import shutil
 import string
-import time
 
-from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import backoff
 import requests
 import rpyc
-import sh
 import urllib3
 
 from asnake.client import ASnakeClient
 from decouple import config
-from jpylyzer import jpylyzer
 
 import statuslogger
 
@@ -394,6 +390,7 @@ class DistilleryService(rpyc.Service):
                     self.variables["archival_object"]
                 )
 
+                # collection-level preprocessing
                 if either_preservation_destination:
                     # retrieve collection data from ArchivesSpace
                     collection_data = get_collection_data(
@@ -556,6 +553,9 @@ class DistilleryService(rpyc.Service):
                     ):
                         for filename in filenames:
                             filepath = Path(dirpath).joinpath(filename)
+                            if filename in [".DS_Store", "Thumbs.db"]:
+                                os.remove(filepath)
+                                continue
                             if Path(filename).suffix == ".json" and Path(
                                 dirpath
                             ).name.startswith(Path(filename).stem):
@@ -564,29 +564,17 @@ class DistilleryService(rpyc.Service):
                             logger.info(
                                 f"▶️  GETTING PRESERVATION FILE INFO: {filepath}"
                             )
-                            type, encoding = mimetypes.guess_type(filepath)
-                            if type == "image/jp2":
-                                self.variables[
-                                    "preservation_file_info"
-                                ] = get_preservation_image_data(filepath)
+                            self.variables["preservation_file_info"] = {}
+                            self.variables["preservation_file_info"][
+                                "filepath"
+                            ] = filepath
+                            self.variables["preservation_file_info"][
+                                "filesize"
+                            ] = filepath.stat().st_size
+                            with open(filepath, "rb") as fb:
                                 self.variables["preservation_file_info"][
-                                    "mimetype"
-                                ] = type
-                            else:
-                                self.variables["preservation_file_info"] = {}
-                                self.variables["preservation_file_info"][
-                                    "filepath"
-                                ] = filepath
-                                self.variables["preservation_file_info"][
-                                    "filesize"
-                                ] = filepath.stat().st_size
-                                with open(filepath, "rb") as fb:
-                                    self.variables["preservation_file_info"][
-                                        "md5"
-                                    ] = hashlib.md5(fb.read())
-                                self.variables["preservation_file_info"][
-                                    "mimetype"
-                                ] = type
+                                    "md5"
+                                ] = hashlib.md5(fb.read())
                             if self.onsite_medium:
                                 self.onsite_medium.process_digital_object_component_file(
                                     self.variables
@@ -614,14 +602,41 @@ class DistilleryService(rpyc.Service):
                             ).as_posix()
                         )
                     )
-                    shutil.move(
-                        Path(config("WORK_PRESERVATION_FILES"))
-                        .joinpath(self.variables["arrangement"]["collection_id"])
-                        .as_posix(),
+                    if (
                         Path(config("WORK_STILLAGE_FILES", default=stillage_default))
                         .resolve()
-                        .as_posix(),
-                    )
+                        .joinpath(self.variables["arrangement"]["collection_id"])
+                        .is_dir()
+                    ):
+                        for dir_entry in os.scandir(
+                            Path(config("WORK_PRESERVATION_FILES")).joinpath(
+                                self.variables["arrangement"]["collection_id"]
+                            )
+                        ):
+                            shutil.move(
+                                dir_entry.path,
+                                Path(
+                                    config(
+                                        "WORK_STILLAGE_FILES", default=stillage_default
+                                    )
+                                )
+                                .resolve()
+                                .joinpath(
+                                    self.variables["arrangement"]["collection_id"]
+                                )
+                                .as_posix(),
+                            )
+                    else:
+                        shutil.move(
+                            Path(config("WORK_PRESERVATION_FILES"))
+                            .joinpath(self.variables["arrangement"]["collection_id"])
+                            .as_posix(),
+                            Path(
+                                config("WORK_STILLAGE_FILES", default=stillage_default)
+                            )
+                            .resolve()
+                            .as_posix(),
+                        )
                     os.system(
                         "/bin/rm -rf {}".format(
                             Path(
@@ -998,31 +1013,6 @@ def directory_setup(directory):
     return Path(directory)
 
 
-def get_aip_image_data(filepath):
-    aip_image_data = {}
-    aip_image_data["filepath"] = filepath
-    jpylyzer_xml = jpylyzer.checkOneFile(aip_image_data["filepath"])
-    aip_image_data["filesize"] = jpylyzer_xml.findtext("./fileInfo/fileSizeInBytes")
-    aip_image_data["width"] = jpylyzer_xml.findtext(
-        "./properties/jp2HeaderBox/imageHeaderBox/width"
-    )
-    aip_image_data["height"] = jpylyzer_xml.findtext(
-        "./properties/jp2HeaderBox/imageHeaderBox/height"
-    )
-    aip_image_data["standard"] = jpylyzer_xml.findtext(
-        "./properties/contiguousCodestreamBox/siz/rsiz"
-    )
-    aip_image_data["transformation"] = jpylyzer_xml.findtext(
-        "./properties/contiguousCodestreamBox/cod/transformation"
-    )
-    aip_image_data["quantization"] = jpylyzer_xml.findtext(
-        "./properties/contiguousCodestreamBox/qcd/qStyle"
-    )
-    with open(aip_image_data["filepath"], "rb") as f:
-        aip_image_data["md5"] = hashlib.md5(f.read())
-    return aip_image_data
-
-
 def get_crockford_characters(n=4):
     return "".join(random.choices("abcdefghjkmnpqrstvwxyz" + string.digits, k=n))
 
@@ -1191,79 +1181,6 @@ def get_digital_object_component_file_key(prefix, file_parts):
         + "."
         + file_parts["extension"]
     )
-
-
-def get_xmp_dc_metadata(arrangement, file_parts, archival_object):
-    xmp_dc = {}
-    xmp_dc["title"] = (
-        arrangement["archival_object_display_string"]
-        + " ["
-        + file_parts["sequence"]
-        + "]"
-    )
-    # TODO(tk) check extent type for pages/images/computer files/etc
-    if len(archival_object["extents"]) == 1:
-        xmp_dc["title"] = (
-            xmp_dc["title"].rstrip("]")
-            + "/"
-            + archival_object["extents"][0]["number"].zfill(4)
-            + "]"
-        )
-    xmp_dc["identifier"] = file_parts["crockford_id"]
-    xmp_dc["publisher"] = arrangement["repository_name"]
-    xmp_dc["source"] = (
-        arrangement["repository_code"] + ": " + arrangement["collection_title"]
-    )
-    for instance in archival_object["instances"]:
-        if "sub_container" in instance.keys():
-            if (
-                "series"
-                in instance["sub_container"]["top_container"]["_resolved"].keys()
-            ):
-                xmp_dc["source"] += (
-                    " / "
-                    + instance["sub_container"]["top_container"]["_resolved"]["series"][
-                        0
-                    ]["display_string"]
-                )
-                for ancestor in archival_object["ancestors"]:
-                    if ancestor["level"] == "subseries":
-                        xmp_dc["source"] += (
-                            " / " + arrangement["subseries_display_string"]
-                        )
-    xmp_dc[
-        "rights"
-    ] = "Caltech Archives has not determined the copyright in this image."
-    for ancestor in archival_object["ancestors"]:
-        if ancestor["level"] == "collection":
-            for note in ancestor["_resolved"]["notes"]:
-                if note["type"] == "userestrict":
-                    if (
-                        bool(note["subnotes"][0]["content"])
-                        and note["subnotes"][0]["publish"]
-                    ):
-                        xmp_dc["rights"] = note["subnotes"][0]["content"]
-        elif ancestor["level"] == "series":
-            for note in ancestor["_resolved"]["notes"]:
-                if note["type"] == "userestrict":
-                    if (
-                        bool(note["subnotes"][0]["content"])
-                        and note["subnotes"][0]["publish"]
-                    ):
-                        xmp_dc["rights"] = note["subnotes"][0]["content"]
-        elif ancestor["level"] == "subseries":
-            for note in ancestor["_resolved"]["notes"]:
-                if note["type"] == "userestrict":
-                    if (
-                        bool(note["subnotes"][0]["content"])
-                        and note["subnotes"][0]["publish"]
-                    ):
-                        xmp_dc["rights"] = note["subnotes"][0]["content"]
-    for note in archival_object["notes"]:
-        if note["type"] == "userestrict":
-            if bool(note["subnotes"][0]["content"]) and note["subnotes"][0]["publish"]:
-                xmp_dc["rights"] = note["subnotes"][0]["content"]
-    return xmp_dc
 
 
 def find_digital_object(digital_object_digital_object_id):
@@ -1469,153 +1386,7 @@ def construct_file_version(variables):
     file_version[
         "file_uri"
     ] = f'{variables["file_uri_scheme"]}://{variables["file_uri_host"]}/{file_key}'
-    # NOTE additional mimetypes TBD
-    if variables["preservation_file_info"]["mimetype"] == "image/jp2":
-        file_version["file_format_name"] = "JPEG 2000"
-        file_version["use_statement"] = "image-master"
-        if (
-            variables["preservation_file_info"]["transformation"] == "5-3 reversible"
-            and variables["preservation_file_info"]["quantization"] == "no quantization"
-        ):
-            file_version[
-                "caption"
-            ] = f'width: {variables["preservation_file_info"]["width"]}; height: {variables["preservation_file_info"]["height"]}; compression: lossless'
-            file_version[
-                "file_format_version"
-            ] = f'{variables["preservation_file_info"]["standard"]}; lossless (wavelet transformation: 5/3 reversible with no quantization)'
-        elif (
-            variables["preservation_file_info"]["transformation"] == "9-7 irreversible"
-            and variables["preservation_file_info"]["quantization"]
-            == "scalar expounded"
-        ):
-            file_version[
-                "caption"
-            ] = f'width: {variables["preservation_file_info"]["width"]}; height: {variables["preservation_file_info"]["height"]}; compression: lossy'
-            file_version[
-                "file_format_version"
-            ] = f'{variables["preservation_file_info"]["standard"]}; lossy (wavelet transformation: 9/7 irreversible with scalar expounded quantization)'
-        else:
-            file_version[
-                "caption"
-            ] = f'width: {variables["preservation_file_info"]["width"]}; height: {variables["preservation_file_info"]["height"]}'
-            file_version["file_format_version"] = variables["preservation_file_info"][
-                "standard"
-            ]
     return file_version
-
-
-def create_lossless_jpeg2000_image(variables):
-    """Convert original image and ensure matching image signatures."""
-    cut_cmd = sh.Command(config("WORK_CUT_CMD"))
-    sha512sum_cmd = sh.Command(config("WORK_SHA512SUM_CMD"))
-    magick_cmd = sh.Command(config("WORK_MAGICK_CMD"))
-    # Get checksum characters only by using `cut` (in the background).
-    logger.info("🧮 CALCULATING ORIGINAL IMAGE SIGNATURE...")
-    original_image_signature = cut_cmd(
-        sha512sum_cmd(
-            magick_cmd.stream(
-                "-quiet",
-                "-map",
-                "rgb",
-                "-storage-type",
-                "short",
-                variables["original_file_path"],
-                "-",
-                _piped=True,
-                _bg=True,
-            ),
-            _bg=True,
-        ),
-        "-d",
-        " ",
-        "-f",
-        "1",
-        _bg=True,
-    )
-    # Compile filepath components.
-    filepath_components = get_file_parts(
-        variables["original_file_path"]
-    )  # TODO rename function
-    # Replace the original extension with `jp2` and store
-    # `preservation_image_key` for the function to return as a string.
-    preservation_image_key = "jp2".join(
-        get_digital_object_component_file_key(
-            get_archival_object_directory_prefix(
-                variables["arrangement"], variables["archival_object"]
-            ),
-            filepath_components,
-        ).rsplit(filepath_components["extension"], 1)
-    )
-    preservation_image_path = (
-        Path(config("WORK_PRESERVATION_FILES"))
-        .joinpath(preservation_image_key)
-        .as_posix()
-    )
-    Path(Path(preservation_image_path).parent).mkdir(parents=True, exist_ok=True)
-    # Convert the image (in the background).
-    logger.info("⏳ CONVERTING IMAGE...")
-    image_conversion = magick_cmd.convert(
-        "-quiet",
-        variables["original_file_path"],
-        "-quality",
-        "0",
-        preservation_image_path,
-        _bg=True,
-    )
-    # Gather metadata for embedding into the JPEG 2000.
-    xmp_dc = get_xmp_dc_metadata(
-        variables["arrangement"], filepath_components, variables["archival_object"]
-    )
-    # Catch any conversion errors in order to skip file and continue.
-    # TODO needs testing
-    try:
-        image_conversion.wait()
-    except Exception as e:
-        # TODO log unfriendly `str(e)` instead of sending it along
-        # EXAMPLE:
-        # RAN: /usr/local/bin/magick convert -quiet /path/to/HBF/HBF_001_02/HBF_001_02_00.tif -quality 0 /path/to/HBF/HBF_001_02/HBF_001_02_00-LOSSLESS.jp2
-        # STDOUT:
-        # STDERR:
-        # convert: Cannot read TIFF header. `/path/to/HBF/HBF_001_02/HBF_001_02_00.tif' @ error/tiff.c/TIFFErrors/595.
-        # convert: no images defined `/path/to/HBF/HBF_001_02/HBF_001_02_00-LOSSLESS.jp2' @ error/convert.c/ConvertImageCommand/3304.
-        raise RuntimeError(str(e))
-    # Embed metadata into the JPEG 2000.
-    write_xmp_metadata(preservation_image_path, xmp_dc)
-    # Get checksum characters only by using `cut` (in the background).
-    logger.info("🧮 CALCULATING PRESERVATION IMAGE SIGNATURE...")
-    preservation_image_signature = cut_cmd(
-        sha512sum_cmd(
-            magick_cmd.stream(
-                "-quiet",
-                "-map",
-                "rgb",
-                "-storage-type",
-                "short",
-                preservation_image_path,
-                "-",
-                _piped=True,
-                _bg=True,
-            ),
-            _bg=True,
-        ),
-        "-d",
-        " ",
-        "-f",
-        "1",
-        _bg=True,
-    )
-    # Wait for image signatures.
-    original_image_signature.wait()
-    preservation_image_signature.wait()
-    # Verify that image signatures match.
-    if original_image_signature != preservation_image_signature:
-        raise RuntimeError(
-            f'❌ image signatures did not match: {filepath_components["filestem"]}'
-        )
-    logger.info(
-        f'☑️  IMAGE SIGNATURES MATCH:\n{original_image_signature.strip()} {variables["original_file_path"].split("/")[-1]}\n{preservation_image_signature.strip()} {preservation_image_path.split("/")[-1]}'
-    )
-    return preservation_image_key
 
 
 def save_archival_object_datafile(arrangement, archival_object, directory):
@@ -1656,100 +1427,35 @@ def update_digital_object(uri, data):
     return response
 
 
-def write_xmp_metadata(filepath, metadata):
-    # NOTE: except `source` all the dc elements here are keywords in exiftool
-    exiftool_cmd = sh.Command(config("WORK_EXIFTOOL_CMD"))
-    return exiftool_cmd(
-        "-title=" + metadata["title"],
-        "-identifier=" + metadata["identifier"],
-        "-XMP-dc:source=" + metadata["source"],
-        "-publisher=" + metadata["publisher"],
-        "-rights=" + metadata["rights"],
-        "-overwrite_original",
-        filepath,
-    )
-
-
 def prepare_preservation_files(variables):
-    """Concurrently process files in the archival object directory."""
-    with ProcessPoolExecutor() as executor:
-        futures = [
-            executor.submit(conditional_preservation_file_processing, f, variables)
-            for f in variables["filepaths"]
-        ]
-    status_logger.info(
-        f'☑️  PRESERVATION FILE PROCESSING COMPLETE: {variables["archival_object"]["component_id"]}'
-    )
-
-
-def conditional_preservation_file_processing(filepath, variables):
-    variables["original_file_path"] = filepath
-
-    type, encoding = mimetypes.guess_type(variables["original_file_path"])
-
-    if "onsite" in variables["destinations"] or "cloud" in variables["destinations"]:
-        if type and type.startswith("image/"):
-            try:
-                preservation_image_key = create_lossless_jpeg2000_image(variables)
-            except Exception:
-                logger.exception(
-                    "❌ LOSSLESS JPEG 2000 CREATION FAILED: {}".format(
-                        variables["original_file_path"]
-                    )
+    """Copy preservation files."""
+    for filepath in variables["filepaths"]:
+        variables["original_file_path"] = filepath
+        logger.debug(f"🐞 ORIGINAL_FILE_PATH: {variables['original_file_path']}")
+        filepath_components = get_file_parts(variables["original_file_path"])
+        logger.debug(f"🐞 FILEPATH_COMPONENTS: {filepath_components}")
+        preservation_file_key = get_digital_object_component_file_key(
+            get_archival_object_directory_prefix(
+                variables["arrangement"], variables["archival_object"]
+            ),
+            filepath_components,
+        )
+        logger.debug(f"🐞 PRESERVATION_FILE_KEY: {preservation_file_key}")
+        preservation_file_path = Path(config("WORK_PRESERVATION_FILES")).joinpath(
+            preservation_file_key
+        )
+        logger.debug(f"🐞 PRESERVATION_FILE_PATH: {preservation_file_path}")
+        try:
+            preservation_file_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(variables["original_file_path"], preservation_file_path)
+        except Exception:
+            logger.exception(
+                "❌ ORIGINAL FILE COPY FAILED: {}".format(
+                    variables["original_file_path"]
                 )
-            else:
-                status_logger.info(
-                    f"☑️  LOSSLESS JPEG 2000 FILE CREATED: {preservation_image_key}"
-                )
+            )
         else:
-            filepath_components = get_file_parts(variables["original_file_path"])
-            preservation_file_key = get_digital_object_component_file_key(
-                get_archival_object_directory_prefix(
-                    variables["arrangement"], variables["archival_object"]
-                ),
-                filepath_components,
-            )
-            preservation_file_path = Path(config("WORK_PRESERVATION_FILES")).joinpath(
-                preservation_file_key
-            )
-            try:
-                preservation_file_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(variables["original_file_path"], preservation_file_path)
-            except Exception:
-                logger.exception(
-                    "❌ ORIGINAL FILE COPY FAILED: {}".format(
-                        variables["original_file_path"]
-                    )
-                )
-            else:
-                status_logger.info(f"☑️  ORIGINAL FILE COPIED: {preservation_file_key}")
-
-
-def get_preservation_image_data(filepath):
-    preservation_image_data = {}
-    preservation_image_data["filepath"] = filepath
-    jpylyzer_xml = jpylyzer.checkOneFile(preservation_image_data["filepath"])
-    preservation_image_data["filesize"] = jpylyzer_xml.findtext(
-        "./fileInfo/fileSizeInBytes"
-    )
-    preservation_image_data["width"] = jpylyzer_xml.findtext(
-        "./properties/jp2HeaderBox/imageHeaderBox/width"
-    )
-    preservation_image_data["height"] = jpylyzer_xml.findtext(
-        "./properties/jp2HeaderBox/imageHeaderBox/height"
-    )
-    preservation_image_data["standard"] = jpylyzer_xml.findtext(
-        "./properties/contiguousCodestreamBox/siz/rsiz"
-    )
-    preservation_image_data["transformation"] = jpylyzer_xml.findtext(
-        "./properties/contiguousCodestreamBox/cod/transformation"
-    )
-    preservation_image_data["quantization"] = jpylyzer_xml.findtext(
-        "./properties/contiguousCodestreamBox/qcd/qStyle"
-    )
-    with open(preservation_image_data["filepath"], "rb") as f:
-        preservation_image_data["md5"] = hashlib.md5(f.read())
-    return preservation_image_data
+            status_logger.info(f"☑️  ORIGINAL FILE COPIED: {preservation_file_key}")
 
 
 if __name__ == "__main__":
