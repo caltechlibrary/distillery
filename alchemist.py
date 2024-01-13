@@ -591,7 +591,9 @@ def get_thumbnail_url(variables):
         [
             config("ALCHEMIST_URL_PREFIX"),
             variables["arrangement"]["collection_id"],
-            variables["archival_object"]["component_id"],  # TODO component_id is redundant for single file archival objects
+            variables["archival_object"][
+                "component_id"
+            ],  # TODO component_id is redundant for single file archival objects
             source_file.stem,
         ]
     )
