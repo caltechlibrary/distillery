@@ -202,9 +202,19 @@ class DistilleryService(rpyc.Service):
                 return False
             # check for existing digital_object["file_versions"]
             elif archival_object.get("instances"):
+                digital_object_count = 0
                 for instance in archival_object["instances"]:
-                    if "digital_object" not in instance.keys():
-                        return True
+                    if "digital_object" in instance.keys():
+                        digital_object_count += 1
+                if digital_object_count > 1:
+                    message = "‼️ MULTIPLE DIGITAL OBJECTS FOUND: [**{}**]({}/resolve/readonly?uri={})".format(
+                        archival_object["title"],
+                        config("ASPACE_STAFF_URL"),
+                        archival_object["uri"],
+                    )
+                    status_logger.error(message)
+                    return False
+                elif digital_object_count == 1:
                     # NOTE self.destinations is a JSON string
                     if (
                         instance["digital_object"]["_resolved"].get("file_versions")
@@ -239,6 +249,9 @@ class DistilleryService(rpyc.Service):
                         )
                         status_logger.warning(message)
                         return True
+                else:
+                    # go through with creating a new digital_object
+                    return True
             else:
                 # ensure there is a return value
                 return True
