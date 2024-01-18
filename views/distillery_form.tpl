@@ -74,9 +74,14 @@
           </label>
           <fieldset class="publishing" hidden>
             <legend>Choose what happens if digital object file versions exist.</legend>
+            <!--
+            TODO change options to FAIL and REPLACE
+            where REPLACE will have logic to compare the file_uri values
+            and determine whether to unpublish or overwrite the currently published values
+            another TODO will be to automatically create a resolver redirect entry for an unpublished file_uri
+            -->
             <label><input type="radio" name="file_versions_op" value="fail" checked>Fail validation when any digital object file versions exist</label>
-            <label><input type="radio" name="file_versions_op" value="overwrite">Overwrite any existing digital object file versions</label>
-            <label><input type="radio" name="file_versions_op" value="unpublish">Unpublish any existing digital object file versions</label>
+            <label><input type="radio" name="file_versions_op" value="replace">Replace any existing web access files and update ArchivesSpace digital object records</label>
           </fieldset>
           <fieldset class="publishing" hidden>
             <legend>Images with an appended sequence indicator in the filename will be labeled with only the sequence indicator in the thumbnail display.</legend>

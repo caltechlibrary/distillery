@@ -348,6 +348,37 @@ def unblock_archivesspace_ports():
     )
 
 
+def publish_to_web(page: Page, **kwargs):
+    page.goto(config("DISTILLERY_BASE_URL"))
+    page.locator(f'input[value="access"]').click()
+    page.locator(f'input[value="{kwargs.get("file_versions_op", "fail")}"]').check()
+    page.locator(f'input[value="{kwargs.get("thumbnail_label", "sequence")}"]').check()
+    page.get_by_role("button", name="Validate").click()
+    page.locator("summary").click()
+    if kwargs.get("outcome", "success") == "failure":
+        expect(page.locator("p")).to_have_text(
+            "❌ Something went wrong. View the details for more information.",
+            timeout=kwargs.get("timeout", 60000),
+        )
+        return page
+    success = page.locator("p").get_by_text("✅ Successfully")
+    validated = page.locator("p").get_by_text(
+        "✅ Successfully validated metadata, files, and destinations."
+    )
+    processed = page.locator("p").get_by_text(
+        "✅ Successfully processed metadata and files."
+    )
+    error = page.locator("p").get_by_text(
+        "❌ Something went wrong. View the details for more information."
+    )
+    expect(success.or_(error)).to_be_visible(timeout=kwargs.get("timeout", 60000))
+    expect(validated).to_be_visible()
+    page.get_by_role("button", name="Run").click()
+    page.locator("summary").click()
+    expect(success.or_(error)).to_be_visible(timeout=kwargs.get("timeout", 60000))
+    expect(processed).to_be_visible()
+
+
 def run_distillery(
     page: Page,
     destinations,
@@ -601,6 +632,166 @@ def generate_audio_file(test_name, **kwargs):
     audio.save(file)
 
 
+def generate_filesystem_files(test_name, **kwargs):
+    # kwargs: collection_count, archival_object_count, level, digital_file_count
+    def _generate_audio_file(file_stem, **kwargs):
+        audio = gTTS(text=file_stem.split("_")[-1])
+        if "directory" in kwargs:
+            output_file = os.path.join(
+                config("INITIAL_ORIGINAL_FILES"),
+                kwargs["directory"],
+                f"{file_stem}.mp3",
+            )
+            os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        else:
+            output_file = os.path.join(
+                config("INITIAL_ORIGINAL_FILES"), f"{file_stem}.mp3"
+            )
+        audio.save(output_file)
+        print(f"🐞 GENERATED FILE {output_file}")
+
+    def _generate_video_file(file_stem, **kwargs):
+        if "directory" in kwargs:
+            output_file = os.path.join(
+                config("INITIAL_ORIGINAL_FILES"),
+                kwargs["directory"],
+                f"{file_stem}.mp4",
+            )
+            os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        else:
+            output_file = os.path.join(
+                config("INITIAL_ORIGINAL_FILES"), f"{file_stem}.mp4"
+            )
+        timecode_text = r"text='timestamp:%{pts\:hms}': x=(w-text_w)/2: y=100: font=Mono: fontsize=64: fontcolor=Yellow: box=1: boxcolor=Black: boxborderw=10"
+        testname_text = f'text={file_stem.split("_")[-1]}: x=(w-text_w)/2: y=(h-text_h)/2: fontsize=196: fontcolor=White: shadowx=3: shadowy=3'
+        subprocess.run(
+            [
+                config("WORK_FFMPEG_CMD"),
+                "-f",
+                "lavfi",
+                "-i",
+                "smptebars=s=1280x720",
+                "-vf",
+                f"drawtext={timecode_text}, drawtext={testname_text}",
+                "-c:v",
+                "libx264",
+                "-r",
+                "30",
+                "-frames:v",
+                "90",
+                "-y",
+                output_file,
+            ],
+            check=True,
+        )
+        print(f"🐞 GENERATED FILE {output_file}")
+
+    def _generate_image_file(file_stem, **kwargs):
+        tmp_file, headers = urllib.request.urlretrieve(
+            config("TEST_IMG_URL", default="https://picsum.photos/1600/1200")
+        )
+        img = Image.open(tmp_file)
+        drw = ImageDraw.Draw(img)
+        fnt = ImageFont.truetype(
+            config(
+                "TEST_IMG_FONT",
+                default="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            ),
+            144,
+        )
+        drw.text(
+            (800, 600),
+            file_stem.split("_")[-1],
+            fill="white",
+            font=fnt,
+            anchor="mm",
+            stroke_width=10,
+            stroke_fill="black",
+        )
+        if "directory" in kwargs:
+            output_file = os.path.join(
+                config("INITIAL_ORIGINAL_FILES"),
+                kwargs["directory"],
+                f"{file_stem}.tif",
+            )
+            os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        else:
+            output_file = os.path.join(
+                config("INITIAL_ORIGINAL_FILES"), f"{file_stem}.tif"
+            )
+        img.save(output_file)
+        img.close()
+        print(f"🐞 GENERATED FILE {output_file}")
+
+    def _generate_digital_files(component_id, **kwargs):
+        if "mixed" in component_id:
+            # NOTE "mixed" will always generate one each of audio, video, image
+            # regardless of archival_object_count value
+            if component_id.endswith("1"):
+                _generate_audio_file(component_id, **kwargs)
+            elif component_id.endswith("2"):
+                _generate_video_file(component_id, **kwargs)
+            elif component_id.endswith("3"):
+                _generate_image_file(component_id, **kwargs)
+        elif "audio" in component_id:
+            if kwargs.get("digital_file_count") > 1:
+                for i in range(1, kwargs.get("digital_file_count") + 1):
+                    _generate_audio_file(
+                        "{}{}".format(
+                            "".join(
+                                random.choices(
+                                    string.ascii_lowercase + string.digits, k=6
+                                )
+                            ),
+                            str(i).zfill(2),
+                        ),
+                        directory=component_id,
+                        **kwargs,
+                    )
+            else:
+                _generate_audio_file(component_id, **kwargs)
+        elif "video" in component_id:
+            if kwargs.get("digital_file_count") > 1:
+                for i in range(1, kwargs.get("digital_file_count") + 1):
+                    _generate_video_file(
+                        "{}{}".format(
+                            "".join(
+                                random.choices(
+                                    string.ascii_lowercase + string.digits, k=6
+                                )
+                            ),
+                            str(i).zfill(2),
+                        ),
+                        directory=component_id,
+                        **kwargs,
+                    )
+            else:
+                _generate_video_file(component_id, **kwargs)
+        else:  # create images by default
+            if kwargs.get("digital_file_count") > 1:
+                for i in range(1, kwargs.get("digital_file_count") + 1):
+                    _generate_image_file(
+                        "{}{}".format(
+                            "".join(
+                                random.choices(
+                                    string.ascii_lowercase + string.digits, k=6
+                                )
+                            ),
+                            str(i).zfill(2),
+                        ),
+                        directory=component_id,
+                        **kwargs,
+                    )
+            else:
+                _generate_image_file(component_id, **kwargs)
+
+    for j in range(1, kwargs["collection_count"] + 1):
+        for i in range(1, kwargs["archival_object_count"] + 1):
+            _generate_digital_files(
+                f'{kwargs["level"]}__{test_name}xx{j}xx{i}', **kwargs
+            )
+
+
 def delete_s3_preservation_objects(s3_client, test_id):
     s3_response = s3_client.list_objects_v2(
         Bucket=config("PRESERVATION_BUCKET"), Prefix=test_id
@@ -611,6 +802,183 @@ def delete_s3_preservation_objects(s3_client, test_id):
         s3_response = s3_client.delete_objects(
             Bucket=config("PRESERVATION_BUCKET"), Delete={"Objects": s3_keys}
         )
+
+
+def generate_archivesspace_records(test_name, asnake_client, **kwargs):
+    # NOTE "mixed" will always generate one each of audio, video, image
+    # regardless of archival_object_count value
+    if "mixed" in test_name:
+        kwargs["archival_object_count"] = 3
+
+    def _create_archivesspace_resource(asnake_client, test_name, **kwargs):
+        resource = {}
+        # required
+        # NOTE `id_0` is limited to 50 characters
+        resource["title"] = f'{test_name.capitalize().replace("_", " ")} {kwargs["j"]}'
+        resource["id_0"] = f'{test_name.split("_")[-1]}xx{kwargs["j"]}'
+        resource["level"] = "collection"
+        resource["finding_aid_language"] = "eng"
+        resource["finding_aid_script"] = "Latn"
+        resource["lang_materials"] = [
+            {"language_and_script": {"language": "eng", "script": "Latn"}}
+        ]
+        resource["dates"] = [
+            {
+                "label": "creation",
+                "date_type": "single",
+                "begin": str(datetime.date.today()),
+            }
+        ]
+        resource["extents"] = [
+            {"portion": "whole", "number": "1", "extent_type": "boxes"}
+        ]
+        # optional
+        resource["publish"] = True
+        # post
+        response = asnake_client.post("/repositories/2/resources", json=resource)
+        print("🐞 RESOURCE", response.json())
+        return {
+            "uri": response.json()["uri"],
+            "id_0": resource["id_0"],
+        }
+
+    def _create_archival_object(asnake_client, test_name, resource_uri, **kwargs):
+        archival_object = {}
+        archival_object["level"] = kwargs.get("level")
+        archival_object["resource"] = {"ref": resource_uri}
+        archival_object[
+            "title"
+        ] = f'{kwargs.get("level")} {test_name.split("_")[-1]} {kwargs["j"]} {kwargs["i"]}'
+        archival_object[
+            "component_id"
+        ] = f'{kwargs.get("level")}__{test_name}xx{kwargs["j"]}xx{kwargs["i"]}'
+        archival_object["publish"] = True
+        # customizations
+        if kwargs.get("customizations"):
+            for key, value in kwargs["customizations"].items():
+                if key == "linked_agents":
+                    archival_object[key] = []
+                    for agent in value:
+                        ref = create_archivesspace_test_agent_person(
+                            asnake_client, test_name.split("_")[-1], agent
+                        )
+                        archival_object[key].append(
+                            {
+                                "ref": ref.json()["uri"],
+                                "role": agent.get("role", "creator"),
+                                "relator": agent.get("relator"),
+                            }
+                        )
+                else:
+                    archival_object[key] = value
+        # post
+        response = asnake_client.post(
+            "/repositories/2/archival_objects", json=archival_object
+        )
+        print(
+            f'🐞 ARCHIVAL OBJECT {archival_object["component_id"]}',
+            response.json(),
+            f'{config("ASPACE_STAFF_URL").rstrip("/")}/resolve/readonly?uri={response.json()["uri"]}',
+        )
+        return {
+            "uri": response.json()["uri"],
+            "component_id": archival_object["component_id"],
+        }
+
+    def _create_ancestors(asnake_client, test_name, resource_uri, **kwargs):
+        if "series" in kwargs.get("ancestors"):
+            kwargs["level"] = "series"
+            _series = _create_archival_object(
+                asnake_client, test_name, resource_uri, **kwargs
+            )
+            if "subseries" in kwargs.get("ancestors"):
+                kwargs["level"] = "subseries"
+                _subseries = _create_archival_object(
+                    asnake_client, test_name, resource_uri, **kwargs
+                )
+                asnake_client.post(
+                    f'{_subseries["uri"]}/parent',
+                    params={"parent": _series["uri"].rsplit("/")[-1], "position": 1},
+                )
+                if "file" in kwargs.get("ancestors"):
+                    kwargs["level"] = "file"
+                    _file = _create_archival_object(
+                        asnake_client, test_name, resource_uri, **kwargs
+                    )
+                    asnake_client.post(
+                        f'{_file["uri"]}/parent',
+                        params={
+                            "parent": _subseries["uri"].rsplit("/")[-1],
+                            "position": 1,
+                        },
+                    )
+                    return _file["uri"].rsplit("/")[-1]
+                else:
+                    return _subseries["uri"].rsplit("/")[-1]
+            else:
+                return _series["uri"].rsplit("/")[-1]
+        elif "subseries" in kwargs.get("ancestors"):
+            kwargs["level"] = "subseries"
+            _subseries = _create_archival_object(
+                asnake_client, test_name, resource_uri, **kwargs
+            )
+            if "file" in kwargs.get("ancestors"):
+                kwargs["level"] = "file"
+                _file = _create_archival_object(
+                    asnake_client, test_name, resource_uri, **kwargs
+                )
+                asnake_client.post(
+                    f'{_file["uri"]}/parent',
+                    params={"parent": _subseries["uri"].rsplit("/")[-1], "position": 1},
+                )
+                return _file["uri"].rsplit("/")[-1]
+            else:
+                return _subseries["uri"].rsplit("/")[-1]
+        elif "file" in kwargs.get("ancestors"):
+            kwargs["level"] = "file"
+            _file = _create_archival_object(
+                asnake_client, test_name, resource_uri, **kwargs
+            )
+            return _file["uri"].rsplit("/")[-1]
+        else:
+            return None
+
+    def _nest_archival_object(archival_object_uri, parent_id):
+        asnake_client.post(
+            f"{archival_object_uri}/parent", params={"parent": parent_id, "position": 1}
+        )
+
+    _content_attributes = []
+    for j in range(1, kwargs.get("collection_count") + 1):
+        _resource = _create_archivesspace_resource(asnake_client, test_name, j=j)
+        parent_id = _create_ancestors(
+            asnake_client,
+            test_name,
+            _resource["uri"],
+            i=0,
+            j=j,
+            **kwargs,
+        )
+        for i in range(1, kwargs.get("archival_object_count") + 1):
+            _archival_object = _create_archival_object(
+                asnake_client,
+                test_name,
+                _resource["uri"],
+                i=i,
+                j=j,
+                **kwargs,
+            )
+            if parent_id:
+                _nest_archival_object(_archival_object["uri"], parent_id)
+            _content_attributes.append(
+                {
+                    "archival_object_uri": _archival_object["uri"],
+                    "component_id": _archival_object["component_id"],
+                    "resource_uri": _resource["uri"],
+                    "id_0": _resource["id_0"],
+                }
+            )
+    return _content_attributes
 
 
 def generate_content(test_name, asnake_client, **kwargs):
@@ -1033,32 +1401,55 @@ def update_content(page: Page, asnake_client, content_attributes, regenerate):
             asnake_client.post(archival_object_uri, json=archival_object)
 
 
-def delete_content(test_name, asnake_client, s3_client, **kwargs):
+def delete_archivesspace_records(test_name, asnake_client, **kwargs):
     # DELETE ANY EXISTING TEST RECORDS IN ARCHIVESSPACE
     for j in range(1, kwargs.get("collection_count") + 1):
         print(f"🐞 DELETING ARCHIVESSPACE RECORDS FOR {test_name.split('_')[-1]}xx{j}")
         delete_archivesspace_test_records(
             asnake_client, f'{test_name.split("_")[-1]}xx{j}'
         )
-    # DELETE INITIAL_ORIGINAL_FILES FROM FAILED TESTS
-    for pathname in glob.glob(
-        os.path.join(config("INITIAL_ORIGINAL_FILES"), "*")
-    ):
+
+
+def delete_filesystem_files():
+    # DELETE ANY EXISTING TEST FILES IN FILESYSTEM
+    for pathname in glob.glob(os.path.join(config("INITIAL_ORIGINAL_FILES"), "*")):
         os.system(f"/bin/rm -r {pathname}")
-    # DELETE FILES IN BATCH_SETS_DIRECTORY FROM PASSED TESTS
+    for pathname in glob.glob(os.path.join(config("BATCH_SETS_DIRECTORY"), "*")):
+        os.system(f"/bin/rm -r {pathname}")
     for pathname in glob.glob(
         os.path.join(
-            config("BATCH_SETS_DIRECTORY"), f'**/*{test_name.split("_")[-1]}*'
-        ),
-        recursive=True,
+            config(
+                "WORK_STILLAGE_FILES",
+                default=os.path.join(
+                    os.path.dirname(config("WORK_PRESERVATION_FILES")), ".STILLAGE"
+                ),
+            ),
+            "*",
+        )
     ):
         os.system(f"/bin/rm -r {pathname}")
-    if config("WORK_STILLAGE_FILES", default=""):
-        os.system(f'/bin/rm -r {os.path.join(config("WORK_STILLAGE_FILES"), "*")}')
-    else:
-        os.system(
-            f'/bin/rm -r {os.path.join(os.path.dirname(config("WORK_PRESERVATION_FILES")), ".STILLAGE", "*")}'
-        )
+
+
+def delete_content(test_name, asnake_client, s3_client, **kwargs):
+    delete_archivesspace_records(test_name, asnake_client, **kwargs)
+    delete_filesystem_files()
+    # # DELETE INITIAL_ORIGINAL_FILES FROM FAILED TESTS
+    # for pathname in glob.glob(os.path.join(config("INITIAL_ORIGINAL_FILES"), "*")):
+    #     os.system(f"/bin/rm -r {pathname}")
+    # # DELETE FILES IN BATCH_SETS_DIRECTORY FROM PASSED TESTS
+    # for pathname in glob.glob(
+    #     os.path.join(
+    #         config("BATCH_SETS_DIRECTORY"), f'**/*{test_name.split("_")[-1]}*'
+    #     ),
+    #     recursive=True,
+    # ):
+    #     os.system(f"/bin/rm -r {pathname}")
+    # if config("WORK_STILLAGE_FILES", default=""):
+    #     os.system(f'/bin/rm -r {os.path.join(config("WORK_STILLAGE_FILES"), "*")}')
+    # else:
+    #     os.system(
+    #         f'/bin/rm -r {os.path.join(os.path.dirname(config("WORK_PRESERVATION_FILES")), ".STILLAGE", "*")}'
+    #     )
     # DELETE S3 OBJECTS
     if test_name.split("_")[1] == "alchemist":
         bucket = config("ALCHEMIST_BUCKET")
@@ -1418,6 +1809,90 @@ def test_alchemist_fail_unpublished_ancestor_jvycv(page: Page, asnake_client):
     # TODO check contents of iframe
 
 
+def test_alchemist_archivesspace_fail_file_version_exists_70811b(page: Page):
+    """Fail validation when file_version exists."""
+    test_name = inspect.currentframe().f_code.co_name
+    # BEGIN BASIC ALCHEMIST PROCESS
+    kwargs = {
+        "collection_count": 1,
+        "archival_object_count": 1,
+        "level": "file",
+        "ancestors": [],
+        "digital_file_count": 1,
+    }
+    # kwargs: collection_count
+    delete_archivesspace_records(test_name, asnake_client, **kwargs)
+    delete_filesystem_files()
+    # kwargs: collection_count, archival_object_count, level, ancestors
+    generate_archivesspace_records(test_name, asnake_client, **kwargs)
+    # kwargs: collection_count, archival_object_count, level, digital_file_count
+    generate_filesystem_files(test_name, **kwargs)
+    # kwargs: file_versions_op, thumbnail_label, outcome, timeout
+    publish_to_web(page, **kwargs)
+    # END BASIC ALCHEMIST PROCESS
+    # BEGIN ATTEMPT TO PUBLISH AN EXISTING OBJECT
+    # kwargs: collection_count, archival_object_count, level, digital_file_count
+    generate_filesystem_files(test_name, **kwargs)
+    # kwargs: file_versions_op, thumbnail_label, outcome, timeout
+    publish_to_web(page, outcome="failure", **kwargs)
+    # END ATTEMPT TO PUBLISH AN EXISTING OBJECT
+
+
+def test_alchemist_archivesspace_replace_file_version_exists_328abf(
+    page: Page, asnake_client
+):
+    """Replace records and files when file_version exists."""
+    test_name = inspect.currentframe().f_code.co_name
+    # BEGIN BASIC ALCHEMIST PROCESS
+    kwargs = {
+        "collection_count": 1,
+        "archival_object_count": 1,
+        "level": "file",
+        "ancestors": [],
+        "digital_file_count": 1,
+    }
+    # kwargs: collection_count
+    delete_archivesspace_records(test_name, asnake_client, **kwargs)
+    delete_filesystem_files()
+    # kwargs: collection_count, archival_object_count, level, ancestors
+    record_data = generate_archivesspace_records(test_name, asnake_client, **kwargs)
+    # kwargs: collection_count, archival_object_count, level, digital_file_count
+    generate_filesystem_files(test_name, **kwargs)
+    # kwargs: file_versions_op, thumbnail_label, outcome, timeout
+    publish_to_web(page, **kwargs)
+    # END BASIC ALCHEMIST PROCESS
+    # BEGIN ATTEMPT TO PUBLISH AN EXISTING OBJECT
+    # kwargs: collection_count, archival_object_count, level, digital_file_count
+    generate_filesystem_files(test_name, **kwargs)
+    # kwargs: file_versions_op, thumbnail_label, outcome, timeout
+    publish_to_web(page, file_versions_op="replace", **kwargs)
+    # END ATTEMPT TO PUBLISH AN EXISTING OBJECT
+    for _ in record_data:
+        archival_object = asnake_client.get(
+            f'{_["archival_object_uri"]}?resolve[]=digital_object'
+        ).json()
+        # create_time of digital_object should be different from file_version
+        # print(f'🐞 {archival_object["instances"][0]["digital_object"]["_resolved"]["create_time"]}')
+        # print(f'🐞 {archival_object["instances"][0]["digital_object"]["_resolved"]["system_mtime"]}')
+        # print(f'🐞 {archival_object["instances"][0]["digital_object"]["_resolved"]["user_mtime"]}')
+        # print(f'🐞 {archival_object["instances"][0]["digital_object"]["_resolved"]["file_versions"][0]["create_time"]}')
+        # print(f'🐞 {archival_object["instances"][0]["digital_object"]["_resolved"]["file_versions"][0]["system_mtime"]}')
+        # print(f'🐞 {archival_object["instances"][0]["digital_object"]["_resolved"]["file_versions"][0]["user_mtime"]}')
+        assert (
+            len(
+                {
+                    archival_object["instances"][0]["digital_object"]["_resolved"][
+                        "create_time"
+                    ],
+                    archival_object["instances"][0]["digital_object"]["_resolved"][
+                        "file_versions"
+                    ][0]["create_time"],
+                }
+            )
+            > 1
+        )
+
+
 def test_alchemist_archivesspace_file_uri_39d132(run, page: Page, asnake_client):
     """Confirm ArchivesSpace file_uri matches Alchemist item URL."""
     test_name = inspect.currentframe().f_code.co_name
@@ -1672,129 +2147,6 @@ def test_alchemist_fileversions_fail_2tgwm(page: Page, asnake_client):
     # RUN ALCHEMIST PROCESS
     run_distillery(page, ["access"], outcome="failure")
     # TODO check contents of iframe
-
-
-def test_alchemist_fileversions_overwrite_v3wqp(page: Page, asnake_client):
-    """Overwrite any existing digital object file versions."""
-    test_name = inspect.currentframe().f_code.co_name
-    test_id = test_name.split("_")[-1]
-    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
-    move_test_files_to_initial_original_files_directory(test_name)
-    # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, test_id)
-    # CREATE RESOURCE RECORD
-    resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_name, test_id
-    )
-    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
-    # CREATE ARCHIVAL OBJECT ITEM RECORD
-    (
-        item_create_response,
-        item_component_id,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
-    )
-    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
-    # CREATE DIGITAL OBJECT RECORD
-    (
-        digital_object_create_response,
-        digital_object_id,
-    ) = create_archivesspace_test_digital_object(asnake_client, test_name, test_id)
-    print(
-        f"🐞 digital_object_create_response:{test_id}",
-        digital_object_create_response.json(),
-    )
-    # UPDATE ARCHIVAL OBJECT ITEM RECORD
-    item = asnake_client.get(item_create_response.json()["uri"]).json()
-    # update title
-    item["instances"] = [
-        {
-            "instance_type": "digital_object",
-            "digital_object": {"ref": digital_object_create_response.json()["uri"]},
-        }
-    ]
-    item_update_response = asnake_client.post(item["uri"], json=item)
-    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
-    # RUN ALCHEMIST PROCESS
-    run_distillery(page, ["access"], file_versions_op="overwrite")
-    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
-    # VALIDATE DIGITAL OBJECT RECORD
-    results = asnake_client.get(
-        "/repositories/2/find_by_id/digital_objects",
-        params={"digital_object_id[]": f"{item_component_id}"},
-    ).json()
-    print(f"🐞 find_by_id/digital_objects:{item_component_id}", results)
-    assert len(results["digital_objects"]) == 1
-    for result in results["digital_objects"]:
-        digital_object = asnake_client.get(result["ref"]).json()
-        print("🐞 digital_object", digital_object)
-        assert digital_object["publish"] is True
-        assert len(digital_object["file_versions"]) == 2
-        assert digital_object["file_versions"][1]["file_uri"] == alchemist_item_uri
-
-
-def test_alchemist_fileversions_unpublish_9dygi(page: Page, asnake_client):
-    """Unpublish any existing digital object file versions."""
-    test_name = inspect.currentframe().f_code.co_name
-    test_id = test_name.split("_")[-1]
-    # MOVE TEST FILES TO INITIAL_ORIGINAL_FILES DIRECTORY
-    move_test_files_to_initial_original_files_directory(test_name)
-    # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, test_id)
-    # CREATE RESOURCE RECORD
-    resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_name, test_id
-    )
-    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
-    # CREATE ARCHIVAL OBJECT ITEM RECORD
-    (
-        item_create_response,
-        item_component_id,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
-    )
-    print(f"🐞 item_create_response:{test_id}", item_create_response.json())
-    # CREATE DIGITAL OBJECT RECORD
-    (
-        digital_object_create_response,
-        digital_object_id,
-    ) = create_archivesspace_test_digital_object(asnake_client, test_name, test_id)
-    print(
-        f"🐞 digital_object_create_response:{test_id}",
-        digital_object_create_response.json(),
-    )
-    # UPDATE ARCHIVAL OBJECT ITEM RECORD
-    item = asnake_client.get(item_create_response.json()["uri"]).json()
-    # update title
-    item["instances"] = [
-        {
-            "instance_type": "digital_object",
-            "digital_object": {"ref": digital_object_create_response.json()["uri"]},
-        }
-    ]
-    item_update_response = asnake_client.post(item["uri"], json=item)
-    print(f"🐞 item_update_response:{test_id}", item_update_response.json())
-    # RUN ALCHEMIST PROCESS
-    run_distillery(page, ["access"], file_versions_op="unpublish")
-    alchemist_item_uri = format_alchemist_item_uri(test_name, test_id)
-    # VALIDATE DIGITAL OBJECT RECORD
-    results = asnake_client.get(
-        "/repositories/2/find_by_id/digital_objects",
-        params={"digital_object_id[]": f"{item_component_id}"},
-    ).json()
-    print(f"🐞 find_by_id/digital_objects:{item_component_id}", results)
-    assert len(results["digital_objects"]) == 1
-    for result in results["digital_objects"]:
-        digital_object = asnake_client.get(result["ref"]).json()
-        print("🐞 digital_object", digital_object)
-        assert digital_object["publish"] is True
-        assert len(digital_object["file_versions"]) == 4
-        assert digital_object["file_versions"][1]["file_uri"] == alchemist_item_uri
-        for file_version in digital_object["file_versions"]:
-            if file_version["file_uri"].startswith(
-                f"http://example.org/{item_component_id}"
-            ):
-                assert file_version["publish"] is False
 
 
 def test_alchemist_item_breadcrumbs_multiple_single_image_objects_edcb48(

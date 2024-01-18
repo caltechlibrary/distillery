@@ -227,27 +227,16 @@ class DistilleryService(rpyc.Service):
                         )
                         status_logger.error(message)
                         return False
-                    elif (
-                        instance["digital_object"]["_resolved"].get("file_versions")
-                        and "overwrite" in self.destinations
-                    ):
-                        message = "⚠️ DIGITAL OBJECT FILE VERSIONS WILL BE OVERWRITTEN: [**{}**]({}/resolve/readonly?uri={})".format(
+                    elif instance["digital_object"]["_resolved"].get("file_versions"):
+                        message = "⚠️ EXISTING WEB ACCESS FILES WILL BE REPLACED AND DIGITAL OBJECT RECORDS WILL BE UPDATED: [**{}**]({}/resolve/readonly?uri={})".format(
                             instance["digital_object"]["_resolved"]["title"],
                             config("ASPACE_STAFF_URL"),
                             instance["digital_object"]["ref"],
                         )
                         status_logger.warning(message)
                         return True
-                    elif (
-                        instance["digital_object"]["_resolved"].get("file_versions")
-                        and "unpublish" in self.destinations
-                    ):
-                        message = "⚠️ DIGITAL OBJECT FILE VERSIONS WILL BE UNPUBLISHED: [**{}**]({}/resolve/readonly?uri={})".format(
-                            instance["digital_object"]["_resolved"]["title"],
-                            config("ASPACE_STAFF_URL"),
-                            instance["digital_object"]["ref"],
-                        )
-                        status_logger.warning(message)
+                    else:
+                        # no file versions exist yet
                         return True
                 else:
                     # go through with creating a new digital_object
@@ -433,9 +422,6 @@ class DistilleryService(rpyc.Service):
                 # for publication destinations
                 accessDistiller = None
                 if self.access_platform:
-                    self.variables["file_versions_op"] = json.loads(self.destinations)[
-                        "access"
-                    ]["file_versions_op"]
                     self.variables["thumbnail_label"] = json.loads(self.destinations)[
                         "access"
                     ]["thumbnail_label"]
@@ -918,34 +904,35 @@ def save_collection_datafile(collection_data, directory):
     return collection_datafile_key
 
 
-def save_digital_object_file_versions(archival_object, file_versions, file_versions_op):
-    try:
-        for instance in archival_object["instances"]:
-            if "digital_object" in instance.keys():
-                # ASSUMPTION: only one digital_object exists per archival_object
-                # TODO handle multiple digital_objects per archival_object
-                existing_file_versions = []
-                if file_versions_op == "unpublish" and instance["digital_object"][
-                    "_resolved"
-                ].get("file_versions"):
-                    for file_version in instance["digital_object"]["_resolved"][
-                        "file_versions"
-                    ]:
-                        file_version["publish"] = False
-                        file_version["is_representative"] = False
-                    existing_file_versions = instance["digital_object"]["_resolved"][
-                        "file_versions"
-                    ]
-                file_versions.extend(existing_file_versions)
-                digital_object = instance["digital_object"]["_resolved"]
-                digital_object["file_versions"] = file_versions
-                digital_object["publish"] = True
-                digital_object_post_response = update_digital_object(
-                    digital_object["uri"], digital_object
-                ).json()
-    except:
-        logger.exception("‼️")
-        raise
+def save_digital_object_file_versions(archival_object, new_file_versions):
+    for instance in archival_object["instances"]:
+        if "digital_object" in instance.keys():
+            # ASSUMPTION: only one digital_object exists per archival_object
+            # TODO handle multiple digital_objects per archival_object
+            existing_file_versions = instance["digital_object"]["_resolved"].get(
+                "file_versions"
+            )
+            # create temporary dictionary of new_file_version values keyed by file_uri
+            new_file_uri_values = {
+                new_file_version["file_uri"]: new_file_version
+                for new_file_version in new_file_versions
+            }
+            # add existing_file_version values to new_file_uri_values if file_uri not already present
+            for existing_file_version in existing_file_versions:
+                if existing_file_version["file_uri"] not in new_file_uri_values:
+                    existing_file_version["publish"] = False
+                    existing_file_version["is_representative"] = False
+                    new_file_uri_values[
+                        existing_file_version["file_uri"]
+                    ] = existing_file_version
+            # discard keys and create list of unique file_version dictionaries
+            file_versions = list(new_file_uri_values.values())
+            digital_object = instance["digital_object"]["_resolved"]
+            digital_object["file_versions"] = file_versions
+            digital_object["publish"] = True
+            digital_object_post_response = update_digital_object(
+                digital_object["uri"], digital_object
+            ).json()
 
 
 def create_digital_object(archival_object, digital_object_type=""):
