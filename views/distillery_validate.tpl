@@ -110,7 +110,7 @@
           <li>Logged in as: {{user["display_name"]}}</li>
         </ul>
         <ul>
-          <li><a href="{{distillery_base_url}}/Shibboleth.sso/Logout" role="button" class="secondary outline">Log out</a></li>
+          <li><a href="/Shibboleth.sso/Logout" role="button" class="secondary outline">Log out</a></li>
         </ul>
       </nav>
     </footer>
