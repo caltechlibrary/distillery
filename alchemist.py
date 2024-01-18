@@ -1149,7 +1149,7 @@ def create_digital_object_file_versions(build_directory, variables):
         )
     elif digital_object_count == 1:
         distillery.save_digital_object_file_versions(
-            variables["archival_object"], file_versions, variables["file_versions_op"]
+            variables["archival_object"], file_versions
         )
     elif digital_object_count < 1:
         # returns new archival_object with digital_object instance included
@@ -1160,7 +1160,7 @@ def create_digital_object_file_versions(build_directory, variables):
             variables["archival_object"], digital_object_type=digital_object_type
         )
         distillery.save_digital_object_file_versions(
-            variables["archival_object"], file_versions, variables["file_versions_op"]
+            variables["archival_object"], file_versions
         )
 
 
