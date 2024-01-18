@@ -247,12 +247,12 @@ class DistilleryService(rpyc.Service):
 
         archival_object_count = 0
         file_count = 0
+        unsupported_filetypes = 0
+        validation_failures = 0
         for dirpath, dirnames, filenames in os.walk(config("INITIAL_ORIGINAL_FILES")):
             logger.debug(f"🐞 DIRPATH: {dirpath}")
             logger.debug(f"🐞 DIRNAMES: {dirnames}")
             logger.debug(f"🐞 FILENAMES: {filenames}")
-            filetype_supported = True
-            validation_status = True
             if not dirnames and not filenames:
                 message = "❌ NO DIRECTORIES OR FILES FOUND"
                 status_logger.error(message)
@@ -268,16 +268,18 @@ class DistilleryService(rpyc.Service):
                             Path(dirpath).joinpath(filename)
                         )
                         if not (type.startswith("image/") or type.endswith("/mp4")):
-                            filetype_supported = False
-                    validation_status = is_archival_object_valid(
+                            unsupported_filetypes += 1
+                    if not is_archival_object_valid(
                         filename.rsplit(".", maxsplit=1)[0]
-                    )
+                    ):
+                        validation_failures += 1
                     file_count += 1
                     archival_object_count += 1
             # check dirnames in root directory
             for dirname in dirnames:
                 status_logger.info(f"📁 {dirname}")
-                validation_status = is_archival_object_valid(dirname)
+                if not is_archival_object_valid(dirname):
+                    validation_failures += 1
                 for dir_entry in os.scandir(Path(dirpath).joinpath(dirname)):
                     if dir_entry.name in [".DS_Store", "Thumbs.db"]:
                         os.remove(dir_entry.path)
@@ -289,11 +291,11 @@ class DistilleryService(rpyc.Service):
             # and continuing to loop over filenames
             # https://stackoverflow.com/a/43618972
             dirnames[:] = []
-            if not filetype_supported:
+            if unsupported_filetypes > 0:
                 message = "❌ UNSUPPORTED FILE TYPE"
                 status_logger.error(message)
                 raise RuntimeError(message)
-            if not validation_status:
+            if validation_failures > 0:
                 message = "❌ VALIDATION FAILURE"
                 status_logger.error(message)
                 raise RuntimeError(message)
