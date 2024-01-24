@@ -1,5 +1,5 @@
 # SECRETS
-settings.ini
+settings*.ini
 users.csv
 
 # DEVELOPMENT
