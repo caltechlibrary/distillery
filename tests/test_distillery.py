@@ -3086,7 +3086,7 @@ def test_oralhistories_single_transcript_upload_publish_b1620f(
         if config("RESOLVER_BUCKET", default=""):
             resolver_s3_response = s3_client.list_objects_v2(
                 Bucket=config("RESOLVER_BUCKET"),
-                Prefix="{}/{}".format(
+                Prefix="{}:{}".format(
                     config("RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"),
                     _["component_id"],
                 ),
@@ -3117,12 +3117,10 @@ def test_oralhistories_single_transcript_upload_publish_b1620f(
             invalidate_cloudfront_path(caller_reference=timestamp)
         # VALIDATE RESOLVER URL & WEB TRANSCRIPT
         if config("RESOLVER_BUCKET", default=""):
-            resolver_url = "/".join(
-                [
-                    config("RESOLVER_SERVICE_ENDPOINT").rstrip("/"),
-                    config("RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"),
-                    _["component_id"],
-                ]
+            resolver_url = "{}/{}:{}".format(
+                config("RESOLVER_SERVICE_ENDPOINT").rstrip("/"),
+                config("RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"),
+                _["component_id"],
             )
             print("🐞 RESOLVER URL:", resolver_url)
             page.goto(resolver_url)
