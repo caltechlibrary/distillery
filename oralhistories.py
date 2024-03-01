@@ -151,13 +151,9 @@ class OralHistoriesService(rpyc.Service):
                         # set a redirect in the resolver
                         if config("RESOLVER_BUCKET", default=""):
                             self.set_resolver_redirect(
-                                "/".join(
-                                    [
-                                        config(
-                                            "RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"
-                                        ),
-                                        f'{line.split("/")[-2]}',
-                                    ]
+                                "{}:{}".format(
+                                    config("RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"),
+                                    f'{line.split("/")[-2]}',
                                 ),
                                 file_uri,
                             )
@@ -216,7 +212,7 @@ class OralHistoriesService(rpyc.Service):
             if component_id:
                 if config("RESOLVER_BUCKET", default=""):
                     self.status_logger.info(
-                        "☑️ created [**{}** persistant URL entry]({}/{}/{}) in resolver".format(
+                        "☑️ created [**{}** persistant URL entry]({}/{}:{}) in resolver".format(
                             component_id,
                             config("RESOLVER_SERVICE_ENDPOINT").rstrip("/"),
                             config("RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"),
@@ -355,12 +351,10 @@ class OralHistoriesService(rpyc.Service):
         metadata = {"title": archival_object["title"]}
         metadata["component_id"] = archival_object["component_id"]
         metadata["archival_object_uri"] = archival_object["uri"]
-        metadata["resolver_url"] = "/".join(
-            [
-                config("RESOLVER_SERVICE_ENDPOINT").rstrip("/"),
-                config("RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"),
-                archival_object["component_id"],
-            ]
+        metadata["resolver_url"] = "{}/{}:{}".format(
+            config("RESOLVER_SERVICE_ENDPOINT").rstrip("/"),
+            config("RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"),
+            archival_object["component_id"],
         )
         metadata["archivesspace_public_url"] = config("ASPACE_PUBLIC_URL").rstrip("/")
         if archival_object.get("dates"):
