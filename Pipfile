@@ -4,11 +4,13 @@ verify_ssl = true
 name = "pypi"
 
 [dev-packages]
+essential-generators = "*"
 gitpython = "*"
 gtts = "*"
 opencv-python-headless = "*"
 pillow = "*"
 pytest-playwright = "*"
+python-docx = "*"
 
 [packages]
 archivessnake = "*"

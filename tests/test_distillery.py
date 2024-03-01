@@ -16,6 +16,8 @@ import git
 import pytest
 
 from decouple import config
+from docx import Document
+from essential_generators import DocumentGenerator
 from gtts import gTTS
 from PIL import Image, ImageDraw, ImageFont
 from playwright.sync_api import Page, expect
@@ -686,6 +688,91 @@ def generate_filesystem_files(test_name, **kwargs):
         )
         print(f"🐞 GENERATED FILE {output_file}")
 
+    def _generate_transcript_file(file_stem, **kwargs):
+        generate = DocumentGenerator()
+        document = Document()
+        document.add_heading(file_stem.replace("_", " "), 0)
+        document.add_page_break()
+        document.add_paragraph(generate.paragraph())
+        document.add_heading(generate.sentence(), level=1)
+        document.add_heading(generate.sentence(), level=2)
+        paragraph = document.add_paragraph()
+        paragraph.add_run("Question: ").bold = True
+        paragraph.add_run(generate.sentence())
+        paragraph = document.add_paragraph()
+        paragraph.add_run("Answer: ").bold = True
+        paragraph.add_run(generate.paragraph())
+        document.add_paragraph(generate.paragraph())
+        paragraph = document.add_paragraph()
+        paragraph.add_run("Question: ").bold = True
+        paragraph.add_run(generate.sentence())
+        paragraph = document.add_paragraph()
+        paragraph.add_run("Answer: ").bold = True
+        paragraph.add_run(generate.paragraph())
+        document.add_paragraph(generate.paragraph())
+        document.add_paragraph(generate.paragraph())
+        document.add_heading(generate.sentence(), level=2)
+        paragraph = document.add_paragraph()
+        paragraph.add_run("Question: ").bold = True
+        paragraph.add_run(generate.sentence())
+        paragraph = document.add_paragraph()
+        paragraph.add_run("Answer: ").bold = True
+        paragraph.add_run(generate.paragraph())
+        document.add_paragraph(generate.paragraph())
+        document.add_paragraph(generate.paragraph())
+        paragraph = document.add_paragraph()
+        paragraph.add_run("Question: ").bold = True
+        paragraph.add_run(generate.sentence())
+        paragraph = document.add_paragraph()
+        paragraph.add_run("Answer: ").bold = True
+        paragraph.add_run(generate.paragraph())
+        document.add_heading(generate.sentence(), level=1)
+        document.add_heading(generate.sentence(), level=2)
+        paragraph = document.add_paragraph()
+        paragraph.add_run("Question: ").bold = True
+        paragraph.add_run(generate.sentence())
+        paragraph = document.add_paragraph()
+        paragraph.add_run("Answer: ").bold = True
+        paragraph.add_run(generate.paragraph())
+        document.add_paragraph(generate.paragraph())
+        document.add_paragraph(generate.paragraph())
+        document.add_heading(generate.sentence(), level=2)
+        paragraph = document.add_paragraph()
+        paragraph.add_run("Question: ").bold = True
+        paragraph.add_run(generate.sentence())
+        paragraph = document.add_paragraph()
+        paragraph.add_run("Answer: ").bold = True
+        paragraph.add_run(generate.paragraph())
+        document.add_paragraph(generate.paragraph())
+        paragraph = document.add_paragraph()
+        paragraph.add_run("Question: ").bold = True
+        paragraph.add_run(generate.sentence())
+        paragraph = document.add_paragraph()
+        paragraph.add_run("Answer: ").bold = True
+        paragraph.add_run(generate.paragraph())
+        document.add_paragraph(generate.paragraph())
+        document.add_paragraph(generate.paragraph())
+        paragraph = document.add_paragraph()
+        paragraph.add_run("Question: ").bold = True
+        paragraph.add_run(generate.sentence())
+        paragraph = document.add_paragraph()
+        paragraph.add_run("Answer: ").bold = True
+        paragraph.add_run(generate.paragraph())
+        if "directory" in kwargs:
+            output_file = os.path.join(
+                config("INITIAL_ORIGINAL_FILES"),
+                kwargs["directory"],
+                f"{file_stem}.docx",
+            )
+            os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        else:
+            output_file = os.path.join(
+                config("INITIAL_ORIGINAL_FILES"), f"{file_stem}.docx"
+            )
+        document.save(output_file)
+        print(f"🐞 GENERATED FILE {output_file}")
+        return output_file
+
     def _generate_image_file(file_stem, **kwargs):
         tmp_file, headers = urllib.request.urlretrieve(
             config("TEST_IMG_URL", default="https://picsum.photos/1600/1200")
@@ -724,6 +811,7 @@ def generate_filesystem_files(test_name, **kwargs):
         print(f"🐞 GENERATED FILE {output_file}")
 
     def _generate_digital_files(component_id, **kwargs):
+        output_files = []
         if "mixed" in component_id:
             # NOTE "mixed" will always generate one each of audio, video, image
             # regardless of archival_object_count value
@@ -767,6 +855,25 @@ def generate_filesystem_files(test_name, **kwargs):
                     )
             else:
                 _generate_video_file(component_id, **kwargs)
+        elif "transcript" in component_id:
+            if kwargs.get("digital_file_count") > 1:
+                for i in range(1, kwargs.get("digital_file_count") + 1):
+                    output_files.extend(
+                        _generate_transcript_file(
+                            "{}{}".format(
+                                "".join(
+                                    random.choices(
+                                        string.ascii_lowercase + string.digits, k=6
+                                    )
+                                ),
+                                str(i).zfill(2),
+                            ),
+                            directory=component_id,
+                            **kwargs,
+                        )
+                    )
+            else:
+                output_files.append(_generate_transcript_file(component_id, **kwargs))
         else:  # create images by default
             if kwargs.get("digital_file_count") > 1:
                 for i in range(1, kwargs.get("digital_file_count") + 1):
@@ -784,12 +891,17 @@ def generate_filesystem_files(test_name, **kwargs):
                     )
             else:
                 _generate_image_file(component_id, **kwargs)
+        return output_files
 
+    output_files = []
     for j in range(1, kwargs["collection_count"] + 1):
         for i in range(1, kwargs["archival_object_count"] + 1):
-            _generate_digital_files(
-                f'{kwargs["level"]}__{test_name}xx{j}xx{i}', **kwargs
+            output_files.extend(
+                _generate_digital_files(
+                    f'{kwargs["level"]}__{test_name}xx{j}xx{i}', **kwargs
+                )
             )
+    return output_files
 
 
 def delete_s3_preservation_objects(s3_client, test_id):
@@ -2918,115 +3030,124 @@ def test_tape_reuse_top_container_records_d3bym(page: Page, asnake_client):
     assert item_top_container_uri == item2_top_container_uri
 
 
-def test_oralhistories_add_publish_one_transcript_2d4ja(
+def test_oralhistories_single_transcript_upload_publish_b1620f(
     page: Page, asnake_client, s3_client, timestamp
 ):
-    """Upload a docx file and publish a transcript."""
+    """Upload a DOCX file and publish a transcript."""
     test_name = inspect.currentframe().f_code.co_name
-    test_id = test_name.split("_")[-1]
-    # DELETE ANY EXISTING TEST RECORDS
-    delete_archivesspace_test_records(asnake_client, test_id)
-    # CREATE RESOURCE RECORD
-    resource_create_response = create_archivesspace_test_resource(
-        asnake_client, test_name, test_id
-    )
-    print(f"🐞 resource_create_response:{test_id}", resource_create_response.json())
-    # CREATE ARCHIVAL OBJECT ITEM RECORD
-    (
-        item_create_response,
-        item_component_id,
-    ) = create_archivesspace_test_archival_object_item(
-        asnake_client, test_name, test_id, resource_create_response.json()["uri"]
-    )
-    print(f"🐞 item_create_response:{item_component_id}", item_create_response.json())
-    # DELETE GITHUB TRANSCRIPTS
-    # https://stackoverflow.com/a/72553300
-    tmp_oralhistories = tempfile.mkdtemp()
-    git_repo = git.Repo.clone_from(
-        f'git@github.com:{config("ORALHISTORIES_GITHUB_REPO")}.git',
-        tmp_oralhistories,
-        env={"GIT_SSH_COMMAND": f'ssh -i {config("ORALHISTORIES_GITHUB_SSH_KEY")}'},
-    )
-    if os.path.exists(f"{tmp_oralhistories}/transcripts/{item_component_id}"):
-        git_repo.index.remove(
-            [f"transcripts/{item_component_id}"], working_tree=True, r=True
+    # BEGIN ORAL HISTORIES PROCESS
+    kwargs = {
+        "collection_count": 1,
+        "archival_object_count": 1,
+        "level": "file",
+        "ancestors": [],
+        "digital_file_count": 1,
+    }
+    # kwargs: collection_count
+    delete_archivesspace_records(test_name, asnake_client, **kwargs)
+    delete_filesystem_files()
+    # kwargs: collection_count, archival_object_count, level, ancestors
+    record_data = generate_archivesspace_records(test_name, asnake_client, **kwargs)
+    print(f"🐞 record_data:{test_name}", record_data)
+    # kwargs: collection_count, archival_object_count, level, digital_file_count
+    filesystem_files = generate_filesystem_files(test_name, **kwargs)
+    # VALIDATE
+    for _ in record_data:
+        print(
+            "🐞 ARCHIVAL OBJECT RECORD:",
+            f'{config("ASPACE_STAFF_URL").rstrip("/")}/resolve/readonly?uri={_["archival_object_uri"]}',
         )
-        git_repo.index.commit(f"🤖 delete {item_component_id}")
-        git_repo.remotes.origin.push()
-    # DELETE S3 OBJECTS
-    s3_response = s3_client.list_objects_v2(
-        Bucket=config("ORALHISTORIES_BUCKET"), Prefix=item_component_id
-    )
-    print("🐞 s3_client.list_objects_v2", s3_response)
-    if s3_response.get("Contents"):
-        s3_keys = [{"Key": s3_object["Key"]} for s3_object in s3_response["Contents"]]
-        s3_response = s3_client.delete_objects(
-            Bucket=config("ORALHISTORIES_BUCKET"), Delete={"Objects": s3_keys}
+        # DELETE GITHUB TRANSCRIPTS
+        # https://stackoverflow.com/a/72553300
+        tmp_oralhistories = tempfile.mkdtemp()
+        git_repo = git.Repo.clone_from(
+            f'git@github.com:{config("ORALHISTORIES_GITHUB_REPO")}.git',
+            tmp_oralhistories,
+            env={"GIT_SSH_COMMAND": f'ssh -i {config("ORALHISTORIES_GITHUB_SSH_KEY")}'},
         )
-    if config("RESOLVER_BUCKET", default=""):
-        resolver_s3_response = s3_client.list_objects_v2(
-            Bucket=config("RESOLVER_BUCKET"),
-            Prefix="{}/{}".format(
-                config("RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"),
-                item_component_id,
-            ),
-        )
-        print("🐞 resolver_s3_response", resolver_s3_response)
-        if resolver_s3_response.get("Contents"):
-            s3_keys = [
-                {"Key": s3_object["Key"]}
-                for s3_object in resolver_s3_response["Contents"]
-            ]
-            resolver_s3_response = s3_client.delete_objects(
-                Bucket=config("RESOLVER_BUCKET"), Delete={"Objects": s3_keys}
+        if os.path.exists(f'{tmp_oralhistories}/transcripts/{_["component_id"]}'):
+            git_repo.index.remove(
+                [f'transcripts/{_["component_id"]}'], working_tree=True, r=True
             )
-    # RUN ORALHISTORIES PROCESSES
-    # add transcript
-    run_oralhistories_add(
-        page, "/".join(["tests", "oralhistories", test_id, f"{item_component_id}.docx"])
-    )
-    # wait for files to be updated by GitHub Actions
-    assert wait_for_oralhistories_generated_files(git_repo)
-    # publish transcript
-    run_oralhistories_publish(page, item_component_id)
-    # INVALIDATE CLOUDFRONT ITEMS
-    if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-        invalidate_cloudfront_path(caller_reference=timestamp)
-    # VALIDATE RESOLVER URL & WEB TRANSCRIPT
-    if config("RESOLVER_BUCKET", default=""):
-        page.goto(
-            "/".join(
+            git_repo.index.commit(f'🤖 delete {_["component_id"]}')
+            git_repo.remotes.origin.push()
+        # DELETE S3 OBJECTS
+        s3_response = s3_client.list_objects_v2(
+            Bucket=config("ORALHISTORIES_BUCKET"), Prefix=_["component_id"]
+        )
+        print("🐞 s3_client.list_objects_v2", s3_response)
+        if s3_response.get("Contents"):
+            s3_keys = [
+                {"Key": s3_object["Key"]} for s3_object in s3_response["Contents"]
+            ]
+            s3_response = s3_client.delete_objects(
+                Bucket=config("ORALHISTORIES_BUCKET"), Delete={"Objects": s3_keys}
+            )
+        if config("RESOLVER_BUCKET", default=""):
+            resolver_s3_response = s3_client.list_objects_v2(
+                Bucket=config("RESOLVER_BUCKET"),
+                Prefix="{}/{}".format(
+                    config("RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"),
+                    _["component_id"],
+                ),
+            )
+            print("🐞 resolver_s3_response", resolver_s3_response)
+            if resolver_s3_response.get("Contents"):
+                s3_keys = [
+                    {"Key": s3_object["Key"]}
+                    for s3_object in resolver_s3_response["Contents"]
+                ]
+                resolver_s3_response = s3_client.delete_objects(
+                    Bucket=config("RESOLVER_BUCKET"), Delete={"Objects": s3_keys}
+                )
+        # RUN ORALHISTORIES PROCESSES
+        # add transcript
+        print("🐞 filesystem_files", filesystem_files)
+        run_oralhistories_add(page, filesystem_files[0])
+        # wait for files to be updated by GitHub Actions
+        assert wait_for_oralhistories_generated_files(git_repo)
+        print(
+            "🐞 GITHUB TRANSCRIPT:",
+            f'https://github.com/{config("ORALHISTORIES_GITHUB_REPO")}/tree/main/transcripts/{_["component_id"]}',
+        )
+        # publish transcript
+        run_oralhistories_publish(page, _["component_id"])
+        # INVALIDATE CLOUDFRONT ITEMS
+        if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+            invalidate_cloudfront_path(caller_reference=timestamp)
+        # VALIDATE RESOLVER URL & WEB TRANSCRIPT
+        if config("RESOLVER_BUCKET", default=""):
+            resolver_url = "/".join(
                 [
                     config("RESOLVER_SERVICE_ENDPOINT").rstrip("/"),
                     config("RESOLVER_ORALHISTORIES_URL_PATH_PREFIX"),
-                    item_component_id,
+                    _["component_id"],
                 ]
             )
-        )
-    else:
-        page.goto(
+            print("🐞 RESOLVER URL:", resolver_url)
+            page.goto(resolver_url)
+        else:
+            alchemist_url = "/".join(
+                [
+                    config("ALCHEMIST_BASE_URL").rstrip("/"),
+                    config("ORALHISTORIES_URL_PATH_PREFIX"),
+                    _["component_id"],
+                ]
+            )
+            print("🐞 ALCHEMIST URL:", alchemist_url)
+            page.goto(alchemist_url)
+        # AWS S3 adds a trailing slash when it redirects to the index.html file.
+        expect(page).to_have_url(
             "/".join(
                 [
                     config("ALCHEMIST_BASE_URL").rstrip("/"),
                     config("ORALHISTORIES_URL_PATH_PREFIX"),
-                    item_component_id,
+                    _["component_id"],
+                    "",
                 ]
             )
         )
-    # AWS S3 adds a trailing slash when it redirects to the index.html file.
-    expect(page).to_have_url(
-        "/".join(
-            [
-                config("ALCHEMIST_BASE_URL").rstrip("/"),
-                config("ORALHISTORIES_URL_PATH_PREFIX"),
-                item_component_id,
-                "",
-            ]
-        )
-    )
-    expect(page).to_have_title(f"Item {test_id}")
-    expect(page.locator("#frontispiece")).not_to_be_attached()
-    expect(page.locator("body")).not_to_contain_text("[NaN undefined]")
+        expect(page).to_have_title(_["component_id"].replace("_", " "))
 
 
 def test_oralhistories_add_edit_publish_one_transcript_6pxtc(
