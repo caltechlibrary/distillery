@@ -429,6 +429,9 @@ class OralHistoriesService(rpyc.Service):
         pandoc_cmd(
             "--standalone",
             f'--metadata-file={self.transcript_directory.joinpath("metadata.json")}',
+            # explicitly set the title so Word Document metadata is not used
+            "--metadata",
+            f'title={self.metadata["title"]}',
             f'--output={self.transcript_directory.joinpath(f"{self.component_id}.md")}',
             f'{Path(config("ORALHISTORIES_WORK_UPLOADS")).joinpath(f"{self.component_id}.docx")}',
         )
