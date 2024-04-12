@@ -339,6 +339,8 @@ def unblock_archivesspace_ports():
             config("ARCHIVESSPACE_SSH_KEY"),
             "-p",
             config("ARCHIVESSPACE_SSH_PORT", default="22"),
+            "-o",
+            "StrictHostKeyChecking=no",
             f'{config("ARCHIVESSPACE_SSH_USER")}@{config("ARCHIVESSPACE_SSH_HOST")}',
             *config(
                 "ARCHIVESSPACE_SIMULATE_ONLINE_CMD",
