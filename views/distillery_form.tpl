@@ -62,6 +62,11 @@
             Cloud preservation storage
             <small>generate and send files to a remote storage provider</small>
           </label>
+          <fieldset class="cloud" hidden>
+            <legend>Select the NAS location that contains the source files.</legend>
+            <label><input type="radio" name="nas_volume" value="EXAMPLE_VOLUME_2" checked>EXAMPLE_VOLUME_2</label>
+            <label><input type="radio" name="nas_volume" value="EXAMPLE_VOLUME_3">EXAMPLE_VOLUME_3</label>
+          </fieldset>
           <label>
             <input type="checkbox" name="destinations" value="onsite">
             On-site preservation storage
@@ -89,6 +94,16 @@
       </div>
       <button>Validate</button>
       <script>
+        const cloudCheckbox = document.querySelector('input[value="cloud"]');
+        function handleCloudCheckbox() {
+          if (cloudCheckbox.checked === true) {
+            document.querySelectorAll(".cloud").forEach(fieldset => fieldset.hidden = false);
+          }
+          else if (cloudCheckbox.checked === false) {
+            document.querySelectorAll(".cloud").forEach(fieldset => fieldset.hidden = true);
+          }
+        }
+        cloudCheckbox.addEventListener('change', handleCloudCheckbox);
         const accessCheckbox = document.querySelector('input[value="access"]');
         function handleAccessCheckbox() {
           if (accessCheckbox.checked) {

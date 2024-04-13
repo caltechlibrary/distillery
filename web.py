@@ -72,6 +72,11 @@ def distillery_validate():
         destinations["access"]["thumbnail_label"] = bottle.request.forms.get(
             "thumbnail_label"
         )
+    elif destinations.get("cloud"):
+        destinations["cloud"] = {}
+        destinations["cloud"]["nas_volume"] = bottle.request.forms.get(
+            "nas_volume"
+        )
     # asynchronously validate on WORK server
     distillery_validate = rpyc.async_(distillery_work_server_connection.root.validate)
     async_result = distillery_validate(json.dumps(destinations), batch_set_id)
