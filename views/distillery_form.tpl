@@ -53,44 +53,42 @@
       }
     </script>
     <form action="{{distillery_base_url}}/validate" method="post" onsubmit="return validateCheckboxGroup()">
-      <div role="group" aria-labelledby="checkbox-group">
-        <h2 id="checkbox-group">Destinations</h2>
-        <p class="required">Select at least one destination for the available files.</p>
-        <div class="checkboxes">
-          <label>
-            <input type="checkbox" name="destinations" value="cloud">
-            Cloud preservation storage
-            <small>generate and send files to a remote storage provider</small>
-          </label>
-          <fieldset class="cloud" hidden>
-            <legend>Select the NAS location that contains the source files.</legend>
-            <label><input type="radio" name="nas_volume" value="EXAMPLE_VOLUME_2" checked>EXAMPLE_VOLUME_2</label>
-            <label><input type="radio" name="nas_volume" value="EXAMPLE_VOLUME_3">EXAMPLE_VOLUME_3</label>
-          </fieldset>
-          <label>
-            <input type="checkbox" name="destinations" value="onsite">
-            On-site preservation storage
-            <small>generate and send files to a local tape drive</small>
-          </label>
-          <label>
-            <input type="checkbox" name="destinations" value="access">
-            Public web access
-            <small>generate files & metadata and publish on the web</small>
-          </label>
-          <fieldset class="publishing" hidden>
-            <legend>Choose what happens if digital object file versions exist.</legend>
-            <!--
-            TODO automatically create a resolver redirect entry for an unpublished file_uri
-            -->
-            <label><input type="radio" name="file_versions_op" value="fail" checked>Fail validation when any digital object file versions exist</label>
-            <label><input type="radio" name="file_versions_op" value="replace">Replace any existing web access files and update ArchivesSpace digital object records</label>
-          </fieldset>
-          <fieldset class="publishing" hidden>
-            <legend>Images with an appended sequence indicator in the filename will be labeled with only the sequence indicator in the thumbnail display.</legend>
-            <label><input type="radio" name="thumbnail_label" value="sequence" checked>Use sequence indicator as label</label>
-            <label><input type="radio" name="thumbnail_label" value="filename">Use whole filename as label</label>
-          </fieldset>
-        </div>
+      <h2>Destinations</h2>
+      <p class="required">Select at least one destination for the available files.</p>
+      <div class="checkboxes">
+        <label>
+          <input type="checkbox" name="destinations" value="cloud">
+          Cloud preservation storage
+          <small>generate and send files to a remote storage provider</small>
+        </label>
+        <fieldset class="cloud" hidden>
+          <legend>Select the NAS location that contains the source files.</legend>
+          <label><input type="radio" name="nas_volume" value="EXAMPLE_VOLUME_2" checked>EXAMPLE_VOLUME_2</label>
+          <label><input type="radio" name="nas_volume" value="EXAMPLE_VOLUME_3">EXAMPLE_VOLUME_3</label>
+        </fieldset>
+        <label>
+          <input type="checkbox" name="destinations" value="onsite">
+          On-site preservation storage
+          <small>generate and send files to a local tape drive</small>
+        </label>
+        <label>
+          <input type="checkbox" name="destinations" value="access">
+          Public web access
+          <small>generate files & metadata and publish on the web</small>
+        </label>
+        <fieldset class="publishing" hidden>
+          <legend>Choose what happens if digital object file versions exist.</legend>
+          <!--
+          TODO automatically create a resolver redirect entry for an unpublished file_uri
+          -->
+          <label><input type="radio" name="file_versions_op" value="fail" checked>Fail validation when any digital object file versions exist</label>
+          <label><input type="radio" name="file_versions_op" value="replace">Replace any existing web access files and update ArchivesSpace digital object records</label>
+        </fieldset>
+        <fieldset class="publishing" hidden>
+          <legend>Images with an appended sequence indicator in the filename will be labeled with only the sequence indicator in the thumbnail display.</legend>
+          <label><input type="radio" name="thumbnail_label" value="sequence" checked>Use sequence indicator as label</label>
+          <label><input type="radio" name="thumbnail_label" value="filename">Use whole filename as label</label>
+        </fieldset>
       </div>
       <button>Validate</button>
       <script>
