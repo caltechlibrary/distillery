@@ -41,22 +41,6 @@ def set_timeout(page: Page):
     return page
 
 
-@pytest.fixture(autouse=True)
-def distillery_0000_reset_files():
-    for d in glob.glob(os.path.join(config("INITIAL_ORIGINAL_FILES"), "*/")):
-        if d.split("/")[-1].split("-")[0] == "item":
-            shutil.move(d, config("TEST_FILES", default="tests/files"))
-    for batch in glob.glob(os.path.join(config("BATCH_SETS_DIRECTORY"), "*/")):
-        for stage in glob.glob(os.path.join(batch, "*/")):
-            for i in glob.glob(os.path.join(stage, "*")):
-                if i.split("/")[-1].split("-")[0] == "item":
-                    shutil.move(i, config("TEST_FILES", default="tests/files"))
-        os.system(f"/bin/rm -r {batch}")
-    for d in glob.glob(os.path.join(config("WORK_PRESERVATION_FILES"), "*/")):
-        os.system(f"/bin/rm -r {d}")
-    return
-
-
 @pytest.fixture
 def asnake_client():
     from asnake.client import ASnakeClient
@@ -1236,30 +1220,26 @@ def generate_content(test_name, asnake_client, **kwargs):
         audio = gTTS(text=file_stem.split("_")[-1])
         if "directory" in kwargs:
             output_file = os.path.join(
-                config("INITIAL_ORIGINAL_FILES"),
+                config("TEST_SOURCE_FILES"),
                 kwargs["directory"],
                 f"{file_stem}.mp3",
             )
             os.makedirs(os.path.dirname(output_file), exist_ok=True)
         else:
-            output_file = os.path.join(
-                config("INITIAL_ORIGINAL_FILES"), f"{file_stem}.mp3"
-            )
+            output_file = os.path.join(config("TEST_SOURCE_FILES"), f"{file_stem}.mp3")
         audio.save(output_file)
         print(f"🐞 GENERATED FILE {output_file}")
 
     def _generate_video_file(file_stem, **kwargs):
         if "directory" in kwargs:
             output_file = os.path.join(
-                config("INITIAL_ORIGINAL_FILES"),
+                config("TEST_SOURCE_FILES"),
                 kwargs["directory"],
                 f"{file_stem}.mp4",
             )
             os.makedirs(os.path.dirname(output_file), exist_ok=True)
         else:
-            output_file = os.path.join(
-                config("INITIAL_ORIGINAL_FILES"), f"{file_stem}.mp4"
-            )
+            output_file = os.path.join(config("TEST_SOURCE_FILES"), f"{file_stem}.mp4")
         timecode_text = r"text='timestamp:%{pts\:hms}': x=(w-text_w)/2: y=100: font=Mono: fontsize=64: fontcolor=Yellow: box=1: boxcolor=Black: boxborderw=10"
         testname_text = f'text={file_stem.split("_")[-1]}: x=(w-text_w)/2: y=(h-text_h)/2: fontsize=196: fontcolor=White: shadowx=3: shadowy=3'
         subprocess.run(
@@ -1308,15 +1288,13 @@ def generate_content(test_name, asnake_client, **kwargs):
         )
         if "directory" in kwargs:
             output_file = os.path.join(
-                config("INITIAL_ORIGINAL_FILES"),
+                config("TEST_SOURCE_FILES"),
                 kwargs["directory"],
                 f"{file_stem}.tif",
             )
             os.makedirs(os.path.dirname(output_file), exist_ok=True)
         else:
-            output_file = os.path.join(
-                config("INITIAL_ORIGINAL_FILES"), f"{file_stem}.tif"
-            )
+            output_file = os.path.join(config("TEST_SOURCE_FILES"), f"{file_stem}.tif")
         img.save(output_file)
         img.close()
         print(f"🐞 GENERATED FILE {output_file}")
@@ -1519,7 +1497,7 @@ def delete_archivesspace_records(test_name, asnake_client, **kwargs):
 
 def delete_filesystem_files():
     # DELETE ANY EXISTING TEST FILES IN FILESYSTEM
-    for pathname in glob.glob(os.path.join(config("INITIAL_ORIGINAL_FILES"), "*")):
+    for pathname in glob.glob(os.path.join(config("TEST_SOURCE_FILES"), "*")):
         os.system(f"/bin/rm -r {pathname}")
     for pathname in glob.glob(os.path.join(config("BATCH_SETS_DIRECTORY"), "*")):
         os.system(f"/bin/rm -r {pathname}")
@@ -1540,23 +1518,6 @@ def delete_filesystem_files():
 def delete_content(test_name, asnake_client, s3_client, **kwargs):
     delete_archivesspace_records(test_name, asnake_client, **kwargs)
     delete_filesystem_files()
-    # # DELETE INITIAL_ORIGINAL_FILES FROM FAILED TESTS
-    # for pathname in glob.glob(os.path.join(config("INITIAL_ORIGINAL_FILES"), "*")):
-    #     os.system(f"/bin/rm -r {pathname}")
-    # # DELETE FILES IN BATCH_SETS_DIRECTORY FROM PASSED TESTS
-    # for pathname in glob.glob(
-    #     os.path.join(
-    #         config("BATCH_SETS_DIRECTORY"), f'**/*{test_name.split("_")[-1]}*'
-    #     ),
-    #     recursive=True,
-    # ):
-    #     os.system(f"/bin/rm -r {pathname}")
-    # if config("WORK_STILLAGE_FILES", default=""):
-    #     os.system(f'/bin/rm -r {os.path.join(config("WORK_STILLAGE_FILES"), "*")}')
-    # else:
-    #     os.system(
-    #         f'/bin/rm -r {os.path.join(os.path.dirname(config("WORK_PRESERVATION_FILES")), ".STILLAGE", "*")}'
-    #     )
     # DELETE S3 OBJECTS
     if test_name.split("_")[1] == "alchemist":
         bucket = config("ALCHEMIST_BUCKET")

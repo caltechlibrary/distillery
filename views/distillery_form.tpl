@@ -62,9 +62,9 @@
           <small>generate and send files to a remote storage provider</small>
         </label>
         <fieldset class="cloud" hidden>
-          <legend>Select the NAS location that contains the source files.</legend>
-          <label><input type="radio" name="nas_volume" value="EXAMPLE_VOLUME_2" checked>EXAMPLE_VOLUME_2</label>
-          <label><input type="radio" name="nas_volume" value="EXAMPLE_VOLUME_3">EXAMPLE_VOLUME_3</label>
+          <legend>Select the network volume that contains the source files.</legend>
+          <label><input type="radio" name="network_volume" value="EXAMPLE_VOLUME_2" checked>EXAMPLE_VOLUME_2</label>
+          <label><input type="radio" name="network_volume" value="EXAMPLE_VOLUME_3">EXAMPLE_VOLUME_3</label>
         </fieldset>
         <label>
           <input type="checkbox" name="destinations" value="onsite">

@@ -66,6 +66,16 @@ class DistilleryService(rpyc.Service):
         self.access_platform = None
         self.variables = {}
         self.variables["destinations"] = destinations
+        # access/publication form does not have a network_volume option
+        if self.cloud_platform:
+            self.source_files = Path(config("COMMON_MOUNT_PARENT")).joinpath(
+                json.loads(destinations)["cloud"]["network_volume"],
+                config("COMMON_SOURCE_PATH"),
+            )
+        else:
+            self.source_files = Path(config("COMMON_MOUNT_PARENT")).joinpath(
+                "EXAMPLE_VOLUME_2", config("COMMON_SOURCE_PATH")
+            )
 
     def _import_modules(self):
         # NOTE self.destinations is a JSON string
@@ -130,6 +140,7 @@ class DistilleryService(rpyc.Service):
         self._import_modules()
 
         if self.onsite_medium:
+            raise NotImplementedError("❌ tape destinations have been deprecated")
             # validate ONSITE_MEDIUM connection
             if self.onsite_medium.validate_connection():
                 message = f'☑️  CONNECTION SUCCESS: {config("ONSITE_MEDIUM")}'
@@ -249,7 +260,7 @@ class DistilleryService(rpyc.Service):
         file_count = 0
         unsupported_filetypes = 0
         validation_failures = 0
-        for dirpath, dirnames, filenames in os.walk(config("INITIAL_ORIGINAL_FILES")):
+        for dirpath, dirnames, filenames in os.walk(self.source_files):
             logger.debug(f"🐞 DIRPATH: {dirpath}")
             logger.debug(f"🐞 DIRNAMES: {dirnames}")
             logger.debug(f"🐞 FILENAMES: {filenames}")
@@ -350,7 +361,7 @@ class DistilleryService(rpyc.Service):
                     batch_set_id
                 )
                 batch_directory.mkdir(parents=True, exist_ok=True)
-                Path(config("INITIAL_ORIGINAL_FILES")).rename(
+                Path(self.source_files).rename(
                     batch_directory.joinpath("STAGE_1_INITIAL")
                 )
                 batch_directory.joinpath("STAGE_2_WORKING").mkdir(
@@ -359,7 +370,7 @@ class DistilleryService(rpyc.Service):
                 batch_directory.joinpath("STAGE_3_COMPLETE").mkdir(
                     parents=True, exist_ok=True
                 )
-                Path(config("INITIAL_ORIGINAL_FILES")).mkdir()
+                Path(self.source_files).mkdir()
             except BaseException:
                 message = "❌ UNABLE TO MOVE THE SOURCE FILES FOR PROCESSING"
                 status_logger.error(message)

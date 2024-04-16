@@ -46,8 +46,11 @@
 ;WEB_LOG_FILES=/path/to/log/files
 ;WORK_LOG_FILES=/path/to/log/files
 
-; INITIAL_ORIGINAL_FILES: (directory) location before any processing; CASC puts archival object directories here
-;INITIAL_ORIGINAL_FILES=/path/to/INITIAL_ORIGINAL_FILES
+; COMMON_MOUNT_PARENT: (directory) assumed that the different NAS volumes have the same mount parent on the WORK server
+;COMMON_MOUNT_PARENT=/mnt
+; COMMON_SOURCE_PATH: (directory) assumed that the Distillery source files directory is named the same on each volume
+;COMMON_SOURCE_PATH=relative/path
+;TEST_SOURCE_FILES=/path/to/TEST_SOURCE_FILES
 ; BATCH_SETS_DIRECTORY: distillery.py creates a subdirectory here before processing a set
 ;BATCH_SETS_DIRECTORY=/path/to/BATCH_SETS_DIRECTORY
 

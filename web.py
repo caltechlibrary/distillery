@@ -74,8 +74,8 @@ def distillery_validate():
         )
     elif destinations.get("cloud"):
         destinations["cloud"] = {}
-        destinations["cloud"]["nas_volume"] = bottle.request.forms.get(
-            "nas_volume"
+        destinations["cloud"]["network_volume"] = bottle.request.forms.get(
+            "network_volume"
         )
     # asynchronously validate on WORK server
     distillery_validate = rpyc.async_(distillery_work_server_connection.root.validate)
