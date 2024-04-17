@@ -57,7 +57,7 @@ def transfer_archival_object_datafile(variables):
     # logger.info(f'🐞 str(variables["current_archival_object_datafile"]): {str(variables["current_archival_object_datafile"])}')
     archival_object_datafile_key = str(
         variables["current_archival_object_datafile"]
-    ).split(f'{config("WORK_PRESERVATION_FILES")}/')[-1]
+    ).split(f'{variables["work_preservation_files"]}/')[-1]
     # logger.info(f'🐞 archival_object_datafile_key: {archival_object_datafile_key}')
     with open(variables["current_archival_object_datafile"], "rb") as body:
         s3_client.put_object(
@@ -91,7 +91,7 @@ def transfer_digital_object_component_file(variables):
         "ETag": "\"614bccea2760f37f41be65c62c41d66e\""
     }"""
     preservation_file_key = str(variables["preservation_file_info"]["filepath"])[
-        len(f'{config("WORK_PRESERVATION_FILES")}/') :
+        len(f'{variables["work_preservation_files"]}/') :
     ]
     with open(variables["preservation_file_info"]["filepath"], "rb") as body:
         response = s3_client.put_object(

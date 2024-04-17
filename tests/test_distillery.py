@@ -1499,14 +1499,20 @@ def delete_filesystem_files():
     # DELETE ANY EXISTING TEST FILES IN FILESYSTEM
     for pathname in glob.glob(os.path.join(config("TEST_SOURCE_FILES"), "*")):
         os.system(f"/bin/rm -r {pathname}")
-    for pathname in glob.glob(os.path.join(config("BATCH_SETS_DIRECTORY"), "*")):
+    for pathname in glob.glob(
+        os.path.join(
+            os.path.dirname(config("TEST_SOURCE_FILES")),
+            config("BATCH_SETS_DIRECTORY"),
+            "*",
+        )
+    ):
         os.system(f"/bin/rm -r {pathname}")
     for pathname in glob.glob(
         os.path.join(
             config(
                 "WORK_STILLAGE_FILES",
                 default=os.path.join(
-                    os.path.dirname(config("WORK_PRESERVATION_FILES")), ".STILLAGE"
+                    os.path.dirname(config("TEST_SOURCE_FILES")), ".STILLAGE"
                 ),
             ),
             "*",
@@ -1610,7 +1616,7 @@ def reset_files_and_records(test_name, asnake_client, s3_client, **kwargs):
             os.system(f'/bin/rm -r {os.path.join(config("WORK_STILLAGE_FILES"), "*")}')
         else:
             os.system(
-                f'/bin/rm -r {os.path.join(os.path.dirname(config("WORK_PRESERVATION_FILES")), ".STILLAGE", "*")}'
+                f'/bin/rm -r {os.path.join(os.path.dirname(config("TEST_SOURCE_FILES")), ".STILLAGE", "*")}'
             )
     elif "image" in test_name:
         if "file_count" in kwargs and kwargs["file_count"] > 1:

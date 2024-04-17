@@ -179,9 +179,15 @@ class DistilleryService(rpyc.Service):
         # validate WORK_PRESERVATION_FILES directory
         if self.onsite_medium or self.cloud_platform:
             try:
-                Path(config("WORK_PRESERVATION_FILES")).resolve(strict=True)
+                Path(self.source_files).parent.joinpath(
+                    config("WORK_PRESERVATION_FILES")
+                ).resolve(strict=True)
             except:
-                message = f'❌ INVALID WORK_PRESERVATION_FILES DIRECTORY: {config("WORK_PRESERVATION_FILES")}'
+                message = "❌ INVALID WORK_PRESERVATION_FILES DIRECTORY: {}".format(
+                    Path(self.source_files).parent.joinpath(
+                        config("WORK_PRESERVATION_FILES")
+                    )
+                )
                 status_logger.error(message)
                 logger.exception("‼️")
                 raise
@@ -353,12 +359,20 @@ class DistilleryService(rpyc.Service):
             accessDistiller = None
             if "onsite" in self.destinations or "cloud" in self.destinations:
                 either_preservation_destination = True
+                self.variables["work_preservation_files"] = (
+                    Path(self.source_files)
+                    .parent.joinpath(config("WORK_PRESERVATION_FILES"))
+                    .resolve(strict=True)
+                )
+
             else:
                 either_preservation_destination = False
 
             try:
-                batch_directory = Path(config("BATCH_SETS_DIRECTORY")).joinpath(
-                    batch_set_id
+                batch_directory = (
+                    Path(self.source_files)
+                    .parent.joinpath(config("BATCH_SETS_DIRECTORY"))
+                    .joinpath(batch_set_id)
                 )
                 batch_directory.mkdir(parents=True, exist_ok=True)
                 Path(self.source_files).rename(
@@ -416,19 +430,20 @@ class DistilleryService(rpyc.Service):
                     )
                     # save collection metadata
                     save_collection_datafile(
-                        collection_data, config("WORK_PRESERVATION_FILES")
+                        collection_data,
+                        self.variables["work_preservation_files"],
                     )
                     # run collection-level preprocessing
                     if self.onsite_medium:
                         self.onsite_medium.collection_level_preprocessing(
                             self.variables["arrangement"]["collection_id"],
-                            config("WORK_PRESERVATION_FILES"),
+                            self.variables["work_preservation_files"],
                         )
                         onsiteDistiller = True
                     if self.cloud_platform:
                         self.cloud_platform.collection_level_preprocessing(
                             self.variables["arrangement"]["collection_id"],
-                            config("WORK_PRESERVATION_FILES"),
+                            self.variables["work_preservation_files"],
                         )
                         cloudDistiller = True
 
@@ -467,7 +482,7 @@ class DistilleryService(rpyc.Service):
                     archival_object_datafile_key = save_archival_object_datafile(
                         self.variables["arrangement"],
                         self.variables["archival_object"],
-                        config("WORK_PRESERVATION_FILES"),
+                        self.variables["work_preservation_files"],
                     )
                     status_logger.info(
                         f"☑️  ARCHIVAL OBJECT DATA FILE CREATED: {archival_object_datafile_key}"
@@ -528,8 +543,10 @@ class DistilleryService(rpyc.Service):
                         raise
 
                     self.variables["current_archival_object_datafile"] = (
-                        Path(config("WORK_PRESERVATION_FILES"))
-                        .joinpath(archival_object_datafile_key)
+                        Path(self.variables["work_preservation_files"])
+                        .joinpath(
+                            archival_object_datafile_key,
+                        )
                         .resolve()
                     )
                     logger.debug(
@@ -553,12 +570,12 @@ class DistilleryService(rpyc.Service):
                     # see https://stackoverflow.com/a/54790514 for os.walk explainer
                     for dirpath, dirnames, filenames in sorted(
                         os.walk(
-                            Path(config("WORK_PRESERVATION_FILES"))
+                            Path(self.variables["work_preservation_files"])
                             .joinpath(
                                 get_archival_object_directory_prefix(
                                     self.variables["arrangement"],
                                     self.variables["archival_object"],
-                                )
+                                ),
                             )
                             .resolve()
                         )
@@ -603,9 +620,9 @@ class DistilleryService(rpyc.Service):
                     # result in cruft still existing on the next iteration
                     if not config("WORK_STILLAGE_FILES", default=""):
                         # create a .STILLAGE directory
-                        stillage_default = Path(
-                            config("WORK_PRESERVATION_FILES")
-                        ).parent.joinpath(".STILLAGE")
+                        stillage_default = Path(self.source_files).parent.joinpath(
+                            ".STILLAGE"
+                        )
                         stillage_default.mkdir(exist_ok=True)
                     logger.debug(
                         "🐞 STILLAGE DIRECTORY: {}".format(
@@ -621,8 +638,8 @@ class DistilleryService(rpyc.Service):
                         .is_dir()
                     ):
                         for dir_entry in os.scandir(
-                            Path(config("WORK_PRESERVATION_FILES")).joinpath(
-                                self.variables["arrangement"]["collection_id"]
+                            Path(self.variables["work_preservation_files"]).joinpath(
+                                self.variables["arrangement"]["collection_id"],
                             )
                         ):
                             shutil.move(
@@ -640,8 +657,10 @@ class DistilleryService(rpyc.Service):
                             )
                     else:
                         shutil.move(
-                            Path(config("WORK_PRESERVATION_FILES"))
-                            .joinpath(self.variables["arrangement"]["collection_id"])
+                            Path(self.variables["work_preservation_files"])
+                            .joinpath(
+                                self.variables["arrangement"]["collection_id"],
+                            )
                             .as_posix(),
                             Path(
                                 config("WORK_STILLAGE_FILES", default=stillage_default)
@@ -1394,7 +1413,7 @@ def construct_file_version(variables):
         variables["preservation_file_info"]["filesize"]
     )
     file_key = str(variables["preservation_file_info"]["filepath"])[
-        len(f'{config("WORK_PRESERVATION_FILES")}/') :
+        len(f'{variables["work_preservation_files"]}/') :
     ]
     file_version[
         "file_uri"
@@ -1454,7 +1473,7 @@ def prepare_preservation_files(variables):
             filepath_components,
         )
         logger.debug(f"🐞 PRESERVATION_FILE_KEY: {preservation_file_key}")
-        preservation_file_path = Path(config("WORK_PRESERVATION_FILES")).joinpath(
+        preservation_file_path = Path(variables["work_preservation_files"]).joinpath(
             preservation_file_key
         )
         logger.debug(f"🐞 PRESERVATION_FILE_PATH: {preservation_file_path}")
