@@ -67,7 +67,7 @@ class DistilleryService(rpyc.Service):
         self.variables = {}
         self.variables["destinations"] = destinations
         # access/publication form does not have a network_volume option
-        if self.cloud_platform:
+        if "cloud" in self.variables["destinations"] and config("CLOUD_PLATFORM"):
             self.source_files = Path(config("COMMON_MOUNT_PARENT")).joinpath(
                 json.loads(destinations)["cloud"]["network_volume"],
                 config("COMMON_SOURCE_PATH"),
