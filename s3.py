@@ -1,6 +1,5 @@
 # PREPARE FILES AND METADATA FOR COPYING TO S3 STORAGE
 
-import base64
 import logging
 import subprocess
 
@@ -73,6 +72,12 @@ def transfer_digital_object_component_file(variables):
     preservation_file_key = str(variables["preservation_file_info"]["filepath"])[
         len(f'{variables["work_preservation_files"]}/') :
     ]
+    logger.debug(
+        f'🐞 type(variables["preservation_file_info"]["md5"]): {type(variables["preservation_file_info"]["md5"])}'
+    )
+    logger.debug(
+        f'🐞 variables["preservation_file_info"]["md5"].hexdigest(): {variables["preservation_file_info"]["md5"].hexdigest()}'
+    )
     subprocess.run(
         [
             "s5cmd",
@@ -80,7 +85,7 @@ def transfer_digital_object_component_file(variables):
             "--concurrency",
             "20",
             "--metadata",
-            f'MD5={variables["preservation_file_info"]["md5"].hexdigest()}',
+            f'md5={variables["preservation_file_info"]["md5"].hexdigest()}',
             variables["preservation_file_info"]["filepath"],
             f's3://{config("PRESERVATION_BUCKET")}/{preservation_file_key}',
         ],
