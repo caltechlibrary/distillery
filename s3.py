@@ -72,32 +72,35 @@ def transfer_digital_object_component_file(variables):
     preservation_file_key = str(variables["preservation_file_info"]["filepath"])[
         len(f'{variables["work_preservation_files"]}/') :
     ]
-    logger.debug(
-        f'🐞 type(variables["preservation_file_info"]["md5"]): {type(variables["preservation_file_info"]["md5"])}'
-    )
-    logger.debug(
-        f'🐞 variables["preservation_file_info"]["md5"].hexdigest(): {variables["preservation_file_info"]["md5"].hexdigest()}'
-    )
-    subprocess.run(
-        [
-            "s5cmd",
-            "cp",
-            "--concurrency",
-            "20",
-            "--metadata",
-            f'md5={variables["preservation_file_info"]["md5"].hexdigest()}',
-            variables["preservation_file_info"]["filepath"],
-            f's3://{config("PRESERVATION_BUCKET")}/{preservation_file_key}',
-        ],
-        env={
-            "AWS_ACCESS_KEY_ID": config("DISTILLERY_AWS_ACCESS_KEY_ID"),
-            "AWS_SECRET_ACCESS_KEY": config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
-        },
-        check=True,
-    )
-    logger.info(
-        f'☑️  DIGITAL OBJECT COMPONENT FILE UPLOADED TO S3: {config("PRESERVATION_BUCKET")}/{preservation_file_key}'
-    )
+    try:
+        subprocess.run(
+            [
+                "s5cmd",
+                "cp",
+                "--concurrency",
+                "20",
+                "--metadata",
+                f'md5={variables["preservation_file_info"]["md5"].hexdigest()}',
+                variables["preservation_file_info"]["filepath"],
+                f's3://{config("PRESERVATION_BUCKET")}/{preservation_file_key}',
+            ],
+            env={
+                "AWS_ACCESS_KEY_ID": config("DISTILLERY_AWS_ACCESS_KEY_ID"),
+                "AWS_SECRET_ACCESS_KEY": config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
+            },
+            check=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        logger.exception(f"❌ S5CMD STDOUT: {e.stdout}")
+        logger.exception(f"❌ S5CMD STDERR: {e.stderr}")
+        raise
+    else:
+        logger.info(
+            "☑️ DIGITAL OBJECT COMPONENT FILE UPLOADED TO S3: {}/{}".format(
+                config("PRESERVATION_BUCKET"), preservation_file_key
+            )
+        )
     return variables["preservation_file_info"]["md5"].hexdigest()
 
 
