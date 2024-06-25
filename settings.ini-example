@@ -17,7 +17,6 @@
 ; application that responds to web requests has a corresponding RPyC port.
 ; A listener must be started on the WORK server for each port.
 ;DISTILLERY_RPYC_PORT=00000
-;ORALHISTORIES_RPYC_PORT=99999
 
 ; ArchivesSpace
 ; -------------
@@ -32,8 +31,7 @@
 ; AWS
 ; ---
 ; NOTE keys are associated with an IAM user and a policy must be attached to the
-; user that gives access to the PRESERVATION_BUCKET, the ORALHISTORIES_BUCKET, and
-; the RESOLVER_BUCKET below
+; user that gives access to the PRESERVATION_BUCKET, and the RESOLVER_BUCKET below
 ;DISTILLERY_AWS_ACCESS_KEY_ID=ACCESS_KEY
 ;DISTILLERY_AWS_SECRET_ACCESS_KEY=SECRET_KEY
 ;DISTILLERY_AWS_REGION=us-example-1
@@ -126,31 +124,8 @@ ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID=EFGH1234567890
 ;ARCHIVESSPACE_SSH_USER=username
 ;ARCHIVESSPACE_SSH_KEY=/user/.ssh/private_key
 
-; ORAL HISTORIES (oralhistories.py)
-; ---------------------------------
-;; shared location for oral histories uploads, local to web server
-;ORALHISTORIES_WEB_UPLOADS=/tmp/uploads
-;; shared location for oral histories uploads, local to work server
-;ORALHISTORIES_WORK_UPLOADS=/tmp/uploads
-;; repository identifier in the form owner/name
-;ORALHISTORIES_GITHUB_REPO=exampleorg/examplerepo
-;; corresponding public key must be set up on GitHub
-;ORALHISTORIES_GITHUB_SSH_KEY=/home/user/.ssh/private_key
-;; email is used in Git commit metadata
-;ORALHISTORIES_GIT_USER_EMAIL=bot@users.noreply.example.com
-;; name is used in Git commit metadata
-;ORALHISTORIES_GIT_USER_NAME=bot
-;; as noted under `AWS` above, this bucket must be included in the user policy
-;ORALHISTORIES_BUCKET=s3-bucket-name
-;; ALCHEMIST_URL_PREFIX + CollectionID from ArchivesSpace
-;ORALHISTORIES_URL_PATH_PREFIX=%(ALCHEMIST_URL_PREFIX)s/OralHistories
-;; s3 bucket for the resolver
-;RESOLVER_BUCKET=s3-bucket-name
-;; resolver endpoint to which specific paths are appended
-;RESOLVER_SERVICE_ENDPOINT=https://resolver.example.org/
-
 [loggers]
-keys=root,alchemist,archivesspace,distillery,oralhistories,tape,web
+keys=root,alchemist,archivesspace,distillery,tape,web
 
 [handlers]
 keys=archivesspace,console,file
@@ -178,12 +153,6 @@ propagate=0
 level=INFO
 handlers=console,file
 qualname=distillery
-propagate=0
-
-[logger_oralhistories]
-level=INFO
-handlers=console,file
-qualname=oralhistories
 propagate=0
 
 [logger_tape]
