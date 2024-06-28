@@ -3,14 +3,13 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 name = "pypi"
 
+[requires]
+python_full_version = "3.12.3"
+
 [dev-packages]
-essential-generators = "*"
-gitpython = "*"
 gtts = "*"
-opencv-python-headless = "*"
 pillow = "*"
 pytest-playwright = "*"
-python-docx = "*"
 
 [packages]
 archivessnake = "*"
