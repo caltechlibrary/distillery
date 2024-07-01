@@ -4,7 +4,8 @@ verify_ssl = true
 name = "pypi"
 
 [requires]
-python_full_version = "3.12.3"
+python_version = "3.8"
+python_full_version = "3.8.10"
 
 [dev-packages]
 gtts = "*"
