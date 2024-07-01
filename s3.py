@@ -76,7 +76,7 @@ def transfer_digital_object_component_file(variables):
         try:
             subprocess.run(
                 [
-                    "s5cmd",
+                    config("WORK_S5CMD_CMD"),
                     "cp",
                     "--concurrency",
                     "20",
