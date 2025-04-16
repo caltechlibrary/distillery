@@ -159,6 +159,76 @@ def validate(destinations, batch_set_id):
             status_logger.error(message)
             raise
 
+    def is_archival_object_valid(component_id):
+        try:
+            archival_object = find_archival_object(component_id)
+        except Exception as e:
+            status_logger.error(e)
+            logger.exception(e)
+        if not access_platform:
+            # no need to check more conditions
+            return True
+        elif not archival_object["publish"]:
+            message = "‼️ ARCHIVAL OBJECT NOT PUBLISHED: [**{}**]({}/resolve/readonly?uri={})".format(
+                archival_object["title"],
+                config("ASPACE_STAFF_URL"),
+                archival_object["uri"],
+            )
+            status_logger.error(message)
+            return False
+        elif archival_object["has_unpublished_ancestor"]:
+            message = "‼️ ARCHIVAL OBJECT HAS UNPUBLISHED ANCESTOR: [**{}**]({}/resolve/readonly?uri={})".format(
+                archival_object["title"],
+                config("ASPACE_STAFF_URL"),
+                archival_object["uri"],
+            )
+            status_logger.error(message)
+            return False
+        # check for existing digital_object["file_versions"]
+        elif archival_object.get("instances"):
+            digital_object_count = 0
+            for instance in archival_object["instances"]:
+                if "digital_object" in instance.keys():
+                    digital_object_count += 1
+            if digital_object_count > 1:
+                message = "‼️ MULTIPLE DIGITAL OBJECTS FOUND: [**{}**]({}/resolve/readonly?uri={})".format(
+                    archival_object["title"],
+                    config("ASPACE_STAFF_URL"),
+                    archival_object["uri"],
+                )
+                status_logger.error(message)
+                return False
+            elif digital_object_count == 1:
+                # NOTE self.destinations is a JSON string
+                if (
+                    instance["digital_object"]["_resolved"].get("file_versions")
+                    and "fail" in destinations
+                ):
+                    message = "‼️  DIGITAL OBJECT ALREADY HAS FILE VERSIONS: [**{}**]({}/resolve/readonly?uri={})".format(
+                        instance["digital_object"]["_resolved"]["title"],
+                        config("ASPACE_STAFF_URL"),
+                        instance["digital_object"]["ref"],
+                    )
+                    status_logger.error(message)
+                    return False
+                elif instance["digital_object"]["_resolved"].get("file_versions"):
+                    message = "⚠️ EXISTING WEB ACCESS FILES WILL BE REPLACED AND DIGITAL OBJECT RECORDS WILL BE UPDATED: [**{}**]({}/resolve/readonly?uri={})".format(
+                        instance["digital_object"]["_resolved"]["title"],
+                        config("ASPACE_STAFF_URL"),
+                        instance["digital_object"]["ref"],
+                    )
+                    status_logger.warning(message)
+                    return True
+                else:
+                    # no file versions exist yet
+                    return True
+            else:
+                # go through with creating a new digital_object
+                return True
+        else:
+            # ensure there is a return value
+            return True
+
     archival_object_count = 0
     file_count = 0
     unsupported_filetypes = 0
@@ -179,11 +249,23 @@ def validate(destinations, batch_set_id):
                     type, encoding = mimetypes.guess_type(Path(dirpath).joinpath(filename))
                     if not (type.startswith("image/") or type.endswith("/mp4")):
                         unsupported_filetypes += 1
+                if not is_archival_object_valid(
+                    filename.rsplit(".", maxsplit=1)[0]
+                ):
+                    validation_failures += 1
                 archival_object_count += 1
                 file_count += 1
 
         for dirname in dirnames:
             status_logger.info(f"📁 {dirname}")
+            if not is_archival_object_valid(dirname):
+                validation_failures += 1
+            for dir_entry in os.scandir(Path(dirpath).joinpath(dirname)):
+                if dir_entry.name in [".DS_Store", "Thumbs.db"]:
+                    os.remove(dir_entry.path)
+                else:
+                    logger.debug(f"🐞 DIR_ENTRY.NAME: {dir_entry.name}")
+                    file_count += 1
             archival_object_count += 1
 
         dirnames[:] = []
