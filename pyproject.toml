@@ -1,0 +1,30 @@
+[project]
+name = "distillery"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "archivessnake",
+    "backoff",
+    "boto3",
+    "botocore",
+    "bottle",
+    "gevent",
+    "jinja2",
+    "markdown",
+    "markdown-link-attr-modifier",
+    "python-decouple",
+    "requests",
+    "rpyc",
+    "sh",
+]
+
+[dependency-groups]
+dev = [
+    "gtts",
+    "pillow",
+    "pytest-playwright",
+]
+
+[tool.uv.sources]
