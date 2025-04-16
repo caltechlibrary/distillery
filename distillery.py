@@ -56,786 +56,374 @@ asnake_client = ASnakeClient(
 asnake_client.authorize()
 
 
-@rpyc.service
-class DistilleryService(rpyc.Service):
-    def _initiate_variables(self, destinations):
-        # TODO change all references from self.destinations to self.variables["destinations"]
-        self.destinations = destinations
-        self.onsite_medium = None
-        self.cloud_platform = None
-        self.access_platform = None
-        self.variables = {}
-        self.variables["destinations"] = destinations
-        # access/publication form does not have a network_volume option
-        if "cloud" in self.variables["destinations"] and config("CLOUD_PLATFORM"):
-            self.source_files = Path(config("COMMON_MOUNT_PARENT")).joinpath(
-                json.loads(destinations)["cloud"]["network_volume"],
-                config("COMMON_SOURCE_PATH"),
-            )
-        else:
-            self.source_files = Path(config("COMMON_MOUNT_PARENT")).joinpath(
-                "EXAMPLE_VOLUME_2", config("COMMON_SOURCE_PATH")
-            )
+def initiate_variables(destinations):
+    """Initialize variables based on destinations."""
+    variables = {}
+    variables["destinations"] = destinations
+    source_files = None
 
-    def _import_modules(self):
-        # NOTE self.destinations is a JSON string
-        logger.debug(f"🐞 self.destinations: {self.destinations}")
-        if "onsite" in self.destinations and config("ONSITE_MEDIUM"):
-            # import ONSITE_MEDIUM module
-            try:
-                self.onsite_medium = importlib.import_module(config("ONSITE_MEDIUM"))
-                logger.debug(f"🐞 self.onsite_medium: {self.onsite_medium}")
-            except Exception:
-                message = f'❌ UNABLE TO IMPORT MODULE: {config("ONSITE_MEDIUM")}'
-                status_logger.error(message)
-                raise
-        if "cloud" in self.destinations and config("CLOUD_PLATFORM"):
-            # import CLOUD_PLATFORM module
-            try:
-                self.cloud_platform = importlib.import_module(config("CLOUD_PLATFORM"))
-                logger.debug(f"🐞 self.cloud_platform: {self.cloud_platform}")
-            except Exception:
-                message = f'❌ UNABLE TO IMPORT MODULE: {config("CLOUD_PLATFORM")}'
-                status_logger.error(message)
-                raise
-        if "access" in self.destinations and config("ACCESS_PLATFORM"):
-            # import ACCESS_PLATFORM module
-            try:
-                self.access_platform = importlib.import_module(
-                    config("ACCESS_PLATFORM")
-                )
-                logger.debug(f"🐞 self.access_platform: {self.access_platform}")
-                logger.debug(
-                    f"🐞 bool(self.access_platform): {bool(self.access_platform)}"
-                )
-            except Exception:
-                message = f'❌ UNABLE TO IMPORT MODULE: {config("ACCESS_PLATFORM")}'
-                status_logger.error(message)
-                raise
-
-    @rpyc.exposed
-    def validate(self, destinations, batch_set_id):
-        """Validate connections, files, and data."""
-
-        # reset status_logfile
-        status_logger = logging.getLogger("status")
-        for status_logger_handler in status_logger.handlers[:]:
-            # remove the existing file handlers
-            if isinstance(status_logger_handler, logging.FileHandler):
-                status_logger.removeHandler(status_logger_handler)
-        # set the new handler
-        status_logfile = Path(config("WORK_LOG_FILES")).joinpath(
-            f"{batch_set_id}.validate.log"
+    if "cloud" in destinations and config("CLOUD_PLATFORM"):
+        source_files = Path(config("COMMON_MOUNT_PARENT")).joinpath(
+            json.loads(destinations)["cloud"]["network_volume"],
+            config("COMMON_SOURCE_PATH"),
         )
-        status_logfile.touch()
-        status_handler = logging.FileHandler(status_logfile)
-        status_handler.setLevel(logging.INFO)
-        status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
-        status_logger.addHandler(status_handler)
+    else:
+        source_files = Path(config("COMMON_MOUNT_PARENT")).joinpath(
+            "EXAMPLE_VOLUME_2", config("COMMON_SOURCE_PATH")
+        )
 
-        self._initiate_variables(destinations)
+    variables["source_files"] = source_files
+    return variables
 
-        status_logger.info(f"🟢 BEGIN VALIDATING COMPONENTS")
 
-        self._import_modules()
+def import_modules(destinations):
+    """Dynamically import modules based on destinations."""
+    onsite_medium = None
+    cloud_platform = None
+    access_platform = None
 
-        if self.onsite_medium:
-            raise NotImplementedError("❌ tape destinations have been deprecated")
-            # validate ONSITE_MEDIUM connection
-            if self.onsite_medium.validate_connection():
-                message = f'☑️  CONNECTION SUCCESS: {config("ONSITE_MEDIUM")}'
-                status_logger.info(message)
-            else:
-                message = f'❌ CONNECTION FAILURE: {config("ONSITE_MEDIUM")}'
-                status_logger.error(message)
-                raise ConnectionError(message)
-            if not config("TAPE_CONTAINER_PROFILE_URI", default=""):
-                message = "❌ MISSING TAPE_CONTAINER_PROFILE_URI SETTING"
-                status_logger.error(message)
-                raise ValueError(message)
-            elif not archivessnake_get(config("TAPE_CONTAINER_PROFILE_URI")).ok:
-                message = f'❌ INVALID TAPE_CONTAINER_PROFILE_URI SETTING: {config("TAPE_CONTAINER_PROFILE_URI")}'
-                status_logger.error(message)
-                raise ValueError(message)
-        if self.cloud_platform:
-            # validate CLOUD_PLATFORM connection
-            if self.cloud_platform.validate_connection():
-                message = f'☑️  CONNECTION SUCCESS: {config("CLOUD_PLATFORM")}'
-                status_logger.info(message)
-            else:
-                message = f'❌ CONNECTION FAILURE: {config("CLOUD_PLATFORM")}'
-                status_logger.error(message)
-                raise ConnectionError(message)
-        if self.access_platform:
-            # validate ACCESS_PLATFORM connection
-            if self.access_platform.validate_connection():
-                message = f'☑️  CONNECTION SUCCESS: {config("ACCESS_PLATFORM")}'
-                status_logger.info(message)
-            else:
-                message = f'❌ CONNECTION FAILURE: {config("ACCESS_PLATFORM")}'
-                status_logger.error(message)
-                raise ConnectionError(message)
+    if "onsite" in destinations and config("ONSITE_MEDIUM"):
+        try:
+            onsite_medium = importlib.import_module(config("ONSITE_MEDIUM"))
+            logger.debug(f"🐞 onsite_medium: {onsite_medium}")
+        except Exception:
+            message = f'❌ UNABLE TO IMPORT MODULE: {config("ONSITE_MEDIUM")}'
+            status_logger.error(message)
+            raise
 
-        # validate WORK_PRESERVATION_FILES directory
-        if self.onsite_medium or self.cloud_platform:
-            try:
-                Path(self.source_files).parent.joinpath(
-                    config("WORK_PRESERVATION_FILES")
-                ).resolve(strict=True)
-            except:
-                message = "❌ INVALID WORK_PRESERVATION_FILES DIRECTORY: {}".format(
-                    Path(self.source_files).parent.joinpath(
-                        config("WORK_PRESERVATION_FILES")
-                    )
-                )
-                status_logger.error(message)
-                logger.exception("‼️")
-                raise
+    if "cloud" in destinations and config("CLOUD_PLATFORM"):
+        try:
+            cloud_platform = importlib.import_module(config("CLOUD_PLATFORM"))
+            logger.debug(f"🐞 cloud_platform: {cloud_platform}")
+        except Exception:
+            message = f'❌ UNABLE TO IMPORT MODULE: {config("CLOUD_PLATFORM")}'
+            status_logger.error(message)
+            raise
 
-        def is_archival_object_valid(component_id):
-            try:
-                archival_object = find_archival_object(component_id)
-            except Exception as e:
-                status_logger.error(e)
-                logger.exception(e)
-            if not self.access_platform:
-                # no need to check more conditions
-                return True
-            elif not archival_object["publish"]:
-                message = "‼️ ARCHIVAL OBJECT NOT PUBLISHED: [**{}**]({}/resolve/readonly?uri={})".format(
-                    archival_object["title"],
-                    config("ASPACE_STAFF_URL"),
-                    archival_object["uri"],
-                )
-                status_logger.error(message)
-                return False
-            elif archival_object["has_unpublished_ancestor"]:
-                message = "‼️ ARCHIVAL OBJECT HAS UNPUBLISHED ANCESTOR: [**{}**]({}/resolve/readonly?uri={})".format(
-                    archival_object["title"],
-                    config("ASPACE_STAFF_URL"),
-                    archival_object["uri"],
-                )
-                status_logger.error(message)
-                return False
-            # check for existing digital_object["file_versions"]
-            elif archival_object.get("instances"):
-                digital_object_count = 0
-                for instance in archival_object["instances"]:
-                    if "digital_object" in instance.keys():
-                        digital_object_count += 1
-                if digital_object_count > 1:
-                    message = "‼️ MULTIPLE DIGITAL OBJECTS FOUND: [**{}**]({}/resolve/readonly?uri={})".format(
-                        archival_object["title"],
-                        config("ASPACE_STAFF_URL"),
-                        archival_object["uri"],
-                    )
-                    status_logger.error(message)
-                    return False
-                elif digital_object_count == 1:
-                    # NOTE self.destinations is a JSON string
-                    if (
-                        instance["digital_object"]["_resolved"].get("file_versions")
-                        and "fail" in self.destinations
-                    ):
-                        message = "‼️  DIGITAL OBJECT ALREADY HAS FILE VERSIONS: [**{}**]({}/resolve/readonly?uri={})".format(
-                            instance["digital_object"]["_resolved"]["title"],
-                            config("ASPACE_STAFF_URL"),
-                            instance["digital_object"]["ref"],
-                        )
-                        status_logger.error(message)
-                        return False
-                    elif instance["digital_object"]["_resolved"].get("file_versions"):
-                        message = "⚠️ EXISTING WEB ACCESS FILES WILL BE REPLACED AND DIGITAL OBJECT RECORDS WILL BE UPDATED: [**{}**]({}/resolve/readonly?uri={})".format(
-                            instance["digital_object"]["_resolved"]["title"],
-                            config("ASPACE_STAFF_URL"),
-                            instance["digital_object"]["ref"],
-                        )
-                        status_logger.warning(message)
-                        return True
-                    else:
-                        # no file versions exist yet
-                        return True
-                else:
-                    # go through with creating a new digital_object
-                    return True
-            else:
-                # ensure there is a return value
-                return True
+    if "access" in destinations and config("ACCESS_PLATFORM"):
+        try:
+            access_platform = importlib.import_module(config("ACCESS_PLATFORM"))
+            logger.debug(f"🐞 access_platform: {access_platform}")
+        except Exception:
+            message = f'❌ UNABLE TO IMPORT MODULE: {config("ACCESS_PLATFORM")}'
+            status_logger.error(message)
+            raise
 
-        archival_object_count = 0
-        file_count = 0
-        unsupported_filetypes = 0
-        validation_failures = 0
-        for dirpath, dirnames, filenames in os.walk(self.source_files):
-            logger.debug(f"🐞 DIRPATH: {dirpath}")
-            logger.debug(f"🐞 DIRNAMES: {dirnames}")
-            logger.debug(f"🐞 FILENAMES: {filenames}")
-            if not dirnames and not filenames:
-                message = "❌ NO DIRECTORIES OR FILES FOUND"
-                status_logger.error(message)
-                raise FileNotFoundError(message)
-            # check filenames in root directory
-            for filename in filenames:
-                if filename in [".DS_Store", "Thumbs.db"]:
-                    os.remove(Path(dirpath).joinpath(filename))
-                else:
-                    status_logger.info(f"📄 {filename}")
-                    if self.access_platform:
-                        type, encoding = mimetypes.guess_type(
-                            Path(dirpath).joinpath(filename)
-                        )
-                        if not (type.startswith("image/") or type.endswith("/mp4")):
-                            unsupported_filetypes += 1
-                    if not is_archival_object_valid(
-                        filename.rsplit(".", maxsplit=1)[0]
-                    ):
-                        validation_failures += 1
-                    file_count += 1
-                    archival_object_count += 1
-            # check dirnames in root directory
-            for dirname in dirnames:
-                status_logger.info(f"📁 {dirname}")
-                if not is_archival_object_valid(dirname):
-                    validation_failures += 1
-                for dir_entry in os.scandir(Path(dirpath).joinpath(dirname)):
-                    if dir_entry.name in [".DS_Store", "Thumbs.db"]:
-                        os.remove(dir_entry.path)
-                    else:
-                        logger.debug(f"🐞 DIR_ENTRY.NAME: {dir_entry.name}")
-                        file_count += 1
-                archival_object_count += 1
-            # reset dirnames to stop os.walk from descending into subdirectories
-            # and continuing to loop over filenames
-            # https://stackoverflow.com/a/43618972
-            dirnames[:] = []
-            if unsupported_filetypes > 0:
-                message = "❌ UNSUPPORTED FILE TYPE"
-                status_logger.error(message)
-                raise RuntimeError(message)
-            if validation_failures > 0:
-                message = "❌ VALIDATION FAILURE"
-                status_logger.error(message)
-                raise RuntimeError(message)
-        if archival_object_count and file_count:
-            status_logger.info(f"🗂 ARCHIVAL OBJECT COUNT: {archival_object_count}")
-            status_logger.info(f"📄 FILE COUNT: {file_count}")
+    return onsite_medium, cloud_platform, access_platform
+
+
+def validate(destinations, batch_set_id):
+    status_logger = logging.getLogger("status")
+    for handler in status_logger.handlers[:]:
+        if isinstance(handler, logging.FileHandler):
+            status_logger.removeHandler(handler)
+
+    status_logfile = Path(config("WORK_LOG_FILES")).joinpath(f"{batch_set_id}.validate.log")
+    status_logfile.touch()
+    status_handler = logging.FileHandler(status_logfile)
+    status_handler.setLevel(logging.INFO)
+    status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
+    status_logger.addHandler(status_handler)
+
+    variables = initiate_variables(destinations)
+    status_logger.info(f"🟢 BEGIN VALIDATING COMPONENTS")
+
+    onsite_medium, cloud_platform, access_platform = import_modules(destinations)
+
+    if onsite_medium:
+        raise NotImplementedError("❌ tape destinations have been deprecated")
+
+    if cloud_platform:
+        if cloud_platform.validate_connection():
+            status_logger.info(f'☑️  CONNECTION SUCCESS: {config("CLOUD_PLATFORM")}')
         else:
-            message = "❌ NO FILES FOUND"
+            message = f'❌ CONNECTION FAILURE: {config("CLOUD_PLATFORM")}'
+            status_logger.error(message)
+            raise ConnectionError(message)
+
+    if access_platform:
+        if access_platform.validate_connection():
+            status_logger.info(f'☑️  CONNECTION SUCCESS: {config("ACCESS_PLATFORM")}')
+        else:
+            message = f'❌ CONNECTION FAILURE: {config("ACCESS_PLATFORM")}'
+            status_logger.error(message)
+            raise ConnectionError(message)
+
+    if onsite_medium or cloud_platform:
+        try:
+            Path(variables["source_files"]).parent.joinpath(
+                config("WORK_PRESERVATION_FILES")
+            ).resolve(strict=True)
+        except Exception as e:
+            message = f"❌ INVALID WORK_PRESERVATION_FILES DIRECTORY: {e}"
+            status_logger.error(message)
+            raise
+
+    archival_object_count = 0
+    file_count = 0
+    unsupported_filetypes = 0
+    validation_failures = 0
+
+    for dirpath, dirnames, filenames in os.walk(variables["source_files"]):
+        if not dirnames and not filenames:
+            message = "❌ NO DIRECTORIES OR FILES FOUND"
             status_logger.error(message)
             raise FileNotFoundError(message)
 
-        # send the character that stops javascript reloading in the web ui
-        status_logger.info(f"🈺")  # Japanese “Open for Business” Button
-
-    @rpyc.exposed
-    def run(self, destinations, batch_set_id):
-        """Run Distillery."""
-
-        # reset status_logfile
-        status_logger = logging.getLogger("status")
-        for status_logger_handler in status_logger.handlers[:]:
-            # remove the existing file handlers
-            if isinstance(status_logger_handler, logging.FileHandler):
-                status_logger.removeHandler(status_logger_handler)
-        # set the new handler
-        status_logfile = Path(config("WORK_LOG_FILES")).joinpath(
-            f"{batch_set_id}.run.log"
-        )
-        status_logfile.touch()
-        status_handler = logging.FileHandler(status_logfile)
-        status_handler.setLevel(logging.INFO)
-        status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
-        status_logger.addHandler(status_handler)
-
-        try:
-            self._initiate_variables(destinations)
-            status_logger.info(f"🟢 BEGIN DISTILLING")
-            self._import_modules()
-            status_logger.info(
-                f'☑️  DESTINATIONS: {", ".join(list(json.loads(self.destinations)))}'
-            )
-            onsiteDistiller = None
-            cloudDistiller = None
-            accessDistiller = None
-            if "onsite" in self.destinations or "cloud" in self.destinations:
-                either_preservation_destination = True
-                self.variables["work_preservation_files"] = (
-                    Path(self.source_files)
-                    .parent.joinpath(config("WORK_PRESERVATION_FILES"))
-                    .resolve(strict=True)
-                )
-
+        for filename in filenames:
+            if filename in [".DS_Store", "Thumbs.db"]:
+                os.remove(Path(dirpath).joinpath(filename))
             else:
-                either_preservation_destination = False
+                status_logger.info(f"📄 {filename}")
+                if access_platform:
+                    type, encoding = mimetypes.guess_type(Path(dirpath).joinpath(filename))
+                    if not (type.startswith("image/") or type.endswith("/mp4")):
+                        unsupported_filetypes += 1
+                archival_object_count += 1
+                file_count += 1
 
-            try:
-                batch_directory = (
-                    Path(self.source_files)
-                    .parent.joinpath(config("BATCH_SETS_DIRECTORY"))
-                    .joinpath(batch_set_id)
-                )
-                batch_directory.mkdir(parents=True, exist_ok=True)
-                Path(self.source_files).rename(
-                    batch_directory.joinpath("STAGE_1_INITIAL")
-                )
-                batch_directory.joinpath("STAGE_2_WORKING").mkdir(
-                    parents=True, exist_ok=True
-                )
-                batch_directory.joinpath("STAGE_3_COMPLETE").mkdir(
-                    parents=True, exist_ok=True
-                )
-                Path(self.source_files).mkdir()
-            except BaseException:
-                message = "❌ UNABLE TO MOVE THE SOURCE FILES FOR PROCESSING"
-                status_logger.error(message)
-                logger.exception(f"‼️")
-                raise
+        for dirname in dirnames:
+            status_logger.info(f"📁 {dirname}")
+            archival_object_count += 1
 
-            for dir_entry in sorted(
-                os.scandir(batch_directory.joinpath("STAGE_1_INITIAL")),
-                key=lambda dir_entry: dir_entry.name,
-            ):
-                if dir_entry.name in [".DS_Store", "Thumbs.db"]:
-                    os.remove(dir_entry.path)
-                    continue
-                elif dir_entry.is_file():
-                    dir_entry_stem = dir_entry.name.rsplit(".", maxsplit=1)[0]
-                elif dir_entry.is_dir():
-                    dir_entry_stem = dir_entry.name
-                else:
-                    logger.warning(
-                        f"⚠️ UNEXPECTED OS.DIRENTRY OBJECT: {dir_entry.name}"
-                    )
-                    continue
+        dirnames[:] = []
 
-                try:
-                    self.variables["archival_object"] = find_archival_object(
-                        dir_entry_stem
-                    )
-                except Exception as e:
-                    status_logger.error(e)
-                    logger.exception(e)
-                self.variables["arrangement"] = get_arrangement(
-                    self.variables["archival_object"]
-                )
+    if unsupported_filetypes > 0:
+        message = "❌ UNSUPPORTED FILE TYPE"
+        status_logger.error(message)
+        raise RuntimeError(message)
 
-                # collection-level preprocessing
-                if either_preservation_destination:
-                    # retrieve collection data from ArchivesSpace
-                    collection_data = get_collection_data(
-                        self.variables["arrangement"]["collection_id"]
-                    )
-                    status_logger.info(
-                        f'☑️  ARCHIVESSPACE COLLECTION DATA RETRIEVED: [**{collection_data["title"]}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={collection_data["uri"]})'
-                    )
-                    # save collection metadata
-                    save_collection_datafile(
-                        collection_data,
-                        self.variables["work_preservation_files"],
-                    )
-                    # run collection-level preprocessing
-                    if self.onsite_medium:
-                        self.onsite_medium.collection_level_preprocessing(
-                            self.variables["arrangement"]["collection_id"],
-                            self.variables["work_preservation_files"],
-                        )
-                        onsiteDistiller = True
-                    if self.cloud_platform:
-                        self.cloud_platform.collection_level_preprocessing(
-                            self.variables["arrangement"]["collection_id"],
-                            self.variables["work_preservation_files"],
-                        )
-                        cloudDistiller = True
+    if validation_failures > 0:
+        message = "❌ VALIDATION FAILURE"
+        status_logger.error(message)
+        raise RuntimeError(message)
 
-                # for publication destinations
-                accessDistiller = None
-                if self.access_platform:
-                    self.variables["thumbnail_label"] = json.loads(self.destinations)[
-                        "access"
-                    ]["thumbnail_label"]
-                    accessDistiller = self.access_platform.AccessPlatform()
-                    accessDistiller.collection_structure_processing()
+    if archival_object_count and file_count:
+        status_logger.info(f"🗂 ARCHIVAL OBJECT COUNT: {archival_object_count}")
+        status_logger.info(f"📄 FILE COUNT: {file_count}")
+    else:
+        message = "❌ NO FILES FOUND"
+        status_logger.error(message)
+        raise FileNotFoundError(message)
 
-                initial_archival_object = dir_entry.path
-                working_archival_object = str(
-                    batch_directory.joinpath("STAGE_2_WORKING", dir_entry.name)
-                )
-                try:
-                    shutil.move(initial_archival_object, working_archival_object)
-                except BaseException:
-                    message = "❌ UNABLE TO MOVE THE INITIAL FILES FOR WORKING"
-                    status_logger.error(message)
-                    logger.exception(f"‼️")
-                    raise
+    status_logger.info(f"🈺")
 
-                # Set up list of file paths for the current directory.
-                if Path(working_archival_object).is_file():
-                    self.variables["filepaths"] = [working_archival_object]
-                elif Path(working_archival_object).is_dir():
-                    self.variables["filepaths"] = [
-                        f.path
-                        for f in os.scandir(working_archival_object)
-                        if f.is_file()
-                    ]
 
-                if either_preservation_destination:
-                    archival_object_datafile_key = save_archival_object_datafile(
-                        self.variables["arrangement"],
-                        self.variables["archival_object"],
-                        self.variables["work_preservation_files"],
-                    )
-                    status_logger.info(
-                        f"☑️  ARCHIVAL OBJECT DATA FILE CREATED: {archival_object_datafile_key}"
-                    )
-                    prepare_preservation_files(self.variables)
+def run(destinations, batch_set_id):
+    """Run Distillery."""
+    status_logger = logging.getLogger("status")
+    for status_logger_handler in status_logger.handlers[:]:
+        if isinstance(status_logger_handler, logging.FileHandler):
+            status_logger.removeHandler(status_logger_handler)
 
-                if accessDistiller:
-                    accessDistiller.archival_object_level_processing(self.variables)
-                    build_directory = accessDistiller.get_build_directory()
-                    self.access_platform.loop_over_archival_object_files(
-                        build_directory, self.variables
-                    )
+    status_logfile = Path(config("WORK_LOG_FILES")).joinpath(f"{batch_set_id}.run.log")
+    status_logfile.touch()
+    status_handler = logging.FileHandler(status_logfile)
+    status_handler.setLevel(logging.INFO)
+    status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
+    status_logger.addHandler(status_handler)
 
-                if accessDistiller:
-                    # NOTE working on variables["archival_object"]["component_id"]
-                    accessDistiller.transfer_archival_object_derivative_files(
-                        self.variables
-                    )
-                    status_logger.info(
-                        "☑️  ACCESS PAGE CREATED: [**{}**]({}/{}/{}/{})".format(
-                            self.variables["archival_object"]["component_id"],
-                            config("ALCHEMIST_BASE_URL").rstrip("/"),
-                            config("ALCHEMIST_URL_PREFIX"),
-                            self.variables["arrangement"]["collection_id"],
-                            self.variables["archival_object"]["component_id"],
-                        )
-                    )
+    try:
+        variables = initiate_variables(destinations)
+        status_logger.info(f"🟢 BEGIN DISTILLING")
+        onsite_medium, cloud_platform, access_platform = import_modules(destinations)
 
-                    # NOTE this is where we create_digital_object_file_versions()
-                    accessDistiller.loop_over_derivative_structure(self.variables)
-
-                if either_preservation_destination:
-                    # Confirm existing or create digital_object with component_id.
-                    # NOTE digital_object needs to exist for digital_object_component records to be attached
-                    try:
-                        digital_object_count = len(
-                            [
-                                i
-                                for i in self.variables["archival_object"]["instances"]
-                                if "digital_object" in i.keys()
-                            ]
-                        )
-                        logger.debug(f"🐞 DIGITAL OBJECT COUNT: {digital_object_count}")
-                        if digital_object_count > 1:
-                            raise ValueError(
-                                "❌ MULTIPLE DIGITAL OBJECTS FOUND: {}".format(
-                                    self.variables["archival_object"]["component_id"]
-                                )
-                            )
-                        elif digital_object_count < 1:
-                            # returns new archival_object with digital_object instance included
-                            (
-                                digital_object_uri,
-                                self.variables["archival_object"],
-                            ) = create_digital_object(self.variables["archival_object"])
-                    except:
-                        logger.exception("‼️")
-                        raise
-
-                    self.variables["current_archival_object_datafile"] = (
-                        Path(self.variables["work_preservation_files"])
-                        .joinpath(
-                            archival_object_datafile_key,
-                        )
-                        .resolve()
-                    )
-                    logger.debug(
-                        f'🐞 ARCHIVAL OBJECT DATAFILE: {self.variables["current_archival_object_datafile"]}'
-                    )
-
-                    if self.onsite_medium:
-                        # tape_top_container_uri added to self.variables
-                        self.variables = self.onsite_medium.transfer_archival_object_derivative_files(
-                            self.variables
-                        )
-                        # NOTE writes top_container records to ArchivesSpace
-                        self.onsite_medium.process_archival_object_datafile(
-                            self.variables
-                        )
-                    if self.cloud_platform:
-                        self.cloud_platform.process_archival_object_datafile(
-                            self.variables
-                        )
-
-                    # see https://stackoverflow.com/a/54790514 for os.walk explainer
-                    for dirpath, dirnames, filenames in sorted(
-                        os.walk(
-                            Path(self.variables["work_preservation_files"])
-                            .joinpath(
-                                get_archival_object_directory_prefix(
-                                    self.variables["arrangement"],
-                                    self.variables["archival_object"],
-                                ),
-                            )
-                            .resolve()
-                        )
-                    ):
-                        for filename in filenames:
-                            filepath = Path(dirpath).joinpath(filename)
-                            if filename in [".DS_Store", "Thumbs.db"]:
-                                os.remove(filepath)
-                                continue
-                            if Path(filename).suffix == ".json" and Path(
-                                dirpath
-                            ).name.startswith(Path(filename).stem):
-                                # skip archival_object JSON metadata
-                                continue
-                            logger.info(
-                                f"▶️  GETTING PRESERVATION FILE INFO: {filepath}"
-                            )
-                            self.variables["preservation_file_info"] = {}
-                            self.variables["preservation_file_info"][
-                                "filepath"
-                            ] = filepath
-                            self.variables["preservation_file_info"][
-                                "filesize"
-                            ] = filepath.stat().st_size
-                            with open(filepath, "rb") as fb:
-                                self.variables["preservation_file_info"][
-                                    "md5"
-                                ] = hashlib.md5(fb.read())
-                            if self.onsite_medium:
-                                self.onsite_medium.process_digital_object_component_file(
-                                    self.variables
-                                )
-                            if self.cloud_platform:
-                                self.cloud_platform.process_digital_object_component_file(
-                                    self.variables
-                                )
-
-                    # move preservation files on each iteration because the
-                    # rsync transfer to tape copies the entire contents of the
-                    # directory; move them into an intermediate directory for
-                    # deletion because deleting across slow file systems can
-                    # result in cruft still existing on the next iteration
-                    if not config("WORK_STILLAGE_FILES", default=""):
-                        # create a .STILLAGE directory
-                        stillage_default = Path(self.source_files).parent.joinpath(
-                            ".STILLAGE"
-                        )
-                        stillage_default.mkdir(exist_ok=True)
-                    logger.debug(
-                        "🐞 STILLAGE DIRECTORY: {}".format(
-                            Path(
-                                config("WORK_STILLAGE_FILES", default=stillage_default)
-                            ).as_posix()
-                        )
-                    )
-                    if (
-                        Path(config("WORK_STILLAGE_FILES", default=stillage_default))
-                        .resolve()
-                        .joinpath(self.variables["arrangement"]["collection_id"])
-                        .is_dir()
-                    ):
-                        for dir_entry in os.scandir(
-                            Path(self.variables["work_preservation_files"]).joinpath(
-                                self.variables["arrangement"]["collection_id"],
-                            )
-                        ):
-                            shutil.move(
-                                dir_entry.path,
-                                Path(
-                                    config(
-                                        "WORK_STILLAGE_FILES", default=stillage_default
-                                    )
-                                )
-                                .resolve()
-                                .joinpath(
-                                    self.variables["arrangement"]["collection_id"]
-                                )
-                                .as_posix(),
-                            )
-                    else:
-                        shutil.move(
-                            Path(self.variables["work_preservation_files"])
-                            .joinpath(
-                                self.variables["arrangement"]["collection_id"],
-                            )
-                            .as_posix(),
-                            Path(
-                                config("WORK_STILLAGE_FILES", default=stillage_default)
-                            )
-                            .resolve()
-                            .as_posix(),
-                        )
-                    os.system(
-                        "/bin/rm -rf {}".format(
-                            Path(
-                                config("WORK_STILLAGE_FILES", default=stillage_default)
-                            )
-                            .joinpath(self.variables["arrangement"]["collection_id"])
-                            .resolve()
-                            .as_posix()
-                        )
-                    )
-
-                try:
-                    shutil.move(
-                        working_archival_object,
-                        str(
-                            batch_directory.joinpath("STAGE_3_COMPLETE", dir_entry.name)
-                        ),
-                    )
-                except BaseException:
-                    message = "❌ UNABLE TO MOVE THE WORKING FILES FOR COMPLETION"
-                    status_logger.error(message)
-                    logger.exception(f"‼️")
-                    raise
-
-        except Exception as e:
-            status_logger.error("❌ SOMETHING WENT WRONG")
-            status_logger.error(e)
-            logger.exception("‼️")
-            raise
-        # complete the process if there is no error
+        if "onsite" in destinations or "cloud" in destinations:
+            either_preservation_destination = True
+            variables["work_preservation_files"] = (
+                Path(variables["source_files"])
+                .parent.joinpath(config("WORK_PRESERVATION_FILES"))
+                .resolve(strict=True)
+            )
         else:
-            # send the character that stops javascript reloading in the web ui
-            status_logger.info(f"🏁")
-            # TODO delete PRESERVATION_FILES/CollectionID directory
+            either_preservation_destination = False
 
-    @rpyc.exposed
-    def alchemist_regenerate(self, component_id="", collection_id="", logfile=""):
+        batch_directory = (
+            Path(variables["source_files"])
+            .parent.joinpath(config("BATCH_SETS_DIRECTORY"))
+            .joinpath(batch_set_id)
+        )
+        batch_directory.mkdir(parents=True, exist_ok=True)
+        Path(variables["source_files"]).rename(
+            batch_directory.joinpath("STAGE_1_INITIAL")
+        )
+        batch_directory.joinpath("STAGE_2_WORKING").mkdir(parents=True, exist_ok=True)
+        batch_directory.joinpath("STAGE_3_COMPLETE").mkdir(parents=True, exist_ok=True)
+        Path(variables["source_files"]).mkdir()
+
+        for dir_entry in sorted(
+            os.scandir(batch_directory.joinpath("STAGE_1_INITIAL")),
+            key=lambda dir_entry: dir_entry.name,
+        ):
+            if dir_entry.name in [".DS_Store", "Thumbs.db"]:
+                os.remove(dir_entry.path)
+                continue
+
+            variables["archival_object"] = find_archival_object(
+                dir_entry.name.rsplit(".", maxsplit=1)[0]
+            )
+            variables["arrangement"] = get_arrangement(variables["archival_object"])
+
+            if either_preservation_destination:
+                collection_data = get_collection_data(
+                    variables["arrangement"]["collection_id"]
+                )
+                save_collection_datafile(
+                    collection_data, variables["work_preservation_files"]
+                )
+
+            working_archival_object = str(
+                batch_directory.joinpath("STAGE_2_WORKING", dir_entry.name)
+            )
+            shutil.move(dir_entry.path, working_archival_object)
+
+            if Path(working_archival_object).is_file():
+                variables["filepaths"] = [working_archival_object]
+            elif Path(working_archival_object).is_dir():
+                variables["filepaths"] = [
+                    f.path for f in os.scandir(working_archival_object) if f.is_file()
+                ]
+
+            if either_preservation_destination:
+                archival_object_datafile_key = save_archival_object_datafile(
+                    variables["arrangement"],
+                    variables["archival_object"],
+                    variables["work_preservation_files"],
+                )
+                prepare_preservation_files(variables)
+
+            shutil.move(
+                working_archival_object,
+                str(batch_directory.joinpath("STAGE_3_COMPLETE", dir_entry.name)),
+            )
+
+    except Exception as e:
+        status_logger.error("❌ SOMETHING WENT WRONG")
+        status_logger.error(e)
+        logger.exception("‼️")
+        raise
+    else:
+        status_logger.info(f"🏁")
+
+
+def alchemist_regenerate(component_id="", collection_id="", logfile=""):
+    if component_id:
+        status_logger = logging.getLogger(component_id)
+    elif collection_id:
+        status_logger = logging.getLogger(collection_id)
+    else:
+        status_logger = logging.getLogger("_")
+    status_logger.setLevel(logging.INFO)
+    Path(logfile).touch()
+    status_handler = logging.FileHandler(logfile)
+    status_handler.setLevel(logging.INFO)
+    status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
+    status_logger.addHandler(status_handler)
+
+    # import ACCESS_PLATFORM module
+    try:
+        access_platform = importlib.import_module(config("ACCESS_PLATFORM"))
+    except Exception:
+        message = f'❌ UNABLE TO IMPORT MODULE: {config("ACCESS_PLATFORM")}'
+        status_logger.exception(message)
+        raise
+
+    try:
+        accessDistiller = access_platform.AccessPlatform()
+    except Exception:
+        message = "❌ PROBLEM WITH ACCESSPLATFORM CLASS"
+        status_logger.exception(message)
+        raise
+
+    variables = {"alchemist_regenerate": True}
+
+    try:
         if component_id:
-            status_logger = logging.getLogger(component_id)
+            # regenerate files for one item
+            status_logger.info(f"🟢 BEGIN REGENERATING: {component_id}")
+            variables["archival_object"] = find_archival_object(component_id)
+            variables["arrangement"] = get_arrangement(variables["archival_object"])
+            accessDistiller.archival_object_level_processing(variables)
+            accessDistiller.transfer_archival_object_derivative_files(variables)
+            archival_object_path = "/".join(
+                [
+                    config("ALCHEMIST_URL_PREFIX"),
+                    variables["arrangement"]["collection_id"],
+                    variables["archival_object"]["component_id"],
+                ]
+            )
+            if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+                access_platform.invalidate_cloudfront_path(
+                    path=f"/{archival_object_path}/*"
+                )
+            status_logger.info(
+                "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({})".format(
+                    variables["archival_object"]["component_id"],
+                    "/".join(
+                        [
+                            config("ALCHEMIST_BASE_URL").rstrip("/"),
+                            archival_object_path,
+                        ]
+                    ),
+                )
+            )
         elif collection_id:
-            status_logger = logging.getLogger(collection_id)
-        else:
-            status_logger = logging.getLogger("_")
-        status_logger.setLevel(logging.INFO)
-        Path(logfile).touch()
-        status_handler = logging.FileHandler(logfile)
-        status_handler.setLevel(logging.INFO)
-        status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
-        status_logger.addHandler(status_handler)
-
-        # import ACCESS_PLATFORM module
-        try:
-            self.access_platform = importlib.import_module(config("ACCESS_PLATFORM"))
-        except Exception:
-            message = f'❌ UNABLE TO IMPORT MODULE: {config("ACCESS_PLATFORM")}'
-            status_logger.exception(message)
-            raise
-
-        try:
-            accessDistiller = self.access_platform.AccessPlatform()
-        except Exception:
-            message = "❌ PROBLEM WITH ACCESSPLATFORM CLASS"
-            status_logger.exception(message)
-            raise
-
-        variables = {"alchemist_regenerate": True}
-
-        try:
-            if component_id:
-                # regenerate files for one item
-                status_logger.info(f"🟢 BEGIN REGENERATING: {component_id}")
+            # regenerate files for a collection
+            status_logger.info(f"🟢 BEGIN REGENERATING ITEMS FOR: {collection_id}")
+            archival_object_prefixes = accessDistiller.regenerate_collection(collection_id)
+            if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+                access_platform.invalidate_cloudfront_path(
+                    path=f'/{config("ALCHEMIST_URL_PREFIX")}/{collection_id}/*'
+                )
+            for archival_object_prefix in archival_object_prefixes:
+                component_id = archival_object_prefix.split("/")[-2]
                 variables["archival_object"] = find_archival_object(component_id)
                 variables["arrangement"] = get_arrangement(variables["archival_object"])
                 accessDistiller.archival_object_level_processing(variables)
                 accessDistiller.transfer_archival_object_derivative_files(variables)
-                archival_object_path = "/".join(
-                    [
+                status_logger.info(
+                    "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{}/{})".format(
+                        variables["archival_object"]["component_id"],
+                        config("ALCHEMIST_BASE_URL").rstrip("/"),
                         config("ALCHEMIST_URL_PREFIX"),
                         variables["arrangement"]["collection_id"],
                         variables["archival_object"]["component_id"],
-                    ]
-                )
-                if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-                    self.access_platform.invalidate_cloudfront_path(
-                        path=f"/{archival_object_path}/*"
-                    )
-                status_logger.info(
-                    "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({})".format(
-                        variables["archival_object"]["component_id"],
-                        "/".join(
-                            [
-                                config("ALCHEMIST_BASE_URL").rstrip("/"),
-                                archival_object_path,
-                            ]
-                        ),
                     )
                 )
-            elif collection_id:
-                # TODO DRY this out
-                # regenerate files for a collection
-                status_logger.info(f"🟢 BEGIN REGENERATING ITEMS FOR: {collection_id}")
-                archival_object_prefixes = accessDistiller.regenerate_collection(
-                    collection_id
+            if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+                access_platform.invalidate_cloudfront_path(
+                    path=f'/{config("ALCHEMIST_URL_PREFIX")}/{collection_id}/*'
                 )
-                if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-                    # invalidate existing paths so the status_logger links work
-                    self.access_platform.invalidate_cloudfront_path(
-                        path=f'/{config("ALCHEMIST_URL_PREFIX")}/{collection_id}/*'
-                    )
-                for archival_object_prefix in archival_object_prefixes:
-                    component_id = archival_object_prefix.split("/")[-2]
-                    variables["archival_object"] = find_archival_object(component_id)
-                    variables["arrangement"] = get_arrangement(
-                        variables["archival_object"]
-                    )
-                    accessDistiller.archival_object_level_processing(variables)
-                    accessDistiller.transfer_archival_object_derivative_files(variables)
-                    status_logger.info(
-                        "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{}/{})".format(
-                            variables["archival_object"]["component_id"],
-                            config("ALCHEMIST_BASE_URL").rstrip("/"),
-                            config("ALCHEMIST_URL_PREFIX"),
-                            variables["arrangement"]["collection_id"],
-                            variables["archival_object"]["component_id"],
-                        )
-                    )
-                if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-                    # invalidate again to ensure all paths serve fresh content
-                    self.access_platform.invalidate_cloudfront_path(
-                        path=f'/{config("ALCHEMIST_URL_PREFIX")}/{collection_id}/*'
-                    )
-            else:
-                # TODO DRY this out
-                # regenerate files for all items
-                status_logger.info("🟢 BEGIN REGENERATING ALL")
-                archival_object_prefixes = accessDistiller.regenerate_all()
-                if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-                    # invalidate existing paths so the status_logger links work
-                    self.access_platform.invalidate_cloudfront_path()
-                for archival_object_prefix in archival_object_prefixes:
-                    component_id = archival_object_prefix.split("/")[-2]
-                    variables["archival_object"] = find_archival_object(component_id)
-                    variables["arrangement"] = get_arrangement(
-                        variables["archival_object"]
-                    )
-                    accessDistiller.archival_object_level_processing(variables)
-                    accessDistiller.transfer_archival_object_derivative_files(variables)
-                    status_logger.info(
-                        "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{}/{})".format(
-                            variables["archival_object"]["component_id"],
-                            config("ALCHEMIST_BASE_URL").rstrip("/"),
-                            config("ALCHEMIST_URL_PREFIX"),
-                            variables["arrangement"]["collection_id"],
-                            variables["archival_object"]["component_id"],
-                        )
-                    )
-                if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-                    # invalidate again to ensure all paths serve fresh content
-                    self.access_platform.invalidate_cloudfront_path()
-        except Exception as e:
-            status_logger.error("❌ SOMETHING WENT WRONG")
-            status_logger.error(e)
-            logger.exception("‼️")
-            raise
-        # complete the process if there is no error
         else:
-            # send the character that stops javascript reloading in the web ui
-            status_logger.info(f"🏁")
+            # regenerate files for all items
+            status_logger.info("🟢 BEGIN REGENERATING ALL")
+            archival_object_prefixes = accessDistiller.regenerate_all()
+            if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+                access_platform.invalidate_cloudfront_path()
+            for archival_object_prefix in archival_object_prefixes:
+                component_id = archival_object_prefix.split("/")[-2]
+                variables["archival_object"] = find_archival_object(component_id)
+                variables["arrangement"] = get_arrangement(variables["archival_object"])
+                accessDistiller.archival_object_level_processing(variables)
+                accessDistiller.transfer_archival_object_derivative_files(variables)
+                status_logger.info(
+                    "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{}/{})".format(
+                        variables["archival_object"]["component_id"],
+                        config("ALCHEMIST_BASE_URL").rstrip("/"),
+                        config("ALCHEMIST_URL_PREFIX"),
+                        variables["arrangement"]["collection_id"],
+                        variables["archival_object"]["component_id"],
+                    )
+                )
+            if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
+                access_platform.invalidate_cloudfront_path()
+    except Exception as e:
+        status_logger.error("❌ SOMETHING WENT WRONG")
+        status_logger.error(e)
+        logger.exception("‼️")
+        raise
+    else:
+        status_logger.info(f"🏁")
 
 
 def get_collection_data(collection_id):
@@ -1490,7 +1078,70 @@ def prepare_preservation_files(variables):
             status_logger.info(f"☑️  ORIGINAL FILE COPIED: {preservation_file_key}")
 
 
+import argparse
+import logging
+import os
+from pathlib import Path
+
+# Import other necessary modules and functions here
+# ...
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Digital object preservation workflow for Caltech Archives."
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # Subcommand: validate
+    validate_parser = subparsers.add_parser(
+        "validate", help="Validate connections, files, and data."
+    )
+    validate_parser.add_argument(
+        "--destinations", required=True, help="JSON string of destinations."
+    )
+    validate_parser.add_argument(
+        "--batch-set-id", required=True, help="Batch set ID for validation."
+    )
+
+    # Subcommand: run
+    run_parser = subparsers.add_parser("run", help="Run the distillery process.")
+    run_parser.add_argument(
+        "--destinations", required=True, help="JSON string of destinations."
+    )
+    run_parser.add_argument(
+        "--batch-set-id", required=True, help="Batch set ID for processing."
+    )
+
+    # Subcommand: regenerate
+    regenerate_parser = subparsers.add_parser(
+        "regenerate", help="Regenerate files for a component, collection, or all items."
+    )
+    regenerate_parser.add_argument(
+        "--component-id", help="Component ID for regeneration."
+    )
+    regenerate_parser.add_argument(
+        "--collection-id", help="Collection ID for regeneration."
+    )
+    regenerate_parser.add_argument(
+        "--logfile", required=True, help="Path to the logfile."
+    )
+
+    args = parser.parse_args()
+
+    # Handle the commands
+    if args.command == "validate":
+        validate(args.destinations, args.batch_set_id)
+    elif args.command == "run":
+        run(args.destinations, args.batch_set_id)
+    elif args.command == "regenerate":
+        alchemist_regenerate(
+            component_id=args.component_id,
+            collection_id=args.collection_id,
+            logfile=args.logfile,
+        )
+    else:
+        parser.print_help()
+
+
 if __name__ == "__main__":
-    # fmt: off
-    from rpyc.utils.server import ThreadedServer
-    ThreadedServer(DistilleryService, port=config("DISTILLERY_RPYC_PORT")).start()
+    main()
