@@ -199,7 +199,7 @@ def validate(destinations, batch_set_id):
                 status_logger.error(message)
                 return False
             elif digital_object_count == 1:
-                # NOTE self.destinations is a JSON string
+                # NOTE destinations is a JSON string
                 if (
                     instance["digital_object"]["_resolved"].get("file_versions")
                     and "fail" in destinations
@@ -354,6 +354,13 @@ def run(destinations, batch_set_id):
                     collection_data, variables["work_preservation_files"]
                 )
 
+                if cloud_platform:
+                    cloud_platform.collection_level_preprocessing(
+                        variables["arrangement"]["collection_id"],
+                        variables["work_preservation_files"],
+                    )
+                    cloudDistiller = True
+
             working_archival_object = str(
                 batch_directory.joinpath("STAGE_2_WORKING", dir_entry.name)
             )
@@ -373,6 +380,162 @@ def run(destinations, batch_set_id):
                     variables["work_preservation_files"],
                 )
                 prepare_preservation_files(variables)
+
+            if either_preservation_destination:
+                # Confirm existing or create digital_object with component_id.
+                # NOTE digital_object needs to exist for digital_object_component records to be attached
+                try:
+                    digital_object_count = len(
+                        [
+                            i
+                            for i in variables["archival_object"]["instances"]
+                            if "digital_object" in i.keys()
+                        ]
+                    )
+                    logger.debug(f"🐞 DIGITAL OBJECT COUNT: {digital_object_count}")
+                    if digital_object_count > 1:
+                        raise ValueError(
+                            "❌ MULTIPLE DIGITAL OBJECTS FOUND: {}".format(
+                                variables["archival_object"]["component_id"]
+                            )
+                        )
+                    elif digital_object_count < 1:
+                        # returns new archival_object with digital_object instance included
+                        (
+                            digital_object_uri,
+                            variables["archival_object"],
+                        ) = create_digital_object(variables["archival_object"])
+                except:
+                    logger.exception("‼️")
+                    raise
+
+                variables["current_archival_object_datafile"] = (
+                    Path(variables["work_preservation_files"])
+                    .joinpath(
+                        archival_object_datafile_key,
+                    )
+                    .resolve()
+                )
+                logger.debug(
+                    f'🐞 ARCHIVAL OBJECT DATAFILE: {variables["current_archival_object_datafile"]}'
+                )
+
+                if cloud_platform:
+                    cloud_platform.process_archival_object_datafile(
+                        variables
+                    )
+
+                # see https://stackoverflow.com/a/54790514 for os.walk explainer
+                for dirpath, dirnames, filenames in sorted(
+                    os.walk(
+                        Path(variables["work_preservation_files"])
+                        .joinpath(
+                            get_archival_object_directory_prefix(
+                                variables["arrangement"],
+                                variables["archival_object"],
+                            ),
+                        )
+                        .resolve()
+                    )
+                ):
+                    for filename in filenames:
+                        filepath = Path(dirpath).joinpath(filename)
+                        if filename in [".DS_Store", "Thumbs.db"]:
+                            os.remove(filepath)
+                            continue
+                        if Path(filename).suffix == ".json" and Path(
+                            dirpath
+                        ).name.startswith(Path(filename).stem):
+                            # skip archival_object JSON metadata
+                            continue
+                        logger.info(
+                            f"▶️  GETTING PRESERVATION FILE INFO: {filepath}"
+                        )
+                        variables["preservation_file_info"] = {}
+                        variables["preservation_file_info"][
+                            "filepath"
+                        ] = filepath
+                        variables["preservation_file_info"][
+                            "filesize"
+                        ] = filepath.stat().st_size
+                        with open(filepath, "rb") as fb:
+                            variables["preservation_file_info"][
+                                "md5"
+                            ] = hashlib.md5(fb.read())
+                        if onsite_medium:
+                            onsite_medium.process_digital_object_component_file(
+                                variables
+                            )
+                        if cloud_platform:
+                            cloud_platform.process_digital_object_component_file(
+                                variables
+                            )
+
+                # move preservation files on each iteration because the
+                # rsync transfer to tape copies the entire contents of the
+                # directory; move them into an intermediate directory for
+                # deletion because deleting across slow file systems can
+                # result in cruft still existing on the next iteration
+                if not config("WORK_STILLAGE_FILES", default=""):
+                    # create a .STILLAGE directory
+                    stillage_default = Path(variables["source_files"]).parent.joinpath(
+                        ".STILLAGE"
+                    )
+                    stillage_default.mkdir(exist_ok=True)
+                logger.debug(
+                    "🐞 STILLAGE DIRECTORY: {}".format(
+                        Path(
+                            config("WORK_STILLAGE_FILES", default=stillage_default)
+                        ).as_posix()
+                    )
+                )
+                if (
+                    Path(config("WORK_STILLAGE_FILES", default=stillage_default))
+                    .resolve()
+                    .joinpath(variables["arrangement"]["collection_id"])
+                    .is_dir()
+                ):
+                    for dir_entry in os.scandir(
+                        Path(variables["work_preservation_files"]).joinpath(
+                            variables["arrangement"]["collection_id"],
+                        )
+                    ):
+                        shutil.move(
+                            dir_entry.path,
+                            Path(
+                                config(
+                                    "WORK_STILLAGE_FILES", default=stillage_default
+                                )
+                            )
+                            .resolve()
+                            .joinpath(
+                                variables["arrangement"]["collection_id"]
+                            )
+                            .as_posix(),
+                        )
+                else:
+                    shutil.move(
+                        Path(variables["work_preservation_files"])
+                        .joinpath(
+                            variables["arrangement"]["collection_id"],
+                        )
+                        .as_posix(),
+                        Path(
+                            config("WORK_STILLAGE_FILES", default=stillage_default)
+                        )
+                        .resolve()
+                        .as_posix(),
+                    )
+                os.system(
+                    "/bin/rm -rf {}".format(
+                        Path(
+                            config("WORK_STILLAGE_FILES", default=stillage_default)
+                        )
+                        .joinpath(variables["arrangement"]["collection_id"])
+                        .resolve()
+                        .as_posix()
+                    )
+                )
 
             shutil.move(
                 working_archival_object,
