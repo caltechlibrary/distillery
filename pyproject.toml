@@ -1,7 +1,7 @@
 [project]
 name = "distillery"
 version = "0.1.0"
-description = "Add your description here"
+description = "Caltech Archives Digital Preservation System"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

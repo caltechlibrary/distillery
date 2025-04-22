@@ -291,14 +291,14 @@ def validate(destinations, batch_set_id):
     status_logger.info(f"🈺")
 
 
-def run(destinations, batch_set_id):
-    """Run Distillery."""
+def execute(destinations, batch_set_id):
+    """Execute Distillery."""
     status_logger = logging.getLogger("status")
     for status_logger_handler in status_logger.handlers[:]:
         if isinstance(status_logger_handler, logging.FileHandler):
             status_logger.removeHandler(status_logger_handler)
 
-    status_logfile = Path(config("WORK_LOG_FILES")).joinpath(f"{batch_set_id}.run.log")
+    status_logfile = Path(config("WORK_LOG_FILES")).joinpath(f"{batch_set_id}.execute.log")
     status_logfile.touch()
     status_handler = logging.FileHandler(status_logfile)
     status_handler.setLevel(logging.INFO)
@@ -1348,12 +1348,12 @@ def main():
         "--batch-set-id", required=True, help="Batch set ID for validation."
     )
 
-    # Subcommand: run
-    run_parser = subparsers.add_parser("run", help="Run the distillery process.")
-    run_parser.add_argument(
+    # Subcommand: execute
+    execute_parser = subparsers.add_parser("execute", help="Execute the distillery process.")
+    execute_parser.add_argument(
         "--destinations", required=True, help="JSON string of destinations."
     )
-    run_parser.add_argument(
+    execute_parser.add_argument(
         "--batch-set-id", required=True, help="Batch set ID for processing."
     )
 
@@ -1376,8 +1376,8 @@ def main():
     # Handle the commands
     if args.command == "validate":
         validate(args.destinations, args.batch_set_id)
-    elif args.command == "run":
-        run(args.destinations, args.batch_set_id)
+    elif args.command == "execute":
+        execute(args.destinations, args.batch_set_id)
     elif args.command == "regenerate":
         alchemist_regenerate(
             component_id=args.component_id,
