@@ -1342,10 +1342,7 @@ def main():
         "validate", help="Validate connections, files, and data."
     )
     validate_parser.add_argument(
-        "--destinations", required=True, help="JSON string of destinations."
-    )
-    validate_parser.add_argument(
-        "--batch-set-id", required=True, help="Batch set ID for validation."
+        "--source-volume", required=True, help="String. Name of source volume."
     )
 
     # subcommand: execute
@@ -1375,7 +1372,7 @@ def main():
 
     # handle the commands
     if args.command == "validate":
-        validate(args.destinations, args.batch_set_id)
+        cascflow.validate(args.source_volume)
     elif args.command == "execute":
         execute(args.destinations, args.batch_set_id)
     elif args.command == "regenerate":
