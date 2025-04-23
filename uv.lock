@@ -85,6 +85,18 @@ wheels = [
 ]
 
 [[package]]
+name = "cascflow"
+version = "0.2.1"
+source = { git = "https://github.com/t4k/cascflow.git?rev=main#3ff4ce024525b15765c3097052a27c602ab38602" }
+dependencies = [
+    { name = "archivessnake" },
+    { name = "backoff" },
+    { name = "python-decouple" },
+    { name = "requests" },
+    { name = "urllib3" },
+]
+
+[[package]]
 name = "certifi"
 version = "2025.1.31"
 source = { registry = "https://pypi.org/simple" }
@@ -159,6 +171,7 @@ dependencies = [
     { name = "boto3" },
     { name = "botocore" },
     { name = "bottle" },
+    { name = "cascflow" },
     { name = "gevent" },
     { name = "jinja2" },
     { name = "markdown" },
@@ -167,6 +180,7 @@ dependencies = [
     { name = "requests" },
     { name = "rpyc" },
     { name = "sh" },
+    { name = "urllib3" },
 ]
 
 [package.dev-dependencies]
@@ -183,6 +197,7 @@ requires-dist = [
     { name = "boto3" },
     { name = "botocore" },
     { name = "bottle" },
+    { name = "cascflow", git = "https://github.com/t4k/cascflow.git?rev=main" },
     { name = "gevent" },
     { name = "jinja2" },
     { name = "markdown" },
@@ -191,6 +206,7 @@ requires-dist = [
     { name = "requests" },
     { name = "rpyc" },
     { name = "sh" },
+    { name = "urllib3", specifier = ">=2.4.0" },
 ]
 
 [package.metadata.requires-dev]
