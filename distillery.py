@@ -49,9 +49,9 @@ if len(status_logger.handlers) == 0:
 # TODO do we need a class? https://stackoverflow.com/a/16502408/4100024
 # we have 8 functions that need an authorized connection to ArchivesSpace
 asnake_client = ASnakeClient(
-    baseurl=config("ASPACE_API_URL"),
-    username=config("ASPACE_USERNAME"),
-    password=config("ASPACE_PASSWORD"),
+    baseurl=config("ARCHIVESSPACE_API_URL"),
+    username=config("ARCHIVESSPACE_USERNAME"),
+    password=config("ARCHIVESSPACE_PASSWORD"),
 )
 asnake_client.authorize()
 
