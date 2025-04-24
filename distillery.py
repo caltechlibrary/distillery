@@ -63,12 +63,12 @@ def initiate_variables(destinations):
     source_files = None
 
     if "cloud" in destinations and config("CLOUD_PLATFORM"):
-        source_files = Path(config("COMMON_MOUNT_PARENT")).joinpath(
+        source_files = Path(config("COMMON_MOUNT_PARENT_PATH")).joinpath(
             json.loads(destinations)["cloud"]["network_volume"],
             config("COMMON_SOURCE_PATH"),
         )
     else:
-        source_files = Path(config("COMMON_MOUNT_PARENT")).joinpath(
+        source_files = Path(config("COMMON_MOUNT_PARENT_PATH")).joinpath(
             "EXAMPLE_VOLUME_2", config("COMMON_SOURCE_PATH")
         )
 

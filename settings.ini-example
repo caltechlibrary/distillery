@@ -44,8 +44,8 @@
 ;WEB_LOG_FILES=/path/to/log/files
 ;WORK_LOG_FILES=/path/to/log/files
 
-; COMMON_MOUNT_PARENT: (directory) assumed that the different NAS volumes have the same mount parent on the WORK server
-;COMMON_MOUNT_PARENT=/mnt
+; COMMON_MOUNT_PARENT_PATH: (directory) assumed that the different NAS volumes have the same mount parent on the WORK server
+;COMMON_MOUNT_PARENT_PATH=/mnt
 ; COMMON_SOURCE_PATH: (directory) assumed that the Distillery source files directory is named the same on each volume
 ;COMMON_SOURCE_PATH=relative/path
 ;TEST_SOURCE_FILES=/path/to/TEST_SOURCE_FILES
