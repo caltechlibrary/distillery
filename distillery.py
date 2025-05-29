@@ -1328,8 +1328,42 @@ import logging
 import os
 from pathlib import Path
 
-# Import other necessary modules and functions here
-# ...
+def validate_digital_files_for_preservation(validation_results: dict) -> None:
+    valid_archival_objects = validation_results.get("valid_archival_objects", [])
+    invalid_archival_objects = validation_results.get("invalid_archival_objects", [])
+    nested_directories = validation_results.get("nested_directories", [])
+    empty_directories = validation_results.get("empty_directories", [])
+    file_count = validation_results.get("file_count", 0)
+    ## messaging
+    if valid_archival_objects:
+        for valid_archival_object in valid_archival_objects:
+            logger.info(f"🉑 {valid_archival_object}")
+        logger.info(f"🗂 ARCHIVAL OBJECT COUNT: {len(valid_archival_objects)}")
+        logger.info(f"📄 FILE COUNT: {file_count}")
+    ## validation and messaging
+    if file_count == 0:
+        message = "❌ NO FILES FOUND"
+        logger.error(message)
+        raise FileNotFoundError(message)
+    if invalid_archival_objects:
+        message = "❌ INVALID ARCHIVAL OBJECTS FOUND"
+        logger.error(message)
+        for invalid_archival_object in invalid_archival_objects:
+            logger.error(f"❌ {invalid_archival_object}")
+        raise RuntimeError(message)
+    if nested_directories:
+        message = "❌ NESTED DIRECTORIES FOUND"
+        logger.error(message)
+        for nested_directory in nested_directories:
+            logger.error(f"❌ {nested_directory}")
+        raise RuntimeError(message)
+    if empty_directories:
+        message = "❌ EMPTY DIRECTORIES FOUND"
+        logger.error(message)
+        for empty_directory in empty_directories:
+            logger.error(f"❌ {empty_directory}")
+        raise RuntimeError(message)
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -1342,7 +1376,7 @@ def main():
         "validate", help="Validate connections, files, and data."
     )
     validate_parser.add_argument(
-        "--source-volume", required=True, help="String. Name of source volume."
+        "--context", required=True, help="String. Supply a volume name."
     )
 
     # subcommand: execute
@@ -1354,25 +1388,12 @@ def main():
         "--batch-set-id", required=True, help="Batch set ID for processing."
     )
 
-    # subcommand: regenerate
-    regenerate_parser = subparsers.add_parser(
-        "regenerate", help="Regenerate files for a component, collection, or all items."
-    )
-    regenerate_parser.add_argument(
-        "--component-id", help="Component ID for regeneration."
-    )
-    regenerate_parser.add_argument(
-        "--collection-id", help="Collection ID for regeneration."
-    )
-    regenerate_parser.add_argument(
-        "--logfile", required=True, help="Path to the logfile."
-    )
-
     args = parser.parse_args()
 
     # handle the commands
     if args.command == "validate":
-        cascflow.validate(args.source_volume)
+        validation_results = cascflow.validate_digital_files(args.context)
+        validate_digital_files_for_preservation(validation_results)
     elif args.command == "execute":
         execute(args.destinations, args.batch_set_id)
     elif args.command == "regenerate":
