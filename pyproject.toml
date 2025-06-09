@@ -1,32 +1,12 @@
 [project]
 name = "distillery"
-version = "0.2.0"
+version = "0.2.1"
 description = "Caltech Archives Digital Preservation System"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "archivessnake",
-    "backoff",
-    "boto3",
-    "botocore",
-    "bottle",
     "cascflow",
-    "gevent",
-    "jinja2",
-    "markdown",
-    "markdown-link-attr-modifier",
     "python-decouple",
-    "requests",
-    "rpyc",
-    "sh",
-    "urllib3>=2.4.0",
-]
-
-[dependency-groups]
-dev = [
-    "gtts",
-    "pillow",
-    "pytest-playwright",
 ]
 
 [tool.uv.sources]
