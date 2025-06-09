@@ -28,7 +28,7 @@ from decouple import config
 import cascflow
 
 cascflow.setup_logging('settings.ini')
-logger = logging.getLogger('alchemist')
+logger = logging.getLogger('distillery')
 
 
 def initiate_variables(destinations):
