@@ -26,34 +26,9 @@ from asnake.client import ASnakeClient
 from decouple import config
 
 import cascflow
-import statuslogger
 
-logging.config.fileConfig(
-    # set the logging configuration in the settings.ini file
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.ini"),
-    disable_existing_loggers=False,  # log messages from sh will come through
-)
-logger = logging.getLogger("distillery")
-archivesspace_logger = logging.getLogger("archivesspace")
-status_logger = logging.getLogger("status")
-status_logger.setLevel(logging.INFO)
-status_logfile = Path(config("WORK_LOG_FILES")).joinpath("status.log")
-status_logfile.touch()
-status_handler = logging.FileHandler(status_logfile)
-status_handler.setLevel(logging.INFO)
-status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
-# HACK prevent duplicate handlers with circular imports
-if len(status_logger.handlers) == 0:
-    status_logger.addHandler(status_handler)
-
-# TODO do we need a class? https://stackoverflow.com/a/16502408/4100024
-# we have 8 functions that need an authorized connection to ArchivesSpace
-asnake_client = ASnakeClient(
-    baseurl=config("ARCHIVESSPACE_API_URL"),
-    username=config("ARCHIVESSPACE_USERNAME"),
-    password=config("ARCHIVESSPACE_PASSWORD"),
-)
-asnake_client.authorize()
+cascflow.setup_logging('settings.ini')
+logger = logging.getLogger('alchemist')
 
 
 def initiate_variables(destinations):
