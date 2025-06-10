@@ -192,9 +192,9 @@ def get_crockford_id():
 
 
 # TODO rename to get_filepath_components
-def get_file_parts(filepath):
+def get_file_parts(filepath: Path):
     file_parts = {}
-    file_parts["filepath"] = filepath
+    file_parts["filepath"] = filepath.as_posix()
     file_parts["filename"] = file_parts["filepath"].split("/")[-1]
     file_parts["filestem"] = file_parts["filename"].split(".")[0]
     file_parts["extension"] = file_parts["filename"].split(".")[-1]
