@@ -113,6 +113,8 @@ def ensure_digital_object(archival_object):
         )
     elif digital_object_count < 1:
         digital_object_uri, archival_object = cascflow.create_digital_object(archival_object)
+    else:
+        digital_object_uri = archival_object["instances"][0]["digital_object"]["ref"]
 
     # returns new archival_object with digital_object instance included
     return digital_object_uri, archival_object
