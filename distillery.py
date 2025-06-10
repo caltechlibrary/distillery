@@ -38,7 +38,7 @@ def get_collection_data(collection_id):
             return collection_data
     else:
         raise RuntimeError(
-            f"There was a problem retrieving the collection data from ArchivesSpace.\n"
+            "There was a problem retrieving the collection data from ArchivesSpace.\n"
         )
 
 
@@ -61,7 +61,7 @@ def get_collection_tree(collection_uri):
         return collection_tree
     else:
         raise RuntimeError(
-            f"There was a problem retrieving the collection tree from ArchivesSpace.\n"
+            "There was a problem retrieving the collection tree from ArchivesSpace.\n"
         )
 
 
@@ -288,7 +288,7 @@ def get_digital_object(digital_object_component_id):
 
 
 def save_digital_object_component_record(variables):
-    if variables.get("file_uri_scheme") == None:
+    if variables.get("file_uri_scheme") is None:
         logger.warning('⚠️  MISSING variables["file_uri_scheme"]')
         return
     # NOTE indexing status of a newly-created digital_object_component is
@@ -312,7 +312,7 @@ def save_digital_object_component_record(variables):
             # NOTE without precomputed_waypoints we assume there are no
             # digital_object_components
             logger.debug(
-                f"🐞 NO PRECOMPUTED_WAYPOINTS; CREATING DIGITAL_OBJECT_COMPONENT"
+                "🐞 NO PRECOMPUTED_WAYPOINTS; CREATING DIGITAL_OBJECT_COMPONENT"
             )
             return create_digital_object_component(variables)
     else:
@@ -323,7 +323,7 @@ def save_digital_object_component_record(variables):
     logger.debug(f"🐞 DIGITAL_OBJECT_COMPONENTS: {digital_object_components_summary}")
     if not digital_object_components_summary:
         logger.debug(
-            f"🐞 NO DIGITAL_OBJECT_COMPONENTS_SUMMARY; CREATING DIGITAL_OBJECT_COMPONENT"
+            "🐞 NO DIGITAL_OBJECT_COMPONENTS_SUMMARY; CREATING DIGITAL_OBJECT_COMPONENT"
         )
         return create_digital_object_component(variables)
     if variables["preservation_file_info"]["filepath"].parent.name not in [
