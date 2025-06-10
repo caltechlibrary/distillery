@@ -1,0 +1,21 @@
+[project]
+name = "distillery"
+version = "1.0.0"
+description = "Caltech Archives Digital Preservation System"
+readme = "README.md"
+authors = [
+    { name = "Tommy Keswick", email = "tkeswick@caltech.edu" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "cascflow",
+    "python-decouple>=3.8",
+]
+
+[tool.uv.sources]
+cascflow = { git = "https://github.com/caltechlibrary/cascflow", branch = "main" }
+
+[dependency-groups]
+dev = [
+    "ruff>=0.11.13",
+]

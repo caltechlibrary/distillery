@@ -3,845 +3,32 @@
 
 # processing functionality; see web.py for bottlepy web application
 
+import argparse
+import datetime
 import hashlib
-import http
-import importlib
 import json
 import logging
-import logging.config
-import logging.handlers
-import mimetypes
 import os
 import random
 import shutil
 import string
+import subprocess
+import tempfile
 
 from pathlib import Path
 
-import backoff
-import requests
-import rpyc
-import urllib3
+from decouple import config, Csv
 
-from asnake.client import ASnakeClient
-from decouple import config
+import cascflow
 
-import statuslogger
-
-logging.config.fileConfig(
-    # set the logging configuration in the settings.ini file
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.ini"),
-    disable_existing_loggers=False,  # log messages from sh will come through
-)
+cascflow.setup_logging("settings.ini")
 logger = logging.getLogger("distillery")
-archivesspace_logger = logging.getLogger("archivesspace")
-status_logger = logging.getLogger("status")
-status_logger.setLevel(logging.INFO)
-status_logfile = Path(config("WORK_LOG_FILES")).joinpath("status.log")
-status_logfile.touch()
-status_handler = logging.FileHandler(status_logfile)
-status_handler.setLevel(logging.INFO)
-status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
-# HACK prevent duplicate handlers with circular imports
-if len(status_logger.handlers) == 0:
-    status_logger.addHandler(status_handler)
-
-# TODO do we need a class? https://stackoverflow.com/a/16502408/4100024
-# we have 8 functions that need an authorized connection to ArchivesSpace
-asnake_client = ASnakeClient(
-    baseurl=config("ASPACE_API_URL"),
-    username=config("ASPACE_USERNAME"),
-    password=config("ASPACE_PASSWORD"),
-)
-asnake_client.authorize()
-
-
-@rpyc.service
-class DistilleryService(rpyc.Service):
-    def _initiate_variables(self, destinations):
-        # TODO change all references from self.destinations to self.variables["destinations"]
-        self.destinations = destinations
-        self.onsite_medium = None
-        self.cloud_platform = None
-        self.access_platform = None
-        self.variables = {}
-        self.variables["destinations"] = destinations
-        # access/publication form does not have a network_volume option
-        if "cloud" in self.variables["destinations"] and config("CLOUD_PLATFORM"):
-            self.source_files = Path(config("COMMON_MOUNT_PARENT")).joinpath(
-                json.loads(destinations)["cloud"]["network_volume"],
-                config("COMMON_SOURCE_PATH"),
-            )
-        else:
-            self.source_files = Path(config("COMMON_MOUNT_PARENT")).joinpath(
-                "EXAMPLE_VOLUME_2", config("COMMON_SOURCE_PATH")
-            )
-
-    def _import_modules(self):
-        # NOTE self.destinations is a JSON string
-        logger.debug(f"🐞 self.destinations: {self.destinations}")
-        if "onsite" in self.destinations and config("ONSITE_MEDIUM"):
-            # import ONSITE_MEDIUM module
-            try:
-                self.onsite_medium = importlib.import_module(config("ONSITE_MEDIUM"))
-                logger.debug(f"🐞 self.onsite_medium: {self.onsite_medium}")
-            except Exception:
-                message = f'❌ UNABLE TO IMPORT MODULE: {config("ONSITE_MEDIUM")}'
-                status_logger.error(message)
-                raise
-        if "cloud" in self.destinations and config("CLOUD_PLATFORM"):
-            # import CLOUD_PLATFORM module
-            try:
-                self.cloud_platform = importlib.import_module(config("CLOUD_PLATFORM"))
-                logger.debug(f"🐞 self.cloud_platform: {self.cloud_platform}")
-            except Exception:
-                message = f'❌ UNABLE TO IMPORT MODULE: {config("CLOUD_PLATFORM")}'
-                status_logger.error(message)
-                raise
-        if "access" in self.destinations and config("ACCESS_PLATFORM"):
-            # import ACCESS_PLATFORM module
-            try:
-                self.access_platform = importlib.import_module(
-                    config("ACCESS_PLATFORM")
-                )
-                logger.debug(f"🐞 self.access_platform: {self.access_platform}")
-                logger.debug(
-                    f"🐞 bool(self.access_platform): {bool(self.access_platform)}"
-                )
-            except Exception:
-                message = f'❌ UNABLE TO IMPORT MODULE: {config("ACCESS_PLATFORM")}'
-                status_logger.error(message)
-                raise
-
-    @rpyc.exposed
-    def validate(self, destinations, batch_set_id):
-        """Validate connections, files, and data."""
-
-        # reset status_logfile
-        status_logger = logging.getLogger("status")
-        for status_logger_handler in status_logger.handlers[:]:
-            # remove the existing file handlers
-            if isinstance(status_logger_handler, logging.FileHandler):
-                status_logger.removeHandler(status_logger_handler)
-        # set the new handler
-        status_logfile = Path(config("WORK_LOG_FILES")).joinpath(
-            f"{batch_set_id}.validate.log"
-        )
-        status_logfile.touch()
-        status_handler = logging.FileHandler(status_logfile)
-        status_handler.setLevel(logging.INFO)
-        status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
-        status_logger.addHandler(status_handler)
-
-        self._initiate_variables(destinations)
-
-        status_logger.info(f"🟢 BEGIN VALIDATING COMPONENTS")
-
-        self._import_modules()
-
-        if self.onsite_medium:
-            raise NotImplementedError("❌ tape destinations have been deprecated")
-            # validate ONSITE_MEDIUM connection
-            if self.onsite_medium.validate_connection():
-                message = f'☑️  CONNECTION SUCCESS: {config("ONSITE_MEDIUM")}'
-                status_logger.info(message)
-            else:
-                message = f'❌ CONNECTION FAILURE: {config("ONSITE_MEDIUM")}'
-                status_logger.error(message)
-                raise ConnectionError(message)
-            if not config("TAPE_CONTAINER_PROFILE_URI", default=""):
-                message = "❌ MISSING TAPE_CONTAINER_PROFILE_URI SETTING"
-                status_logger.error(message)
-                raise ValueError(message)
-            elif not archivessnake_get(config("TAPE_CONTAINER_PROFILE_URI")).ok:
-                message = f'❌ INVALID TAPE_CONTAINER_PROFILE_URI SETTING: {config("TAPE_CONTAINER_PROFILE_URI")}'
-                status_logger.error(message)
-                raise ValueError(message)
-        if self.cloud_platform:
-            # validate CLOUD_PLATFORM connection
-            if self.cloud_platform.validate_connection():
-                message = f'☑️  CONNECTION SUCCESS: {config("CLOUD_PLATFORM")}'
-                status_logger.info(message)
-            else:
-                message = f'❌ CONNECTION FAILURE: {config("CLOUD_PLATFORM")}'
-                status_logger.error(message)
-                raise ConnectionError(message)
-        if self.access_platform:
-            # validate ACCESS_PLATFORM connection
-            if self.access_platform.validate_connection():
-                message = f'☑️  CONNECTION SUCCESS: {config("ACCESS_PLATFORM")}'
-                status_logger.info(message)
-            else:
-                message = f'❌ CONNECTION FAILURE: {config("ACCESS_PLATFORM")}'
-                status_logger.error(message)
-                raise ConnectionError(message)
-
-        # validate WORK_PRESERVATION_FILES directory
-        if self.onsite_medium or self.cloud_platform:
-            try:
-                Path(self.source_files).parent.joinpath(
-                    config("WORK_PRESERVATION_FILES")
-                ).resolve(strict=True)
-            except:
-                message = "❌ INVALID WORK_PRESERVATION_FILES DIRECTORY: {}".format(
-                    Path(self.source_files).parent.joinpath(
-                        config("WORK_PRESERVATION_FILES")
-                    )
-                )
-                status_logger.error(message)
-                logger.exception("‼️")
-                raise
-
-        def is_archival_object_valid(component_id):
-            try:
-                archival_object = find_archival_object(component_id)
-            except Exception as e:
-                status_logger.error(e)
-                logger.exception(e)
-            if not self.access_platform:
-                # no need to check more conditions
-                return True
-            elif not archival_object["publish"]:
-                message = "‼️ ARCHIVAL OBJECT NOT PUBLISHED: [**{}**]({}/resolve/readonly?uri={})".format(
-                    archival_object["title"],
-                    config("ASPACE_STAFF_URL"),
-                    archival_object["uri"],
-                )
-                status_logger.error(message)
-                return False
-            elif archival_object["has_unpublished_ancestor"]:
-                message = "‼️ ARCHIVAL OBJECT HAS UNPUBLISHED ANCESTOR: [**{}**]({}/resolve/readonly?uri={})".format(
-                    archival_object["title"],
-                    config("ASPACE_STAFF_URL"),
-                    archival_object["uri"],
-                )
-                status_logger.error(message)
-                return False
-            # check for existing digital_object["file_versions"]
-            elif archival_object.get("instances"):
-                digital_object_count = 0
-                for instance in archival_object["instances"]:
-                    if "digital_object" in instance.keys():
-                        digital_object_count += 1
-                if digital_object_count > 1:
-                    message = "‼️ MULTIPLE DIGITAL OBJECTS FOUND: [**{}**]({}/resolve/readonly?uri={})".format(
-                        archival_object["title"],
-                        config("ASPACE_STAFF_URL"),
-                        archival_object["uri"],
-                    )
-                    status_logger.error(message)
-                    return False
-                elif digital_object_count == 1:
-                    # NOTE self.destinations is a JSON string
-                    if (
-                        instance["digital_object"]["_resolved"].get("file_versions")
-                        and "fail" in self.destinations
-                    ):
-                        message = "‼️  DIGITAL OBJECT ALREADY HAS FILE VERSIONS: [**{}**]({}/resolve/readonly?uri={})".format(
-                            instance["digital_object"]["_resolved"]["title"],
-                            config("ASPACE_STAFF_URL"),
-                            instance["digital_object"]["ref"],
-                        )
-                        status_logger.error(message)
-                        return False
-                    elif instance["digital_object"]["_resolved"].get("file_versions"):
-                        message = "⚠️ EXISTING WEB ACCESS FILES WILL BE REPLACED AND DIGITAL OBJECT RECORDS WILL BE UPDATED: [**{}**]({}/resolve/readonly?uri={})".format(
-                            instance["digital_object"]["_resolved"]["title"],
-                            config("ASPACE_STAFF_URL"),
-                            instance["digital_object"]["ref"],
-                        )
-                        status_logger.warning(message)
-                        return True
-                    else:
-                        # no file versions exist yet
-                        return True
-                else:
-                    # go through with creating a new digital_object
-                    return True
-            else:
-                # ensure there is a return value
-                return True
-
-        archival_object_count = 0
-        file_count = 0
-        unsupported_filetypes = 0
-        validation_failures = 0
-        for dirpath, dirnames, filenames in os.walk(self.source_files):
-            logger.debug(f"🐞 DIRPATH: {dirpath}")
-            logger.debug(f"🐞 DIRNAMES: {dirnames}")
-            logger.debug(f"🐞 FILENAMES: {filenames}")
-            if not dirnames and not filenames:
-                message = "❌ NO DIRECTORIES OR FILES FOUND"
-                status_logger.error(message)
-                raise FileNotFoundError(message)
-            # check filenames in root directory
-            for filename in filenames:
-                if filename in [".DS_Store", "Thumbs.db"]:
-                    os.remove(Path(dirpath).joinpath(filename))
-                else:
-                    status_logger.info(f"📄 {filename}")
-                    if self.access_platform:
-                        type, encoding = mimetypes.guess_type(
-                            Path(dirpath).joinpath(filename)
-                        )
-                        if not (type.startswith("image/") or type.endswith("/mp4")):
-                            unsupported_filetypes += 1
-                    if not is_archival_object_valid(
-                        filename.rsplit(".", maxsplit=1)[0]
-                    ):
-                        validation_failures += 1
-                    file_count += 1
-                    archival_object_count += 1
-            # check dirnames in root directory
-            for dirname in dirnames:
-                status_logger.info(f"📁 {dirname}")
-                if not is_archival_object_valid(dirname):
-                    validation_failures += 1
-                for dir_entry in os.scandir(Path(dirpath).joinpath(dirname)):
-                    if dir_entry.name in [".DS_Store", "Thumbs.db"]:
-                        os.remove(dir_entry.path)
-                    else:
-                        logger.debug(f"🐞 DIR_ENTRY.NAME: {dir_entry.name}")
-                        file_count += 1
-                archival_object_count += 1
-            # reset dirnames to stop os.walk from descending into subdirectories
-            # and continuing to loop over filenames
-            # https://stackoverflow.com/a/43618972
-            dirnames[:] = []
-            if unsupported_filetypes > 0:
-                message = "❌ UNSUPPORTED FILE TYPE"
-                status_logger.error(message)
-                raise RuntimeError(message)
-            if validation_failures > 0:
-                message = "❌ VALIDATION FAILURE"
-                status_logger.error(message)
-                raise RuntimeError(message)
-        if archival_object_count and file_count:
-            status_logger.info(f"🗂 ARCHIVAL OBJECT COUNT: {archival_object_count}")
-            status_logger.info(f"📄 FILE COUNT: {file_count}")
-        else:
-            message = "❌ NO FILES FOUND"
-            status_logger.error(message)
-            raise FileNotFoundError(message)
-
-        # send the character that stops javascript reloading in the web ui
-        status_logger.info(f"🈺")  # Japanese “Open for Business” Button
-
-    @rpyc.exposed
-    def run(self, destinations, batch_set_id):
-        """Run Distillery."""
-
-        # reset status_logfile
-        status_logger = logging.getLogger("status")
-        for status_logger_handler in status_logger.handlers[:]:
-            # remove the existing file handlers
-            if isinstance(status_logger_handler, logging.FileHandler):
-                status_logger.removeHandler(status_logger_handler)
-        # set the new handler
-        status_logfile = Path(config("WORK_LOG_FILES")).joinpath(
-            f"{batch_set_id}.run.log"
-        )
-        status_logfile.touch()
-        status_handler = logging.FileHandler(status_logfile)
-        status_handler.setLevel(logging.INFO)
-        status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
-        status_logger.addHandler(status_handler)
-
-        try:
-            self._initiate_variables(destinations)
-            status_logger.info(f"🟢 BEGIN DISTILLING")
-            self._import_modules()
-            status_logger.info(
-                f'☑️  DESTINATIONS: {", ".join(list(json.loads(self.destinations)))}'
-            )
-            onsiteDistiller = None
-            cloudDistiller = None
-            accessDistiller = None
-            if "onsite" in self.destinations or "cloud" in self.destinations:
-                either_preservation_destination = True
-                self.variables["work_preservation_files"] = (
-                    Path(self.source_files)
-                    .parent.joinpath(config("WORK_PRESERVATION_FILES"))
-                    .resolve(strict=True)
-                )
-
-            else:
-                either_preservation_destination = False
-
-            try:
-                batch_directory = (
-                    Path(self.source_files)
-                    .parent.joinpath(config("BATCH_SETS_DIRECTORY"))
-                    .joinpath(batch_set_id)
-                )
-                batch_directory.mkdir(parents=True, exist_ok=True)
-                Path(self.source_files).rename(
-                    batch_directory.joinpath("STAGE_1_INITIAL")
-                )
-                batch_directory.joinpath("STAGE_2_WORKING").mkdir(
-                    parents=True, exist_ok=True
-                )
-                batch_directory.joinpath("STAGE_3_COMPLETE").mkdir(
-                    parents=True, exist_ok=True
-                )
-                Path(self.source_files).mkdir()
-            except BaseException:
-                message = "❌ UNABLE TO MOVE THE SOURCE FILES FOR PROCESSING"
-                status_logger.error(message)
-                logger.exception(f"‼️")
-                raise
-
-            for dir_entry in sorted(
-                os.scandir(batch_directory.joinpath("STAGE_1_INITIAL")),
-                key=lambda dir_entry: dir_entry.name,
-            ):
-                if dir_entry.name in [".DS_Store", "Thumbs.db"]:
-                    os.remove(dir_entry.path)
-                    continue
-                elif dir_entry.is_file():
-                    dir_entry_stem = dir_entry.name.rsplit(".", maxsplit=1)[0]
-                elif dir_entry.is_dir():
-                    dir_entry_stem = dir_entry.name
-                else:
-                    logger.warning(
-                        f"⚠️ UNEXPECTED OS.DIRENTRY OBJECT: {dir_entry.name}"
-                    )
-                    continue
-
-                try:
-                    self.variables["archival_object"] = find_archival_object(
-                        dir_entry_stem
-                    )
-                except Exception as e:
-                    status_logger.error(e)
-                    logger.exception(e)
-                self.variables["arrangement"] = get_arrangement(
-                    self.variables["archival_object"]
-                )
-
-                # collection-level preprocessing
-                if either_preservation_destination:
-                    # retrieve collection data from ArchivesSpace
-                    collection_data = get_collection_data(
-                        self.variables["arrangement"]["collection_id"]
-                    )
-                    status_logger.info(
-                        f'☑️  ARCHIVESSPACE COLLECTION DATA RETRIEVED: [**{collection_data["title"]}**]({config("ASPACE_STAFF_URL")}/resolve/readonly?uri={collection_data["uri"]})'
-                    )
-                    # save collection metadata
-                    save_collection_datafile(
-                        collection_data,
-                        self.variables["work_preservation_files"],
-                    )
-                    # run collection-level preprocessing
-                    if self.onsite_medium:
-                        self.onsite_medium.collection_level_preprocessing(
-                            self.variables["arrangement"]["collection_id"],
-                            self.variables["work_preservation_files"],
-                        )
-                        onsiteDistiller = True
-                    if self.cloud_platform:
-                        self.cloud_platform.collection_level_preprocessing(
-                            self.variables["arrangement"]["collection_id"],
-                            self.variables["work_preservation_files"],
-                        )
-                        cloudDistiller = True
-
-                # for publication destinations
-                accessDistiller = None
-                if self.access_platform:
-                    self.variables["thumbnail_label"] = json.loads(self.destinations)[
-                        "access"
-                    ]["thumbnail_label"]
-                    accessDistiller = self.access_platform.AccessPlatform()
-                    accessDistiller.collection_structure_processing()
-
-                initial_archival_object = dir_entry.path
-                working_archival_object = str(
-                    batch_directory.joinpath("STAGE_2_WORKING", dir_entry.name)
-                )
-                try:
-                    shutil.move(initial_archival_object, working_archival_object)
-                except BaseException:
-                    message = "❌ UNABLE TO MOVE THE INITIAL FILES FOR WORKING"
-                    status_logger.error(message)
-                    logger.exception(f"‼️")
-                    raise
-
-                # Set up list of file paths for the current directory.
-                if Path(working_archival_object).is_file():
-                    self.variables["filepaths"] = [working_archival_object]
-                elif Path(working_archival_object).is_dir():
-                    self.variables["filepaths"] = [
-                        f.path
-                        for f in os.scandir(working_archival_object)
-                        if f.is_file()
-                    ]
-
-                if either_preservation_destination:
-                    archival_object_datafile_key = save_archival_object_datafile(
-                        self.variables["arrangement"],
-                        self.variables["archival_object"],
-                        self.variables["work_preservation_files"],
-                    )
-                    status_logger.info(
-                        f"☑️  ARCHIVAL OBJECT DATA FILE CREATED: {archival_object_datafile_key}"
-                    )
-                    prepare_preservation_files(self.variables)
-
-                if accessDistiller:
-                    accessDistiller.archival_object_level_processing(self.variables)
-                    build_directory = accessDistiller.get_build_directory()
-                    self.access_platform.loop_over_archival_object_files(
-                        build_directory, self.variables
-                    )
-
-                if accessDistiller:
-                    # NOTE working on variables["archival_object"]["component_id"]
-                    accessDistiller.transfer_archival_object_derivative_files(
-                        self.variables
-                    )
-                    status_logger.info(
-                        "☑️  ACCESS PAGE CREATED: [**{}**]({}/{}/{}/{})".format(
-                            self.variables["archival_object"]["component_id"],
-                            config("ALCHEMIST_BASE_URL").rstrip("/"),
-                            config("ALCHEMIST_URL_PREFIX"),
-                            self.variables["arrangement"]["collection_id"],
-                            self.variables["archival_object"]["component_id"],
-                        )
-                    )
-
-                    # NOTE this is where we create_digital_object_file_versions()
-                    accessDistiller.loop_over_derivative_structure(self.variables)
-
-                if either_preservation_destination:
-                    # Confirm existing or create digital_object with component_id.
-                    # NOTE digital_object needs to exist for digital_object_component records to be attached
-                    try:
-                        digital_object_count = len(
-                            [
-                                i
-                                for i in self.variables["archival_object"]["instances"]
-                                if "digital_object" in i.keys()
-                            ]
-                        )
-                        logger.debug(f"🐞 DIGITAL OBJECT COUNT: {digital_object_count}")
-                        if digital_object_count > 1:
-                            raise ValueError(
-                                "❌ MULTIPLE DIGITAL OBJECTS FOUND: {}".format(
-                                    self.variables["archival_object"]["component_id"]
-                                )
-                            )
-                        elif digital_object_count < 1:
-                            # returns new archival_object with digital_object instance included
-                            (
-                                digital_object_uri,
-                                self.variables["archival_object"],
-                            ) = create_digital_object(self.variables["archival_object"])
-                    except:
-                        logger.exception("‼️")
-                        raise
-
-                    self.variables["current_archival_object_datafile"] = (
-                        Path(self.variables["work_preservation_files"])
-                        .joinpath(
-                            archival_object_datafile_key,
-                        )
-                        .resolve()
-                    )
-                    logger.debug(
-                        f'🐞 ARCHIVAL OBJECT DATAFILE: {self.variables["current_archival_object_datafile"]}'
-                    )
-
-                    if self.onsite_medium:
-                        # tape_top_container_uri added to self.variables
-                        self.variables = self.onsite_medium.transfer_archival_object_derivative_files(
-                            self.variables
-                        )
-                        # NOTE writes top_container records to ArchivesSpace
-                        self.onsite_medium.process_archival_object_datafile(
-                            self.variables
-                        )
-                    if self.cloud_platform:
-                        self.cloud_platform.process_archival_object_datafile(
-                            self.variables
-                        )
-
-                    # see https://stackoverflow.com/a/54790514 for os.walk explainer
-                    for dirpath, dirnames, filenames in sorted(
-                        os.walk(
-                            Path(self.variables["work_preservation_files"])
-                            .joinpath(
-                                get_archival_object_directory_prefix(
-                                    self.variables["arrangement"],
-                                    self.variables["archival_object"],
-                                ),
-                            )
-                            .resolve()
-                        )
-                    ):
-                        for filename in filenames:
-                            filepath = Path(dirpath).joinpath(filename)
-                            if filename in [".DS_Store", "Thumbs.db"]:
-                                os.remove(filepath)
-                                continue
-                            if Path(filename).suffix == ".json" and Path(
-                                dirpath
-                            ).name.startswith(Path(filename).stem):
-                                # skip archival_object JSON metadata
-                                continue
-                            logger.info(
-                                f"▶️  GETTING PRESERVATION FILE INFO: {filepath}"
-                            )
-                            self.variables["preservation_file_info"] = {}
-                            self.variables["preservation_file_info"][
-                                "filepath"
-                            ] = filepath
-                            self.variables["preservation_file_info"][
-                                "filesize"
-                            ] = filepath.stat().st_size
-                            with open(filepath, "rb") as fb:
-                                self.variables["preservation_file_info"][
-                                    "md5"
-                                ] = hashlib.md5(fb.read())
-                            if self.onsite_medium:
-                                self.onsite_medium.process_digital_object_component_file(
-                                    self.variables
-                                )
-                            if self.cloud_platform:
-                                self.cloud_platform.process_digital_object_component_file(
-                                    self.variables
-                                )
-
-                    # move preservation files on each iteration because the
-                    # rsync transfer to tape copies the entire contents of the
-                    # directory; move them into an intermediate directory for
-                    # deletion because deleting across slow file systems can
-                    # result in cruft still existing on the next iteration
-                    if not config("WORK_STILLAGE_FILES", default=""):
-                        # create a .STILLAGE directory
-                        stillage_default = Path(self.source_files).parent.joinpath(
-                            ".STILLAGE"
-                        )
-                        stillage_default.mkdir(exist_ok=True)
-                    logger.debug(
-                        "🐞 STILLAGE DIRECTORY: {}".format(
-                            Path(
-                                config("WORK_STILLAGE_FILES", default=stillage_default)
-                            ).as_posix()
-                        )
-                    )
-                    if (
-                        Path(config("WORK_STILLAGE_FILES", default=stillage_default))
-                        .resolve()
-                        .joinpath(self.variables["arrangement"]["collection_id"])
-                        .is_dir()
-                    ):
-                        for dir_entry in os.scandir(
-                            Path(self.variables["work_preservation_files"]).joinpath(
-                                self.variables["arrangement"]["collection_id"],
-                            )
-                        ):
-                            shutil.move(
-                                dir_entry.path,
-                                Path(
-                                    config(
-                                        "WORK_STILLAGE_FILES", default=stillage_default
-                                    )
-                                )
-                                .resolve()
-                                .joinpath(
-                                    self.variables["arrangement"]["collection_id"]
-                                )
-                                .as_posix(),
-                            )
-                    else:
-                        shutil.move(
-                            Path(self.variables["work_preservation_files"])
-                            .joinpath(
-                                self.variables["arrangement"]["collection_id"],
-                            )
-                            .as_posix(),
-                            Path(
-                                config("WORK_STILLAGE_FILES", default=stillage_default)
-                            )
-                            .resolve()
-                            .as_posix(),
-                        )
-                    os.system(
-                        "/bin/rm -rf {}".format(
-                            Path(
-                                config("WORK_STILLAGE_FILES", default=stillage_default)
-                            )
-                            .joinpath(self.variables["arrangement"]["collection_id"])
-                            .resolve()
-                            .as_posix()
-                        )
-                    )
-
-                try:
-                    shutil.move(
-                        working_archival_object,
-                        str(
-                            batch_directory.joinpath("STAGE_3_COMPLETE", dir_entry.name)
-                        ),
-                    )
-                except BaseException:
-                    message = "❌ UNABLE TO MOVE THE WORKING FILES FOR COMPLETION"
-                    status_logger.error(message)
-                    logger.exception(f"‼️")
-                    raise
-
-        except Exception as e:
-            status_logger.error("❌ SOMETHING WENT WRONG")
-            status_logger.error(e)
-            logger.exception("‼️")
-            raise
-        # complete the process if there is no error
-        else:
-            # send the character that stops javascript reloading in the web ui
-            status_logger.info(f"🏁")
-            # TODO delete PRESERVATION_FILES/CollectionID directory
-
-    @rpyc.exposed
-    def alchemist_regenerate(self, component_id="", collection_id="", logfile=""):
-        if component_id:
-            status_logger = logging.getLogger(component_id)
-        elif collection_id:
-            status_logger = logging.getLogger(collection_id)
-        else:
-            status_logger = logging.getLogger("_")
-        status_logger.setLevel(logging.INFO)
-        Path(logfile).touch()
-        status_handler = logging.FileHandler(logfile)
-        status_handler.setLevel(logging.INFO)
-        status_handler.setFormatter(statuslogger.StatusFormatter("%(message)s"))
-        status_logger.addHandler(status_handler)
-
-        # import ACCESS_PLATFORM module
-        try:
-            self.access_platform = importlib.import_module(config("ACCESS_PLATFORM"))
-        except Exception:
-            message = f'❌ UNABLE TO IMPORT MODULE: {config("ACCESS_PLATFORM")}'
-            status_logger.exception(message)
-            raise
-
-        try:
-            accessDistiller = self.access_platform.AccessPlatform()
-        except Exception:
-            message = "❌ PROBLEM WITH ACCESSPLATFORM CLASS"
-            status_logger.exception(message)
-            raise
-
-        variables = {"alchemist_regenerate": True}
-
-        try:
-            if component_id:
-                # regenerate files for one item
-                status_logger.info(f"🟢 BEGIN REGENERATING: {component_id}")
-                variables["archival_object"] = find_archival_object(component_id)
-                variables["arrangement"] = get_arrangement(variables["archival_object"])
-                accessDistiller.archival_object_level_processing(variables)
-                accessDistiller.transfer_archival_object_derivative_files(variables)
-                archival_object_path = "/".join(
-                    [
-                        config("ALCHEMIST_URL_PREFIX"),
-                        variables["arrangement"]["collection_id"],
-                        variables["archival_object"]["component_id"],
-                    ]
-                )
-                if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-                    self.access_platform.invalidate_cloudfront_path(
-                        path=f"/{archival_object_path}/*"
-                    )
-                status_logger.info(
-                    "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({})".format(
-                        variables["archival_object"]["component_id"],
-                        "/".join(
-                            [
-                                config("ALCHEMIST_BASE_URL").rstrip("/"),
-                                archival_object_path,
-                            ]
-                        ),
-                    )
-                )
-            elif collection_id:
-                # TODO DRY this out
-                # regenerate files for a collection
-                status_logger.info(f"🟢 BEGIN REGENERATING ITEMS FOR: {collection_id}")
-                archival_object_prefixes = accessDistiller.regenerate_collection(
-                    collection_id
-                )
-                if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-                    # invalidate existing paths so the status_logger links work
-                    self.access_platform.invalidate_cloudfront_path(
-                        path=f'/{config("ALCHEMIST_URL_PREFIX")}/{collection_id}/*'
-                    )
-                for archival_object_prefix in archival_object_prefixes:
-                    component_id = archival_object_prefix.split("/")[-2]
-                    variables["archival_object"] = find_archival_object(component_id)
-                    variables["arrangement"] = get_arrangement(
-                        variables["archival_object"]
-                    )
-                    accessDistiller.archival_object_level_processing(variables)
-                    accessDistiller.transfer_archival_object_derivative_files(variables)
-                    status_logger.info(
-                        "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{}/{})".format(
-                            variables["archival_object"]["component_id"],
-                            config("ALCHEMIST_BASE_URL").rstrip("/"),
-                            config("ALCHEMIST_URL_PREFIX"),
-                            variables["arrangement"]["collection_id"],
-                            variables["archival_object"]["component_id"],
-                        )
-                    )
-                if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-                    # invalidate again to ensure all paths serve fresh content
-                    self.access_platform.invalidate_cloudfront_path(
-                        path=f'/{config("ALCHEMIST_URL_PREFIX")}/{collection_id}/*'
-                    )
-            else:
-                # TODO DRY this out
-                # regenerate files for all items
-                status_logger.info("🟢 BEGIN REGENERATING ALL")
-                archival_object_prefixes = accessDistiller.regenerate_all()
-                if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-                    # invalidate existing paths so the status_logger links work
-                    self.access_platform.invalidate_cloudfront_path()
-                for archival_object_prefix in archival_object_prefixes:
-                    component_id = archival_object_prefix.split("/")[-2]
-                    variables["archival_object"] = find_archival_object(component_id)
-                    variables["arrangement"] = get_arrangement(
-                        variables["archival_object"]
-                    )
-                    accessDistiller.archival_object_level_processing(variables)
-                    accessDistiller.transfer_archival_object_derivative_files(variables)
-                    status_logger.info(
-                        "☑️  ALCHEMIST FILES REGENERATED: [**{}**]({}/{}/{}/{})".format(
-                            variables["archival_object"]["component_id"],
-                            config("ALCHEMIST_BASE_URL").rstrip("/"),
-                            config("ALCHEMIST_URL_PREFIX"),
-                            variables["arrangement"]["collection_id"],
-                            variables["archival_object"]["component_id"],
-                        )
-                    )
-                if config("ALCHEMIST_CLOUDFRONT_DISTRIBUTION_ID", default=False):
-                    # invalidate again to ensure all paths serve fresh content
-                    self.access_platform.invalidate_cloudfront_path()
-        except Exception as e:
-            status_logger.error("❌ SOMETHING WENT WRONG")
-            status_logger.error(e)
-            logger.exception("‼️")
-            raise
-        # complete the process if there is no error
-        else:
-            # send the character that stops javascript reloading in the web ui
-            status_logger.info(f"🏁")
 
 
 def get_collection_data(collection_id):
     # raises an HTTPError exception if unsuccessful
     collection_uri = get_collection_uri(collection_id)
-    collection_data = archivessnake_get(collection_uri).json()
+    collection_data = cascflow.archivessnake_get(collection_uri).json()
     if collection_data:
         collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
         if collection_data["tree"]["_resolved"]:
@@ -851,13 +38,13 @@ def get_collection_data(collection_id):
             return collection_data
     else:
         raise RuntimeError(
-            f"There was a problem retrieving the collection data from ArchivesSpace.\n"
+            "There was a problem retrieving the collection data from ArchivesSpace.\n"
         )
 
 
 def get_collection_uri(collection_id):
     # raises an HTTPError exception if unsuccessful
-    search_results_json = archivessnake_get(
+    search_results_json = cascflow.archivessnake_get(
         f'/repositories/2/find_by_id/resources?identifier[]=["{collection_id}"]'
     ).json()
     if len(search_results_json["resources"]) < 1:
@@ -867,59 +54,16 @@ def get_collection_uri(collection_id):
     return search_results_json["resources"][0]["ref"]
 
 
-@backoff.on_exception(
-    backoff.expo,
-    (
-        http.client.RemoteDisconnected,
-        urllib3.exceptions.ProtocolError,
-        urllib3.exceptions.NewConnectionError,
-        urllib3.exceptions.MaxRetryError,
-        requests.exceptions.ConnectionError,
-    ),
-    max_time=1800,
-)
-def archivessnake_get(uri):
-    return asnake_client.get(uri)
-
-
-@backoff.on_exception(
-    backoff.expo,
-    (
-        http.client.RemoteDisconnected,
-        urllib3.exceptions.ProtocolError,
-        urllib3.exceptions.NewConnectionError,
-        urllib3.exceptions.MaxRetryError,
-        requests.exceptions.ConnectionError,
-    ),
-    max_time=1800,
-)
-def archivessnake_post(uri, object):
-    return asnake_client.post(uri, json=object)
-
-
-@backoff.on_exception(
-    backoff.expo,
-    (
-        http.client.RemoteDisconnected,
-        urllib3.exceptions.ProtocolError,
-        urllib3.exceptions.NewConnectionError,
-        urllib3.exceptions.MaxRetryError,
-        requests.exceptions.ConnectionError,
-    ),
-    max_time=1800,
-)
-def archivessnake_delete(uri):
-    return asnake_client.delete(uri)
-
-
 def get_collection_tree(collection_uri):
     # raises an HTTPError exception if unsuccessful
-    collection_tree = archivessnake_get(collection_uri + "/ordered_records").json()
+    collection_tree = cascflow.archivessnake_get(
+        collection_uri + "/ordered_records"
+    ).json()
     if collection_tree:
         return collection_tree
     else:
         raise RuntimeError(
-            f"There was a problem retrieving the collection tree from ArchivesSpace.\n"
+            "There was a problem retrieving the collection tree from ArchivesSpace.\n"
         )
 
 
@@ -936,113 +80,113 @@ def save_collection_datafile(collection_data, directory):
     return collection_datafile_key
 
 
-def save_digital_object_file_versions(archival_object, new_file_versions):
-    for instance in archival_object["instances"]:
-        if "digital_object" in instance.keys():
-            # ASSUMPTION: only one digital_object exists per archival_object
-            # TODO handle multiple digital_objects per archival_object
-            existing_file_versions = instance["digital_object"]["_resolved"].get(
-                "file_versions"
-            )
-            # create temporary dictionary of new_file_version values keyed by file_uri
-            new_file_uri_values = {
-                new_file_version["file_uri"]: new_file_version
-                for new_file_version in new_file_versions
-            }
-            # add existing_file_version values to new_file_uri_values if file_uri not already present
-            for existing_file_version in existing_file_versions:
-                if existing_file_version["file_uri"] not in new_file_uri_values:
-                    existing_file_version["publish"] = False
-                    existing_file_version["is_representative"] = False
-                    new_file_uri_values[
-                        existing_file_version["file_uri"]
-                    ] = existing_file_version
-            # discard keys and create list of unique file_version dictionaries
-            file_versions = list(new_file_uri_values.values())
-            digital_object = instance["digital_object"]["_resolved"]
-            digital_object["file_versions"] = file_versions
-            digital_object["publish"] = True
-            digital_object_post_response = update_digital_object(
-                digital_object["uri"], digital_object
-            ).json()
-
-
-def create_digital_object(archival_object, digital_object_type=""):
-    digital_object = {}
-    digital_object["digital_object_id"] = archival_object["component_id"]  # required
-    digital_object["title"] = archival_object["title"]  # required
-    if digital_object_type:
-        digital_object["digital_object_type"] = digital_object_type
-    # NOTE leaving created digital objects unpublished
-    # digital_object['publish'] = True
-
-    digital_object_post_response = archivessnake_post(
-        "/repositories/2/digital_objects", digital_object
+def transfer_collection_datafile(collection_id, directory):
+    """POST collection data to S3 bucket as a JSON file."""
+    collection_datafile_key = Path(collection_id).joinpath(f"{collection_id}.json")
+    collection_datafile_path = (
+        Path(directory).joinpath(collection_datafile_key).resolve()
     )
-    # example success response:
-    # {
-    #     "id": 9189,
-    #     "lock_version": 0,
-    #     "stale": true,
-    #     "status": "Created",
-    #     "uri": "/repositories/2/digital_objects/9189",
-    #     "warnings": []
-    # }
-    # example error response:
-    # {
-    #     "error": {
-    #         "digital_object_id": [
-    #             "Must be unique"
-    #         ]
-    #     }
-    # }
-    # TODO check for existing digital_object_id in validate()
-    if "error" in digital_object_post_response.json():
-        if "digital_object_id" in digital_object_post_response.json()["error"]:
-            if (
-                "Must be unique"
-                in digital_object_post_response.json()["error"]["digital_object_id"]
-            ):
-                raise ValueError(
-                    f"❌ NON-UNIQUE DIGITAL_OBJECT_ID: {archival_object['component_id']}"
-                )
-        else:
-            raise RuntimeError(
-                f"❌ UNEXPECTED ERROR: {digital_object_post_response.json()}"
-            )
-    else:
-        digital_object_uri = digital_object_post_response.json()["uri"]
-        logger.info(f"✳️  DIGITAL OBJECT CREATED: {digital_object_uri}")
-
-    # set up a digital object instance to add to the archival object
-    digital_object_instance = {
-        "instance_type": "digital_object",
-        "digital_object": {"ref": digital_object_uri},
-    }
-    # add digital object instance to archival object
-    archival_object["instances"].append(digital_object_instance)
-    # post updated archival object
-    archival_object_post_response = archivessnake_post(
-        archival_object["uri"], archival_object
-    )
+    with open(collection_datafile_path, "rb") as body:
+        cascflow.s3_put_object(
+            config("PRESERVATION_BUCKET"),
+            str(collection_datafile_key),
+            body,
+        )
     logger.info(
-        f'☑️  ARCHIVAL OBJECT UPDATED: {archival_object_post_response.json()["uri"]}'
+        f'☑️  COLLECTION DATAFILE UPLOADED TO S3: {config("PRESERVATION_BUCKET")}/{str(collection_datafile_key)}'
     )
 
-    # TODO investigate how to roll back adding digital object to archival object
 
-    # find_archival_object() again to include digital object instance
-    archival_object = find_archival_object(archival_object["component_id"])
+def ensure_digital_object(archival_object):
+    """Ensure a digital object exists for the archival object."""
+    digital_object_count = len(
+        [i for i in archival_object["instances"] if "digital_object" in i.keys()]
+    )
+    logger.debug(f"🐞 DIGITAL OBJECT COUNT: {digital_object_count}")
+    if digital_object_count > 1:
+        raise ValueError(
+            "❌ MULTIPLE DIGITAL OBJECTS FOUND: {}".format(
+                archival_object["component_id"]
+            )
+        )
+    elif digital_object_count < 1:
+        digital_object_uri, archival_object = cascflow.create_digital_object(
+            archival_object
+        )
+    else:
+        digital_object_uri = archival_object["instances"][0]["digital_object"]["ref"]
 
+    # returns new archival_object with digital_object instance included
     return digital_object_uri, archival_object
 
 
-def directory_setup(directory):
-    if not Path(directory).exists():
-        Path(directory).mkdir()
-    elif Path(directory).is_file():
-        raise FileExistsError(f"a non-directory file exists at: {directory}")
-    return Path(directory)
+def transfer_archival_object_datafile(
+    archival_object_datafile_key: str, build_directory: tempfile.TemporaryDirectory
+):
+    """POST archival object data to S3 bucket as a JSON file."""
+    current_archival_object_datafile = (
+        Path(build_directory.name).joinpath(archival_object_datafile_key).resolve()
+    )
+    with open(current_archival_object_datafile, "rb") as body:
+        cascflow.s3_put_object(
+            config("PRESERVATION_BUCKET"),
+            archival_object_datafile_key,
+            body,
+        )
+    logger.info(
+        f'☑️  ARCHIVAL OBJECT DATAFILE UPLOADED TO S3: {config("PRESERVATION_BUCKET")}/{archival_object_datafile_key}'
+    )
+
+
+def process_digital_object_component_file(variables):
+    """transfer file to S3; create ArchivesSpace record"""
+    if not transfer_digital_object_component_file(variables):
+        logger.warning()
+        return
+    variables["file_uri_scheme"] = "s3"
+    variables["file_uri_host"] = config("PRESERVATION_BUCKET")
+    if not save_digital_object_component_record(variables):
+        logger.warning()
+        return
+
+
+def transfer_digital_object_component_file(variables):
+    """s5cmd cp digital object component file to S3 bucket"""
+    preservation_file_key = str(variables["preservation_file_info"]["filepath"])[
+        len(f'{variables["work_preservation_files"]}/') :
+    ]
+    for _attempt in range(3):
+        try:
+            subprocess.run(
+                [
+                    "s5cmd",
+                    "cp",
+                    "--concurrency",
+                    "20",
+                    "--metadata",
+                    f'md5={variables["preservation_file_info"]["md5"].hexdigest()}',
+                    variables["preservation_file_info"]["filepath"],
+                    f's3://{config("PRESERVATION_BUCKET")}/{preservation_file_key}',
+                ],
+                env={
+                    "AWS_ACCESS_KEY_ID": config("DISTILLERY_AWS_ACCESS_KEY_ID"),
+                    "AWS_SECRET_ACCESS_KEY": config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
+                },
+                check=True,
+                text=True,
+            )
+        except subprocess.CalledProcessError as e:
+            if _attempt > 1:
+                logger.exception(f"❌ S5CMD STDOUT: {e.stdout}")
+                logger.exception(f"❌ S5CMD STDERR: {e.stderr}")
+                raise
+        else:
+            logger.info(
+                "☑️ DIGITAL OBJECT COMPONENT FILE UPLOADED TO S3: {}/{}".format(
+                    config("PRESERVATION_BUCKET"), preservation_file_key
+                )
+            )
+    return variables["preservation_file_info"]["md5"].hexdigest()
 
 
 def get_crockford_characters(n=4):
@@ -1054,117 +198,15 @@ def get_crockford_id():
 
 
 # TODO rename to get_filepath_components
-def get_file_parts(filepath):
+def get_file_parts(filepath: Path):
     file_parts = {}
-    file_parts["filepath"] = filepath
+    file_parts["filepath"] = filepath.as_posix()
     file_parts["filename"] = file_parts["filepath"].split("/")[-1]
     file_parts["filestem"] = file_parts["filename"].split(".")[0]
     file_parts["extension"] = file_parts["filename"].split(".")[-1]
     file_parts["sequence"] = file_parts["filestem"].split("_")[-1]
     file_parts["crockford_id"] = get_crockford_id()
     return file_parts
-
-
-def get_arrangement(archival_object):
-    """Return a dictionary of the arragement levels for an archival object.
-
-    EXAMPLES:
-    arrangement["repository_name"]
-    arrangement["repository_code"]
-    arrangement["archival_object_display_string"]
-    arrangement["archival_object_level"]
-    arrangement["archival_object_title"]
-    arrangement["collection_title"]
-    arrangement["collection_id"]
-    arrangement["collection_uri"]
-    arrangement["series_display_string"]
-    arrangement["series_id"]
-    arrangement["series_title"]
-    arrangement["series_uri"]
-    arrangement["subseries_display_string"]
-    arrangement["subseries_id"]
-    arrangement["subseries_title"]
-    arrangement["subseries_uri"]
-    arrangement["file_display_string"]
-    arrangement["file_id"]
-    arrangement["file_title"]
-    arrangement["file_uri"]
-    """
-    try:
-        # TODO document assumptions about arrangement
-        arrangement = {}
-        arrangement["repository_name"] = archival_object["repository"]["_resolved"][
-            "name"
-        ]
-        arrangement["repository_code"] = archival_object["repository"]["_resolved"][
-            "repo_code"
-        ]
-        arrangement["archival_object_display_string"] = archival_object[
-            "display_string"
-        ]
-        arrangement["archival_object_level"] = archival_object["level"]
-        arrangement["archival_object_title"] = archival_object.get("title")
-        for ancestor in archival_object["ancestors"]:
-            if ancestor["level"] == "collection":
-                arrangement["collection_title"] = ancestor["_resolved"]["title"]
-                arrangement["collection_id"] = ancestor["_resolved"]["id_0"]
-                arrangement["collection_uri"] = ancestor["ref"]
-            elif ancestor["level"] == "series":
-                arrangement["series_display_string"] = ancestor["_resolved"][
-                    "display_string"
-                ]
-                arrangement["series_id"] = ancestor["_resolved"].get("component_id")
-                arrangement["series_title"] = ancestor["_resolved"].get("title")
-                arrangement["series_uri"] = ancestor["ref"]
-            elif ancestor["level"] == "subseries":
-                arrangement["subseries_display_string"] = ancestor["_resolved"][
-                    "display_string"
-                ]
-                arrangement["subseries_id"] = ancestor["_resolved"].get("component_id")
-                arrangement["subseries_title"] = ancestor["_resolved"].get("title")
-                arrangement["subseries_uri"] = ancestor["ref"]
-            elif ancestor["level"] == "file":
-                arrangement["file_display_string"] = ancestor["_resolved"][
-                    "display_string"
-                ]
-                arrangement["file_id"] = ancestor["_resolved"].get("component_id")
-                arrangement["file_title"] = ancestor["_resolved"].get("title")
-                arrangement["file_uri"] = ancestor["ref"]
-        logger.info("☑️  ARRANGEMENT LEVELS AGGREGATED")
-        return arrangement
-    except:
-        logger.exception("‼️")
-        raise
-
-
-def find_archival_object(component_id):
-    """Returns a dict of the archival object data for a given component_id.
-
-    Raises a ValueError if no archival object is found or if multiple archival
-    objects are found.
-    """
-    find_uri = (
-        f"/repositories/2/find_by_id/archival_objects?component_id[]={component_id}"
-    )
-    find_by_id_response = archivessnake_get(find_uri)
-    if len(find_by_id_response.json()["archival_objects"]) < 1:
-        message = f"❌ ARCHIVAL OBJECT NOT FOUND: {component_id}"
-        raise ValueError(message)
-    elif len(find_by_id_response.json()["archival_objects"]) > 1:
-        message = f"❌ MULTIPLE ARCHIVAL OBJECTS FOUND: {component_id}"
-        raise ValueError(message)
-    else:
-        archival_object = archivessnake_get(
-            find_by_id_response.json()["archival_objects"][0]["ref"]
-            + "?resolve[]=ancestors"
-            + "&resolve[]=digital_object"
-            + "&resolve[]=linked_agents"
-            + "&resolve[]=repository"
-            + "&resolve[]=subjects"
-            + "&resolve[]=top_container"
-        ).json()
-        logger.info(f"☑️ ARCHIVAL OBJECT FOUND: {component_id}")
-        return archival_object
 
 
 def get_archival_object_datafile_key(prefix, archival_object):
@@ -1217,7 +259,7 @@ def get_digital_object_component_file_key(prefix, file_parts):
 
 def find_digital_object(digital_object_digital_object_id):
     """Return digital_object URI using the digital_object_id."""
-    find_by_id_response = archivessnake_get(
+    find_by_id_response = cascflow.archivessnake_get(
         f"/repositories/2/find_by_id/digital_objects?digital_object_id[]={digital_object_digital_object_id}"
     )
     find_by_id_response.raise_for_status()
@@ -1232,7 +274,7 @@ def find_digital_object(digital_object_digital_object_id):
 
 def get_digital_object(digital_object_component_id):
     """Return digital_object metadata using the digital_object_component_id."""
-    find_by_id_response = archivessnake_get(
+    find_by_id_response = cascflow.archivessnake_get(
         f"/repositories/2/find_by_id/digital_object_components?digital_object_id[]={digital_object_component_id}"
     )
     find_by_id_response.raise_for_status()
@@ -1242,20 +284,15 @@ def get_digital_object(digital_object_component_id):
         raise ValueError(
             f"Multiple digital_objects found with digital_object_component_id: {digital_object_component_id}"
         )
-    digital_object_get_response = archivessnake_get(
+    digital_object_get_response = cascflow.archivessnake_get(
         f"{find_by_id_response.json()['digital_objects'][0]['ref']}"
     )
     digital_object_get_response.raise_for_status()
     return digital_object_get_response.json()
 
 
-def get_directory_bytes(directory):
-    """Return the total bytes of all files under the given directory."""
-    return sum(f.stat().st_size for f in Path(directory).glob("**/*") if f.is_file())
-
-
 def save_digital_object_component_record(variables):
-    if variables.get("file_uri_scheme") == None:
+    if variables.get("file_uri_scheme") is None:
         logger.warning('⚠️  MISSING variables["file_uri_scheme"]')
         return
     # NOTE indexing status of a newly-created digital_object_component is
@@ -1271,7 +308,7 @@ def save_digital_object_component_record(variables):
         logger.debug(f"🐞 MULTIPLE DIGITAL_OBJECTS: {digital_objects}")
     if len(digital_objects) == 1:
         logger.debug(f"🐞 DIGITAL_OBJECTS[0]: {digital_objects[0]}")
-        digital_object_tree = archivessnake_get(
+        digital_object_tree = cascflow.archivessnake_get(
             digital_objects[0]["digital_object"]["ref"] + "/tree/root"
         ).json()
         logger.debug(f"🐞 DIGITAL_OBJECT_TREE: {digital_object_tree}")
@@ -1279,7 +316,7 @@ def save_digital_object_component_record(variables):
             # NOTE without precomputed_waypoints we assume there are no
             # digital_object_components
             logger.debug(
-                f"🐞 NO PRECOMPUTED_WAYPOINTS; CREATING DIGITAL_OBJECT_COMPONENT"
+                "🐞 NO PRECOMPUTED_WAYPOINTS; CREATING DIGITAL_OBJECT_COMPONENT"
             )
             return create_digital_object_component(variables)
     else:
@@ -1290,7 +327,7 @@ def save_digital_object_component_record(variables):
     logger.debug(f"🐞 DIGITAL_OBJECT_COMPONENTS: {digital_object_components_summary}")
     if not digital_object_components_summary:
         logger.debug(
-            f"🐞 NO DIGITAL_OBJECT_COMPONENTS_SUMMARY; CREATING DIGITAL_OBJECT_COMPONENT"
+            "🐞 NO DIGITAL_OBJECT_COMPONENTS_SUMMARY; CREATING DIGITAL_OBJECT_COMPONENT"
         )
         return create_digital_object_component(variables)
     if variables["preservation_file_info"]["filepath"].parent.name not in [
@@ -1327,12 +364,12 @@ def save_digital_object_component_record(variables):
                     )
                 )
                 # load the full digital_object_component
-                digital_object_component = archivessnake_get(
+                digital_object_component = cascflow.archivessnake_get(
                     digital_object_component_summary["uri"]
                 ).json()
                 file_version = construct_file_version(variables)
                 digital_object_component["file_versions"].append(file_version)
-                archivessnake_post(
+                cascflow.archivessnake_post(
                     digital_object_component["uri"], digital_object_component
                 )
                 logger.info(
@@ -1375,7 +412,7 @@ def construct_digital_object_component(variables):
     if digital_object_uri:
         digital_object_component["digital_object"] = {"ref": digital_object_uri}
     else:
-        digital_object_uri, archival_object = create_digital_object(
+        digital_object_uri, archival_object = cascflow.create_digital_object(
             variables["archival_object"]
         )
         digital_object_component["digital_object"] = {"ref": digital_object_uri}
@@ -1385,7 +422,7 @@ def construct_digital_object_component(variables):
 
 def create_digital_object_component(variables):
     digital_object_component = construct_digital_object_component(variables)
-    digital_object_component_post_response = archivessnake_post(
+    digital_object_component_post_response = cascflow.archivessnake_post(
         "/repositories/2/digital_object_components", digital_object_component
     )
     logger.info(
@@ -1415,9 +452,9 @@ def construct_file_version(variables):
     file_key = str(variables["preservation_file_info"]["filepath"])[
         len(f'{variables["work_preservation_files"]}/') :
     ]
-    file_version[
-        "file_uri"
-    ] = f'{variables["file_uri_scheme"]}://{variables["file_uri_host"]}/{file_key}'
+    file_version["file_uri"] = (
+        f'{variables["file_uri_scheme"]}://{variables["file_uri_host"]}/{file_key}'
+    )
     return file_version
 
 
@@ -1434,29 +471,6 @@ def save_archival_object_datafile(arrangement, archival_object, directory):
         f.write(json.dumps(archival_object, indent=4))
     logger.info(f"☑️  ARCHIVAL OBJECT DATA SAVED: {filename}")
     return archival_object_datafile_key
-
-
-def save_preservation_file(source, destination):
-    os.makedirs(os.path.dirname(destination), exist_ok=True)
-    shutil.copy2(source, destination)
-
-
-def set_digital_object_id(uri, digital_object_id):
-    # raises an HTTPError exception if unsuccessful
-    get_response_json = archivessnake_get(uri).json()
-    get_response_json["digital_object_id"] = digital_object_id
-    post_response = archivessnake_post(uri, get_response_json)
-    post_response.raise_for_status()
-    return
-
-
-def update_digital_object(uri, data):
-    # raises an HTTPError exception if unsuccessful
-    response = archivessnake_post(uri, data)
-    logger.debug(f"🐞 RESPONSE: {response.json()}")
-    response.raise_for_status()
-    archivesspace_logger.info(response.json()["uri"])
-    return response
 
 
 def prepare_preservation_files(variables):
@@ -1487,10 +501,139 @@ def prepare_preservation_files(variables):
                 )
             )
         else:
-            status_logger.info(f"☑️  ORIGINAL FILE COPIED: {preservation_file_key}")
+            logger.info(f"☑️  ORIGINAL FILE COPIED: {preservation_file_key}")
+
+
+def validate_digital_files_for_preservation(validation_results: dict) -> None:
+    valid_archival_objects = validation_results.get("valid_archival_objects", [])
+    invalid_archival_objects = validation_results.get("invalid_archival_objects", [])
+    nested_directories = validation_results.get("nested_directories", [])
+    empty_directories = validation_results.get("empty_directories", [])
+    file_count = validation_results.get("file_count", 0)
+    ## messaging
+    if valid_archival_objects:
+        for valid_archival_object in valid_archival_objects:
+            logger.info(f"🉑 {valid_archival_object}")
+        logger.info(f"🗂 ARCHIVAL OBJECT COUNT: {len(valid_archival_objects)}")
+        logger.info(f"📄 FILE COUNT: {file_count}")
+    ## validation and messaging
+    if file_count == 0:
+        message = "❌ NO FILES FOUND"
+        logger.error(message)
+        raise FileNotFoundError(message)
+    if invalid_archival_objects:
+        message = "❌ INVALID ARCHIVAL OBJECTS FOUND"
+        logger.error(message)
+        for invalid_archival_object in invalid_archival_objects:
+            logger.error(f"❌ {invalid_archival_object}")
+        raise RuntimeError(message)
+    if nested_directories:
+        message = "❌ NESTED DIRECTORIES FOUND"
+        logger.error(message)
+        for nested_directory in nested_directories:
+            logger.error(f"❌ {nested_directory}")
+        raise RuntimeError(message)
+    if empty_directories:
+        message = "❌ EMPTY DIRECTORIES FOUND"
+        logger.error(message)
+        for empty_directory in empty_directories:
+            logger.error(f"❌ {empty_directory}")
+        raise RuntimeError(message)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Digital object preservation workflow for Caltech Archives."
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # subcommand: validate
+    validate_parser = subparsers.add_parser(
+        "validate", help="Validate connections, files, and data."
+    )
+    validate_parser.add_argument(
+        "--context", required=True, help="String. Supply a volume name."
+    )
+
+    # subcommand: execute
+    execute_parser = subparsers.add_parser(
+        "execute", help="Execute the preservation process."
+    )
+    execute_parser.add_argument(
+        "--context", required=True, help="String. Supply a volume name."
+    )
+
+    args = parser.parse_args()
+
+    # handle the commands
+    if args.command == "validate":
+        validation_results = cascflow.validate_digital_files(args.context)
+        validate_digital_files_for_preservation(validation_results)
+    elif args.command == "execute":
+        build_directory = tempfile.TemporaryDirectory()
+        batch_set_id = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
+        for (
+            batch_directory,
+            stage_2_path_obj,
+            filepaths,
+            archival_object,
+            arrangement,
+        ) in cascflow.execute(args.context, batch_set_id, "preservation"):
+            collection_data = get_collection_data(arrangement["collection_id"])
+            save_collection_datafile(collection_data, build_directory.name)
+            transfer_collection_datafile(
+                arrangement["collection_id"], build_directory.name
+            )
+            archival_object_datafile_key = save_archival_object_datafile(
+                arrangement, archival_object, build_directory.name
+            )
+            prepare_preservation_files(
+                {
+                    "filepaths": filepaths,
+                    "archival_object": archival_object,
+                    "arrangement": arrangement,
+                    "work_preservation_files": build_directory.name,
+                }
+            )
+            # NOTE returned archival_object will include any created digital_object instance
+            digital_object_uri, archival_object = ensure_digital_object(archival_object)
+            transfer_archival_object_datafile(
+                archival_object_datafile_key, build_directory
+            )
+            # WALK EVERY FILE IN THE ARCHIVAL OBJECT DIRECTORY
+            for dirpath, dirnames, filenames in os.walk(
+                Path(build_directory.name)
+                .joinpath(
+                    get_archival_object_directory_prefix(arrangement, archival_object)
+                )
+                .resolve()
+            ):
+                for filename in filenames:
+                    filepath = Path(dirpath).joinpath(filename)
+                    if filename in config("FILES_TO_REMOVE", default=None, cast=Csv()):
+                        filepath.unlink()
+                        continue
+                    if filepath.suffix == ".json" and filepath.name.startswith(
+                        filepath.stem
+                    ):
+                        # skip JSON files that are not digital object component files
+                        continue
+                    process_digital_object_component_file(
+                        {
+                            "preservation_file_info": {
+                                "filepath": filepath,
+                                "md5": hashlib.md5(filepath.read_bytes()),
+                                "filesize": filepath.stat().st_size,
+                            },
+                            "work_preservation_files": build_directory.name,
+                            "archival_object": archival_object,
+                            "arrangement": arrangement,
+                        }
+                    )
+            cascflow.move_to_stage_3(stage_2_path_obj, batch_directory)
+    else:
+        parser.print_help()
 
 
 if __name__ == "__main__":
-    # fmt: off
-    from rpyc.utils.server import ThreadedServer
-    ThreadedServer(DistilleryService, port=config("DISTILLERY_RPYC_PORT")).start()
+    main()
