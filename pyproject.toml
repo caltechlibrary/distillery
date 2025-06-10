@@ -11,3 +11,8 @@ dependencies = [
 
 [tool.uv.sources]
 cascflow = { git = "https://github.com/t4k/cascflow", branch = "main" }
+
+[dependency-groups]
+dev = [
+    "ruff>=0.11.13",
+]
