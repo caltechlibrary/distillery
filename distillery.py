@@ -21,8 +21,8 @@ from decouple import config, Csv
 
 import cascflow
 
-cascflow.setup_logging('settings.ini')
-logger = logging.getLogger('distillery')
+cascflow.setup_logging("settings.ini")
+logger = logging.getLogger("distillery")
 
 
 def get_collection_data(collection_id):
@@ -56,7 +56,9 @@ def get_collection_uri(collection_id):
 
 def get_collection_tree(collection_uri):
     # raises an HTTPError exception if unsuccessful
-    collection_tree = cascflow.archivessnake_get(collection_uri + "/ordered_records").json()
+    collection_tree = cascflow.archivessnake_get(
+        collection_uri + "/ordered_records"
+    ).json()
     if collection_tree:
         return collection_tree
     else:
@@ -98,11 +100,7 @@ def transfer_collection_datafile(collection_id, directory):
 def ensure_digital_object(archival_object):
     """Ensure a digital object exists for the archival object."""
     digital_object_count = len(
-        [
-            i
-            for i in archival_object["instances"]
-            if "digital_object" in i.keys()
-        ]
+        [i for i in archival_object["instances"] if "digital_object" in i.keys()]
     )
     logger.debug(f"🐞 DIGITAL OBJECT COUNT: {digital_object_count}")
     if digital_object_count > 1:
@@ -112,7 +110,9 @@ def ensure_digital_object(archival_object):
             )
         )
     elif digital_object_count < 1:
-        digital_object_uri, archival_object = cascflow.create_digital_object(archival_object)
+        digital_object_uri, archival_object = cascflow.create_digital_object(
+            archival_object
+        )
     else:
         digital_object_uri = archival_object["instances"][0]["digital_object"]["ref"]
 
@@ -120,9 +120,13 @@ def ensure_digital_object(archival_object):
     return digital_object_uri, archival_object
 
 
-def transfer_archival_object_datafile(archival_object_datafile_key: str, build_directory: tempfile.TemporaryDirectory):
+def transfer_archival_object_datafile(
+    archival_object_datafile_key: str, build_directory: tempfile.TemporaryDirectory
+):
     """POST archival object data to S3 bucket as a JSON file."""
-    current_archival_object_datafile = Path(build_directory.name).joinpath(archival_object_datafile_key).resolve()
+    current_archival_object_datafile = (
+        Path(build_directory.name).joinpath(archival_object_datafile_key).resolve()
+    )
     with open(current_archival_object_datafile, "rb") as body:
         cascflow.s3_put_object(
             config("PRESERVATION_BUCKET"),
@@ -448,9 +452,9 @@ def construct_file_version(variables):
     file_key = str(variables["preservation_file_info"]["filepath"])[
         len(f'{variables["work_preservation_files"]}/') :
     ]
-    file_version[
-        "file_uri"
-    ] = f'{variables["file_uri_scheme"]}://{variables["file_uri_host"]}/{file_key}'
+    file_version["file_uri"] = (
+        f'{variables["file_uri_scheme"]}://{variables["file_uri_host"]}/{file_key}'
+    )
     return file_version
 
 
@@ -552,7 +556,9 @@ def main():
     )
 
     # subcommand: execute
-    execute_parser = subparsers.add_parser("execute", help="Execute the preservation process.")
+    execute_parser = subparsers.add_parser(
+        "execute", help="Execute the preservation process."
+    )
     execute_parser.add_argument(
         "--context", required=True, help="String. Supply a volume name."
     )
@@ -566,40 +572,64 @@ def main():
     elif args.command == "execute":
         build_directory = tempfile.TemporaryDirectory()
         batch_set_id = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
-        for batch_directory, stage_2_path_obj, filepaths, archival_object, arrangement in cascflow.execute(args.context, batch_set_id, "preservation"):
+        for (
+            batch_directory,
+            stage_2_path_obj,
+            filepaths,
+            archival_object,
+            arrangement,
+        ) in cascflow.execute(args.context, batch_set_id, "preservation"):
             collection_data = get_collection_data(arrangement["collection_id"])
             save_collection_datafile(collection_data, build_directory.name)
-            transfer_collection_datafile(arrangement["collection_id"], build_directory.name)
-            archival_object_datafile_key = save_archival_object_datafile(arrangement, archival_object, build_directory.name)
-            prepare_preservation_files({
-                "filepaths": filepaths,
-                "archival_object": archival_object,
-                "arrangement": arrangement,
-                "work_preservation_files": build_directory.name
-            })
+            transfer_collection_datafile(
+                arrangement["collection_id"], build_directory.name
+            )
+            archival_object_datafile_key = save_archival_object_datafile(
+                arrangement, archival_object, build_directory.name
+            )
+            prepare_preservation_files(
+                {
+                    "filepaths": filepaths,
+                    "archival_object": archival_object,
+                    "arrangement": arrangement,
+                    "work_preservation_files": build_directory.name,
+                }
+            )
             # NOTE returned archival_object will include any created digital_object instance
             digital_object_uri, archival_object = ensure_digital_object(archival_object)
-            transfer_archival_object_datafile(archival_object_datafile_key, build_directory)
+            transfer_archival_object_datafile(
+                archival_object_datafile_key, build_directory
+            )
             # WALK EVERY FILE IN THE ARCHIVAL OBJECT DIRECTORY
-            for dirpath, dirnames, filenames in os.walk(Path(build_directory.name).joinpath(get_archival_object_directory_prefix(arrangement, archival_object)).resolve()):
+            for dirpath, dirnames, filenames in os.walk(
+                Path(build_directory.name)
+                .joinpath(
+                    get_archival_object_directory_prefix(arrangement, archival_object)
+                )
+                .resolve()
+            ):
                 for filename in filenames:
                     filepath = Path(dirpath).joinpath(filename)
                     if filename in config("FILES_TO_REMOVE", default=None, cast=Csv()):
                         filepath.unlink()
                         continue
-                    if filepath.suffix == ".json" and filepath.name.startswith(filepath.stem):
+                    if filepath.suffix == ".json" and filepath.name.startswith(
+                        filepath.stem
+                    ):
                         # skip JSON files that are not digital object component files
                         continue
-                    process_digital_object_component_file({
-                        "preservation_file_info": {
-                            "filepath": filepath,
-                            "md5": hashlib.md5(filepath.read_bytes()),
-                            "filesize": filepath.stat().st_size,
-                        },
-                        "work_preservation_files": build_directory.name,
-                        "archival_object": archival_object,
-                        "arrangement": arrangement,
-                    })
+                    process_digital_object_component_file(
+                        {
+                            "preservation_file_info": {
+                                "filepath": filepath,
+                                "md5": hashlib.md5(filepath.read_bytes()),
+                                "filesize": filepath.stat().st_size,
+                            },
+                            "work_preservation_files": build_directory.name,
+                            "archival_object": archival_object,
+                            "arrangement": arrangement,
+                        }
+                    )
             cascflow.move_to_stage_3(stage_2_path_obj, batch_directory)
     else:
         parser.print_help()
