@@ -126,12 +126,12 @@ def transfer_collection_datafile(collection_id, directory):
     )
     with open(collection_datafile_path, "rb") as body:
         cascflow.s3_put_object(
-            config("PRESERVATION_BUCKET"),
+            str(config("S3_BUCKET")),
             str(collection_datafile_key),
             body,
         )
     logger.info(
-        f'☑️  COLLECTION DATAFILE UPLOADED TO S3: {config("PRESERVATION_BUCKET")}/{str(collection_datafile_key)}'
+        f"☑️  COLLECTION DATAFILE UPLOADED TO S3: {config('S3_BUCKET')}/{str(collection_datafile_key)}"
     )
 
 
@@ -167,12 +167,12 @@ def transfer_archival_object_datafile(
     )
     with open(current_archival_object_datafile, "rb") as body:
         cascflow.s3_put_object(
-            config("PRESERVATION_BUCKET"),
+            str(config("S3_BUCKET")),
             archival_object_datafile_key,
             body,
         )
     logger.info(
-        f'☑️  ARCHIVAL OBJECT DATAFILE UPLOADED TO S3: {config("PRESERVATION_BUCKET")}/{archival_object_datafile_key}'
+        f"☑️  ARCHIVAL OBJECT DATAFILE UPLOADED TO S3: {config('S3_BUCKET')}/{archival_object_datafile_key}"
     )
 
 
@@ -197,18 +197,20 @@ def transfer_digital_object_component_file(variables):
         try:
             subprocess.run(
                 [
-                    "s5cmd",
+                    str(config("S5CMD_CMD")),
                     "cp",
                     "--concurrency",
                     "20",
                     "--metadata",
                     f'md5={variables["preservation_file_info"]["md5"].hexdigest()}',
                     variables["preservation_file_info"]["filepath"],
-                    f's3://{config("PRESERVATION_BUCKET")}/{preservation_file_key}',
+                    f"s3://{config('S3_BUCKET')}/{preservation_file_key}",
                 ],
                 env={
-                    "AWS_ACCESS_KEY_ID": config("DISTILLERY_AWS_ACCESS_KEY_ID"),
-                    "AWS_SECRET_ACCESS_KEY": config("DISTILLERY_AWS_SECRET_ACCESS_KEY"),
+                    "AWS_ACCESS_KEY_ID": str(config("AWS_ACCESS_KEY_ID")),
+                    "AWS_SECRET_ACCESS_KEY": str(
+                        config("AWS_SECRET_ACCESS_KEY")
+                    ),
                 },
                 check=True,
                 text=True,
@@ -221,7 +223,7 @@ def transfer_digital_object_component_file(variables):
         else:
             logger.info(
                 "☑️ DIGITAL OBJECT COMPONENT FILE UPLOADED TO S3: {}/{}".format(
-                    config("PRESERVATION_BUCKET"), preservation_file_key
+                    config("S3_BUCKET"), preservation_file_key
                 )
             )
     return variables["preservation_file_info"]["md5"].hexdigest()
