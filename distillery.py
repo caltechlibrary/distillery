@@ -547,27 +547,27 @@ def prepare_preservation_files(variables):
 
 
 def validate_digital_files_for_preservation(validation_results: dict) -> None:
-    valid_archival_objects = validation_results.get("valid_archival_objects", [])
-    invalid_archival_objects = validation_results.get("invalid_archival_objects", [])
+    eligible_archival_objects = validation_results.get("eligible_archival_objects", [])
+    ineligible_archival_objects = validation_results.get("ineligible_archival_objects", [])
     nested_directories = validation_results.get("nested_directories", [])
     empty_directories = validation_results.get("empty_directories", [])
     file_count = validation_results.get("file_count", 0)
     ## messaging
-    if valid_archival_objects:
-        for valid_archival_object in valid_archival_objects:
-            logger.info(f"🉑 {valid_archival_object}")
-        logger.info(f"🗂 ARCHIVAL OBJECT COUNT: {len(valid_archival_objects)}")
+    if eligible_archival_objects:
+        for eligible_archival_object in eligible_archival_objects:
+            logger.info(f"🉑 {eligible_archival_object}")
+        logger.info(f"🗂 ARCHIVAL OBJECT COUNT: {len(eligible_archival_objects)}")
         logger.info(f"📄 FILE COUNT: {file_count}")
     ## validation and messaging
     if file_count == 0:
         message = "❌ NO FILES FOUND"
         logger.error(message)
         raise FileNotFoundError(message)
-    if invalid_archival_objects:
-        message = "❌ INVALID ARCHIVAL OBJECTS FOUND"
+    if ineligible_archival_objects:
+        message = "❌ INELIGIBLE ARCHIVAL OBJECTS FOUND"
         logger.error(message)
-        for invalid_archival_object in invalid_archival_objects:
-            logger.error(f"❌ {invalid_archival_object}")
+        for ineligible_archival_object in ineligible_archival_objects:
+            logger.error(f"❌ {ineligible_archival_object}")
         raise RuntimeError(message)
     if nested_directories:
         message = "❌ NESTED DIRECTORIES FOUND"
