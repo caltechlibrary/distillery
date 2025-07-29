@@ -81,8 +81,9 @@ def get_collection_data(collection_id):
 
 def get_collection_uri(collection_id):
     # raises an HTTPError exception if unsuccessful
+    repository_id = config("ARCHIVESSPACE_REPOSITORY_ID", default="2")
     search_results_json = cascflow.archivessnake_get(
-        f'/repositories/2/find_by_id/resources?identifier[]=["{collection_id}"]'
+        f'/repositories/{repository_id}/find_by_id/resources?identifier[]=["{collection_id}"]'
     ).json()
     if len(search_results_json["resources"]) < 1:
         raise ValueError(
@@ -296,8 +297,9 @@ def get_digital_object_component_file_key(prefix, file_parts):
 
 def find_digital_object(digital_object_digital_object_id):
     """Return digital_object URI using the digital_object_id."""
+    repository_id = config("ARCHIVESSPACE_REPOSITORY_ID", default="2")
     find_by_id_response = cascflow.archivessnake_get(
-        f"/repositories/2/find_by_id/digital_objects?digital_object_id[]={digital_object_digital_object_id}"
+        f"/repositories/{repository_id}/find_by_id/digital_objects?digital_object_id[]={digital_object_digital_object_id}"
     )
     find_by_id_response.raise_for_status()
     if len(find_by_id_response.json()["digital_objects"]) < 1:
@@ -459,8 +461,9 @@ def construct_digital_object_component(variables):
 
 def create_digital_object_component(variables):
     digital_object_component = construct_digital_object_component(variables)
+    repository_id = config("ARCHIVESSPACE_REPOSITORY_ID", default="2")
     digital_object_component_post_response = cascflow.archivessnake_post(
-        "/repositories/2/digital_object_components", digital_object_component
+        f"/repositories/{repository_id}/digital_object_components", digital_object_component
     )
     logger.info(
         f'✳️  DIGITAL OBJECT COMPONENT CREATED: {digital_object_component_post_response.json()["uri"]}'
