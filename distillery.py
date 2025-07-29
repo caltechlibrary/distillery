@@ -178,23 +178,23 @@ def transfer_archival_object_datafile(
     )
 
 
-def process_digital_object_component_file(variables):
+def process_digital_object_component_file(variables, build_directory):
     """transfer file to S3; create ArchivesSpace record"""
-    if not transfer_digital_object_component_file(variables):
+    if not transfer_digital_object_component_file(variables, build_directory):
         logger.warning("⚠️ FAILED TO TRANSFER DIGITAL OBJECT COMPONENT FILE")
         return
     variables["file_uri_scheme"] = "s3"
     variables["file_uri_host"] = config("S3_BUCKET")
-    if not save_digital_object_component_record(variables):
+    if not save_digital_object_component_record(variables, build_directory):
         logger.warning("⚠️ FAILED TO SAVE DIGITAL OBJECT COMPONENT RECORD")
         return
 
 
-def transfer_digital_object_component_file(variables):
+def transfer_digital_object_component_file(variables, build_directory):
     """s5cmd cp digital object component file to S3 bucket"""
-    preservation_file_key = str(variables["preservation_file_info"]["filepath"])[
-        len(f"{variables['work_preservation_files']}/") :
-    ]
+    preservation_file_key = str(
+        variables["preservation_file_info"]["filepath"]
+    ).replace(f"{build_directory.name}/", "", 1)
     for _attempt in range(3):
         try:
             subprocess.run(
@@ -312,7 +312,7 @@ def find_digital_object(digital_object_digital_object_id):
     return find_by_id_response.json()["digital_objects"][0]["ref"]
 
 
-def save_digital_object_component_record(variables):
+def save_digital_object_component_record(variables, build_directory):
     if variables.get("file_uri_scheme") is None:
         logger.warning('⚠️  MISSING variables["file_uri_scheme"]')
         return
@@ -339,7 +339,7 @@ def save_digital_object_component_record(variables):
             logger.debug(
                 "🐞 NO PRECOMPUTED_WAYPOINTS; CREATING DIGITAL_OBJECT_COMPONENT"
             )
-            return create_digital_object_component(variables)
+            return create_digital_object_component(variables, build_directory)
     else:
         raise RuntimeError(f"❌ NO DIGITAL_OBJECTS FOUND: {variables}")
     digital_object_components_summary = [
@@ -350,7 +350,7 @@ def save_digital_object_component_record(variables):
         logger.debug(
             "🐞 NO DIGITAL_OBJECT_COMPONENTS_SUMMARY; CREATING DIGITAL_OBJECT_COMPONENT"
         )
-        return create_digital_object_component(variables)
+        return create_digital_object_component(variables, build_directory)
     if variables["preservation_file_info"]["filepath"].parent.name not in [
         _["label"] for _ in digital_object_components_summary
     ]:
@@ -359,7 +359,7 @@ def save_digital_object_component_record(variables):
                 variables["preservation_file_info"]["filepath"].parent.name
             )
         )
-        return create_digital_object_component(variables)
+        return create_digital_object_component(variables, build_directory)
     # NOTE assuming there is a file_uri_summary in each digital_object_component
     for digital_object_component_summary in digital_object_components_summary:
         file_uri_summary = digital_object_component_summary["file_uri_summary"].split(
@@ -388,7 +388,7 @@ def save_digital_object_component_record(variables):
                 digital_object_component = cascflow.archivessnake_get(
                     digital_object_component_summary["uri"]
                 ).json()
-                file_version = construct_file_version(variables)
+                file_version = construct_file_version(variables, build_directory)
                 digital_object_component["file_versions"].append(file_version)
                 cascflow.archivessnake_post(
                     digital_object_component["uri"], digital_object_component
@@ -399,7 +399,7 @@ def save_digital_object_component_record(variables):
                 return digital_object_component["uri"]
 
 
-def construct_digital_object_component(variables):
+def construct_digital_object_component(variables, build_directory):
     digital_object_component = {}
     digital_object_component["component_id"] = Path(
         variables["preservation_file_info"]["filepath"]
@@ -437,12 +437,16 @@ def construct_digital_object_component(variables):
             variables["archival_object"]
         )
         digital_object_component["digital_object"] = {"ref": digital_object_uri}
-    digital_object_component["file_versions"] = [construct_file_version(variables)]
+    digital_object_component["file_versions"] = [
+        construct_file_version(variables, build_directory)
+    ]
     return digital_object_component
 
 
-def create_digital_object_component(variables):
-    digital_object_component = construct_digital_object_component(variables)
+def create_digital_object_component(variables, build_directory):
+    digital_object_component = construct_digital_object_component(
+        variables, build_directory
+    )
     repository_id = config("ARCHIVESSPACE_REPOSITORY_ID", default="2")
     digital_object_component_post_response = cascflow.archivessnake_post(
         f"/repositories/{repository_id}/digital_object_components",
@@ -454,7 +458,7 @@ def create_digital_object_component(variables):
     return digital_object_component_post_response.json()["uri"]
 
 
-def construct_file_version(variables):
+def construct_file_version(variables, build_directory):
     """
     file_version["file_uri"]
     file_version["publish"]  # defaults to false
@@ -472,9 +476,9 @@ def construct_file_version(variables):
     file_version["file_size_bytes"] = int(
         variables["preservation_file_info"]["filesize"]
     )
-    file_key = str(variables["preservation_file_info"]["filepath"])[
-        len(f"{variables['work_preservation_files']}/") :
-    ]
+    file_key = str(variables["preservation_file_info"]["filepath"]).replace(
+        f"{build_directory.name}/", "", 1
+    )
     file_version["file_uri"] = (
         f"{variables['file_uri_scheme']}://{variables['file_uri_host']}/{file_key}"
     )
@@ -496,7 +500,7 @@ def save_archival_object_datafile(arrangement, archival_object, directory):
     return archival_object_datafile_key
 
 
-def prepare_preservation_files(variables):
+def prepare_preservation_files(variables, build_directory):
     """Copy preservation files."""
     for filepath in variables["filepaths"]:
         variables["original_file_path"] = filepath
@@ -510,7 +514,7 @@ def prepare_preservation_files(variables):
             filepath_components,
         )
         logger.debug(f"🐞 PRESERVATION_FILE_KEY: {preservation_file_key}")
-        preservation_file_path = Path(variables["work_preservation_files"]).joinpath(
+        preservation_file_path = Path(build_directory.name).joinpath(
             preservation_file_key
         )
         logger.debug(f"🐞 PRESERVATION_FILE_PATH: {preservation_file_path}")
@@ -594,8 +598,8 @@ def main():
                     "filepaths": filepaths,
                     "archival_object": archival_object,
                     "arrangement": arrangement,
-                    "work_preservation_files": build_directory.name,
-                }
+                },
+                build_directory,
             )
             # NOTE returned archival_object will include any created digital_object instance
             digital_object_uri, archival_object = ensure_digital_object(archival_object)
@@ -630,10 +634,10 @@ def main():
                                 "md5": hashlib.md5(filepath.read_bytes()),
                                 "filesize": filepath.stat().st_size,
                             },
-                            "work_preservation_files": build_directory.name,
                             "archival_object": archival_object,
                             "arrangement": arrangement,
-                        }
+                        },
+                        build_directory,
                     )
             cascflow.move_to_stage_3(stage_2_path_obj, batch_directory)
     else:
