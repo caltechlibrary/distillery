@@ -1,7 +1,5 @@
-# CALTECH ARCHIVES AND SPECIAL COLLECTIONS
-# digital object preservation workflow
-
-# processing functionality; see web.py for bottlepy web application
+# file: distillery.py
+# DIGITAL OBJECT PRESERVATION WORKFLOW
 
 import argparse
 import datetime
@@ -17,11 +15,50 @@ import tempfile
 
 from pathlib import Path
 
-from decouple import config, Csv
+from decouple import Config, Csv, RepositoryIni  # pypi: python-decouple
 
 import cascflow
 
-cascflow.setup_logging("settings.ini")
+parser = argparse.ArgumentParser(
+    description="Digital object preservation workflow for Caltech Archives."
+)
+parser.add_argument(
+    "--settings",
+    default=None,
+    help="Path to settings.ini file (optional). Defaults to working directory.",
+)
+subparsers = parser.add_subparsers(dest="command", required=True)
+
+# subcommand: validate
+validate_parser = subparsers.add_parser(
+    "validate", help="Validate connections, files, and data."
+)
+validate_parser.add_argument(
+    "--context", required=True, help="String. Supply a volume name."
+)
+
+# subcommand: execute
+execute_parser = subparsers.add_parser(
+    "execute", help="Execute the preservation process."
+)
+execute_parser.add_argument(
+    "--context", required=True, help="String. Supply a volume name."
+)
+
+args = parser.parse_args()
+
+# set up settings path and logging
+if args.settings is not None:
+    settings_path = Path(args.settings).expanduser().resolve()
+else:
+    settings_path = Path(__file__).parent.joinpath("settings.ini").resolve()
+if not settings_path.exists():
+    raise FileNotFoundError(f"Settings file not found: {settings_path}")
+# configure cascflow to use our settings.ini file
+config = Config(RepositoryIni(settings_path))
+cascflow.set_config(config)
+
+cascflow.setup_logging(str(settings_path))
 logger = logging.getLogger("distillery")
 
 
@@ -542,29 +579,6 @@ def validate_digital_files_for_preservation(validation_results: dict) -> None:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Digital object preservation workflow for Caltech Archives."
-    )
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
-    # subcommand: validate
-    validate_parser = subparsers.add_parser(
-        "validate", help="Validate connections, files, and data."
-    )
-    validate_parser.add_argument(
-        "--context", required=True, help="String. Supply a volume name."
-    )
-
-    # subcommand: execute
-    execute_parser = subparsers.add_parser(
-        "execute", help="Execute the preservation process."
-    )
-    execute_parser.add_argument(
-        "--context", required=True, help="String. Supply a volume name."
-    )
-
-    args = parser.parse_args()
-
     # handle the commands
     if args.command == "validate":
         validation_results = cascflow.validate_digital_files(args.context)
