@@ -313,25 +313,6 @@ def find_digital_object(digital_object_digital_object_id):
     return find_by_id_response.json()["digital_objects"][0]["ref"]
 
 
-def get_digital_object(digital_object_component_id):
-    """Return digital_object metadata using the digital_object_component_id."""
-    find_by_id_response = cascflow.archivessnake_get(
-        f"/repositories/2/find_by_id/digital_object_components?digital_object_id[]={digital_object_component_id}"
-    )
-    find_by_id_response.raise_for_status()
-    if len(find_by_id_response.json()["digital_objects"]) < 1:
-        return None
-    if len(find_by_id_response.json()["digital_objects"]) > 1:
-        raise ValueError(
-            f"Multiple digital_objects found with digital_object_component_id: {digital_object_component_id}"
-        )
-    digital_object_get_response = cascflow.archivessnake_get(
-        f"{find_by_id_response.json()['digital_objects'][0]['ref']}"
-    )
-    digital_object_get_response.raise_for_status()
-    return digital_object_get_response.json()
-
-
 def save_digital_object_component_record(variables):
     if variables.get("file_uri_scheme") is None:
         logger.warning('⚠️  MISSING variables["file_uri_scheme"]')
