@@ -70,7 +70,7 @@ def get_collection_data(collection_id):
         collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
         if collection_data["tree"]["_resolved"]:
             logger.info(
-                f'☑️  ARCHIVESSPACE COLLECTION DATA RETRIEVED: {collection_data["uri"]}'
+                f"☑️  ARCHIVESSPACE COLLECTION DATA RETRIEVED: {collection_data['uri']}"
             )
             return collection_data
     else:
@@ -124,11 +124,12 @@ def transfer_collection_datafile(collection_id, directory):
     collection_datafile_path = (
         Path(directory).joinpath(collection_datafile_key).resolve()
     )
-    with open(collection_datafile_path, "rb") as body:
+    with open(collection_datafile_path, "rb") as f:
+        file_bytes = f.read()
         cascflow.s3_put_object(
             str(config("S3_BUCKET")),
             str(collection_datafile_key),
-            body,
+            file_bytes,
         )
     logger.info(
         f"☑️  COLLECTION DATAFILE UPLOADED TO S3: {config('S3_BUCKET')}/{str(collection_datafile_key)}"
@@ -165,11 +166,12 @@ def transfer_archival_object_datafile(
     current_archival_object_datafile = (
         Path(build_directory.name).joinpath(archival_object_datafile_key).resolve()
     )
-    with open(current_archival_object_datafile, "rb") as body:
+    with open(current_archival_object_datafile, "rb") as f:
+        file_bytes = f.read()
         cascflow.s3_put_object(
             str(config("S3_BUCKET")),
             archival_object_datafile_key,
-            body,
+            file_bytes,
         )
     logger.info(
         f"☑️  ARCHIVAL OBJECT DATAFILE UPLOADED TO S3: {config('S3_BUCKET')}/{archival_object_datafile_key}"
@@ -179,19 +181,19 @@ def transfer_archival_object_datafile(
 def process_digital_object_component_file(variables):
     """transfer file to S3; create ArchivesSpace record"""
     if not transfer_digital_object_component_file(variables):
-        logger.warning()
+        logger.warning("⚠️ FAILED TO TRANSFER DIGITAL OBJECT COMPONENT FILE")
         return
     variables["file_uri_scheme"] = "s3"
-    variables["file_uri_host"] = config("PRESERVATION_BUCKET")
+    variables["file_uri_host"] = config("S3_BUCKET")
     if not save_digital_object_component_record(variables):
-        logger.warning()
+        logger.warning("⚠️ FAILED TO SAVE DIGITAL OBJECT COMPONENT RECORD")
         return
 
 
 def transfer_digital_object_component_file(variables):
     """s5cmd cp digital object component file to S3 bucket"""
     preservation_file_key = str(variables["preservation_file_info"]["filepath"])[
-        len(f'{variables["work_preservation_files"]}/') :
+        len(f"{variables['work_preservation_files']}/") :
     ]
     for _attempt in range(3):
         try:
@@ -202,18 +204,15 @@ def transfer_digital_object_component_file(variables):
                     "--concurrency",
                     "20",
                     "--metadata",
-                    f'md5={variables["preservation_file_info"]["md5"].hexdigest()}',
-                    variables["preservation_file_info"]["filepath"],
+                    f"md5={variables['preservation_file_info']['md5'].hexdigest()}",
+                    str(variables["preservation_file_info"]["filepath"]),
                     f"s3://{config('S3_BUCKET')}/{preservation_file_key}",
                 ],
                 env={
                     "AWS_ACCESS_KEY_ID": str(config("AWS_ACCESS_KEY_ID")),
-                    "AWS_SECRET_ACCESS_KEY": str(
-                        config("AWS_SECRET_ACCESS_KEY")
-                    ),
+                    "AWS_SECRET_ACCESS_KEY": str(config("AWS_SECRET_ACCESS_KEY")),
                 },
                 check=True,
-                text=True,
             )
         except subprocess.CalledProcessError as e:
             if _attempt > 1:
@@ -252,7 +251,7 @@ def get_file_parts(filepath: Path):
 def get_archival_object_datafile_key(prefix, archival_object):
     """Return the key (file path) of an archival object datafile."""
     # NOTE the prefix includes a trailing slash
-    return f'{prefix}{archival_object["component_id"]}.json'
+    return f"{prefix}{archival_object['component_id']}.json"
 
 
 def get_archival_object_directory_prefix(arrangement, archival_object):
@@ -269,7 +268,7 @@ def get_archival_object_directory_prefix(arrangement, archival_object):
     prefix = "/".join(
         [
             arrangement["collection_id"],
-            f'{archival_object["component_id"]}--{archival_object_title}',
+            f"{archival_object['component_id']}--{archival_object_title}",
             "",
         ]
     )
@@ -368,7 +367,7 @@ def save_digital_object_component_record(variables):
         )
         for file_uri in file_uri_summary:
             if file_uri.strip().startswith(
-                f'{variables["file_uri_scheme"]}://'
+                f"{variables['file_uri_scheme']}://"
             ) and file_uri.strip().endswith(
                 variables["preservation_file_info"]["filepath"].name
             ):
@@ -395,7 +394,7 @@ def save_digital_object_component_record(variables):
                     digital_object_component["uri"], digital_object_component
                 )
                 logger.info(
-                    f'☑️  DIGITAL OBJECT COMPONENT UPDATED: {digital_object_component["uri"]}'
+                    f"☑️  DIGITAL OBJECT COMPONENT UPDATED: {digital_object_component['uri']}"
                 )
                 return digital_object_component["uri"]
 
@@ -446,10 +445,11 @@ def create_digital_object_component(variables):
     digital_object_component = construct_digital_object_component(variables)
     repository_id = config("ARCHIVESSPACE_REPOSITORY_ID", default="2")
     digital_object_component_post_response = cascflow.archivessnake_post(
-        f"/repositories/{repository_id}/digital_object_components", digital_object_component
+        f"/repositories/{repository_id}/digital_object_components",
+        digital_object_component,
     )
     logger.info(
-        f'✳️  DIGITAL OBJECT COMPONENT CREATED: {digital_object_component_post_response.json()["uri"]}'
+        f"✳️  DIGITAL OBJECT COMPONENT CREATED: {digital_object_component_post_response.json()['uri']}"
     )
     return digital_object_component_post_response.json()["uri"]
 
@@ -473,10 +473,10 @@ def construct_file_version(variables):
         variables["preservation_file_info"]["filesize"]
     )
     file_key = str(variables["preservation_file_info"]["filepath"])[
-        len(f'{variables["work_preservation_files"]}/') :
+        len(f"{variables['work_preservation_files']}/") :
     ]
     file_version["file_uri"] = (
-        f'{variables["file_uri_scheme"]}://{variables["file_uri_host"]}/{file_key}'
+        f"{variables['file_uri_scheme']}://{variables['file_uri_host']}/{file_key}"
     )
     return file_version
 
@@ -529,7 +529,9 @@ def prepare_preservation_files(variables):
 
 def validate_digital_files_for_preservation(validation_results: dict) -> None:
     eligible_archival_objects = validation_results.get("eligible_archival_objects", [])
-    ineligible_archival_objects = validation_results.get("ineligible_archival_objects", [])
+    ineligible_archival_objects = validation_results.get(
+        "ineligible_archival_objects", []
+    )
     nested_directories = validation_results.get("nested_directories", [])
     empty_directories = validation_results.get("empty_directories", [])
     file_count = validation_results.get("file_count", 0)
@@ -610,7 +612,10 @@ def main():
             ):
                 for filename in filenames:
                     filepath = Path(dirpath).joinpath(filename)
-                    if filename in config("FILES_TO_REMOVE", default=None, cast=Csv()):
+                    files_to_remove = config("FILES_TO_REMOVE", default="", cast=Csv())
+                    if not isinstance(files_to_remove, list):
+                        files_to_remove = []
+                    if filename in files_to_remove:
                         filepath.unlink()
                         continue
                     if filepath.suffix == ".json" and filepath.name.startswith(
