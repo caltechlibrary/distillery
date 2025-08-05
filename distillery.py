@@ -532,7 +532,7 @@ def prepare_preservation_files(variables, build_directory):
 
 
 def validate_digital_files_for_preservation(validation_results: dict) -> None:
-    eligible_archival_objects = validation_results.get("eligible_archival_objects", [])
+    eligible_archival_objects = validation_results.get("eligible_archival_objects", {})
     ineligible_archival_objects = validation_results.get(
         "ineligible_archival_objects", []
     )
@@ -541,8 +541,8 @@ def validate_digital_files_for_preservation(validation_results: dict) -> None:
     file_count = validation_results.get("file_count", 0)
     ## messaging
     if eligible_archival_objects:
-        for eligible_archival_object in eligible_archival_objects:
-            logger.info(f"🉑 {eligible_archival_object}")
+        for component_id in eligible_archival_objects.keys():
+            logger.info(f"🉑 {component_id}")
         logger.info(f"🗂 ARCHIVAL OBJECT COUNT: {len(eligible_archival_objects)}")
         logger.info(f"📄 FILE COUNT: {file_count}")
     ## validation and messaging
