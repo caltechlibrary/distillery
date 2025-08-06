@@ -78,7 +78,7 @@ wheels = [
 [[package]]
 name = "cascflow"
 version = "3.0.0"
-source = { editable = "../cascflow" }
+source = { git = "https://github.com/caltechlibrary/cascflow?branch=main#58aa81d048745cd991d3d768d07efb745de1eeed" }
 dependencies = [
     { name = "archivessnake" },
     { name = "backoff" },
@@ -87,19 +87,6 @@ dependencies = [
     { name = "requests" },
     { name = "urllib3" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "archivessnake", specifier = ">=0.10" },
-    { name = "backoff", specifier = ">=2.2" },
-    { name = "boto3", specifier = ">=1.40" },
-    { name = "python-decouple", specifier = ">=3.8" },
-    { name = "requests", specifier = ">=2.32" },
-    { name = "urllib3", specifier = ">=2.4" },
-]
-
-[package.metadata.requires-dev]
-dev = [{ name = "ruff", specifier = ">=0.12" }]
 
 [[package]]
 name = "certifi"
@@ -134,7 +121,7 @@ wheels = [
 
 [[package]]
 name = "distillery"
-version = "2.0.1"
+version = "2.0.2"
 source = { virtual = "." }
 dependencies = [
     { name = "cascflow" },
@@ -148,7 +135,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cascflow", editable = "../cascflow" },
+    { name = "cascflow", git = "https://github.com/caltechlibrary/cascflow?branch=main" },
     { name = "python-decouple", specifier = ">=3.8" },
 ]
 
