@@ -70,7 +70,7 @@ def get_collection_data(collection_id):
         collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
         if collection_data["tree"]["_resolved"]:
             logger.info(
-                f"☑️  ARCHIVESSPACE COLLECTION DATA RETRIEVED: {collection_data['uri']}"
+                f"☑️ COLLECTION: [{collection_data['title']}]({str(config('ARCHIVESSPACE_STAFF_URL')).rstrip('/')}/resolve/readonly?uri={collection_data['uri']})"
             )
             return collection_data
     else:
@@ -114,7 +114,7 @@ def save_collection_datafile(collection_data, directory):
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, "w") as f:
         f.write(json.dumps(collection_data, indent=4))
-    logger.info(f"☑️  COLLECTION DATA FILE SAVED: {filename}")
+    logger.debug(f"☑️  COLLECTION DATA FILE SAVED: {filename}")
     return collection_datafile_key
 
 
@@ -192,40 +192,46 @@ def process_digital_object_component_file(variables, build_directory):
 
 def transfer_digital_object_component_file(variables, build_directory):
     """s5cmd cp digital object component file to S3 bucket"""
-    preservation_file_key = str(
-        variables["preservation_file_info"]["filepath"]
-    ).replace(f"{build_directory.name}/", "", 1)
+    filepath = variables["preservation_file_info"]["filepath"]
+    build_dir_path = Path(build_directory.name)
+    # calculate relative path (build_directory.name is already resolved)
+    preservation_file_key = str(filepath.resolve().relative_to(build_dir_path))
     for _attempt in range(3):
+        s5cmd_args = [
+            str(config("S5CMD_CMD")),
+            "cp",
+            "--concurrency",
+            "20",
+            "--metadata",
+            f"md5={variables['preservation_file_info']['md5'].hexdigest()}",
+            str(variables["preservation_file_info"]["filepath"]),
+            f"s3://{config('S3_BUCKET')}/{preservation_file_key}",
+        ]
         try:
             subprocess.run(
-                [
-                    str(config("S5CMD_CMD")),
-                    "cp",
-                    "--concurrency",
-                    "20",
-                    "--metadata",
-                    f"md5={variables['preservation_file_info']['md5'].hexdigest()}",
-                    str(variables["preservation_file_info"]["filepath"]),
-                    f"s3://{config('S3_BUCKET')}/{preservation_file_key}",
-                ],
+                s5cmd_args,
                 env={
                     "AWS_ACCESS_KEY_ID": str(config("AWS_ACCESS_KEY_ID")),
                     "AWS_SECRET_ACCESS_KEY": str(config("AWS_SECRET_ACCESS_KEY")),
                 },
                 check=True,
+                capture_output=True,
             )
         except subprocess.CalledProcessError as e:
             if _attempt > 1:
-                logger.exception(f"❌ S5CMD STDOUT: {e.stdout}")
-                logger.exception(f"❌ S5CMD STDERR: {e.stderr}")
+                logger.exception(f"❌ S5CMD FAILED AFTER {_attempt + 1} ATTEMPTS (EXIT CODE: {e.returncode})")
                 raise
+            else:
+                logger.warning(f"⚠️ S5CMD ATTEMPT {_attempt + 1} FAILED, RETRYING... (EXIT CODE: {e.returncode})")
         else:
             logger.info(
                 "☑️ DIGITAL OBJECT COMPONENT FILE UPLOADED TO S3: {}/{}".format(
                     config("S3_BUCKET"), preservation_file_key
                 )
             )
-    return variables["preservation_file_info"]["md5"].hexdigest()
+            return variables["preservation_file_info"]["md5"].hexdigest()
+    # if we get here, all attempts failed
+    return None
 
 
 def get_crockford_characters(n=4):
@@ -453,7 +459,7 @@ def create_digital_object_component(variables, build_directory):
         digital_object_component,
     )
     logger.info(
-        f"✳️  DIGITAL OBJECT COMPONENT CREATED: {digital_object_component_post_response.json()['uri']}"
+        f"✳️ DIGITAL OBJECT COMPONENT CREATED: [{digital_object_component['label']}]({str(config('ARCHIVESSPACE_STAFF_URL')).rstrip('/')}/resolve/readonly?uri={digital_object_component_post_response.json()['uri']})"
     )
     return digital_object_component_post_response.json()["uri"]
 
@@ -476,9 +482,10 @@ def construct_file_version(variables, build_directory):
     file_version["file_size_bytes"] = int(
         variables["preservation_file_info"]["filesize"]
     )
-    file_key = str(variables["preservation_file_info"]["filepath"]).replace(
-        f"{build_directory.name}/", "", 1
-    )
+    # calculate relative path (build_directory.name is already resolved)
+    filepath = variables["preservation_file_info"]["filepath"]
+    build_dir_path = Path(build_directory.name)
+    file_key = str(filepath.resolve().relative_to(build_dir_path))
     file_version["file_uri"] = (
         f"{variables['file_uri_scheme']}://{variables['file_uri_host']}/{file_key}"
     )
@@ -496,7 +503,7 @@ def save_archival_object_datafile(arrangement, archival_object, directory):
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, "w") as f:
         f.write(json.dumps(archival_object, indent=4))
-    logger.info(f"☑️  ARCHIVAL OBJECT DATA SAVED: {filename}")
+    logger.debug(f"☑️  ARCHIVAL OBJECT DATA SAVED: {filename}")
     return archival_object_datafile_key
 
 
@@ -528,7 +535,7 @@ def prepare_preservation_files(variables, build_directory):
                 )
             )
         else:
-            logger.info(f"☑️  ORIGINAL FILE COPIED: {preservation_file_key}")
+            logger.debug(f"☑️  ORIGINAL FILE COPIED: {preservation_file_key}")
 
 
 def validate_digital_files_for_preservation(validation_results: dict) -> None:
@@ -578,6 +585,8 @@ def main():
         validate_digital_files_for_preservation(validation_results)
     elif args.command == "execute":
         build_directory = tempfile.TemporaryDirectory()
+        # resolve the build directory path once to handle symlink differences across platforms
+        build_directory.name = str(Path(build_directory.name).resolve())
         batch_set_id = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
         for (
             batch_directory,
