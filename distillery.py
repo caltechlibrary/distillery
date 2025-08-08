@@ -616,39 +616,43 @@ def main():
             transfer_archival_object_datafile(
                 archival_object_datafile_key, build_directory
             )
-            # WALK EVERY FILE IN THE ARCHIVAL OBJECT DIRECTORY
-            for dirpath, dirnames, filenames in os.walk(
-                Path(build_directory.name)
-                .joinpath(
-                    get_archival_object_directory_prefix(arrangement, archival_object)
-                )
-                .resolve()
-            ):
-                for filename in filenames:
-                    filepath = Path(dirpath).joinpath(filename)
-                    files_to_remove = config("FILES_TO_REMOVE", default="", cast=Csv())
-                    if not isinstance(files_to_remove, list):
-                        files_to_remove = []
-                    if filename in files_to_remove:
-                        filepath.unlink()
-                        continue
-                    if filepath.suffix == ".json" and filepath.name.startswith(
-                        filepath.stem
-                    ):
-                        # skip JSON files that are not digital object component files
-                        continue
-                    process_digital_object_component_file(
-                        {
-                            "preservation_file_info": {
-                                "filepath": filepath,
-                                "md5": hashlib.md5(filepath.read_bytes()),
-                                "filesize": filepath.stat().st_size,
-                            },
-                            "archival_object": archival_object,
-                            "arrangement": arrangement,
+            # COLLECT AND SORT ALL FILES IN THE ARCHIVAL OBJECT DIRECTORY
+            archival_object_dir = Path(build_directory.name).joinpath(
+                get_archival_object_directory_prefix(arrangement, archival_object)
+            ).resolve()
+            # collect all files recursively
+            all_files = []
+            for filepath in archival_object_dir.rglob("*"):
+                if filepath.is_file():
+                    all_files.append(filepath)
+            # sort files by their parent directory name for consistent processing order
+            sorted_files = sorted(all_files, key=lambda f: f.parent.name)
+            logger.debug(f"🐞 SORTED FILES: {[f'{f.parent.name}/{f.name}' for f in sorted_files]}")
+            for filepath in sorted_files:
+                filename = filepath.name
+                logger.debug(f"🐞 PROCESSING FILE: {filepath.parent.name}/{filename}")
+                files_to_remove = config("FILES_TO_REMOVE", default="", cast=Csv())
+                if not isinstance(files_to_remove, list):
+                    files_to_remove = []
+                if filename in files_to_remove:
+                    filepath.unlink()
+                    continue
+                # TODO: this is an assumption that needs to be monitored for exceptions
+                if filepath.suffix == ".json" and filepath.name.startswith(filepath.stem):
+                    # skip JSON files that are not digital object component files
+                    continue
+                process_digital_object_component_file(
+                    {
+                        "preservation_file_info": {
+                            "filepath": filepath,
+                            "md5": hashlib.md5(filepath.read_bytes()),
+                            "filesize": filepath.stat().st_size,
                         },
-                        build_directory,
-                    )
+                        "archival_object": archival_object,
+                        "arrangement": arrangement,
+                    },
+                    build_directory,
+                )
             cascflow.move_to_stage_3(stage_2_path_obj, batch_directory)
     else:
         parser.print_help()
