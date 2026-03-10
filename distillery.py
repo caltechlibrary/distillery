@@ -599,9 +599,6 @@ def main():
         validation_results = cascflow.validate_digital_files(args.context)
         validate_digital_files_for_preservation(validation_results)
     elif args.command == "execute":
-        build_directory = tempfile.TemporaryDirectory()
-        # resolve the build directory path once to handle symlink differences across platforms
-        build_directory.name = str(Path(build_directory.name).resolve())
         batch_set_id = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
         for (
             batch_directory,
@@ -610,73 +607,81 @@ def main():
             archival_object,
             arrangement,
         ) in cascflow.execute(args.context, batch_set_id, "preservation"):
-            collection_data = get_collection_data(arrangement["collection_id"])
-            save_collection_datafile(collection_data, build_directory.name)
-            transfer_collection_datafile(
-                arrangement["collection_id"], build_directory.name
-            )
-            archival_object_datafile_key = save_archival_object_datafile(
-                arrangement, archival_object, build_directory.name
-            )
-            prepare_preservation_files(
-                {
-                    "filepaths": filepaths,
-                    "archival_object": archival_object,
-                    "arrangement": arrangement,
-                },
-                build_directory,
-            )
-            # NOTE returned archival_object will include any created digital_object instance
-            digital_object_uri, archival_object = ensure_digital_object(archival_object)
-            transfer_archival_object_datafile(
-                archival_object_datafile_key, build_directory
-            )
-            # COLLECT AND SORT ALL FILES IN THE ARCHIVAL OBJECT DIRECTORY
-            archival_object_dir = (
-                Path(build_directory.name)
-                .joinpath(
-                    get_archival_object_directory_prefix(arrangement, archival_object)
+            build_directory = tempfile.TemporaryDirectory()
+            # resolve the build directory path once to handle symlink differences across platforms
+            build_directory.name = str(Path(build_directory.name).resolve())
+            try:
+                collection_data = get_collection_data(arrangement["collection_id"])
+                save_collection_datafile(collection_data, build_directory.name)
+                transfer_collection_datafile(
+                    arrangement["collection_id"], build_directory.name
                 )
-                .resolve()
-            )
-            # collect all files recursively
-            all_files = []
-            for filepath in archival_object_dir.rglob("*"):
-                if filepath.is_file():
-                    all_files.append(filepath)
-            # sort files by their parent directory name for consistent processing order
-            sorted_files = sorted(all_files, key=lambda f: f.parent.name)
-            logger.debug(
-                f"🐞 SORTED FILES: {[f'{f.parent.name}/{f.name}' for f in sorted_files]}"
-            )
-            for filepath in sorted_files:
-                filename = filepath.name
-                logger.debug(f"🐞 PROCESSING FILE: {filepath.parent.name}/{filename}")
-                files_to_remove = config("FILES_TO_REMOVE", default="", cast=Csv())
-                if not isinstance(files_to_remove, list):
-                    files_to_remove = []
-                if filename in files_to_remove:
-                    filepath.unlink()
-                    continue
-                # TODO: this is an assumption that needs to be monitored for exceptions
-                if filepath.suffix == ".json" and filepath.name.startswith(
-                    filepath.stem
-                ):
-                    # skip JSON files that are not digital object component files
-                    continue
-                process_digital_object_component_file(
+                archival_object_datafile_key = save_archival_object_datafile(
+                    arrangement, archival_object, build_directory.name
+                )
+                prepare_preservation_files(
                     {
-                        "preservation_file_info": {
-                            "filepath": filepath,
-                            "md5": chunk_hash(filepath),
-                            "filesize": filepath.stat().st_size,
-                        },
+                        "filepaths": filepaths,
                         "archival_object": archival_object,
                         "arrangement": arrangement,
                     },
                     build_directory,
                 )
-            cascflow.move_to_stage_3(stage_2_path_obj, batch_directory)
+                # NOTE returned archival_object will include any created digital_object instance
+                digital_object_uri, archival_object = ensure_digital_object(
+                    archival_object
+                )
+                transfer_archival_object_datafile(
+                    archival_object_datafile_key, build_directory
+                )
+                # COLLECT AND SORT ALL FILES IN THE ARCHIVAL OBJECT DIRECTORY
+                archival_object_dir = (
+                    Path(build_directory.name)
+                    .joinpath(
+                        get_archival_object_directory_prefix(arrangement, archival_object)
+                    )
+                    .resolve()
+                )
+                # collect all files recursively
+                all_files = []
+                for filepath in archival_object_dir.rglob("*"):
+                    if filepath.is_file():
+                        all_files.append(filepath)
+                # sort files by their parent directory name for consistent processing order
+                sorted_files = sorted(all_files, key=lambda f: f.parent.name)
+                logger.debug(
+                    f"🐞 SORTED FILES: {[f'{f.parent.name}/{f.name}' for f in sorted_files]}"
+                )
+                for filepath in sorted_files:
+                    filename = filepath.name
+                    logger.debug(f"🐞 PROCESSING FILE: {filepath.parent.name}/{filename}")
+                    files_to_remove = config("FILES_TO_REMOVE", default="", cast=Csv())
+                    if not isinstance(files_to_remove, list):
+                        files_to_remove = []
+                    if filename in files_to_remove:
+                        filepath.unlink()
+                        continue
+                    # TODO: this is an assumption that needs to be monitored for exceptions
+                    if filepath.suffix == ".json" and filepath.name.startswith(
+                        filepath.stem
+                    ):
+                        # skip JSON files that are not digital object component files
+                        continue
+                    process_digital_object_component_file(
+                        {
+                            "preservation_file_info": {
+                                "filepath": filepath,
+                                "md5": chunk_hash(filepath),
+                                "filesize": filepath.stat().st_size,
+                            },
+                            "archival_object": archival_object,
+                            "arrangement": arrangement,
+                        },
+                        build_directory,
+                    )
+                cascflow.move_to_stage_3(stage_2_path_obj, batch_directory)
+            finally:
+                build_directory.cleanup()
     else:
         parser.print_help()
 
