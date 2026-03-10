@@ -552,6 +552,84 @@ def prepare_preservation_files(variables, build_directory):
 
 
 def validate_digital_files_for_preservation(validation_results: dict) -> None:
+    # Return total bytes for one top-level archival-object entry.
+    def get_entry_size_bytes(entry: Path) -> int:
+        if entry.is_file():
+            return entry.stat().st_size
+        if entry.is_dir():
+            return sum(filepath.stat().st_size for filepath in entry.rglob("*") if filepath.is_file())
+        return 0
+
+    # Compare each top-level entry size against currently free bytes on the source mount.
+    def validate_available_storage_for_archival_objects(source_path: Path) -> None:
+        # Warn/fail thresholds based on ratio-to-free-space and projected free-space floors.
+        warning_threshold_ratio = 0.80
+        fail_threshold_ratio = 0.90
+        staging_overhead_ratio = 1.05
+        warning_free_floor_bytes = 30 * (1024**3)
+        fail_free_floor_bytes = 15 * (1024**3)
+        free_bytes = shutil.disk_usage(source_path).free
+        logger.info(
+            f"💽 AVAILABLE DISK SPACE AT SOURCE MOUNT: {free_bytes / (1024 ** 3):.2f} GiB"
+        )
+
+        oversized_entries = []
+        near_capacity_entries = []
+
+        for entry in sorted(source_path.iterdir(), key=lambda p: p.name):
+            if not entry.exists():
+                continue
+            entry_size_bytes = get_entry_size_bytes(entry)
+            if entry_size_bytes == 0:
+                continue
+            usage_ratio = entry_size_bytes / free_bytes if free_bytes > 0 else float("inf")
+            # Account for staging/log overhead when estimating post-copy free space.
+            projected_bytes_needed = int(entry_size_bytes * staging_overhead_ratio)
+            projected_free_bytes = free_bytes - projected_bytes_needed
+            if (
+                usage_ratio >= fail_threshold_ratio
+                or projected_free_bytes < fail_free_floor_bytes
+            ):
+                oversized_entries.append(
+                    (entry.name, entry_size_bytes, usage_ratio, projected_free_bytes)
+                )
+            elif (
+                usage_ratio >= warning_threshold_ratio
+                or projected_free_bytes < warning_free_floor_bytes
+            ):
+                near_capacity_entries.append(
+                    (entry.name, entry_size_bytes, usage_ratio, projected_free_bytes)
+                )
+
+        for (
+            entry_name,
+            entry_size_bytes,
+            usage_ratio,
+            projected_free_bytes,
+        ) in near_capacity_entries:
+            logger.warning(
+                "⚠️ ARCHIVAL OBJECT APPROACHES AVAILABLE SPACE: "
+                f"{entry_name} ({entry_size_bytes / (1024 ** 3):.2f} GiB, "
+                f"{usage_ratio * 100:.1f}% of free space, "
+                f"projected free: {projected_free_bytes / (1024 ** 3):.2f} GiB)"
+            )
+
+        if oversized_entries:
+            message = "❌ INSUFFICIENT LOCAL SPACE FOR ONE OR MORE ARCHIVAL OBJECTS"
+            logger.error(message)
+            for (
+                entry_name,
+                entry_size_bytes,
+                usage_ratio,
+                projected_free_bytes,
+            ) in oversized_entries:
+                logger.error(
+                    f"❌ {entry_name} requires {entry_size_bytes / (1024 ** 3):.2f} GiB "
+                    f"({usage_ratio * 100:.1f}% of free space, "
+                    f"projected free: {projected_free_bytes / (1024 ** 3):.2f} GiB)"
+                )
+            raise RuntimeError(message)
+
     eligible_archival_objects = validation_results.get("eligible_archival_objects", {})
     ineligible_archival_objects = validation_results.get(
         "ineligible_archival_objects", []
@@ -559,6 +637,7 @@ def validate_digital_files_for_preservation(validation_results: dict) -> None:
     nested_directories = validation_results.get("nested_directories", [])
     empty_directories = validation_results.get("empty_directories", [])
     file_count = validation_results.get("file_count", 0)
+    source_path = validation_results.get("source_path")
     ## messaging
     if eligible_archival_objects:
         logger.info(
@@ -591,6 +670,8 @@ def validate_digital_files_for_preservation(validation_results: dict) -> None:
         for empty_directory in empty_directories:
             logger.error(f"❌ {empty_directory}")
         raise RuntimeError(message)
+    if isinstance(source_path, Path):
+        validate_available_storage_for_archival_objects(source_path)
 
 
 def main():
