@@ -560,7 +560,8 @@ def validate_digital_files_for_preservation(validation_results: dict) -> None:
             return sum(filepath.stat().st_size for filepath in entry.rglob("*") if filepath.is_file())
         return 0
 
-    # Compare each top-level entry size against currently free bytes on the source mount.
+    # Compare each top-level entry size against free bytes on the temp directory mount,
+    # since that is where the build_directory will be created during execute.
     def validate_available_storage_for_archival_objects(source_path: Path) -> None:
         # Warn/fail thresholds based on ratio-to-free-space and projected free-space floors.
         warning_threshold_ratio = 0.80
@@ -568,9 +569,10 @@ def validate_digital_files_for_preservation(validation_results: dict) -> None:
         staging_overhead_ratio = 1.05
         warning_free_floor_bytes = 30 * (1024**3)
         fail_free_floor_bytes = 15 * (1024**3)
-        free_bytes = shutil.disk_usage(source_path).free
+        temp_dir = tempfile.gettempdir()
+        free_bytes = shutil.disk_usage(temp_dir).free
         logger.info(
-            f"💽 AVAILABLE DISK SPACE AT SOURCE MOUNT: {free_bytes / (1024 ** 3):.2f} GiB"
+            f"💽 AVAILABLE DISK SPACE FOR TEMP BUILD DIRECTORY ({temp_dir}): {free_bytes / (1024 ** 3):.2f} GiB"
         )
 
         oversized_entries = []
