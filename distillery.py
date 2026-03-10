@@ -178,6 +178,15 @@ def transfer_archival_object_datafile(
     )
 
 
+def chunk_hash(path):
+    h = hashlib.md5()
+    with open(path, "rb") as f:
+        # read the file in 8MB chunks to avoid memory issues with large files
+        for chunk in iter(lambda: f.read(8 * 1024 * 1024), b""):
+            h.update(chunk)
+    return h
+
+
 def process_digital_object_component_file(variables, build_directory):
     """transfer file to S3; create ArchivesSpace record"""
     if not transfer_digital_object_component_file(variables, build_directory):
@@ -645,7 +654,7 @@ def main():
                     {
                         "preservation_file_info": {
                             "filepath": filepath,
-                            "md5": hashlib.md5(filepath.read_bytes()),
+                            "md5": chunk_hash(filepath),
                             "filesize": filepath.stat().st_size,
                         },
                         "archival_object": archival_object,
