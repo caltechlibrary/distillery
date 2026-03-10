@@ -228,10 +228,14 @@ def transfer_digital_object_component_file(variables, build_directory):
             )
         except subprocess.CalledProcessError as e:
             if _attempt > 1:
-                logger.exception(f"❌ S5CMD FAILED AFTER {_attempt + 1} ATTEMPTS (EXIT CODE: {e.returncode})")
+                logger.exception(
+                    f"❌ S5CMD FAILED AFTER {_attempt + 1} ATTEMPTS (EXIT CODE: {e.returncode})"
+                )
                 raise
             else:
-                logger.warning(f"⚠️ S5CMD ATTEMPT {_attempt + 1} FAILED, RETRYING... (EXIT CODE: {e.returncode})")
+                logger.warning(
+                    f"⚠️ S5CMD ATTEMPT {_attempt + 1} FAILED, RETRYING... (EXIT CODE: {e.returncode})"
+                )
         else:
             logger.info(
                 "☑️ DIGITAL OBJECT COMPONENT FILE UPLOADED TO S3: {}/{}".format(
@@ -557,7 +561,9 @@ def validate_digital_files_for_preservation(validation_results: dict) -> None:
     file_count = validation_results.get("file_count", 0)
     ## messaging
     if eligible_archival_objects:
-        logger.info(f"{next(iter(eligible_archival_objects))}{', …' if len(eligible_archival_objects) > 1 else ''}")
+        logger.info(
+            f"{next(iter(eligible_archival_objects))}{', …' if len(eligible_archival_objects) > 1 else ''}"
+        )
         for component_id in eligible_archival_objects.keys():
             logger.info(f"🉑 {component_id}")
         logger.info(f"🗂 ARCHIVAL OBJECT COUNT: {len(eligible_archival_objects)}")
@@ -626,9 +632,13 @@ def main():
                 archival_object_datafile_key, build_directory
             )
             # COLLECT AND SORT ALL FILES IN THE ARCHIVAL OBJECT DIRECTORY
-            archival_object_dir = Path(build_directory.name).joinpath(
-                get_archival_object_directory_prefix(arrangement, archival_object)
-            ).resolve()
+            archival_object_dir = (
+                Path(build_directory.name)
+                .joinpath(
+                    get_archival_object_directory_prefix(arrangement, archival_object)
+                )
+                .resolve()
+            )
             # collect all files recursively
             all_files = []
             for filepath in archival_object_dir.rglob("*"):
@@ -636,7 +646,9 @@ def main():
                     all_files.append(filepath)
             # sort files by their parent directory name for consistent processing order
             sorted_files = sorted(all_files, key=lambda f: f.parent.name)
-            logger.debug(f"🐞 SORTED FILES: {[f'{f.parent.name}/{f.name}' for f in sorted_files]}")
+            logger.debug(
+                f"🐞 SORTED FILES: {[f'{f.parent.name}/{f.name}' for f in sorted_files]}"
+            )
             for filepath in sorted_files:
                 filename = filepath.name
                 logger.debug(f"🐞 PROCESSING FILE: {filepath.parent.name}/{filename}")
@@ -647,7 +659,9 @@ def main():
                     filepath.unlink()
                     continue
                 # TODO: this is an assumption that needs to be monitored for exceptions
-                if filepath.suffix == ".json" and filepath.name.startswith(filepath.stem):
+                if filepath.suffix == ".json" and filepath.name.startswith(
+                    filepath.stem
+                ):
                     # skip JSON files that are not digital object component files
                     continue
                 process_digital_object_component_file(
