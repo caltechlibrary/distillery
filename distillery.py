@@ -567,8 +567,8 @@ def validate_digital_files_for_preservation(validation_results: dict) -> None:
         warning_threshold_ratio = 0.80
         fail_threshold_ratio = 0.90
         staging_overhead_ratio = 1.05
-        warning_free_floor_bytes = 30 * (1024**3)
-        fail_free_floor_bytes = 15 * (1024**3)
+        warning_free_floor_bytes = 20 * (1024**3)
+        fail_free_floor_bytes = 5 * (1024**3)
         temp_dir = tempfile.gettempdir()
         free_bytes = shutil.disk_usage(temp_dir).free
         logger.info(
