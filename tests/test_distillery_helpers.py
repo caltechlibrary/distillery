@@ -66,3 +66,12 @@ def test_get_file_parts_multidot_filename_current_behavior():
     assert parts["filestem"] == "interview"
     assert parts["extension"] == "wav"
     assert parts["sequence"] == "interview"
+
+
+def test_chunk_hash_returns_expected_md5_for_known_bytes(tmp_path):
+    filepath = tmp_path / "known.bin"
+    filepath.write_bytes(b"hello world")
+
+    digest = distillery.chunk_hash(filepath).hexdigest()
+
+    assert digest == "5eb63bbbe01eeed093cb22bb8f5acdc3"
