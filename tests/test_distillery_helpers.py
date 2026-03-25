@@ -41,3 +41,28 @@ def test_get_digital_object_component_file_key_builds_expected_path():
         "EXAMPLE:123/aspace_abcdef--Field-Notes/"
         "EXAMPLE_0001.tiff/ab12_cd34.tiff"
     )
+
+
+def test_get_file_parts_standard_filename_shape():
+    filepath = Path("/tmp/EXAMPLE_02_0B_056_07_0001.tiff")
+
+    parts = distillery.get_file_parts(filepath)
+
+    assert parts["filepath"] == "/tmp/EXAMPLE_02_0B_056_07_0001.tiff"
+    assert parts["filename"] == "EXAMPLE_02_0B_056_07_0001.tiff"
+    assert parts["filestem"] == "EXAMPLE_02_0B_056_07_0001"
+    assert parts["extension"] == "tiff"
+    assert parts["sequence"] == "0001"
+    assert len(parts["crockford_id"]) == 9
+    assert parts["crockford_id"][4] == "_"
+
+
+def test_get_file_parts_multidot_filename_current_behavior():
+    filepath = Path("/tmp/interview.audio.master.wav")
+
+    parts = distillery.get_file_parts(filepath)
+
+    assert parts["filename"] == "interview.audio.master.wav"
+    assert parts["filestem"] == "interview"
+    assert parts["extension"] == "wav"
+    assert parts["sequence"] == "interview"
