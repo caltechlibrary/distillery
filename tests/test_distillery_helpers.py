@@ -1,5 +1,6 @@
 from pathlib import Path
 import hashlib
+import json
 import tempfile
 
 import distillery
@@ -197,3 +198,38 @@ def test_construct_file_version_uses_relative_nested_path_in_file_uri(tmp_path):
         file_version["file_uri"]
         == "s3://archive-bucket/collection-001/aspace_xyz/preservation/master.wav"
     )
+
+
+def test_save_collection_datafile_writes_json_and_returns_expected_key(tmp_path):
+    collection_data = {
+        "id_0": "CALT-001",
+        "title": "Test Collection",
+        "uri": "/repositories/2/resources/123",
+    }
+
+    key = distillery.save_collection_datafile(collection_data, str(tmp_path))
+
+    assert key == "CALT-001/CALT-001.json"
+    written_path = tmp_path / key
+    assert written_path.exists()
+    assert json.loads(written_path.read_text()) == collection_data
+
+
+def test_save_archival_object_datafile_writes_json_and_returns_expected_key(tmp_path):
+    arrangement = {
+        "collection_id": "CALT-001",
+        "archival_object_title": "Interview Tape #1",
+    }
+    archival_object = {
+        "component_id": "aspace_abc123",
+        "title": "Interview Tape 1",
+    }
+
+    key = distillery.save_archival_object_datafile(
+        arrangement, archival_object, str(tmp_path)
+    )
+
+    assert key == "CALT-001/aspace_abc123--Interview-Tape--1/aspace_abc123.json"
+    written_path = tmp_path / key
+    assert written_path.exists()
+    assert json.loads(written_path.read_text()) == archival_object
