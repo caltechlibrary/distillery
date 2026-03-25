@@ -1,4 +1,6 @@
 from pathlib import Path
+import hashlib
+import tempfile
 
 import distillery
 
@@ -75,3 +77,80 @@ def test_chunk_hash_returns_expected_md5_for_known_bytes(tmp_path):
     digest = distillery.chunk_hash(filepath).hexdigest()
 
     assert digest == "5eb63bbbe01eeed093cb22bb8f5acdc3"
+
+
+def test_construct_file_version_builds_expected_payload(tmp_path):
+    build_root = tmp_path / "build"
+    filepath = build_root / "COLL" / "aspace_123" / "file.tiff"
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    filepath.write_bytes(b"abc")
+
+    variables = {
+        "file_uri_scheme": "s3",
+        "file_uri_host": "my-bucket",
+        "preservation_file_info": {
+            "filepath": filepath,
+            "md5": hashlib.md5(b"abc"),
+            "filesize": filepath.stat().st_size,
+        },
+    }
+    build_directory = tempfile.TemporaryDirectory(dir=tmp_path)
+    build_directory.name = str(build_root.resolve())
+
+    file_version = distillery.construct_file_version(variables, build_directory)
+
+    assert file_version == {
+        "checksum_method": "md5",
+        "checksum": "900150983cd24fb0d6963f7d28e17f72",
+        "file_size_bytes": 3,
+        "file_uri": "s3://my-bucket/COLL/aspace_123/file.tiff",
+    }
+
+
+def test_construct_file_version_coerces_string_filesize_to_int(tmp_path):
+    build_root = tmp_path / "build"
+    filepath = build_root / "COLL" / "aspace_123" / "file.tiff"
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    filepath.write_bytes(b"abc")
+
+    variables = {
+        "file_uri_scheme": "s3",
+        "file_uri_host": "my-bucket",
+        "preservation_file_info": {
+            "filepath": filepath,
+            "md5": hashlib.md5(b"abc"),
+            "filesize": "3",
+        },
+    }
+    build_directory = tempfile.TemporaryDirectory(dir=tmp_path)
+    build_directory.name = str(build_root.resolve())
+
+    file_version = distillery.construct_file_version(variables, build_directory)
+
+    assert file_version["file_size_bytes"] == 3
+
+
+def test_construct_file_version_uses_relative_nested_path_in_file_uri(tmp_path):
+    build_root = tmp_path / "build"
+    filepath = build_root / "collection-001" / "aspace_xyz" / "preservation" / "master.wav"
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    filepath.write_bytes(b"hello")
+
+    variables = {
+        "file_uri_scheme": "s3",
+        "file_uri_host": "archive-bucket",
+        "preservation_file_info": {
+            "filepath": filepath,
+            "md5": hashlib.md5(b"hello"),
+            "filesize": 5,
+        },
+    }
+    build_directory = tempfile.TemporaryDirectory(dir=tmp_path)
+    build_directory.name = str(build_root.resolve())
+
+    file_version = distillery.construct_file_version(variables, build_directory)
+
+    assert (
+        file_version["file_uri"]
+        == "s3://archive-bucket/collection-001/aspace_xyz/preservation/master.wav"
+    )
