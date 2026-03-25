@@ -3,7 +3,22 @@ import hashlib
 import json
 import tempfile
 
+import pytest
+
 import distillery
+
+
+def make_validation_results(**overrides):
+    base = {
+        "eligible_archival_objects": {"aspace_1": {}},
+        "ineligible_archival_objects": [],
+        "nested_directories": [],
+        "empty_directories": [],
+        "file_count": 1,
+        "source_path": None,
+    }
+    base.update(overrides)
+    return base
 
 
 def test_get_crockford_characters_default_length_is_four():
@@ -233,3 +248,48 @@ def test_save_archival_object_datafile_writes_json_and_returns_expected_key(tmp_
     written_path = tmp_path / key
     assert written_path.exists()
     assert json.loads(written_path.read_text()) == archival_object
+
+
+def test_validate_digital_files_for_preservation_raises_when_no_files_found():
+    validation_results = make_validation_results(file_count=0)
+
+    with pytest.raises(FileNotFoundError, match="NO FILES FOUND"):
+        distillery.validate_digital_files_for_preservation(validation_results)
+
+
+def test_validate_digital_files_for_preservation_raises_for_ineligible_archival_objects():
+    validation_results = make_validation_results(
+        ineligible_archival_objects=["aspace_bad_1"]
+    )
+
+    with pytest.raises(RuntimeError, match="INELIGIBLE ARCHIVAL OBJECTS FOUND"):
+        distillery.validate_digital_files_for_preservation(validation_results)
+
+
+def test_validate_digital_files_for_preservation_raises_for_nested_directories():
+    validation_results = make_validation_results(nested_directories=["nested/dir"])
+
+    with pytest.raises(RuntimeError, match="NESTED DIRECTORIES FOUND"):
+        distillery.validate_digital_files_for_preservation(validation_results)
+
+
+def test_validate_digital_files_for_preservation_raises_when_space_is_insufficient(
+    tmp_path, monkeypatch
+):
+    source_path = tmp_path / "source"
+    source_path.mkdir()
+    # Create a 10-byte top-level file entry.
+    (source_path / "aspace_1").write_bytes(b"0123456789")
+
+    class DummyDiskUsage:
+        total = 100
+        used = 95
+        free = 10
+
+    monkeypatch.setattr(distillery.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(distillery.shutil, "disk_usage", lambda _p: DummyDiskUsage())
+
+    validation_results = make_validation_results(source_path=source_path)
+
+    with pytest.raises(RuntimeError, match="INSUFFICIENT LOCAL SPACE"):
+        distillery.validate_digital_files_for_preservation(validation_results)
