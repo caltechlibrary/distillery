@@ -45,20 +45,8 @@ execute_parser.add_argument(
     "--context", required=True, help="String. Supply a volume name."
 )
 
-args = parser.parse_args()
-
-# set up settings path and logging
-if args.settings is not None:
-    settings_path = Path(args.settings).expanduser().resolve()
-else:
-    settings_path = Path(__file__).parent.joinpath("settings.ini").resolve()
-if not settings_path.exists():
-    raise FileNotFoundError(f"Settings file not found: {settings_path}")
-# configure cascflow to use our settings.ini file
-config = Config(RepositoryIni(settings_path))
-cascflow.set_config(config)
-
-cascflow.setup_logging(str(settings_path))
+args = None
+config = None
 logger = logging.getLogger("distillery")
 
 
@@ -677,6 +665,21 @@ def validate_digital_files_for_preservation(validation_results: dict) -> None:
 
 
 def main():
+    global args, config, logger
+    args = parser.parse_args()
+    # set up settings path and logging
+    if args.settings is not None:
+        settings_path = Path(args.settings).expanduser().resolve()
+    else:
+        settings_path = Path(__file__).parent.joinpath("settings.ini").resolve()
+    if not settings_path.exists():
+        raise FileNotFoundError(f"Settings file not found: {settings_path}")
+    # configure cascflow to use our settings.ini file
+    config = Config(RepositoryIni(settings_path))
+    cascflow.set_config(config)
+
+    cascflow.setup_logging(str(settings_path))
+    logger = logging.getLogger("distillery")
     # handle the commands
     if args.command == "validate":
         validation_results = cascflow.validate_digital_files(args.context)
