@@ -17,5 +17,6 @@ cascflow = { git = "https://github.com/caltechlibrary/cascflow", branch = "main"
 
 [dependency-groups]
 dev = [
+    "pytest>=8.3",
     "ruff>=0.12",
 ]
