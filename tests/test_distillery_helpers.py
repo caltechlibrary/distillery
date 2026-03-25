@@ -293,3 +293,74 @@ def test_validate_digital_files_for_preservation_raises_when_space_is_insufficie
 
     with pytest.raises(RuntimeError, match="INSUFFICIENT LOCAL SPACE"):
         distillery.validate_digital_files_for_preservation(validation_results)
+
+
+def test_validate_digital_files_for_preservation_raises_for_empty_directories():
+    validation_results = make_validation_results(empty_directories=["empty_dir"])
+
+    with pytest.raises(RuntimeError, match="EMPTY DIRECTORIES FOUND"):
+        distillery.validate_digital_files_for_preservation(validation_results)
+
+
+def test_validate_digital_files_for_preservation_happy_path_no_exception(
+    tmp_path, monkeypatch
+):
+    source_path = tmp_path / "source"
+    source_path.mkdir()
+    (source_path / "aspace_1").write_bytes(b"abc")
+
+    class DummyDiskUsage:
+        total = 10 * (1024**3)
+        used = 1 * (1024**3)
+        free = 9 * (1024**3)
+
+    monkeypatch.setattr(distillery.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(distillery.shutil, "disk_usage", lambda _p: DummyDiskUsage())
+
+    validation_results = make_validation_results(source_path=source_path)
+
+    distillery.validate_digital_files_for_preservation(validation_results)
+
+
+def test_ensure_digital_object_creates_when_none_exist(monkeypatch):
+    archival_object = {"component_id": "aspace_1", "instances": []}
+
+    def fake_create_digital_object(obj):
+        obj["instances"].append({"digital_object": {"ref": "/digital_objects/1"}})
+        return "/digital_objects/1", obj
+
+    monkeypatch.setattr(distillery.cascflow, "create_digital_object", fake_create_digital_object)
+
+    digital_object_uri, returned_archival_object = distillery.ensure_digital_object(
+        archival_object
+    )
+
+    assert digital_object_uri == "/digital_objects/1"
+    assert returned_archival_object["instances"][0]["digital_object"]["ref"] == "/digital_objects/1"
+
+
+def test_ensure_digital_object_returns_existing_when_one_exists():
+    archival_object = {
+        "component_id": "aspace_1",
+        "instances": [{"digital_object": {"ref": "/digital_objects/99"}}],
+    }
+
+    digital_object_uri, returned_archival_object = distillery.ensure_digital_object(
+        archival_object
+    )
+
+    assert digital_object_uri == "/digital_objects/99"
+    assert returned_archival_object == archival_object
+
+
+def test_ensure_digital_object_raises_when_multiple_exist():
+    archival_object = {
+        "component_id": "aspace_1",
+        "instances": [
+            {"digital_object": {"ref": "/digital_objects/1"}},
+            {"digital_object": {"ref": "/digital_objects/2"}},
+        ],
+    }
+
+    with pytest.raises(ValueError, match="MULTIPLE DIGITAL OBJECTS FOUND"):
+        distillery.ensure_digital_object(archival_object)
