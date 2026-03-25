@@ -5,6 +5,29 @@ import tempfile
 import distillery
 
 
+def test_get_crockford_characters_default_length_is_four():
+    value = distillery.get_crockford_characters()
+
+    assert len(value) == 4
+
+
+def test_get_crockford_characters_uses_allowed_charset():
+    value = distillery.get_crockford_characters(12)
+    allowed = set("abcdefghjkmnpqrstvwxyz0123456789")
+
+    assert len(value) == 12
+    assert set(value).issubset(allowed)
+
+
+def test_get_crockford_id_has_expected_shape_and_charset():
+    value = distillery.get_crockford_id()
+    allowed = set("abcdefghjkmnpqrstvwxyz0123456789")
+
+    assert len(value) == 9
+    assert value[4] == "_"
+    assert set(value.replace("_", "")).issubset(allowed)
+
+
 def test_get_archival_object_directory_prefix_sanitizes_title_and_trailing_slash():
     arrangement = {
         "collection_id": "EXAMPLE:123",
@@ -42,6 +65,26 @@ def test_get_digital_object_component_file_key_builds_expected_path():
     assert file_key == (
         "EXAMPLE:123/aspace_abcdef--Field-Notes/"
         "EXAMPLE_0001.tiff/ab12_cd34.tiff"
+    )
+
+
+def test_get_digital_object_component_file_key_preserves_prefix_and_extension_variant():
+    file_parts = {
+        "filename": "OH_Acosta_A_0007.wav",
+        "crockford_id": "wxyz_9876",
+        "extension": "wav",
+        "filepath": str(Path("/tmp/OH_Acosta_A_0007.wav")),
+        "filestem": "OH_Acosta_A_0007",
+        "sequence": "0007",
+    }
+
+    file_key = distillery.get_digital_object_component_file_key(
+        "CALT-001/aspace_777--Interview-Audio/", file_parts
+    )
+
+    assert file_key == (
+        "CALT-001/aspace_777--Interview-Audio/"
+        "OH_Acosta_A_0007.wav/wxyz_9876.wav"
     )
 
 
