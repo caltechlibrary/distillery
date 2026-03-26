@@ -364,3 +364,70 @@ def test_ensure_digital_object_raises_when_multiple_exist():
 
     with pytest.raises(ValueError, match="MULTIPLE DIGITAL OBJECTS FOUND"):
         distillery.ensure_digital_object(archival_object)
+
+
+def test_find_digital_object_returns_none_for_zero_matches(monkeypatch):
+    def fake_archivessnake_get(url):
+        class Resp:
+            def json(self):
+                return {"digital_objects": []}
+            def raise_for_status(self):
+                pass
+        return Resp()
+    monkeypatch.setattr(distillery.cascflow, "archivessnake_get", fake_archivessnake_get)
+    monkeypatch.setattr(distillery, "config", lambda *a, **k: "2")
+    result = distillery.find_digital_object("fakeid")
+    assert result is None
+
+
+def test_find_digital_object_returns_uri_for_one_match(monkeypatch):
+    def fake_archivessnake_get(url):
+        class Resp:
+            def json(self):
+                return {"digital_objects": [{"ref": "/digital_objects/42"}]}
+            def raise_for_status(self):
+                pass
+        return Resp()
+    monkeypatch.setattr(distillery.cascflow, "archivessnake_get", fake_archivessnake_get)
+    monkeypatch.setattr(distillery, "config", lambda *a, **k: "2")
+    result = distillery.find_digital_object("fakeid")
+    assert result == "/digital_objects/42"
+
+
+def test_find_digital_object_raises_for_multiple_matches(monkeypatch):
+    def fake_archivessnake_get(url):
+        class Resp:
+            def json(self):
+                return {"digital_objects": [{"ref": "/digital_objects/1"}, {"ref": "/digital_objects/2"}]}
+            def raise_for_status(self):
+                pass
+        return Resp()
+    monkeypatch.setattr(distillery.cascflow, "archivessnake_get", fake_archivessnake_get)
+    monkeypatch.setattr(distillery, "config", lambda *a, **k: "2")
+    with pytest.raises(ValueError, match=r"[Mm]ultiple digital_objects found"):
+        distillery.find_digital_object("fakeid")
+
+
+def test_prepare_preservation_files_copies_files_to_expected_paths(tmp_path, monkeypatch):
+    import tempfile
+    # Setup: create two files to copy
+    src1 = tmp_path / "file1.txt"
+    src2 = tmp_path / "file2.txt"
+    src1.write_text("hello")
+    src2.write_text("world")
+    build_dir = tempfile.TemporaryDirectory(dir=tmp_path)
+    variables = {
+        "filepaths": [src1, src2],
+        "archival_object": {"component_id": "aspace_1"},
+        "arrangement": {"collection_id": "CALT-001", "archival_object_title": "Test AO"},
+    }
+    # Patch get_digital_object_component_file_key to a simple predictable function using monkeypatch fixture
+    def fake_get_digital_object_component_file_key(prefix, file_parts):
+        return f"{file_parts['filename']}"
+    monkeypatch.setattr(distillery, "get_digital_object_component_file_key", fake_get_digital_object_component_file_key)
+    distillery.prepare_preservation_files(variables, build_dir)
+    # Assert files copied
+    assert Path(build_dir.name, "file1.txt").exists()
+    assert Path(build_dir.name, "file2.txt").exists()
+    assert Path(build_dir.name, "file1.txt").read_text() == "hello"
+    assert Path(build_dir.name, "file2.txt").read_text() == "world"
