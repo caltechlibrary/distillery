@@ -545,7 +545,11 @@ def validate_digital_files_for_preservation(validation_results: dict) -> None:
         if entry.is_file():
             return entry.stat().st_size
         if entry.is_dir():
-            return sum(filepath.stat().st_size for filepath in entry.rglob("*") if filepath.is_file())
+            return sum(
+                filepath.stat().st_size
+                for filepath in entry.rglob("*")
+                if filepath.is_file()
+            )
         return 0
 
     # Compare each top-level entry size against free bytes on the temp directory mount,
@@ -560,7 +564,7 @@ def validate_digital_files_for_preservation(validation_results: dict) -> None:
         temp_dir = tempfile.gettempdir()
         free_bytes = shutil.disk_usage(temp_dir).free
         logger.info(
-            f"💽 AVAILABLE DISK SPACE FOR TEMP BUILD DIRECTORY ({temp_dir}): {free_bytes / (1024 ** 3):.2f} GiB"
+            f"💽 AVAILABLE DISK SPACE FOR TEMP BUILD DIRECTORY ({temp_dir}): {free_bytes / (1024**3):.2f} GiB"
         )
 
         oversized_entries = []
@@ -572,7 +576,9 @@ def validate_digital_files_for_preservation(validation_results: dict) -> None:
             entry_size_bytes = get_entry_size_bytes(entry)
             if entry_size_bytes == 0:
                 continue
-            usage_ratio = entry_size_bytes / free_bytes if free_bytes > 0 else float("inf")
+            usage_ratio = (
+                entry_size_bytes / free_bytes if free_bytes > 0 else float("inf")
+            )
             # Account for staging/log overhead when estimating post-copy free space.
             projected_bytes_needed = int(entry_size_bytes * staging_overhead_ratio)
             projected_free_bytes = free_bytes - projected_bytes_needed
@@ -599,9 +605,9 @@ def validate_digital_files_for_preservation(validation_results: dict) -> None:
         ) in near_capacity_entries:
             logger.warning(
                 "⚠️ ARCHIVAL OBJECT APPROACHES AVAILABLE SPACE: "
-                f"{entry_name} ({entry_size_bytes / (1024 ** 3):.2f} GiB, "
+                f"{entry_name} ({entry_size_bytes / (1024**3):.2f} GiB, "
                 f"{usage_ratio * 100:.1f}% of free space, "
-                f"projected free: {projected_free_bytes / (1024 ** 3):.2f} GiB)"
+                f"projected free: {projected_free_bytes / (1024**3):.2f} GiB)"
             )
 
         if oversized_entries:
@@ -614,9 +620,9 @@ def validate_digital_files_for_preservation(validation_results: dict) -> None:
                 projected_free_bytes,
             ) in oversized_entries:
                 logger.error(
-                    f"❌ {entry_name} requires {entry_size_bytes / (1024 ** 3):.2f} GiB "
+                    f"❌ {entry_name} requires {entry_size_bytes / (1024**3):.2f} GiB "
                     f"({usage_ratio * 100:.1f}% of free space, "
-                    f"projected free: {projected_free_bytes / (1024 ** 3):.2f} GiB)"
+                    f"projected free: {projected_free_bytes / (1024**3):.2f} GiB)"
                 )
             raise RuntimeError(message)
 
@@ -724,7 +730,9 @@ def main():
                 archival_object_dir = (
                     Path(build_directory.name)
                     .joinpath(
-                        get_archival_object_directory_prefix(arrangement, archival_object)
+                        get_archival_object_directory_prefix(
+                            arrangement, archival_object
+                        )
                     )
                     .resolve()
                 )
@@ -740,7 +748,9 @@ def main():
                 )
                 for filepath in sorted_files:
                     filename = filepath.name
-                    logger.debug(f"🐞 PROCESSING FILE: {filepath.parent.name}/{filename}")
+                    logger.debug(
+                        f"🐞 PROCESSING FILE: {filepath.parent.name}/{filename}"
+                    )
                     files_to_remove = config("FILES_TO_REMOVE", default="", cast=Csv())
                     if not isinstance(files_to_remove, list):
                         files_to_remove = []
