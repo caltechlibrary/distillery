@@ -163,6 +163,15 @@ wheels = [
 ]
 
 [[package]]
+name = "decouple-types"
+version = "1.0.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3e/7a/1e93445dfa0d2307969fcd31e12608d2aec369e67e63f51551d43002df6d/decouple_types-1.0.2.tar.gz", hash = "sha256:9761cba66dad3fa3be2c0a471229e8da54d47900b47bd46c41e14c2e97b34d68", size = 2596, upload-time = "2025-03-07T09:08:46.654Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a5/7e/63f0d7e0c77b552184446befe454eb8841933eeebbdcbc39de6334133259/decouple_types-1.0.2-py3-none-any.whl", hash = "sha256:70ef264b67c57057bbf54db6e6df7c4c477a6370174e8c79548f5acde6c14fdb", size = 3067, upload-time = "2025-03-07T09:08:45.376Z" },
+]
+
+[[package]]
 name = "distillery"
 version = "2.1.1"
 source = { virtual = "." }
@@ -173,6 +182,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "decouple-types" },
     { name = "pytest" },
     { name = "ruff" },
 ]
@@ -185,6 +195,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "decouple-types" },
     { name = "pytest" },
     { name = "ruff" },
 ]

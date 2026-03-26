@@ -17,6 +17,7 @@ cascflow = { git = "https://github.com/caltechlibrary/cascflow", rev = "main" }
 
 [dependency-groups]
 dev = [
+    "decouple-types",
     "pytest",
     "ruff",
 ]
