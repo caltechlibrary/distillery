@@ -1,6 +1,6 @@
 [project]
 name = "distillery"
-version = "2.1.1"
+version = "2.1.2"
 description = "Caltech Archives Digital Preservation System"
 readme = "README.md"
 authors = [
@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-cascflow = { git = "https://github.com/caltechlibrary/cascflow", rev = "main" }
+cascflow = { git = "https://github.com/caltechlibrary/cascflow", rev = "v4.0.0" }
 
 [dependency-groups]
 dev = [

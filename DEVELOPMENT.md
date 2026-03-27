@@ -8,27 +8,20 @@ This guide helps you safely develop Distillery and cascflow together, avoiding v
 
 - Edit code in your local `cascflow` repo.
 - Increment the version number in `cascflow/pyproject.toml` (e.g., bump patch or minor).
-- Commit your changes locally.
+- Commit your changes locally:
 
-### 2. Point Distillery to Your Local cascflow for Testing
+  ```sh
+  git add .
+  git commit -m "Bump version to X.Y.Z and update features"
+  ```
 
-Run:
+### 2. Test Distillery Against Local cascflow
 
-```sh
-uv pip install -e ../cascflow
-uv pip install -e .
-```
+- In Distillery, point to your local editable cascflow:
 
-This ensures Distillery uses your local, editable cascflow.
-
-Resulting `pyproject.toml` snippet:
-
-```toml
-[tool.uv.sources]
-cascflow = { path = "../cascflow", editable = true }
-```
-
-### 3. Run Distillery Tests
+  ```sh
+  uv add --editable ../cascflow
+  ```
 
 - Run all Distillery tests to verify compatibility:
 
@@ -36,45 +29,48 @@ cascflow = { path = "../cascflow", editable = true }
   uv run pytest
   ```
 
+### 3. Tag and Publish a cascflow Release
+
+- If all tests pass, create and push a version tag for cascflow (replace X.Y.Z with your version):
+
+  ```sh
+  git tag X.Y.Z
+  git push origin X.Y.Z
+  ```
+
+- (Recommended) Publish a GitHub Release for the tag (requires GitHub CLI):
+
+  ```sh
+  gh release create X.Y.Z --title "cascflow X.Y.Z" --notes "Release notes or changelog here."
+  ```
+
+  Or, do this via the GitHub web UI: Go to your cascflow GitHub repo → Releases → Draft a new release → Choose the tag you just pushed.
+
+This ensures Distillery can reference a specific, immutable version of cascflow.
+
+- (Optional but recommended) Create a GitHub Release for the tag:
+  - Go to your cascflow GitHub repo → Releases → Draft a new release → Choose the tag you just pushed.
+
+This ensures Distillery can reference a specific, immutable version of cascflow.
+
 ### 4. Update Distillery's cascflow Dependency Version
 
-To update to a specific released version from PyPI:
+- Update Distillery to use the new cascflow release/tag:
 
-```sh
-uv pip install 'cascflow==<new_version>'
-```
+  ```sh
+  uv add git+https://github.com/caltechlibrary/cascflow@X.Y.Z
+  uv sync
+  ```
 
-Resulting `pyproject.toml` snippet:
+- Resulting `pyproject.toml` snippet:
 
-```toml
-dependencies = [
-    "cascflow==<new_version>",
-    ...
-]
-```
-
-To switch `[tool.uv.sources]` back to the GitHub repo or a pinned release for CI/production:
-
-```sh
-uv pip install 'git+https://github.com/caltechlibrary/cascflow@v<new_version>'
-```
-
-Resulting `pyproject.toml` snippet:
-
-```toml
-[tool.uv.sources]
-cascflow = { git = "https://github.com/caltechlibrary/cascflow", rev = "v<new_version>" }
-```
-
-After changing dependencies or sources, always run:
-
-```sh
-uv pip sync
-```
+  ```toml
+  [tool.uv.sources]
+  cascflow = { git = "https://github.com/caltechlibrary/cascflow", rev = "X.Y.Z" }
+  ```
 
 ### 5. Push and Release
 
-- Push your changes to the `cascflow` repo and tag the new release.
 - Push your changes to the Distillery repo.
 - CI and production will now use the correct, released version.
 
@@ -82,7 +78,7 @@ uv pip sync
 
 - **Always bump the version in cascflow before using it in Distillery.**
 - **Always update the version in Distillery's `pyproject.toml` to match.**
-- **Always run `uv pip sync` or `uv pip install -e .` after changing dependencies.**
+- **Always run `uv sync` after changing dependencies.**
 - **Never leave `[tool.uv.sources]` pointing to a local path when pushing to main or deploying.**
 - **If you see unexpected behavior, check which cascflow version is installed:**
 
@@ -90,40 +86,9 @@ uv pip sync
   uv pip show cascflow
   ```
 
-## Quick Reference: Switching cascflow Source
-
-**Local development:**
-
-  Run:
-
-  ```sh
-  uv pip install -e ../cascflow
-  ```
-
-  Resulting `pyproject.toml` snippet:
-
-  ```toml
-  [tool.uv.sources]
-  cascflow = { path = "../cascflow", editable = true }
-  ```
-
-**Production/CI:**
-
-  Run:
-
-  ```sh
-  uv pip install 'git+https://github.com/caltechlibrary/cascflow@v<new_version>'
-  ```
-
-  Resulting `pyproject.toml` snippet:
-
-  ```toml
-  [tool.uv.sources]
-  cascflow = { git = "https://github.com/caltechlibrary/cascflow", rev = "v<new_version>" }
-  ```
-
 ## See Also
 
 - [uv documentation](https://github.com/astral-sh/uv)
 - [PEP 621 - pyproject.toml dependencies](https://peps.python.org/pep-0621/)
 - [Python packaging best practices](https://packaging.python.org/)
+- Note: `cascflow` is not available on PyPI; use a local path or the GitHub repository.

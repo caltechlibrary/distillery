@@ -14,7 +14,6 @@ import subprocess
 import tempfile
 
 from pathlib import Path
-
 from decouple import Config, Csv, RepositoryIni  # pypi: python-decouple
 
 import cascflow
@@ -46,7 +45,7 @@ execute_parser.add_argument(
 )
 
 args = None
-config = None
+config = cascflow.config
 logger = logging.getLogger("distillery")
 
 
@@ -681,8 +680,11 @@ def main():
     if not settings_path.exists():
         raise FileNotFoundError(f"Settings file not found: {settings_path}")
     # configure cascflow to use our settings.ini file
-    config = Config(RepositoryIni(settings_path))
-    cascflow.set_config(config)
+    config_instance = Config(RepositoryIni(settings_path.as_posix()))
+    cascflow.set_config(config_instance)
+    global config
+    # reassign module-level config to use the cascflow config instance with our settings
+    config = cascflow.config
 
     cascflow.setup_logging(str(settings_path))
     logger = logging.getLogger("distillery")

@@ -51,7 +51,9 @@ def test_get_archival_object_directory_prefix_sanitizes_title_and_trailing_slash
     }
     archival_object = {"component_id": "aspace_abcdef"}
 
-    prefix = distillery.get_archival_object_directory_prefix(arrangement, archival_object)
+    prefix = distillery.get_archival_object_directory_prefix(
+        arrangement, archival_object
+    )
 
     assert prefix == "EXAMPLE:123/aspace_abcdef--Field-Notes--Box--1-2/"
 
@@ -59,7 +61,9 @@ def test_get_archival_object_directory_prefix_sanitizes_title_and_trailing_slash
 def test_get_archival_object_datafile_key_uses_component_id_and_json_extension():
     archival_object = {"component_id": "aspace_1234"}
 
-    datafile_key = distillery.get_archival_object_datafile_key("COLL/aspace_1234--Title/", archival_object)
+    datafile_key = distillery.get_archival_object_datafile_key(
+        "COLL/aspace_1234--Title/", archival_object
+    )
 
     assert datafile_key == "COLL/aspace_1234--Title/aspace_1234.json"
 
@@ -79,8 +83,7 @@ def test_get_digital_object_component_file_key_builds_expected_path():
     )
 
     assert file_key == (
-        "EXAMPLE:123/aspace_abcdef--Field-Notes/"
-        "EXAMPLE_0001.tiff/ab12_cd34.tiff"
+        "EXAMPLE:123/aspace_abcdef--Field-Notes/EXAMPLE_0001.tiff/ab12_cd34.tiff"
     )
 
 
@@ -99,8 +102,7 @@ def test_get_digital_object_component_file_key_preserves_prefix_and_extension_va
     )
 
     assert file_key == (
-        "CALT-001/aspace_777--Interview-Audio/"
-        "OH_Acosta_A_0007.wav/wxyz_9876.wav"
+        "CALT-001/aspace_777--Interview-Audio/OH_Acosta_A_0007.wav/wxyz_9876.wav"
     )
 
 
@@ -191,7 +193,9 @@ def test_construct_file_version_coerces_string_filesize_to_int(tmp_path):
 
 def test_construct_file_version_uses_relative_nested_path_in_file_uri(tmp_path):
     build_root = tmp_path / "build"
-    filepath = build_root / "collection-001" / "aspace_xyz" / "preservation" / "master.wav"
+    filepath = (
+        build_root / "collection-001" / "aspace_xyz" / "preservation" / "master.wav"
+    )
     filepath.parent.mkdir(parents=True, exist_ok=True)
     filepath.write_bytes(b"hello")
 
@@ -215,12 +219,15 @@ def test_construct_file_version_uses_relative_nested_path_in_file_uri(tmp_path):
     )
 
 
-def test_save_collection_datafile_writes_json_and_returns_expected_key(tmp_path):
+def test_save_collection_datafile_writes_json_and_returns_expected_key(tmp_path, monkeypatch):
     collection_data = {
         "id_0": "CALT-001",
         "title": "Test Collection",
         "uri": "/repositories/2/resources/123",
     }
+
+    # Patch config to avoid dependency on runtime config
+    monkeypatch.setattr(distillery.cascflow, "config", lambda *a, **k: "dummy")
 
     key = distillery.save_collection_datafile(collection_data, str(tmp_path))
 
@@ -230,7 +237,7 @@ def test_save_collection_datafile_writes_json_and_returns_expected_key(tmp_path)
     assert json.loads(written_path.read_text()) == collection_data
 
 
-def test_save_archival_object_datafile_writes_json_and_returns_expected_key(tmp_path):
+def test_save_archival_object_datafile_writes_json_and_returns_expected_key(tmp_path, monkeypatch):
     arrangement = {
         "collection_id": "CALT-001",
         "archival_object_title": "Interview Tape #1",
@@ -239,6 +246,9 @@ def test_save_archival_object_datafile_writes_json_and_returns_expected_key(tmp_
         "component_id": "aspace_abc123",
         "title": "Interview Tape 1",
     }
+
+    # Patch config to avoid dependency on runtime config
+    monkeypatch.setattr(distillery.cascflow, "config", lambda *a, **k: "dummy")
 
     key = distillery.save_archival_object_datafile(
         arrangement, archival_object, str(tmp_path)
@@ -329,14 +339,19 @@ def test_ensure_digital_object_creates_when_none_exist(monkeypatch):
         obj["instances"].append({"digital_object": {"ref": "/digital_objects/1"}})
         return "/digital_objects/1", obj
 
-    monkeypatch.setattr(distillery.cascflow, "create_digital_object", fake_create_digital_object)
+    monkeypatch.setattr(
+        distillery.cascflow, "create_digital_object", fake_create_digital_object
+    )
 
     digital_object_uri, returned_archival_object = distillery.ensure_digital_object(
         archival_object
     )
 
     assert digital_object_uri == "/digital_objects/1"
-    assert returned_archival_object["instances"][0]["digital_object"]["ref"] == "/digital_objects/1"
+    assert (
+        returned_archival_object["instances"][0]["digital_object"]["ref"]
+        == "/digital_objects/1"
+    )
 
 
 def test_ensure_digital_object_returns_existing_when_one_exists():
@@ -380,7 +395,7 @@ def test_find_digital_object_returns_none_for_zero_matches(monkeypatch):
     monkeypatch.setattr(
         distillery.cascflow, "archivesspace_get", fake_archivesspace_get
     )
-    monkeypatch.setattr(distillery, "config", lambda *a, **k: "2")
+    monkeypatch.setattr(distillery.cascflow, "config", lambda *a, **k: "2")
     result = distillery.find_digital_object("fakeid")
     assert result is None
 
@@ -399,7 +414,7 @@ def test_find_digital_object_returns_uri_for_one_match(monkeypatch):
     monkeypatch.setattr(
         distillery.cascflow, "archivesspace_get", fake_archivesspace_get
     )
-    monkeypatch.setattr(distillery, "config", lambda *a, **k: "2")
+    monkeypatch.setattr(distillery.cascflow, "config", lambda *a, **k: "2")
     result = distillery.find_digital_object("fakeid")
     assert result == "/digital_objects/42"
 
@@ -423,13 +438,16 @@ def test_find_digital_object_raises_for_multiple_matches(monkeypatch):
     monkeypatch.setattr(
         distillery.cascflow, "archivesspace_get", fake_archivesspace_get
     )
-    monkeypatch.setattr(distillery, "config", lambda *a, **k: "2")
+    monkeypatch.setattr(distillery.cascflow, "config", lambda *a, **k: "2")
     with pytest.raises(ValueError, match=r"[Mm]ultiple digital_objects found"):
         distillery.find_digital_object("fakeid")
 
 
-def test_prepare_preservation_files_copies_files_to_expected_paths(tmp_path, monkeypatch):
+def test_prepare_preservation_files_copies_files_to_expected_paths(
+    tmp_path, monkeypatch
+):
     import tempfile
+
     # Setup: create two files to copy
     src1 = tmp_path / "file1.txt"
     src2 = tmp_path / "file2.txt"
@@ -439,12 +457,21 @@ def test_prepare_preservation_files_copies_files_to_expected_paths(tmp_path, mon
     variables = {
         "filepaths": [src1, src2],
         "archival_object": {"component_id": "aspace_1"},
-        "arrangement": {"collection_id": "CALT-001", "archival_object_title": "Test AO"},
+        "arrangement": {
+            "collection_id": "CALT-001",
+            "archival_object_title": "Test AO",
+        },
     }
+
     # Patch get_digital_object_component_file_key to a simple predictable function using monkeypatch fixture
     def fake_get_digital_object_component_file_key(prefix, file_parts):
         return f"{file_parts['filename']}"
-    monkeypatch.setattr(distillery, "get_digital_object_component_file_key", fake_get_digital_object_component_file_key)
+
+    monkeypatch.setattr(
+        distillery,
+        "get_digital_object_component_file_key",
+        fake_get_digital_object_component_file_key,
+    )
     distillery.prepare_preservation_files(variables, build_dir)
     # Assert files copied
     assert Path(build_dir.name, "file1.txt").exists()
