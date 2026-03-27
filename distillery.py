@@ -53,7 +53,7 @@ logger = logging.getLogger("distillery")
 def get_collection_data(collection_id):
     # raises an HTTPError exception if unsuccessful
     collection_uri = get_collection_uri(collection_id)
-    collection_data = cascflow.archivessnake_get(collection_uri).json()
+    collection_data = cascflow.archivesspace_get(collection_uri).json()
     if collection_data:
         collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
         if collection_data["tree"]["_resolved"]:
@@ -70,7 +70,7 @@ def get_collection_data(collection_id):
 def get_collection_uri(collection_id):
     # raises an HTTPError exception if unsuccessful
     repository_id = config("ARCHIVESSPACE_REPOSITORY_ID", default="2")
-    search_results_json = cascflow.archivessnake_get(
+    search_results_json = cascflow.archivesspace_get(
         f'/repositories/{repository_id}/find_by_id/resources?identifier[]=["{collection_id}"]'
     ).json()
     if len(search_results_json["resources"]) < 1:
@@ -82,7 +82,7 @@ def get_collection_uri(collection_id):
 
 def get_collection_tree(collection_uri):
     # raises an HTTPError exception if unsuccessful
-    collection_tree = cascflow.archivessnake_get(
+    collection_tree = cascflow.archivesspace_get(
         collection_uri + "/ordered_records"
     ).json()
     if collection_tree:
@@ -306,7 +306,7 @@ def get_digital_object_component_file_key(prefix, file_parts):
 def find_digital_object(digital_object_digital_object_id):
     """Return digital_object URI using the digital_object_id."""
     repository_id = config("ARCHIVESSPACE_REPOSITORY_ID", default="2")
-    find_by_id_response = cascflow.archivessnake_get(
+    find_by_id_response = cascflow.archivesspace_get(
         f"/repositories/{repository_id}/find_by_id/digital_objects?digital_object_id[]={digital_object_digital_object_id}"
     )
     find_by_id_response.raise_for_status()
@@ -336,7 +336,7 @@ def save_digital_object_component_record(variables, build_directory):
         logger.debug(f"🐞 MULTIPLE DIGITAL_OBJECTS: {digital_objects}")
     if len(digital_objects) == 1:
         logger.debug(f"🐞 DIGITAL_OBJECTS[0]: {digital_objects[0]}")
-        digital_object_tree = cascflow.archivessnake_get(
+        digital_object_tree = cascflow.archivesspace_get(
             digital_objects[0]["digital_object"]["ref"] + "/tree/root"
         ).json()
         logger.debug(f"🐞 DIGITAL_OBJECT_TREE: {digital_object_tree}")
@@ -392,12 +392,12 @@ def save_digital_object_component_record(variables, build_directory):
                     )
                 )
                 # load the full digital_object_component
-                digital_object_component = cascflow.archivessnake_get(
+                digital_object_component = cascflow.archivesspace_get(
                     digital_object_component_summary["uri"]
                 ).json()
                 file_version = construct_file_version(variables, build_directory)
                 digital_object_component["file_versions"].append(file_version)
-                cascflow.archivessnake_post(
+                cascflow.archivesspace_post(
                     digital_object_component["uri"], digital_object_component
                 )
                 logger.info(
@@ -455,7 +455,7 @@ def create_digital_object_component(variables, build_directory):
         variables, build_directory
     )
     repository_id = config("ARCHIVESSPACE_REPOSITORY_ID", default="2")
-    digital_object_component_post_response = cascflow.archivessnake_post(
+    digital_object_component_post_response = cascflow.archivesspace_post(
         f"/repositories/{repository_id}/digital_object_components",
         digital_object_component,
     )

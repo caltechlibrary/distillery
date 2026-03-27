@@ -367,42 +367,62 @@ def test_ensure_digital_object_raises_when_multiple_exist():
 
 
 def test_find_digital_object_returns_none_for_zero_matches(monkeypatch):
-    def fake_archivessnake_get(url):
+    def fake_archivesspace_get(url):
         class Resp:
             def json(self):
                 return {"digital_objects": []}
+
             def raise_for_status(self):
                 pass
+
         return Resp()
-    monkeypatch.setattr(distillery.cascflow, "archivessnake_get", fake_archivessnake_get)
+
+    monkeypatch.setattr(
+        distillery.cascflow, "archivesspace_get", fake_archivesspace_get
+    )
     monkeypatch.setattr(distillery, "config", lambda *a, **k: "2")
     result = distillery.find_digital_object("fakeid")
     assert result is None
 
 
 def test_find_digital_object_returns_uri_for_one_match(monkeypatch):
-    def fake_archivessnake_get(url):
+    def fake_archivesspace_get(url):
         class Resp:
             def json(self):
                 return {"digital_objects": [{"ref": "/digital_objects/42"}]}
+
             def raise_for_status(self):
                 pass
+
         return Resp()
-    monkeypatch.setattr(distillery.cascflow, "archivessnake_get", fake_archivessnake_get)
+
+    monkeypatch.setattr(
+        distillery.cascflow, "archivesspace_get", fake_archivesspace_get
+    )
     monkeypatch.setattr(distillery, "config", lambda *a, **k: "2")
     result = distillery.find_digital_object("fakeid")
     assert result == "/digital_objects/42"
 
 
 def test_find_digital_object_raises_for_multiple_matches(monkeypatch):
-    def fake_archivessnake_get(url):
+    def fake_archivesspace_get(url):
         class Resp:
             def json(self):
-                return {"digital_objects": [{"ref": "/digital_objects/1"}, {"ref": "/digital_objects/2"}]}
+                return {
+                    "digital_objects": [
+                        {"ref": "/digital_objects/1"},
+                        {"ref": "/digital_objects/2"},
+                    ]
+                }
+
             def raise_for_status(self):
                 pass
+
         return Resp()
-    monkeypatch.setattr(distillery.cascflow, "archivessnake_get", fake_archivessnake_get)
+
+    monkeypatch.setattr(
+        distillery.cascflow, "archivesspace_get", fake_archivesspace_get
+    )
     monkeypatch.setattr(distillery, "config", lambda *a, **k: "2")
     with pytest.raises(ValueError, match=r"[Mm]ultiple digital_objects found"):
         distillery.find_digital_object("fakeid")
