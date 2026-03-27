@@ -682,7 +682,6 @@ def main():
     # configure cascflow to use our settings.ini file
     config_instance = Config(RepositoryIni(settings_path.as_posix()))
     cascflow.set_config(config_instance)
-    global config
     # reassign module-level config to use the cascflow config instance with our settings
     config = cascflow.config
 
