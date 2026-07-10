@@ -51,7 +51,6 @@ logger = logging.getLogger("distillery")
 
 def mint_ark_for_archival_object(archival_object: dict) -> str | None:
     import arkminter
-    import boto3
 
     nma = str(config("OUR_NMA", default="")).strip()
     naan = str(config("OUR_NAAN", default="")).strip()
@@ -72,11 +71,9 @@ def mint_ark_for_archival_object(archival_object: dict) -> str | None:
         )
         return None
 
-    s3_client = boto3.client(
-        "s3",
-        aws_access_key_id=config("AWS_ACCESS_KEY_ID"),
-        aws_secret_access_key=config("AWS_SECRET_ACCESS_KEY"),
-    )
+    s3_client = cascflow.establish_s3_connection()
+    if s3_client is None:
+        raise RuntimeError("Failed to establish S3 connection")
 
     redirect_location = (
         f"{str(config('ARCHIVESSPACE_STAFF_URL')).rstrip('/')}"

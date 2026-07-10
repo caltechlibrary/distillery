@@ -5,6 +5,7 @@ import tempfile
 
 import pytest
 
+import arkminter
 import distillery
 
 
@@ -478,3 +479,98 @@ def test_prepare_preservation_files_copies_files_to_expected_paths(
     assert Path(build_dir.name, "file2.txt").exists()
     assert Path(build_dir.name, "file1.txt").read_text() == "hello"
     assert Path(build_dir.name, "file2.txt").read_text() == "world"
+
+
+def test_mint_ark_for_archival_object_skips_when_nma_or_naan_not_configured(
+    monkeypatch,
+):
+    monkeypatch.setattr(distillery, "config", lambda key, **kwargs: kwargs.get("default"))
+
+    archival_object = {"component_id": "aspace_1"}
+
+    assert distillery.mint_ark_for_archival_object(archival_object) is None
+    assert "external_ark_url" not in archival_object
+
+
+def test_mint_ark_for_archival_object_skips_when_existing_ark_is_valid(monkeypatch):
+    def fake_config(key, **kwargs):
+        values = {"OUR_NMA": "resolver.example.org", "OUR_NAAN": "99999"}
+        return values.get(key, kwargs.get("default"))
+
+    monkeypatch.setattr(distillery, "config", fake_config)
+
+    archival_object = {
+        "component_id": "aspace_1",
+        "external_ark_url": "https://resolver.example.org/ark:/99999/abc123x",
+    }
+
+    assert distillery.mint_ark_for_archival_object(archival_object) is None
+    # Untouched -- an already-valid ARK is left as-is, not re-minted
+    assert (
+        archival_object["external_ark_url"]
+        == "https://resolver.example.org/ark:/99999/abc123x"
+    )
+
+
+def test_mint_ark_for_archival_object_raises_when_s3_connection_fails(monkeypatch):
+    def fake_config(key, **kwargs):
+        values = {"OUR_NMA": "resolver.example.org", "OUR_NAAN": "99999"}
+        return values.get(key, kwargs.get("default"))
+
+    monkeypatch.setattr(distillery, "config", fake_config)
+    monkeypatch.setattr(distillery.cascflow, "establish_s3_connection", lambda: None)
+
+    archival_object = {"component_id": "aspace_1"}
+
+    with pytest.raises(RuntimeError, match="Failed to establish S3 connection"):
+        distillery.mint_ark_for_archival_object(archival_object)
+
+
+def test_mint_ark_for_archival_object_mints_and_sets_external_ark_url(monkeypatch):
+    def fake_config(key, **kwargs):
+        values = {
+            "OUR_NMA": "resolver.example.org",
+            "OUR_NAAN": "99999",
+            "ARCHIVESSPACE_STAFF_URL": "https://archivesspace.example.org",
+            "RESOLVER_BUCKET": "resolver-bucket",
+        }
+        return values.get(key, kwargs.get("default"))
+
+    # distillery's own config() calls, and cascflow's internal config() calls
+    # (used inside establish_s3_connection()) are two separate lookups --
+    # both need patching for this to run hermetically. See get_our_ark's
+    # equivalent test in alchemist for the same reasoning.
+    monkeypatch.setattr(distillery, "config", fake_config)
+    monkeypatch.setattr(distillery.cascflow.cascflow, "_config", fake_config)
+
+    mint_calls = []
+
+    def fake_mint_ark(**kwargs):
+        mint_calls.append(kwargs)
+        return "ark:99999/abc123x"
+
+    monkeypatch.setattr(arkminter, "mint_ark", fake_mint_ark)
+
+    archival_object = {
+        "component_id": "aspace_1",
+        "title": "Test AO",
+        "uri": "/repositories/2/archival_objects/1",
+    }
+
+    minted = distillery.mint_ark_for_archival_object(archival_object)
+
+    assert minted == "ark:99999/abc123x"
+    assert (
+        archival_object["external_ark_url"]
+        == "https://resolver.example.org/ark:99999/abc123x"
+    )
+    assert len(mint_calls) == 1
+    assert mint_calls[0]["bucket_name"] == "resolver-bucket"
+    assert mint_calls[0]["redirect_target"] == (
+        "https://archivesspace.example.org"
+        "/resolve/readonly?uri=/repositories/2/archival_objects/1"
+    )
+    assert mint_calls[0]["nma"] == "resolver.example.org"
+    assert mint_calls[0]["naan"] == "99999"
+    assert mint_calls[0]["title"] == "Test AO"
+    assert mint_calls[0]["s3_client"] is not None
