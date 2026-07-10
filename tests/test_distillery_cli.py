@@ -2,8 +2,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 
 def run_distillery_cli(*args):
     cmd = [sys.executable, str(Path(__file__).parents[1] / "distillery.py"), *args]
