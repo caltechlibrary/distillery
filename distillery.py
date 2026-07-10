@@ -49,6 +49,59 @@ config = cascflow.config
 logger = logging.getLogger("distillery")
 
 
+def mint_ark_for_archival_object(archival_object: dict) -> str | None:
+    import arkminter
+    import boto3
+
+    nma = str(config("OUR_NMA", default="")).strip()
+    naan = str(config("OUR_NAAN", default="")).strip()
+    if not nma or not naan:
+        logger.warning(
+            "⚠️ OUR_NMA OR OUR_NAAN NOT CONFIGURED; SKIPPING ARK MINTING: %s",
+            archival_object.get("component_id", ""),
+        )
+        return None
+
+    # Validate existing ARK (returns None if doesn't exist or is invalid)
+    existing_ark = arkminter.get_existing_our_ark(archival_object, naan)
+    if existing_ark:
+        logger.info(
+            "⊘ SKIPPING ARK MINTING (EXISTING ARK FOUND): %s → %s",
+            archival_object.get("component_id", ""),
+            existing_ark,
+        )
+        return None
+
+    s3_client = boto3.client(
+        "s3",
+        aws_access_key_id=config("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=config("AWS_SECRET_ACCESS_KEY"),
+    )
+
+    redirect_location = (
+        f"{str(config('ARCHIVESSPACE_STAFF_URL')).rstrip('/')}"
+        f"/resolve/readonly?uri={archival_object['uri']}"
+    )
+
+    # Mint stub ARK with minimal metadata (title only)
+    minted_ark = arkminter.mint_ark(
+        bucket_name=str(config("RESOLVER_BUCKET")),
+        redirect_target=redirect_location,
+        nma=nma,
+        naan=naan,
+        title=str(archival_object.get("title", "")),
+        shoulder=str(config("OUR_SHOULDER", default="")),
+        blade_length=config("ARK_BLADE_LENGTH", default=6, cast=int),
+        s3_client=s3_client,
+    )
+    
+    # Set external_ark_url on archival_object
+    archival_object["external_ark_url"] = f"https://{nma}/{minted_ark}"
+    
+    logger.info(f"✳️ ARK MINTED: {minted_ark}")
+    return minted_ark
+
+
 def get_collection_data(collection_id):
     # raises an HTTPError exception if unsuccessful
     collection_uri = get_collection_uri(collection_id)
@@ -727,6 +780,14 @@ def main():
                 transfer_archival_object_datafile(
                     archival_object_datafile_key, build_directory
                 )
+                # Mint ARK (or skip if already exists); this also sets external_ark_url on archival_object
+                mint_ark_for_archival_object(archival_object)
+                # POST archival_object back to ArchivesSpace to persist external_ark_url if it was set
+                if archival_object.get("external_ark_url"):
+                    cascflow.archivesspace_post(archival_object["uri"], archival_object)
+                    logger.debug(
+                        f"☑️  ARCHIVAL OBJECT UPDATED WITH external_ark_url: {archival_object['uri']}"
+                    )
                 # COLLECT AND SORT ALL FILES IN THE ARCHIVAL OBJECT DIRECTORY
                 archival_object_dir = (
                     Path(build_directory.name)
