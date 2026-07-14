@@ -9,6 +9,12 @@ import arkminter
 import distillery
 
 
+def make_settings_validation_results(**overrides):
+    base = {"results": [], "missing": [], "invalid": []}
+    base.update(overrides)
+    return base
+
+
 def make_validation_results(**overrides):
     base = {
         "eligible_archival_objects": {"aspace_1": {}},
@@ -331,6 +337,30 @@ def test_validate_digital_files_for_preservation_happy_path_no_exception(
     validation_results = make_validation_results(source_path=source_path)
 
     distillery.validate_digital_files_for_preservation(validation_results)
+
+
+def test_validate_settings_for_preservation_raises_for_missing_settings():
+    settings_validation_results = make_settings_validation_results(
+        missing=[{"key": "S3_BUCKET", "kind": "string", "status": "missing", "detail": "S3_BUCKET is not set"}]
+    )
+
+    with pytest.raises(RuntimeError, match="SETTINGS VALIDATION FAILED"):
+        distillery.validate_settings_for_preservation(settings_validation_results)
+
+
+def test_validate_settings_for_preservation_raises_for_invalid_settings():
+    settings_validation_results = make_settings_validation_results(
+        invalid=[{"key": "S5CMD_CMD", "kind": "executable", "status": "invalid", "detail": "s5cmd not found"}]
+    )
+
+    with pytest.raises(RuntimeError, match="SETTINGS VALIDATION FAILED"):
+        distillery.validate_settings_for_preservation(settings_validation_results)
+
+
+def test_validate_settings_for_preservation_happy_path_no_exception():
+    settings_validation_results = make_settings_validation_results()
+
+    distillery.validate_settings_for_preservation(settings_validation_results)
 
 
 def test_ensure_digital_object_creates_when_none_exist(monkeypatch):

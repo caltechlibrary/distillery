@@ -48,6 +48,27 @@ args = None
 config = cascflow.config
 logger = logging.getLogger("distillery")
 
+DISTILLERY_SETTINGS_SPEC = [
+    {"key": "ARCHIVESSPACE_API_URL", "kind": "url"},
+    {"key": "ARCHIVESSPACE_USERNAME", "kind": "string"},
+    {"key": "ARCHIVESSPACE_PASSWORD", "kind": "string"},
+    {"key": "ARCHIVESSPACE_STAFF_URL", "kind": "url"},
+    {"key": "ARCHIVESSPACE_REPOSITORY_ID", "kind": "int", "required": False},
+    {"key": "AWS_ACCESS_KEY_ID", "kind": "string"},
+    {"key": "AWS_SECRET_ACCESS_KEY", "kind": "string"},
+    {"key": "S3_BUCKET", "kind": "string"},
+    {"key": "RESOLVER_BUCKET", "kind": "string"},
+    {"key": "OUR_NMA", "kind": "url"},
+    {"key": "OUR_NAAN", "kind": "string"},
+    {"key": "OUR_SHOULDER", "kind": "string"},
+    {"key": "ARK_BLADE_LENGTH", "kind": "int", "required": False},
+    {"key": "ABSOLUTE_MOUNT_PARENT", "kind": "directory"},
+    {"key": "RELATIVE_SOURCE_DIRECTORY", "kind": "string"},
+    {"key": "RELATIVE_BATCH_DIRECTORY", "kind": "string"},
+    {"key": "FILES_TO_REMOVE", "kind": "csv", "required": False},
+    {"key": "S5CMD_CMD", "kind": "executable"},
+]
+
 
 def mint_ark_for_archival_object(archival_object: dict) -> str | None:
     import arkminter
@@ -588,6 +609,24 @@ def prepare_preservation_files(variables, build_directory):
             logger.debug(f"☑️  ORIGINAL FILE COPIED: {preservation_file_key}")
 
 
+def validate_settings_for_preservation(settings_validation_results: dict) -> None:
+    missing = settings_validation_results.get("missing", [])
+    invalid = settings_validation_results.get("invalid", [])
+    if missing:
+        message = "❌ REQUIRED SETTINGS NOT SET"
+        logger.error(message)
+        for setting in missing:
+            logger.error(f"❌ {setting['key']}: {setting['detail']}")
+    if invalid:
+        message = "❌ INVALID SETTINGS VALUES"
+        logger.error(message)
+        for setting in invalid:
+            logger.error(f"❌ {setting['key']}: {setting['detail']}")
+    if missing or invalid:
+        raise RuntimeError("❌ SETTINGS VALIDATION FAILED")
+    logger.info("✅ ALL REQUIRED SETTINGS ARE SET AND USABLE")
+
+
 def validate_digital_files_for_preservation(validation_results: dict) -> None:
     # Return total bytes for one top-level archival-object entry.
     def get_entry_size_bytes(entry: Path) -> int:
@@ -739,6 +778,8 @@ def main():
     logger = logging.getLogger("distillery")
     # handle the commands
     if args.command == "validate":
+        settings_validation_results = cascflow.validate_settings(DISTILLERY_SETTINGS_SPEC)
+        validate_settings_for_preservation(settings_validation_results)
         validation_results = cascflow.validate_digital_files(args.context)
         validate_digital_files_for_preservation(validation_results)
     elif args.command == "execute":
