@@ -1,5 +1,11 @@
 # Distillery Changelog
 
+## 2.4.0
+
+- add settings.ini validation to the `validate` command (checks required variables are set and usable: binary paths, directories, URLs)
+- remove unused `ARCHIVESSPACE_BASIC_AUTH_*` keys from example-settings.ini
+- pin cascflow to v4.2.0
+
 ## 2.3.1
 
 - bump arkminter pin to v0.2.1 (fixes minted ARK names occasionally containing a `/` as the check digit)
