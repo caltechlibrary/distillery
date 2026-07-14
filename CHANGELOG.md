@@ -1,5 +1,9 @@
 # Distillery Changelog
 
+## 2.3.1
+
+- bump arkminter pin to v0.2.1 (fixes minted ARK names occasionally containing a `/` as the check digit)
+
 ## 2.3.0
 
 - add ARK minting for archival objects during `execute` (mints a stub ARK, redirects to the ArchivesSpace staff page, persists `external_ark_url`)

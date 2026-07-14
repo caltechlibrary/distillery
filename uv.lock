@@ -4,8 +4,8 @@ requires-python = ">=3.13"
 
 [[package]]
 name = "arkminter"
-version = "0.2.0"
-source = { git = "https://github.com/caltechlibrary/arkminter?tag=v0.2.0#b253babca3e8220ff71401878132b03af91575cb" }
+version = "0.2.1"
+source = { git = "https://github.com/caltechlibrary/arkminter?tag=v0.2.1#6d3c672b78b9bd64b1612ba9863dfc1d029ba5c6" }
 dependencies = [
     { name = "boto3" },
 ]
@@ -258,7 +258,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "arkminter", git = "https://github.com/caltechlibrary/arkminter?tag=v0.2.0" },
+    { name = "arkminter", git = "https://github.com/caltechlibrary/arkminter?tag=v0.2.1" },
     { name = "cascflow", git = "https://github.com/caltechlibrary/cascflow?tag=v4.1.1" },
     { name = "python-decouple" },
 ]
