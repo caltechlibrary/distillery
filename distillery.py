@@ -624,7 +624,7 @@ def validate_settings_for_preservation(settings_validation_results: dict) -> Non
             logger.error(f"❌ {setting['key']}: {setting['detail']}")
     if missing or invalid:
         raise RuntimeError("❌ SETTINGS VALIDATION FAILED")
-    logger.info("✅ ALL REQUIRED SETTINGS ARE SET AND USABLE")
+    logger.debug("✅ ALL REQUIRED SETTINGS ARE SET AND USABLE")
 
 
 def validate_digital_files_for_preservation(validation_results: dict) -> None:
@@ -883,4 +883,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as exception:
+        logger.error(f"❌ UNEXPECTED ERROR: {exception}")
+        raise
