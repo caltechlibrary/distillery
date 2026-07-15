@@ -1,5 +1,10 @@
 # Distillery Changelog
 
+## 2.4.2
+
+- log unhandled exceptions through the standard logger (`❌ UNEXPECTED ERROR: ...`) before re-raising, so a crash always leaves a clean error line in the console log instead of jumping straight to a bare traceback
+- demote the settings-validation success message to DEBUG so it no longer wins the "first line" used for CI issue titles/comments, restoring the identifier/summary line (or a real error) to that position
+
 ## 2.4.1
 
 - fix log rename step in the validation and execution workflows to run on both success and failure (it had no `if:` condition, so it was silently skipped on failure -- steps default to running only on success -- and the upload step right after it never found a log to attach)
