@@ -1,5 +1,9 @@
 # Distillery Changelog
 
+## 2.4.1
+
+- fix log rename step in the validation and execution workflows to run on both success and failure (it had no `if:` condition, so it was silently skipped on failure -- steps default to running only on success -- and the upload step right after it never found a log to attach)
+
 ## 2.4.0
 
 - add settings.ini validation to the `validate` command (checks required variables are set and usable: binary paths, directories, URLs)
