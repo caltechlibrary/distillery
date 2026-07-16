@@ -73,8 +73,8 @@ DISTILLERY_SETTINGS_SPEC = [
 def mint_ark_for_archival_object(archival_object: dict) -> str | None:
     import arkminter
 
-    nma = str(config("OUR_NMA", default="")).strip()
-    naan = str(config("OUR_NAAN", default="")).strip()
+    nma = config("OUR_NMA", default="").strip()
+    naan = config("OUR_NAAN", default="").strip()
     if not nma or not naan:
         logger.warning(
             "⚠️ OUR_NMA OR OUR_NAAN NOT CONFIGURED; SKIPPING ARK MINTING: %s",
@@ -97,25 +97,25 @@ def mint_ark_for_archival_object(archival_object: dict) -> str | None:
         raise RuntimeError("Failed to establish S3 connection")
 
     redirect_location = (
-        f"{str(config('ARCHIVESSPACE_STAFF_URL')).rstrip('/')}"
-        f"/resolve/readonly?uri={archival_object['uri']}"
+        config("ARCHIVESSPACE_STAFF_URL").rstrip("/")
+        + f"/resolve/readonly?uri={archival_object['uri']}"
     )
 
     # Mint stub ARK with minimal metadata (title only)
     minted_ark = arkminter.mint_ark(
-        bucket_name=str(config("RESOLVER_BUCKET")),
+        bucket_name=config("RESOLVER_BUCKET"),
         redirect_target=redirect_location,
         nma=nma,
         naan=naan,
         title=str(archival_object.get("title", "")),
-        shoulder=str(config("OUR_SHOULDER", default="")),
+        shoulder=config("OUR_SHOULDER", default=""),
         blade_length=config("ARK_BLADE_LENGTH", default=6, cast=int),
         s3_client=s3_client,
     )
-    
+
     # Set external_ark_url on archival_object
     archival_object["external_ark_url"] = f"https://{nma}/{minted_ark}"
-    
+
     logger.info(f"✳️ ARK MINTED: {minted_ark}")
     return minted_ark
 
@@ -128,7 +128,7 @@ def get_collection_data(collection_id):
         collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
         if collection_data["tree"]["_resolved"]:
             logger.info(
-                f"☑️ COLLECTION: [{collection_data['title']}]({str(config('ARCHIVESSPACE_STAFF_URL')).rstrip('/')}/resolve/readonly?uri={collection_data['uri']})"
+                f"☑️ COLLECTION: [{collection_data['title']}]({config('ARCHIVESSPACE_STAFF_URL').rstrip('/')}/resolve/readonly?uri={collection_data['uri']})"
             )
             return collection_data
     else:
@@ -185,7 +185,7 @@ def transfer_collection_datafile(collection_id, directory):
     with open(collection_datafile_path, "rb") as f:
         file_bytes = f.read()
         cascflow.s3_put_object(
-            str(config("S3_BUCKET")),
+            config("S3_BUCKET"),
             str(collection_datafile_key),
             file_bytes,
         )
@@ -227,7 +227,7 @@ def transfer_archival_object_datafile(
     with open(current_archival_object_datafile, "rb") as f:
         file_bytes = f.read()
         cascflow.s3_put_object(
-            str(config("S3_BUCKET")),
+            config("S3_BUCKET"),
             archival_object_datafile_key,
             file_bytes,
         )
@@ -265,7 +265,7 @@ def transfer_digital_object_component_file(variables, build_directory):
     preservation_file_key = str(filepath.resolve().relative_to(build_dir_path))
     for _attempt in range(3):
         s5cmd_args = [
-            str(config("S5CMD_CMD")),
+            config("S5CMD_CMD"),
             "cp",
             "--concurrency",
             "20",
@@ -278,8 +278,8 @@ def transfer_digital_object_component_file(variables, build_directory):
             subprocess.run(
                 s5cmd_args,
                 env={
-                    "AWS_ACCESS_KEY_ID": str(config("AWS_ACCESS_KEY_ID")),
-                    "AWS_SECRET_ACCESS_KEY": str(config("AWS_SECRET_ACCESS_KEY")),
+                    "AWS_ACCESS_KEY_ID": config("AWS_ACCESS_KEY_ID"),
+                    "AWS_SECRET_ACCESS_KEY": config("AWS_SECRET_ACCESS_KEY"),
                 },
                 check=True,
                 capture_output=True,
@@ -530,7 +530,7 @@ def create_digital_object_component(variables, build_directory):
         digital_object_component,
     )
     logger.info(
-        f"✳️ DIGITAL OBJECT COMPONENT CREATED: [{digital_object_component['label']}]({str(config('ARCHIVESSPACE_STAFF_URL')).rstrip('/')}/resolve/readonly?uri={digital_object_component_post_response.json()['uri']})"
+        f"✳️ DIGITAL OBJECT COMPONENT CREATED: [{digital_object_component['label']}]({config('ARCHIVESSPACE_STAFF_URL').rstrip('/')}/resolve/readonly?uri={digital_object_component_post_response.json()['uri']})"
     )
     return digital_object_component_post_response.json()["uri"]
 
