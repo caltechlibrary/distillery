@@ -117,8 +117,8 @@ wheels = [
 
 [[package]]
 name = "cascflow"
-version = "4.2.0"
-source = { git = "https://github.com/caltechlibrary/cascflow?tag=v4.2.0#e924991a38f86e8d1f9abeada18ee8bc6ab326a7" }
+version = "4.2.2"
+source = { git = "https://github.com/caltechlibrary/cascflow?tag=v4.2.2#14ca9339a3f8b72f2538469ea7c9c18d1d0fd761" }
 dependencies = [
     { name = "backoff" },
     { name = "boto3" },
@@ -259,7 +259,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "arkminter", git = "https://github.com/caltechlibrary/arkminter?tag=v0.2.1" },
-    { name = "cascflow", git = "https://github.com/caltechlibrary/cascflow?tag=v4.2.0" },
+    { name = "cascflow", git = "https://github.com/caltechlibrary/cascflow?tag=v4.2.2" },
     { name = "python-decouple" },
 ]
 
