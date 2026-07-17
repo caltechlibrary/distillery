@@ -441,7 +441,14 @@ def test_validate_digital_files_for_preservation_happy_path_no_exception(
 
 def test_validate_settings_for_preservation_raises_for_missing_settings():
     settings_validation_results = make_settings_validation_results(
-        missing=[{"key": "S3_BUCKET", "kind": "string", "status": "missing", "detail": "S3_BUCKET is not set"}]
+        missing=[
+            {
+                "key": "RESOLVER_BUCKET",
+                "kind": "string",
+                "status": "missing",
+                "detail": "RESOLVER_BUCKET is not set",
+            }
+        ]
     )
 
     with pytest.raises(RuntimeError, match="SETTINGS VALIDATION FAILED"):

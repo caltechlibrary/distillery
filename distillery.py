@@ -53,7 +53,6 @@ DISTILLERY_SETTINGS_SPEC = [
     {"key": "ARCHIVESSPACE_REPOSITORY_ID", "kind": "int", "required": False},
     {"key": "AWS_ACCESS_KEY_ID", "kind": "string"},
     {"key": "AWS_SECRET_ACCESS_KEY", "kind": "string"},
-    {"key": "S3_BUCKET", "kind": "string"},
     {"key": "RESOLVER_BUCKET", "kind": "string"},
     {"key": "OUR_NMA", "kind": "url"},
     {"key": "OUR_NAAN", "kind": "string"},
