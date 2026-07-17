@@ -6,6 +6,7 @@ import datetime
 import hashlib
 import json
 import logging
+import os
 import shutil
 import tempfile
 
@@ -62,7 +63,9 @@ DISTILLERY_SETTINGS_SPEC = [
     {"key": "RELATIVE_SOURCE_DIRECTORY", "kind": "string"},
     {"key": "RELATIVE_BATCH_DIRECTORY", "kind": "string"},
     {"key": "FILES_TO_REMOVE", "kind": "csv", "required": False},
-    {"key": "OCFL_STORAGE_ROOT", "kind": "directory"},
+    {"key": "PRESERVATION_MOUNT_PARENT", "kind": "directory"},
+    {"key": "RELATIVE_OCFL_STORAGE_DIRECTORY", "kind": "string"},
+    {"key": "RELATIVE_OCFL_STAGING_DIRECTORY", "kind": "string"},
 ]
 
 # OCFL Extension 0007 (N Tuple Omit Prefix Storage Layout) configuration.
@@ -350,9 +353,27 @@ def construct_file_version(variables, build_directory):
     return file_version
 
 
+def ocfl_storage_root() -> Path:
+    """Return the OCFL storage root -- what the sync tool watches to mirror to
+    S3 (see OCFL-PRESERVATION-PLAN.md §2)."""
+    return Path(config("PRESERVATION_MOUNT_PARENT")).joinpath(
+        config("RELATIVE_OCFL_STORAGE_DIRECTORY")
+    )
+
+
+def ocfl_staging_root() -> Path:
+    """Return the staging directory used to build OCFL content before an
+    atomic rename into ocfl_storage_root() -- a sibling on the same
+    filesystem (required for os.rename() to be atomic), not watched by
+    the sync tool."""
+    return Path(config("PRESERVATION_MOUNT_PARENT")).joinpath(
+        config("RELATIVE_OCFL_STAGING_DIRECTORY")
+    )
+
+
 def ocfl_object_root(object_id: str) -> Path:
-    """Return the local OCFL_STORAGE_ROOT path for an OCFL object id."""
-    return Path(config("OCFL_STORAGE_ROOT")).joinpath(
+    """Return the local OCFL storage path for an OCFL object id."""
+    return ocfl_storage_root().joinpath(
         cascflow.ocfl.object_root_path(
             object_id,
             delimiter=OCFL_DELIMITER,
@@ -372,29 +393,46 @@ def load_ocfl_inventory(object_root: Path, object_id: str) -> dict:
     )
 
 
-def write_ocfl_inventory(object_root: Path, inventory: dict) -> None:
-    """Write inventory.json (+ digest sidecar) at the object root, and a
-    frozen copy inside the current version directory, per the OCFL spec."""
-    version_id = inventory["head"]
+def write_ocfl_inventory_files(directory: Path, inventory: dict) -> None:
+    """Write inventory.json and its digest sidecar into `directory`."""
     inventory_bytes = json.dumps(inventory, indent=2).encode()
     inventory_digest = hashlib.new(
         inventory["digestAlgorithm"], inventory_bytes
     ).hexdigest()
     sidecar_name = f"inventory.json.{inventory['digestAlgorithm']}"
+    directory.joinpath("inventory.json").write_bytes(inventory_bytes)
+    directory.joinpath(sidecar_name).write_text(f"{inventory_digest} inventory.json\n")
 
-    object_root.mkdir(parents=True, exist_ok=True)
-    object_root.joinpath("0=ocfl_object_1.1").write_text("ocfl_object_1.1\n")
-    object_root.joinpath("inventory.json").write_bytes(inventory_bytes)
-    object_root.joinpath(sidecar_name).write_text(
-        f"{inventory_digest} inventory.json\n"
-    )
 
-    version_dir = object_root.joinpath(version_id)
-    version_dir.mkdir(parents=True, exist_ok=True)
-    version_dir.joinpath("inventory.json").write_bytes(inventory_bytes)
-    version_dir.joinpath(sidecar_name).write_text(
-        f"{inventory_digest} inventory.json\n"
-    )
+def write_current_ocfl_inventory(
+    object_root: Path, inventory: dict, staging_root: Path
+) -> None:
+    """Atomically replace the object root's current inventory.json (+
+    sidecar), and ensure the OCFL object declaration file exists.
+
+    Stages the new inventory in a temporary directory under
+    `staging_root` (same filesystem as `object_root`) and os.rename()s
+    each file into place, so nothing watching the storage root ever sees
+    a partially-written file (see OCFL-PRESERVATION-PLAN.md §2).
+    """
+    staging_dir = Path(tempfile.mkdtemp(dir=staging_root))
+    try:
+        write_ocfl_inventory_files(staging_dir, inventory)
+        sidecar_name = f"inventory.json.{inventory['digestAlgorithm']}"
+        object_root.mkdir(parents=True, exist_ok=True)
+        os.rename(
+            staging_dir.joinpath("inventory.json"),
+            object_root.joinpath("inventory.json"),
+        )
+        os.rename(
+            staging_dir.joinpath(sidecar_name), object_root.joinpath(sidecar_name)
+        )
+    finally:
+        shutil.rmtree(staging_dir, ignore_errors=True)
+
+    declaration_path = object_root.joinpath("0=ocfl_object_1.1")
+    if not declaration_path.exists():
+        declaration_path.write_text("ocfl_object_1.1\n")
 
 
 def build_version_files(archival_object: dict, filepaths: list) -> tuple:
@@ -427,7 +465,13 @@ def build_version_files(archival_object: dict, filepaths: list) -> tuple:
 
 def write_ocfl_version(archival_object: dict, filepaths: list) -> dict:
     """Add a new OCFL version for archival_object's preservation files plus
-    an archival_object.json snapshot; write it under OCFL_STORAGE_ROOT.
+    an archival_object.json snapshot; write it under the OCFL storage root.
+
+    Builds the new version's content in a temporary staging directory
+    (ocfl_staging_root()), then os.rename()s the whole thing into place in
+    one atomic step -- anything watching the storage root (the sync tool)
+    only ever sees a complete version directory appear, never a partial
+    one (see OCFL-PRESERVATION-PLAN.md §2).
 
     Returns the updated inventory dict (already written to disk).
     """
@@ -452,19 +496,30 @@ def write_ocfl_version(archival_object: dict, filepaths: list) -> dict:
         fixity=fixity,
     )
     version_id = inventory["head"]
-    content_dir = object_root.joinpath(version_id, "content")
 
-    for logical_path, digest in files.items():
-        if digest in existing_digests:
-            continue
-        destination = content_dir.joinpath(logical_path)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        if logical_path == "archival_object.json":
-            destination.write_bytes(archival_object_bytes)
-        else:
-            shutil.copy2(source_by_logical_path[logical_path], destination)
+    staging_root = ocfl_staging_root()
+    staging_root.mkdir(parents=True, exist_ok=True)
+    staging_dir = Path(tempfile.mkdtemp(dir=staging_root))
+    try:
+        content_dir = staging_dir.joinpath("content")
+        for logical_path, digest in files.items():
+            if digest in existing_digests:
+                continue
+            destination = content_dir.joinpath(logical_path)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if logical_path == "archival_object.json":
+                destination.write_bytes(archival_object_bytes)
+            else:
+                shutil.copy2(source_by_logical_path[logical_path], destination)
+        write_ocfl_inventory_files(staging_dir, inventory)
 
-    write_ocfl_inventory(object_root, inventory)
+        object_root.mkdir(parents=True, exist_ok=True)
+        os.rename(staging_dir, object_root.joinpath(version_id))
+    except BaseException:
+        shutil.rmtree(staging_dir, ignore_errors=True)
+        raise
+
+    write_current_ocfl_inventory(object_root, inventory, staging_root)
     logger.info(f"☑️  OCFL VERSION WRITTEN: {object_root}/{version_id}")
     return inventory
 
@@ -593,10 +648,10 @@ def validate_digital_files_for_preservation(validation_results: dict) -> None:
         staging_overhead_ratio = 1.05
         warning_free_floor_bytes = 20 * (1024**3)
         fail_free_floor_bytes = 5 * (1024**3)
-        temp_dir = tempfile.gettempdir()
-        free_bytes = shutil.disk_usage(temp_dir).free
+        preservation_mount = config("PRESERVATION_MOUNT_PARENT")
+        free_bytes = shutil.disk_usage(preservation_mount).free
         logger.info(
-            f"💽 AVAILABLE DISK SPACE FOR TEMP BUILD DIRECTORY ({temp_dir}): {free_bytes / (1024**3):.2f} GiB"
+            f"💽 AVAILABLE DISK SPACE ON PRESERVATION_MOUNT_PARENT ({preservation_mount}): {free_bytes / (1024**3):.2f} GiB"
         )
 
         oversized_entries = []

@@ -129,12 +129,38 @@ def test_construct_file_version_uses_relative_nested_path_in_file_uri(tmp_path):
     )
 
 
+def make_preservation_mount_config(mount_parent, **overrides):
+    values = {
+        "PRESERVATION_MOUNT_PARENT": str(mount_parent),
+        "RELATIVE_OCFL_STORAGE_DIRECTORY": "ocfl-storage",
+        "RELATIVE_OCFL_STAGING_DIRECTORY": "ocfl-staging",
+    }
+    values.update(overrides)
+    return lambda key, **kwargs: values.get(key, kwargs.get("default"))
+
+
+def test_ocfl_storage_root_combines_mount_parent_and_relative_directory(monkeypatch):
+    monkeypatch.setattr(distillery, "config", make_preservation_mount_config("/mnt"))
+
+    storage_root = distillery.ocfl_storage_root()
+
+    assert storage_root == Path("/mnt/ocfl-storage")
+
+
+def test_ocfl_staging_root_combines_mount_parent_and_relative_directory(monkeypatch):
+    monkeypatch.setattr(distillery, "config", make_preservation_mount_config("/mnt"))
+
+    staging_root = distillery.ocfl_staging_root()
+
+    assert staging_root == Path("/mnt/ocfl-staging")
+
+
 def test_ocfl_object_root_combines_storage_root_and_extension_path(monkeypatch):
-    monkeypatch.setattr(distillery, "config", lambda key, **kwargs: "/mnt/ocfl")
+    monkeypatch.setattr(distillery, "config", make_preservation_mount_config("/mnt"))
 
     object_root = distillery.ocfl_object_root("https://n2t.net/ark:99999/b3xq7z")
 
-    assert object_root == Path("/mnt/ocfl/b3x/q7z/b3xq7z")
+    assert object_root == Path("/mnt/ocfl-storage/b3x/q7z/b3xq7z")
 
 
 def test_load_ocfl_inventory_builds_fresh_shell_when_missing(tmp_path):
@@ -158,22 +184,58 @@ def test_load_ocfl_inventory_loads_existing_file(tmp_path):
     assert inventory == existing
 
 
-def test_write_ocfl_inventory_writes_declaration_root_and_version_copies(tmp_path):
-    object_root = tmp_path / "obj"
+def test_write_ocfl_inventory_files_writes_inventory_and_sidecar(tmp_path):
+    directory = tmp_path / "somewhere"
+    directory.mkdir()
     inventory = cascflow.ocfl.build_inventory("id1")
     inventory = cascflow.ocfl.add_version(
         inventory, {"a.txt": "digest_a"}, created="t1"
     )
 
-    distillery.write_ocfl_inventory(object_root, inventory)
+    distillery.write_ocfl_inventory_files(directory, inventory)
+
+    assert json.loads(directory.joinpath("inventory.json").read_text()) == inventory
+    sidecar = directory.joinpath("inventory.json.sha256").read_text()
+    assert sidecar.endswith(" inventory.json\n")
+
+
+def test_write_current_ocfl_inventory_writes_declaration_and_cleans_up_staging(
+    tmp_path,
+):
+    object_root = tmp_path / "obj"
+    staging_root = tmp_path / "staging"
+    staging_root.mkdir()
+    inventory = cascflow.ocfl.build_inventory("id1")
+    inventory = cascflow.ocfl.add_version(
+        inventory, {"a.txt": "digest_a"}, created="t1"
+    )
+
+    distillery.write_current_ocfl_inventory(object_root, inventory, staging_root)
 
     assert object_root.joinpath("0=ocfl_object_1.1").read_text() == "ocfl_object_1.1\n"
     assert json.loads(object_root.joinpath("inventory.json").read_text()) == inventory
-    sidecar = object_root.joinpath("inventory.json.sha256").read_text()
-    assert sidecar.endswith(" inventory.json\n")
-    version_dir = object_root.joinpath("v0001")
-    assert json.loads(version_dir.joinpath("inventory.json").read_text()) == inventory
-    assert version_dir.joinpath("inventory.json.sha256").exists()
+    assert object_root.joinpath("inventory.json.sha256").exists()
+    # the temporary staging directory used internally is cleaned up
+    assert list(staging_root.iterdir()) == []
+
+
+def test_write_current_ocfl_inventory_replaces_on_a_later_call(tmp_path):
+    object_root = tmp_path / "obj"
+    staging_root = tmp_path / "staging"
+    staging_root.mkdir()
+    v1 = cascflow.ocfl.add_version(
+        cascflow.ocfl.build_inventory("id1"), {"a.txt": "digest_a"}, created="t1"
+    )
+    v2 = cascflow.ocfl.add_version(
+        v1, {"a.txt": "digest_a", "b.txt": "d2"}, created="t2"
+    )
+
+    distillery.write_current_ocfl_inventory(object_root, v1, staging_root)
+    distillery.write_current_ocfl_inventory(object_root, v2, staging_root)
+
+    assert json.loads(object_root.joinpath("inventory.json").read_text()) == v2
+    # the declaration file isn't rewritten/duplicated on the later call
+    assert object_root.joinpath("0=ocfl_object_1.1").read_text() == "ocfl_object_1.1\n"
 
 
 def test_build_version_files_maps_filenames_to_digests_and_sources(tmp_path):
@@ -196,8 +258,10 @@ def test_build_version_files_maps_filenames_to_digests_and_sources(tmp_path):
 
 
 def test_write_ocfl_version_writes_content_and_inventory(tmp_path, monkeypatch):
-    storage_root = tmp_path / "ocfl_root"
-    monkeypatch.setattr(distillery, "config", lambda key, **kwargs: str(storage_root))
+    mount_parent = tmp_path / "mount"
+    monkeypatch.setattr(
+        distillery, "config", make_preservation_mount_config(mount_parent)
+    )
     source_dir = tmp_path / "source"
     source_dir.mkdir()
     filepath = source_dir / "photo.tif"
@@ -210,19 +274,23 @@ def test_write_ocfl_version_writes_content_and_inventory(tmp_path, monkeypatch):
     inventory = distillery.write_ocfl_version(archival_object, [filepath])
 
     assert inventory["head"] == "v0001"
-    object_root = storage_root / "b3x" / "q7z" / "b3xq7z"
+    object_root = mount_parent / "ocfl-storage" / "b3x" / "q7z" / "b3xq7z"
     assert (
         object_root / "v0001" / "content" / "photo.tif"
     ).read_bytes() == b"photo-bytes"
     assert (object_root / "v0001" / "content" / "archival_object.json").exists()
     assert (object_root / "inventory.json").exists()
+    # the temporary staging directory used internally is cleaned up
+    assert list((mount_parent / "ocfl-staging").iterdir()) == []
 
 
 def test_write_ocfl_version_does_not_recopy_unchanged_content_on_second_version(
     tmp_path, monkeypatch
 ):
-    storage_root = tmp_path / "ocfl_root"
-    monkeypatch.setattr(distillery, "config", lambda key, **kwargs: str(storage_root))
+    mount_parent = tmp_path / "mount"
+    monkeypatch.setattr(
+        distillery, "config", make_preservation_mount_config(mount_parent)
+    )
     source_dir = tmp_path / "source"
     source_dir.mkdir()
     photo = source_dir / "photo.tif"
@@ -237,7 +305,7 @@ def test_write_ocfl_version_does_not_recopy_unchanged_content_on_second_version(
     distillery.write_ocfl_version(archival_object, [photo])
     inventory = distillery.write_ocfl_version(archival_object, [photo, audio])
 
-    object_root = storage_root / "b3x" / "q7z" / "b3xq7z"
+    object_root = mount_parent / "ocfl-storage" / "b3x" / "q7z" / "b3xq7z"
     assert inventory["head"] == "v0002"
     # photo.tif's bytes (and archival_object.json's, since it's unchanged
     # too) were already stored in v0001 -- v0002 shouldn't duplicate them
@@ -415,7 +483,7 @@ def test_validate_digital_files_for_preservation_raises_when_space_is_insufficie
         used = 95
         free = 10
 
-    monkeypatch.setattr(distillery.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(distillery, "config", lambda key, **kwargs: str(tmp_path))
     monkeypatch.setattr(distillery.shutil, "disk_usage", lambda _p: DummyDiskUsage())
 
     validation_results = make_validation_results(source_path=source_path)
@@ -443,7 +511,7 @@ def test_validate_digital_files_for_preservation_happy_path_no_exception(
         used = 1 * (1024**3)
         free = 9 * (1024**3)
 
-    monkeypatch.setattr(distillery.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(distillery, "config", lambda key, **kwargs: str(tmp_path))
     monkeypatch.setattr(distillery.shutil, "disk_usage", lambda _p: DummyDiskUsage())
 
     validation_results = make_validation_results(source_path=source_path)
@@ -464,10 +532,10 @@ def test_validate_settings_for_preservation_raises_for_invalid_settings():
     settings_validation_results = make_settings_validation_results(
         invalid=[
             {
-                "key": "OCFL_STORAGE_ROOT",
+                "key": "PRESERVATION_MOUNT_PARENT",
                 "kind": "directory",
                 "status": "invalid",
-                "detail": "OCFL_STORAGE_ROOT is not a directory",
+                "detail": "PRESERVATION_MOUNT_PARENT is not a directory",
             }
         ]
     )
