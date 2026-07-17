@@ -6,9 +6,7 @@ import datetime
 import hashlib
 import json
 import logging
-import random
 import shutil
-import string
 import tempfile
 
 from pathlib import Path
@@ -160,14 +158,6 @@ def chunk_hashes(path: Path, algorithms=("sha256", "md5")) -> dict:
             for hasher in hashers.values():
                 hasher.update(chunk)
     return {algorithm: hasher.hexdigest() for algorithm, hasher in hashers.items()}
-
-
-def get_crockford_characters(n=4):
-    return "".join(random.choices("abcdefghjkmnpqrstvwxyz" + string.digits, k=n))
-
-
-def get_crockford_id():
-    return get_crockford_characters() + "_" + get_crockford_characters()
 
 
 def find_digital_object(digital_object_digital_object_id):
@@ -414,29 +404,20 @@ def build_version_files(archival_object: dict, filepaths: list) -> tuple:
 
     `files` maps logical path -> sha256 digest (the OCFL manifest digest).
     `fixity` maps "md5" -> {logical path: md5 digest} (see
-    OCFL-PRESERVATION-PLAN.md §2, "Digest algorithm"). Two source files
-    sharing an original filename are disambiguated with a crockford-id
-    suffix -- only when an actual collision occurs, not by default (§4).
+    OCFL-PRESERVATION-PLAN.md §2, "Digest algorithm"). `filepaths` always
+    come from a single directory listing (cascflow.execute()), so two
+    entries sharing a filename can't occur -- filesystems already guarantee
+    that (see §4).
     """
     files = {}
     fixity_md5 = {}
     source_by_logical_path = {}
 
-    filepaths_by_name = {}
     for filepath in filepaths:
-        filepaths_by_name.setdefault(filepath.name, []).append(filepath)
-
-    for name, paths_for_name in filepaths_by_name.items():
-        collision = len(paths_for_name) > 1
-        for filepath in paths_for_name:
-            if collision:
-                logical_path = f"{filepath.stem}_{get_crockford_id()}{filepath.suffix}"
-            else:
-                logical_path = name
-            digests = chunk_hashes(filepath)
-            files[logical_path] = digests["sha256"]
-            fixity_md5[logical_path] = digests["md5"]
-            source_by_logical_path[logical_path] = filepath
+        digests = chunk_hashes(filepath)
+        files[filepath.name] = digests["sha256"]
+        fixity_md5[filepath.name] = digests["md5"]
+        source_by_logical_path[filepath.name] = filepath
 
     archival_object_bytes = json.dumps(archival_object, indent=4).encode()
     files["archival_object.json"] = hashlib.sha256(archival_object_bytes).hexdigest()
@@ -575,6 +556,22 @@ def validate_settings_for_preservation(settings_validation_results: dict) -> Non
 
 
 def validate_digital_files_for_preservation(validation_results: dict) -> None:
+    # Distillery writes an archival_object.json snapshot into each OCFL
+    # version (OCFL-PRESERVATION-PLAN.md §4); a source file with that exact
+    # name would silently collide with it.
+    def validate_no_reserved_filename_conflicts(source_path: Path) -> None:
+        conflicts = sorted(
+            str(filepath) for filepath in source_path.rglob("archival_object.json")
+        )
+        if conflicts:
+            message = (
+                "❌ RESERVED FILENAME 'archival_object.json' FOUND IN SOURCE FILES"
+            )
+            logger.error(message)
+            for conflict in conflicts:
+                logger.error(f"❌ {conflict}")
+            raise RuntimeError(message)
+
     # Return total bytes for one top-level archival-object entry.
     def get_entry_size_bytes(entry: Path) -> int:
         if entry.is_file():
@@ -702,6 +699,7 @@ def validate_digital_files_for_preservation(validation_results: dict) -> None:
             logger.error(f"❌ {empty_directory}")
         raise RuntimeError(message)
     if isinstance(source_path, Path):
+        validate_no_reserved_filename_conflicts(source_path)
         validate_available_storage_for_archival_objects(source_path)
 
 

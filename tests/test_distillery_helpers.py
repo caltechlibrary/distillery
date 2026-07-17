@@ -29,29 +29,6 @@ def make_validation_results(**overrides):
     return base
 
 
-def test_get_crockford_characters_default_length_is_four():
-    value = distillery.get_crockford_characters()
-
-    assert len(value) == 4
-
-
-def test_get_crockford_characters_uses_allowed_charset():
-    value = distillery.get_crockford_characters(12)
-    allowed = set("abcdefghjkmnpqrstvwxyz0123456789")
-
-    assert len(value) == 12
-    assert set(value).issubset(allowed)
-
-
-def test_get_crockford_id_has_expected_shape_and_charset():
-    value = distillery.get_crockford_id()
-    allowed = set("abcdefghjkmnpqrstvwxyz0123456789")
-
-    assert len(value) == 9
-    assert value[4] == "_"
-    assert set(value.replace("_", "")).issubset(allowed)
-
-
 def test_chunk_hashes_returns_expected_digests_for_known_bytes(tmp_path):
     filepath = tmp_path / "known.bin"
     filepath.write_bytes(b"hello world")
@@ -199,7 +176,7 @@ def test_write_ocfl_inventory_writes_declaration_root_and_version_copies(tmp_pat
     assert version_dir.joinpath("inventory.json.sha256").exists()
 
 
-def test_build_version_files_maps_plain_filenames_when_no_collision(tmp_path):
+def test_build_version_files_maps_filenames_to_digests_and_sources(tmp_path):
     file1 = tmp_path / "a.txt"
     file2 = tmp_path / "b.txt"
     file1.write_bytes(b"aaa")
@@ -216,29 +193,6 @@ def test_build_version_files_maps_plain_filenames_when_no_collision(tmp_path):
     assert sources["a.txt"] == file1
     assert ao_bytes == json.dumps(archival_object, indent=4).encode()
     assert files["archival_object.json"] == hashlib.sha256(ao_bytes).hexdigest()
-
-
-def test_build_version_files_disambiguates_same_batch_filename_collisions(tmp_path):
-    dir1 = tmp_path / "one"
-    dir2 = tmp_path / "two"
-    dir1.mkdir()
-    dir2.mkdir()
-    file1 = dir1 / "image.tif"
-    file2 = dir2 / "image.tif"
-    file1.write_bytes(b"aaa")
-    file2.write_bytes(b"bbb")
-    archival_object = {"component_id": "aspace_1"}
-
-    files, _fixity, _sources, _ao_bytes = distillery.build_version_files(
-        archival_object, [file1, file2]
-    )
-
-    logical_paths = set(files.keys()) - {"archival_object.json"}
-    assert len(logical_paths) == 2
-    for logical_path in logical_paths:
-        assert logical_path != "image.tif"
-        assert logical_path.startswith("image_")
-        assert logical_path.endswith(".tif")
 
 
 def test_write_ocfl_version_writes_content_and_inventory(tmp_path, monkeypatch):
@@ -431,6 +385,20 @@ def test_validate_digital_files_for_preservation_raises_for_nested_directories()
     validation_results = make_validation_results(nested_directories=["nested/dir"])
 
     with pytest.raises(RuntimeError, match="NESTED DIRECTORIES FOUND"):
+        distillery.validate_digital_files_for_preservation(validation_results)
+
+
+def test_validate_digital_files_for_preservation_raises_for_reserved_filename(
+    tmp_path,
+):
+    source_path = tmp_path / "source"
+    aspace_dir = source_path / "aspace_1"
+    aspace_dir.mkdir(parents=True)
+    (aspace_dir / "archival_object.json").write_text("{}")
+
+    validation_results = make_validation_results(source_path=source_path)
+
+    with pytest.raises(RuntimeError, match="RESERVED FILENAME"):
         distillery.validate_digital_files_for_preservation(validation_results)
 
 
