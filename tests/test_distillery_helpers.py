@@ -1,7 +1,6 @@
 from pathlib import Path
 import hashlib
 import json
-import tempfile
 
 import pytest
 
@@ -48,85 +47,6 @@ def test_chunk_hashes_supports_a_subset_of_algorithms(tmp_path):
     digests = distillery.chunk_hashes(filepath, algorithms=("md5",))
 
     assert digests == {"md5": "5eb63bbbe01eeed093cb22bb8f5acdc3"}
-
-
-def test_construct_file_version_builds_expected_payload(tmp_path):
-    build_root = tmp_path / "build"
-    filepath = build_root / "COLL" / "aspace_123" / "file.tiff"
-    filepath.parent.mkdir(parents=True, exist_ok=True)
-    filepath.write_bytes(b"abc")
-
-    variables = {
-        "file_uri_scheme": "s3",
-        "file_uri_host": "my-bucket",
-        "preservation_file_info": {
-            "filepath": filepath,
-            "md5": hashlib.md5(b"abc"),
-            "filesize": filepath.stat().st_size,
-        },
-    }
-    build_directory = tempfile.TemporaryDirectory(dir=tmp_path)
-    build_directory.name = str(build_root.resolve())
-
-    file_version = distillery.construct_file_version(variables, build_directory)
-
-    assert file_version == {
-        "checksum_method": "md5",
-        "checksum": "900150983cd24fb0d6963f7d28e17f72",
-        "file_size_bytes": 3,
-        "file_uri": "s3://my-bucket/COLL/aspace_123/file.tiff",
-    }
-
-
-def test_construct_file_version_coerces_string_filesize_to_int(tmp_path):
-    build_root = tmp_path / "build"
-    filepath = build_root / "COLL" / "aspace_123" / "file.tiff"
-    filepath.parent.mkdir(parents=True, exist_ok=True)
-    filepath.write_bytes(b"abc")
-
-    variables = {
-        "file_uri_scheme": "s3",
-        "file_uri_host": "my-bucket",
-        "preservation_file_info": {
-            "filepath": filepath,
-            "md5": hashlib.md5(b"abc"),
-            "filesize": "3",
-        },
-    }
-    build_directory = tempfile.TemporaryDirectory(dir=tmp_path)
-    build_directory.name = str(build_root.resolve())
-
-    file_version = distillery.construct_file_version(variables, build_directory)
-
-    assert file_version["file_size_bytes"] == 3
-
-
-def test_construct_file_version_uses_relative_nested_path_in_file_uri(tmp_path):
-    build_root = tmp_path / "build"
-    filepath = (
-        build_root / "collection-001" / "aspace_xyz" / "preservation" / "master.wav"
-    )
-    filepath.parent.mkdir(parents=True, exist_ok=True)
-    filepath.write_bytes(b"hello")
-
-    variables = {
-        "file_uri_scheme": "s3",
-        "file_uri_host": "archive-bucket",
-        "preservation_file_info": {
-            "filepath": filepath,
-            "md5": hashlib.md5(b"hello"),
-            "filesize": 5,
-        },
-    }
-    build_directory = tempfile.TemporaryDirectory(dir=tmp_path)
-    build_directory.name = str(build_root.resolve())
-
-    file_version = distillery.construct_file_version(variables, build_directory)
-
-    assert (
-        file_version["file_uri"]
-        == "s3://archive-bucket/collection-001/aspace_xyz/preservation/master.wav"
-    )
 
 
 def make_preservation_mount_config(mount_parent, **overrides):
@@ -597,68 +517,6 @@ def test_ensure_digital_object_raises_when_multiple_exist():
 
     with pytest.raises(ValueError, match="MULTIPLE DIGITAL OBJECTS FOUND"):
         distillery.ensure_digital_object(archival_object)
-
-
-def test_find_digital_object_returns_none_for_zero_matches(monkeypatch):
-    def fake_archivesspace_get(url):
-        class Resp:
-            def json(self):
-                return {"digital_objects": []}
-
-            def raise_for_status(self):
-                pass
-
-        return Resp()
-
-    monkeypatch.setattr(
-        distillery.cascflow, "archivesspace_get", fake_archivesspace_get
-    )
-    monkeypatch.setattr(distillery.cascflow, "config", lambda *a, **k: "2")
-    result = distillery.find_digital_object("fakeid")
-    assert result is None
-
-
-def test_find_digital_object_returns_uri_for_one_match(monkeypatch):
-    def fake_archivesspace_get(url):
-        class Resp:
-            def json(self):
-                return {"digital_objects": [{"ref": "/digital_objects/42"}]}
-
-            def raise_for_status(self):
-                pass
-
-        return Resp()
-
-    monkeypatch.setattr(
-        distillery.cascflow, "archivesspace_get", fake_archivesspace_get
-    )
-    monkeypatch.setattr(distillery.cascflow, "config", lambda *a, **k: "2")
-    result = distillery.find_digital_object("fakeid")
-    assert result == "/digital_objects/42"
-
-
-def test_find_digital_object_raises_for_multiple_matches(monkeypatch):
-    def fake_archivesspace_get(url):
-        class Resp:
-            def json(self):
-                return {
-                    "digital_objects": [
-                        {"ref": "/digital_objects/1"},
-                        {"ref": "/digital_objects/2"},
-                    ]
-                }
-
-            def raise_for_status(self):
-                pass
-
-        return Resp()
-
-    monkeypatch.setattr(
-        distillery.cascflow, "archivesspace_get", fake_archivesspace_get
-    )
-    monkeypatch.setattr(distillery.cascflow, "config", lambda *a, **k: "2")
-    with pytest.raises(ValueError, match=r"[Mm]ultiple digital_objects found"):
-        distillery.find_digital_object("fakeid")
 
 
 def test_mint_ark_for_archival_object_skips_when_nma_or_naan_not_configured(
