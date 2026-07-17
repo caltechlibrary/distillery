@@ -6,11 +6,9 @@ import datetime
 import hashlib
 import json
 import logging
-import os
 import random
 import shutil
 import string
-import subprocess
 import tempfile
 
 from pathlib import Path
@@ -66,8 +64,18 @@ DISTILLERY_SETTINGS_SPEC = [
     {"key": "RELATIVE_SOURCE_DIRECTORY", "kind": "string"},
     {"key": "RELATIVE_BATCH_DIRECTORY", "kind": "string"},
     {"key": "FILES_TO_REMOVE", "kind": "csv", "required": False},
-    {"key": "S5CMD_CMD", "kind": "executable"},
+    {"key": "OCFL_STORAGE_ROOT", "kind": "directory"},
 ]
+
+# OCFL Extension 0007 (N Tuple Omit Prefix Storage Layout) configuration.
+# Fixed architectural choices, not per-environment settings -- see
+# OCFL-PRESERVATION-PLAN.md §3. OCFL_VERSION_PADDING in particular must
+# never change for an object once its first version exists.
+OCFL_DELIMITER = "/"
+OCFL_TUPLE_SIZE = 3
+OCFL_NUMBER_OF_TUPLES = 2
+OCFL_VERSION_PADDING = 4
+OCFL_DIGEST_ALGORITHM = "sha256"
 
 
 def mint_ark_for_archival_object(archival_object: dict) -> str | None:
@@ -120,80 +128,6 @@ def mint_ark_for_archival_object(archival_object: dict) -> str | None:
     return minted_ark
 
 
-def get_collection_data(collection_id):
-    # raises an HTTPError exception if unsuccessful
-    collection_uri = get_collection_uri(collection_id)
-    collection_data = cascflow.archivesspace_get(collection_uri).json()
-    if collection_data:
-        collection_data["tree"]["_resolved"] = get_collection_tree(collection_uri)
-        if collection_data["tree"]["_resolved"]:
-            logger.info(
-                f"☑️ COLLECTION: [{collection_data['title']}]({config('ARCHIVESSPACE_STAFF_URL').rstrip('/')}/resolve/readonly?uri={collection_data['uri']})"
-            )
-            return collection_data
-    else:
-        raise RuntimeError(
-            "There was a problem retrieving the collection data from ArchivesSpace.\n"
-        )
-
-
-def get_collection_uri(collection_id):
-    # raises an HTTPError exception if unsuccessful
-    repository_id = config("ARCHIVESSPACE_REPOSITORY_ID", default="2")
-    search_results_json = cascflow.archivesspace_get(
-        f'/repositories/{repository_id}/find_by_id/resources?identifier[]=["{collection_id}"]'
-    ).json()
-    if len(search_results_json["resources"]) < 1:
-        raise ValueError(
-            f"No collection found in ArchivesSpace with the ID: {collection_id}\n"
-        )
-    return search_results_json["resources"][0]["ref"]
-
-
-def get_collection_tree(collection_uri):
-    # raises an HTTPError exception if unsuccessful
-    collection_tree = cascflow.archivesspace_get(
-        collection_uri + "/ordered_records"
-    ).json()
-    if collection_tree:
-        return collection_tree
-    else:
-        raise RuntimeError(
-            "There was a problem retrieving the collection tree from ArchivesSpace.\n"
-        )
-
-
-def save_collection_datafile(collection_data, directory):
-    """Save the collection data to a JSON file."""
-    collection_datafile_key = os.path.join(
-        collection_data["id_0"], f"{collection_data['id_0']}.json"
-    )
-    filename = os.path.join(directory, collection_datafile_key)
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
-    with open(filename, "w") as f:
-        f.write(json.dumps(collection_data, indent=4))
-    logger.debug(f"☑️  COLLECTION DATA FILE SAVED: {filename}")
-    return collection_datafile_key
-
-
-def transfer_collection_datafile(collection_id, directory):
-    """POST collection data to S3 bucket as a JSON file."""
-    collection_datafile_key = Path(collection_id).joinpath(f"{collection_id}.json")
-    collection_datafile_path = (
-        Path(directory).joinpath(collection_datafile_key).resolve()
-    )
-    with open(collection_datafile_path, "rb") as f:
-        file_bytes = f.read()
-        cascflow.s3_put_object(
-            config("S3_BUCKET"),
-            str(collection_datafile_key),
-            file_bytes,
-        )
-    logger.info(
-        f"☑️  COLLECTION DATAFILE UPLOADED TO S3: {config('S3_BUCKET')}/{str(collection_datafile_key)}"
-    )
-
-
 def ensure_digital_object(archival_object):
     """Ensure a digital object exists for the archival object."""
     digital_object_count = len(
@@ -217,92 +151,15 @@ def ensure_digital_object(archival_object):
     return digital_object_uri, archival_object
 
 
-def transfer_archival_object_datafile(
-    archival_object_datafile_key: str, build_directory: tempfile.TemporaryDirectory
-):
-    """POST archival object data to S3 bucket as a JSON file."""
-    current_archival_object_datafile = (
-        Path(build_directory.name).joinpath(archival_object_datafile_key).resolve()
-    )
-    with open(current_archival_object_datafile, "rb") as f:
-        file_bytes = f.read()
-        cascflow.s3_put_object(
-            config("S3_BUCKET"),
-            archival_object_datafile_key,
-            file_bytes,
-        )
-    logger.info(
-        f"☑️  ARCHIVAL OBJECT DATAFILE UPLOADED TO S3: {config('S3_BUCKET')}/{archival_object_datafile_key}"
-    )
-
-
-def chunk_hash(path):
-    h = hashlib.md5()
+def chunk_hashes(path: Path, algorithms=("sha256", "md5")) -> dict:
+    """Compute one or more hex digests for a file in a single read pass."""
+    hashers = {algorithm: hashlib.new(algorithm) for algorithm in algorithms}
     with open(path, "rb") as f:
         # read the file in 8MB chunks to avoid memory issues with large files
         for chunk in iter(lambda: f.read(8 * 1024 * 1024), b""):
-            h.update(chunk)
-    return h
-
-
-def process_digital_object_component_file(variables, build_directory):
-    """transfer file to S3; create ArchivesSpace record"""
-    if not transfer_digital_object_component_file(variables, build_directory):
-        logger.warning("⚠️ FAILED TO TRANSFER DIGITAL OBJECT COMPONENT FILE")
-        return
-    variables["file_uri_scheme"] = "s3"
-    variables["file_uri_host"] = config("S3_BUCKET")
-    if not save_digital_object_component_record(variables, build_directory):
-        logger.warning("⚠️ FAILED TO SAVE DIGITAL OBJECT COMPONENT RECORD")
-        return
-
-
-def transfer_digital_object_component_file(variables, build_directory):
-    """s5cmd cp digital object component file to S3 bucket"""
-    filepath = variables["preservation_file_info"]["filepath"]
-    build_dir_path = Path(build_directory.name)
-    # calculate relative path (build_directory.name is already resolved)
-    preservation_file_key = str(filepath.resolve().relative_to(build_dir_path))
-    for _attempt in range(3):
-        s5cmd_args = [
-            config("S5CMD_CMD"),
-            "cp",
-            "--concurrency",
-            "20",
-            "--metadata",
-            f"md5={variables['preservation_file_info']['md5'].hexdigest()}",
-            str(variables["preservation_file_info"]["filepath"]),
-            f"s3://{config('S3_BUCKET')}/{preservation_file_key}",
-        ]
-        try:
-            subprocess.run(
-                s5cmd_args,
-                env={
-                    "AWS_ACCESS_KEY_ID": config("AWS_ACCESS_KEY_ID"),
-                    "AWS_SECRET_ACCESS_KEY": config("AWS_SECRET_ACCESS_KEY"),
-                },
-                check=True,
-                capture_output=True,
-            )
-        except subprocess.CalledProcessError as e:
-            if _attempt > 1:
-                logger.exception(
-                    f"❌ S5CMD FAILED AFTER {_attempt + 1} ATTEMPTS (EXIT CODE: {e.returncode})"
-                )
-                raise
-            else:
-                logger.warning(
-                    f"⚠️ S5CMD ATTEMPT {_attempt + 1} FAILED, RETRYING... (EXIT CODE: {e.returncode})"
-                )
-        else:
-            logger.info(
-                "☑️ DIGITAL OBJECT COMPONENT FILE UPLOADED TO S3: {}/{}".format(
-                    config("S3_BUCKET"), preservation_file_key
-                )
-            )
-            return variables["preservation_file_info"]["md5"].hexdigest()
-    # if we get here, all attempts failed
-    return None
+            for hasher in hashers.values():
+                hasher.update(chunk)
+    return {algorithm: hasher.hexdigest() for algorithm, hasher in hashers.items()}
 
 
 def get_crockford_characters(n=4):
@@ -311,66 +168,6 @@ def get_crockford_characters(n=4):
 
 def get_crockford_id():
     return get_crockford_characters() + "_" + get_crockford_characters()
-
-
-# TODO rename to get_filepath_components
-def get_file_parts(filepath: Path):
-    file_parts = {}
-    file_parts["filepath"] = filepath.as_posix()
-    file_parts["filename"] = file_parts["filepath"].split("/")[-1]
-    file_parts["filestem"] = file_parts["filename"].split(".")[0]
-    file_parts["extension"] = file_parts["filename"].split(".")[-1]
-    file_parts["sequence"] = file_parts["filestem"].split("_")[-1]
-    file_parts["crockford_id"] = get_crockford_id()
-    return file_parts
-
-
-def get_archival_object_datafile_key(prefix, archival_object):
-    """Return the key (file path) of an archival object datafile."""
-    # NOTE the prefix includes a trailing slash
-    return f"{prefix}{archival_object['component_id']}.json"
-
-
-def get_archival_object_directory_prefix(arrangement, archival_object):
-    """Return the prefix (directory path) of an archival object.
-
-    Non-alphanumeric characters are replaced with hyphens. The prefix includes a
-    trailing slash.
-
-    FORMAT: resource:id_0/archival_object:component_id--archival_object:title/
-    """
-    archival_object_title = "".join(
-        [c if c.isalnum() else "-" for c in arrangement["archival_object_title"]]
-    )
-    prefix = "/".join(
-        [
-            arrangement["collection_id"],
-            f"{archival_object['component_id']}--{archival_object_title}",
-            "",
-        ]
-    )
-    return prefix
-
-
-def get_digital_object_component_file_key(prefix, file_parts):
-    """Return the key (file path) of a digital object component file."""
-    # file_parts: {
-    #     "crockford_id": "me5v-z1yp",
-    #     "extension": "tiff",
-    #     "filename": "EXAMPLE_02_0B_056_07_0001.tiff",
-    #     "filepath": "/path/to/archives/data/BATCH/EXAMPLE/EXAMPLE_02_0B_056_07_0001.tiff",
-    #     "filestem": "EXAMPLE_02_0B_056_07_0001",
-    #     "sequence": "0001"
-    # }
-    # NOTE the prefix includes a trailing slash
-    return (
-        prefix
-        + file_parts["filename"]
-        + "/"
-        + file_parts["crockford_id"]
-        + "."
-        + file_parts["extension"]
-    )
 
 
 def find_digital_object(digital_object_digital_object_id):
@@ -563,50 +360,200 @@ def construct_file_version(variables, build_directory):
     return file_version
 
 
-def save_archival_object_datafile(arrangement, archival_object, directory):
-    """Save the archival object data to a JSON file."""
-    # TODO rename functions to be more abstract
-    archival_object_datafile_key = get_archival_object_datafile_key(
-        get_archival_object_directory_prefix(arrangement, archival_object),
-        archival_object,
+def ocfl_object_root(object_id: str) -> Path:
+    """Return the local OCFL_STORAGE_ROOT path for an OCFL object id."""
+    return Path(config("OCFL_STORAGE_ROOT")).joinpath(
+        cascflow.ocfl.object_root_path(
+            object_id,
+            delimiter=OCFL_DELIMITER,
+            tuple_size=OCFL_TUPLE_SIZE,
+            number_of_tuples=OCFL_NUMBER_OF_TUPLES,
+        )
     )
-    filename = os.path.join(directory, archival_object_datafile_key)
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
-    with open(filename, "w") as f:
-        f.write(json.dumps(archival_object, indent=4))
-    logger.debug(f"☑️  ARCHIVAL OBJECT DATA SAVED: {filename}")
-    return archival_object_datafile_key
 
 
-def prepare_preservation_files(variables, build_directory):
-    """Copy preservation files."""
-    for filepath in variables["filepaths"]:
-        variables["original_file_path"] = filepath
-        logger.debug(f"🐞 ORIGINAL_FILE_PATH: {variables['original_file_path']}")
-        filepath_components = get_file_parts(variables["original_file_path"])
-        logger.debug(f"🐞 FILEPATH_COMPONENTS: {filepath_components}")
-        preservation_file_key = get_digital_object_component_file_key(
-            get_archival_object_directory_prefix(
-                variables["arrangement"], variables["archival_object"]
-            ),
-            filepath_components,
-        )
-        logger.debug(f"🐞 PRESERVATION_FILE_KEY: {preservation_file_key}")
-        preservation_file_path = Path(build_directory.name).joinpath(
-            preservation_file_key
-        )
-        logger.debug(f"🐞 PRESERVATION_FILE_PATH: {preservation_file_path}")
-        try:
-            preservation_file_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(variables["original_file_path"], preservation_file_path)
-        except Exception:
-            logger.exception(
-                "❌ ORIGINAL FILE COPY FAILED: {}".format(
-                    variables["original_file_path"]
-                )
-            )
+def load_ocfl_inventory(object_root: Path, object_id: str) -> dict:
+    """Load an object's current inventory.json, or start a fresh shell."""
+    inventory_path = object_root.joinpath("inventory.json")
+    if inventory_path.exists():
+        return json.loads(inventory_path.read_text())
+    return cascflow.ocfl.build_inventory(
+        object_id, digest_algorithm=OCFL_DIGEST_ALGORITHM
+    )
+
+
+def write_ocfl_inventory(object_root: Path, inventory: dict) -> None:
+    """Write inventory.json (+ digest sidecar) at the object root, and a
+    frozen copy inside the current version directory, per the OCFL spec."""
+    version_id = inventory["head"]
+    inventory_bytes = json.dumps(inventory, indent=2).encode()
+    inventory_digest = hashlib.new(
+        inventory["digestAlgorithm"], inventory_bytes
+    ).hexdigest()
+    sidecar_name = f"inventory.json.{inventory['digestAlgorithm']}"
+
+    object_root.mkdir(parents=True, exist_ok=True)
+    object_root.joinpath("0=ocfl_object_1.1").write_text("ocfl_object_1.1\n")
+    object_root.joinpath("inventory.json").write_bytes(inventory_bytes)
+    object_root.joinpath(sidecar_name).write_text(
+        f"{inventory_digest} inventory.json\n"
+    )
+
+    version_dir = object_root.joinpath(version_id)
+    version_dir.mkdir(parents=True, exist_ok=True)
+    version_dir.joinpath("inventory.json").write_bytes(inventory_bytes)
+    version_dir.joinpath(sidecar_name).write_text(
+        f"{inventory_digest} inventory.json\n"
+    )
+
+
+def build_version_files(archival_object: dict, filepaths: list) -> tuple:
+    """Return (files, fixity, source_by_logical_path, archival_object_bytes)
+    describing one new OCFL version for archival_object's preservation
+    files plus an archival_object.json snapshot.
+
+    `files` maps logical path -> sha256 digest (the OCFL manifest digest).
+    `fixity` maps "md5" -> {logical path: md5 digest} (see
+    OCFL-PRESERVATION-PLAN.md §2, "Digest algorithm"). Two source files
+    sharing an original filename are disambiguated with a crockford-id
+    suffix -- only when an actual collision occurs, not by default (§4).
+    """
+    files = {}
+    fixity_md5 = {}
+    source_by_logical_path = {}
+
+    filepaths_by_name = {}
+    for filepath in filepaths:
+        filepaths_by_name.setdefault(filepath.name, []).append(filepath)
+
+    for name, paths_for_name in filepaths_by_name.items():
+        collision = len(paths_for_name) > 1
+        for filepath in paths_for_name:
+            if collision:
+                logical_path = f"{filepath.stem}_{get_crockford_id()}{filepath.suffix}"
+            else:
+                logical_path = name
+            digests = chunk_hashes(filepath)
+            files[logical_path] = digests["sha256"]
+            fixity_md5[logical_path] = digests["md5"]
+            source_by_logical_path[logical_path] = filepath
+
+    archival_object_bytes = json.dumps(archival_object, indent=4).encode()
+    files["archival_object.json"] = hashlib.sha256(archival_object_bytes).hexdigest()
+
+    return files, {"md5": fixity_md5}, source_by_logical_path, archival_object_bytes
+
+
+def write_ocfl_version(archival_object: dict, filepaths: list) -> dict:
+    """Add a new OCFL version for archival_object's preservation files plus
+    an archival_object.json snapshot; write it under OCFL_STORAGE_ROOT.
+
+    Returns the updated inventory dict (already written to disk).
+    """
+    object_id = archival_object["external_ark_url"]
+    object_root = ocfl_object_root(object_id)
+    inventory = load_ocfl_inventory(object_root, object_id)
+    existing_digests = set(inventory["manifest"].keys())
+
+    files, fixity, source_by_logical_path, archival_object_bytes = build_version_files(
+        archival_object, filepaths
+    )
+
+    inventory = cascflow.ocfl.add_version(
+        inventory,
+        files=files,
+        created=datetime.datetime.now(datetime.timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        ),
+        message="Preservation files added by Distillery",
+        user_name="distillery",
+        version_padding=OCFL_VERSION_PADDING,
+        fixity=fixity,
+    )
+    version_id = inventory["head"]
+    content_dir = object_root.joinpath(version_id, "content")
+
+    for logical_path, digest in files.items():
+        if digest in existing_digests:
+            continue
+        destination = content_dir.joinpath(logical_path)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if logical_path == "archival_object.json":
+            destination.write_bytes(archival_object_bytes)
         else:
-            logger.debug(f"☑️  ORIGINAL FILE COPIED: {preservation_file_key}")
+            shutil.copy2(source_by_logical_path[logical_path], destination)
+
+    write_ocfl_inventory(object_root, inventory)
+    logger.info(f"☑️  OCFL VERSION WRITTEN: {object_root}/{version_id}")
+    return inventory
+
+
+def construct_inventory_file_version(archival_object: dict) -> dict:
+    """Build the ArchivesSpace file_version pointing at this object's
+    inventory.json, once mirrored to the public resolver bucket by the
+    Lambda described in OCFL-PRESERVATION-PLAN.md §6 Phase 0. There's an
+    inherent lag between this record existing and that URL resolving --
+    acceptable since it's unpublished/staff-only (§5)."""
+    return {
+        "file_uri": f"{archival_object['external_ark_url']}/inventory.json",
+        "publish": False,
+    }
+
+
+def build_inventory_manifest_note(inventory: dict) -> dict:
+    """Build the unpublished ArchivesSpace note summarizing an object's
+    current OCFL inventory contents (see OCFL-PRESERVATION-PLAN.md §5)."""
+    head = inventory["head"]
+    state = inventory["versions"][head]["state"]
+    lines = [f"OCFL object inventory ({head}):"]
+    for digest, logical_paths in sorted(state.items()):
+        for logical_path in sorted(logical_paths):
+            lines.append(f"{logical_path} ({inventory['digestAlgorithm']}: {digest})")
+    return {
+        "jsonmodel_type": "note_digital_object",
+        "type": "note",
+        "label": "OCFL Inventory",
+        "content": ["\n".join(lines)],
+        "publish": False,
+    }
+
+
+def update_inventory_manifest_note(digital_object: dict, inventory: dict) -> dict:
+    """Replace (or add) the digital_object's OCFL inventory manifest note.
+
+    Regenerated/overwritten on every update, not appended (§2)."""
+    note = build_inventory_manifest_note(inventory)
+    notes = [
+        n
+        for n in digital_object.get("notes", [])
+        if not (
+            n.get("jsonmodel_type") == "note_digital_object"
+            and n.get("label") == "OCFL Inventory"
+        )
+    ]
+    notes.append(note)
+    digital_object["notes"] = notes
+    return digital_object
+
+
+def process_archival_object_preservation_files(
+    archival_object: dict, digital_object_uri: str, filepaths: list
+) -> None:
+    """Write a new OCFL version for archival_object's preservation files,
+    then update ArchivesSpace: a single file_version pointing at the
+    object's (eventual) public inventory.json URL, plus a regenerated
+    unpublished manifest note (see OCFL-PRESERVATION-PLAN.md §5)."""
+    inventory = write_ocfl_version(archival_object, filepaths)
+
+    file_version = construct_inventory_file_version(archival_object)
+    cascflow.save_digital_object_file_versions(archival_object, [file_version])
+
+    # re-fetch fresh so the note update POSTs a current lock_version, since
+    # save_digital_object_file_versions already POSTed the digital_object once
+    digital_object = cascflow.archivesspace_get(digital_object_uri).json()
+    digital_object = update_inventory_manifest_note(digital_object, inventory)
+    cascflow.archivesspace_post(digital_object_uri, digital_object)
+    logger.info(f"☑️  DIGITAL OBJECT NOTE UPDATED: {digital_object_uri}")
 
 
 def validate_settings_for_preservation(settings_validation_results: dict) -> None:
@@ -791,93 +738,33 @@ def main():
             archival_object,
             arrangement,
         ) in cascflow.execute(args.context, batch_set_id, "preservation"):
-            build_directory = tempfile.TemporaryDirectory()
-            # resolve the build directory path once to handle symlink differences across platforms
-            build_directory.name = str(Path(build_directory.name).resolve())
-            try:
-                collection_data = get_collection_data(arrangement["collection_id"])
-                save_collection_datafile(collection_data, build_directory.name)
-                transfer_collection_datafile(
-                    arrangement["collection_id"], build_directory.name
-                )
-                archival_object_datafile_key = save_archival_object_datafile(
-                    arrangement, archival_object, build_directory.name
-                )
-                prepare_preservation_files(
-                    {
-                        "filepaths": filepaths,
-                        "archival_object": archival_object,
-                        "arrangement": arrangement,
-                    },
-                    build_directory,
-                )
-                # NOTE returned archival_object will include any created digital_object instance
-                digital_object_uri, archival_object = ensure_digital_object(
-                    archival_object
-                )
-                transfer_archival_object_datafile(
-                    archival_object_datafile_key, build_directory
-                )
-                # Mint ARK (or skip if already exists); this also sets external_ark_url on archival_object
-                mint_ark_for_archival_object(archival_object)
-                # POST archival_object back to ArchivesSpace to persist external_ark_url if it was set
-                if archival_object.get("external_ark_url"):
-                    cascflow.archivesspace_post(archival_object["uri"], archival_object)
-                    logger.debug(
-                        f"☑️  ARCHIVAL OBJECT UPDATED WITH external_ark_url: {archival_object['uri']}"
-                    )
-                # COLLECT AND SORT ALL FILES IN THE ARCHIVAL OBJECT DIRECTORY
-                archival_object_dir = (
-                    Path(build_directory.name)
-                    .joinpath(
-                        get_archival_object_directory_prefix(
-                            arrangement, archival_object
-                        )
-                    )
-                    .resolve()
-                )
-                # collect all files recursively
-                all_files = []
-                for filepath in archival_object_dir.rglob("*"):
-                    if filepath.is_file():
-                        all_files.append(filepath)
-                # sort files by their parent directory name for consistent processing order
-                sorted_files = sorted(all_files, key=lambda f: f.parent.name)
+            # NOTE returned archival_object will include any created digital_object instance
+            digital_object_uri, archival_object = ensure_digital_object(archival_object)
+            # Mint ARK (or skip if already exists); this also sets external_ark_url on archival_object
+            mint_ark_for_archival_object(archival_object)
+            # POST archival_object back to ArchivesSpace to persist external_ark_url if it was set
+            if archival_object.get("external_ark_url"):
+                cascflow.archivesspace_post(archival_object["uri"], archival_object)
                 logger.debug(
-                    f"🐞 SORTED FILES: {[f'{f.parent.name}/{f.name}' for f in sorted_files]}"
+                    f"☑️  ARCHIVAL OBJECT UPDATED WITH external_ark_url: {archival_object['uri']}"
                 )
-                for filepath in sorted_files:
-                    filename = filepath.name
-                    logger.debug(
-                        f"🐞 PROCESSING FILE: {filepath.parent.name}/{filename}"
-                    )
-                    files_to_remove = config("FILES_TO_REMOVE", default="", cast=Csv())
-                    if not isinstance(files_to_remove, list):
-                        files_to_remove = []
-                    if filename in files_to_remove:
-                        filepath.unlink()
-                        continue
-                    # TODO: this is an assumption that needs to be monitored for exceptions
-                    if filepath.suffix == ".json" and filepath.name.startswith(
-                        filepath.stem
-                    ):
-                        # skip JSON files that are not digital object component files
-                        continue
-                    process_digital_object_component_file(
-                        {
-                            "preservation_file_info": {
-                                "filepath": filepath,
-                                "md5": chunk_hash(filepath),
-                                "filesize": filepath.stat().st_size,
-                            },
-                            "archival_object": archival_object,
-                            "arrangement": arrangement,
-                        },
-                        build_directory,
-                    )
-                cascflow.move_to_stage_3(stage_2_path_obj, batch_directory)
-            finally:
-                build_directory.cleanup()
+            files_to_remove = config("FILES_TO_REMOVE", default="", cast=Csv())
+            if not isinstance(files_to_remove, list):
+                files_to_remove = []
+            preservation_filepaths = sorted(
+                (
+                    filepath
+                    for filepath in filepaths
+                    if filepath.name not in files_to_remove
+                ),
+                key=lambda filepath: filepath.name,
+            )
+            logger.debug(f"🐞 PRESERVATION FILEPATHS: {preservation_filepaths}")
+            if preservation_filepaths:
+                process_archival_object_preservation_files(
+                    archival_object, digital_object_uri, preservation_filepaths
+                )
+            cascflow.move_to_stage_3(stage_2_path_obj, batch_directory)
     else:
         parser.print_help()
 

@@ -6,6 +6,7 @@ import tempfile
 import pytest
 
 import arkminter
+import cascflow
 import distillery
 
 
@@ -51,100 +52,25 @@ def test_get_crockford_id_has_expected_shape_and_charset():
     assert set(value.replace("_", "")).issubset(allowed)
 
 
-def test_get_archival_object_directory_prefix_sanitizes_title_and_trailing_slash():
-    arrangement = {
-        "collection_id": "EXAMPLE:123",
-        "archival_object_title": "Field Notes, Box #1/2",
-    }
-    archival_object = {"component_id": "aspace_abcdef"}
-
-    prefix = distillery.get_archival_object_directory_prefix(
-        arrangement, archival_object
-    )
-
-    assert prefix == "EXAMPLE:123/aspace_abcdef--Field-Notes--Box--1-2/"
-
-
-def test_get_archival_object_datafile_key_uses_component_id_and_json_extension():
-    archival_object = {"component_id": "aspace_1234"}
-
-    datafile_key = distillery.get_archival_object_datafile_key(
-        "COLL/aspace_1234--Title/", archival_object
-    )
-
-    assert datafile_key == "COLL/aspace_1234--Title/aspace_1234.json"
-
-
-def test_get_digital_object_component_file_key_builds_expected_path():
-    file_parts = {
-        "filename": "EXAMPLE_0001.tiff",
-        "crockford_id": "ab12_cd34",
-        "extension": "tiff",
-        "filepath": str(Path("/tmp/EXAMPLE_0001.tiff")),
-        "filestem": "EXAMPLE_0001",
-        "sequence": "0001",
-    }
-
-    file_key = distillery.get_digital_object_component_file_key(
-        "EXAMPLE:123/aspace_abcdef--Field-Notes/", file_parts
-    )
-
-    assert file_key == (
-        "EXAMPLE:123/aspace_abcdef--Field-Notes/EXAMPLE_0001.tiff/ab12_cd34.tiff"
-    )
-
-
-def test_get_digital_object_component_file_key_preserves_prefix_and_extension_variant():
-    file_parts = {
-        "filename": "OH_Acosta_A_0007.wav",
-        "crockford_id": "wxyz_9876",
-        "extension": "wav",
-        "filepath": str(Path("/tmp/OH_Acosta_A_0007.wav")),
-        "filestem": "OH_Acosta_A_0007",
-        "sequence": "0007",
-    }
-
-    file_key = distillery.get_digital_object_component_file_key(
-        "CALT-001/aspace_777--Interview-Audio/", file_parts
-    )
-
-    assert file_key == (
-        "CALT-001/aspace_777--Interview-Audio/OH_Acosta_A_0007.wav/wxyz_9876.wav"
-    )
-
-
-def test_get_file_parts_standard_filename_shape():
-    filepath = Path("/tmp/EXAMPLE_02_0B_056_07_0001.tiff")
-
-    parts = distillery.get_file_parts(filepath)
-
-    assert parts["filepath"] == "/tmp/EXAMPLE_02_0B_056_07_0001.tiff"
-    assert parts["filename"] == "EXAMPLE_02_0B_056_07_0001.tiff"
-    assert parts["filestem"] == "EXAMPLE_02_0B_056_07_0001"
-    assert parts["extension"] == "tiff"
-    assert parts["sequence"] == "0001"
-    assert len(parts["crockford_id"]) == 9
-    assert parts["crockford_id"][4] == "_"
-
-
-def test_get_file_parts_multidot_filename_current_behavior():
-    filepath = Path("/tmp/interview.audio.master.wav")
-
-    parts = distillery.get_file_parts(filepath)
-
-    assert parts["filename"] == "interview.audio.master.wav"
-    assert parts["filestem"] == "interview"
-    assert parts["extension"] == "wav"
-    assert parts["sequence"] == "interview"
-
-
-def test_chunk_hash_returns_expected_md5_for_known_bytes(tmp_path):
+def test_chunk_hashes_returns_expected_digests_for_known_bytes(tmp_path):
     filepath = tmp_path / "known.bin"
     filepath.write_bytes(b"hello world")
 
-    digest = distillery.chunk_hash(filepath).hexdigest()
+    digests = distillery.chunk_hashes(filepath)
 
-    assert digest == "5eb63bbbe01eeed093cb22bb8f5acdc3"
+    assert digests == {
+        "sha256": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+        "md5": "5eb63bbbe01eeed093cb22bb8f5acdc3",
+    }
+
+
+def test_chunk_hashes_supports_a_subset_of_algorithms(tmp_path):
+    filepath = tmp_path / "known.bin"
+    filepath.write_bytes(b"hello world")
+
+    digests = distillery.chunk_hashes(filepath, algorithms=("md5",))
+
+    assert digests == {"md5": "5eb63bbbe01eeed093cb22bb8f5acdc3"}
 
 
 def test_construct_file_version_builds_expected_payload(tmp_path):
@@ -226,45 +152,263 @@ def test_construct_file_version_uses_relative_nested_path_in_file_uri(tmp_path):
     )
 
 
-def test_save_collection_datafile_writes_json_and_returns_expected_key(tmp_path, monkeypatch):
-    collection_data = {
-        "id_0": "CALT-001",
-        "title": "Test Collection",
-        "uri": "/repositories/2/resources/123",
-    }
+def test_ocfl_object_root_combines_storage_root_and_extension_path(monkeypatch):
+    monkeypatch.setattr(distillery, "config", lambda key, **kwargs: "/mnt/ocfl")
 
-    # Patch config to avoid dependency on runtime config
-    monkeypatch.setattr(distillery.cascflow, "config", lambda *a, **k: "dummy")
+    object_root = distillery.ocfl_object_root("https://n2t.net/ark:99999/b3xq7z")
 
-    key = distillery.save_collection_datafile(collection_data, str(tmp_path))
-
-    assert key == "CALT-001/CALT-001.json"
-    written_path = tmp_path / key
-    assert written_path.exists()
-    assert json.loads(written_path.read_text()) == collection_data
+    assert object_root == Path("/mnt/ocfl/b3x/q7z/b3xq7z")
 
 
-def test_save_archival_object_datafile_writes_json_and_returns_expected_key(tmp_path, monkeypatch):
-    arrangement = {
-        "collection_id": "CALT-001",
-        "archival_object_title": "Interview Tape #1",
-    }
-    archival_object = {
-        "component_id": "aspace_abc123",
-        "title": "Interview Tape 1",
-    }
+def test_load_ocfl_inventory_builds_fresh_shell_when_missing(tmp_path):
+    object_root = tmp_path / "obj"
 
-    # Patch config to avoid dependency on runtime config
-    monkeypatch.setattr(distillery.cascflow, "config", lambda *a, **k: "dummy")
+    inventory = distillery.load_ocfl_inventory(object_root, "id1")
 
-    key = distillery.save_archival_object_datafile(
-        arrangement, archival_object, str(tmp_path)
+    assert inventory["id"] == "id1"
+    assert inventory["head"] is None
+    assert inventory["digestAlgorithm"] == "sha256"
+
+
+def test_load_ocfl_inventory_loads_existing_file(tmp_path):
+    object_root = tmp_path / "obj"
+    object_root.mkdir()
+    existing = {"id": "id1", "head": "v0001"}
+    object_root.joinpath("inventory.json").write_text(json.dumps(existing))
+
+    inventory = distillery.load_ocfl_inventory(object_root, "id1")
+
+    assert inventory == existing
+
+
+def test_write_ocfl_inventory_writes_declaration_root_and_version_copies(tmp_path):
+    object_root = tmp_path / "obj"
+    inventory = cascflow.ocfl.build_inventory("id1")
+    inventory = cascflow.ocfl.add_version(
+        inventory, {"a.txt": "digest_a"}, created="t1"
     )
 
-    assert key == "CALT-001/aspace_abc123--Interview-Tape--1/aspace_abc123.json"
-    written_path = tmp_path / key
-    assert written_path.exists()
-    assert json.loads(written_path.read_text()) == archival_object
+    distillery.write_ocfl_inventory(object_root, inventory)
+
+    assert object_root.joinpath("0=ocfl_object_1.1").read_text() == "ocfl_object_1.1\n"
+    assert json.loads(object_root.joinpath("inventory.json").read_text()) == inventory
+    sidecar = object_root.joinpath("inventory.json.sha256").read_text()
+    assert sidecar.endswith(" inventory.json\n")
+    version_dir = object_root.joinpath("v0001")
+    assert json.loads(version_dir.joinpath("inventory.json").read_text()) == inventory
+    assert version_dir.joinpath("inventory.json.sha256").exists()
+
+
+def test_build_version_files_maps_plain_filenames_when_no_collision(tmp_path):
+    file1 = tmp_path / "a.txt"
+    file2 = tmp_path / "b.txt"
+    file1.write_bytes(b"aaa")
+    file2.write_bytes(b"bbb")
+    archival_object = {"component_id": "aspace_1", "title": "Test"}
+
+    files, fixity, sources, ao_bytes = distillery.build_version_files(
+        archival_object, [file1, file2]
+    )
+
+    assert set(files.keys()) == {"a.txt", "b.txt", "archival_object.json"}
+    assert files["a.txt"] == hashlib.sha256(b"aaa").hexdigest()
+    assert fixity["md5"]["a.txt"] == hashlib.md5(b"aaa").hexdigest()
+    assert sources["a.txt"] == file1
+    assert ao_bytes == json.dumps(archival_object, indent=4).encode()
+    assert files["archival_object.json"] == hashlib.sha256(ao_bytes).hexdigest()
+
+
+def test_build_version_files_disambiguates_same_batch_filename_collisions(tmp_path):
+    dir1 = tmp_path / "one"
+    dir2 = tmp_path / "two"
+    dir1.mkdir()
+    dir2.mkdir()
+    file1 = dir1 / "image.tif"
+    file2 = dir2 / "image.tif"
+    file1.write_bytes(b"aaa")
+    file2.write_bytes(b"bbb")
+    archival_object = {"component_id": "aspace_1"}
+
+    files, _fixity, _sources, _ao_bytes = distillery.build_version_files(
+        archival_object, [file1, file2]
+    )
+
+    logical_paths = set(files.keys()) - {"archival_object.json"}
+    assert len(logical_paths) == 2
+    for logical_path in logical_paths:
+        assert logical_path != "image.tif"
+        assert logical_path.startswith("image_")
+        assert logical_path.endswith(".tif")
+
+
+def test_write_ocfl_version_writes_content_and_inventory(tmp_path, monkeypatch):
+    storage_root = tmp_path / "ocfl_root"
+    monkeypatch.setattr(distillery, "config", lambda key, **kwargs: str(storage_root))
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    filepath = source_dir / "photo.tif"
+    filepath.write_bytes(b"photo-bytes")
+    archival_object = {
+        "component_id": "aspace_1",
+        "external_ark_url": "https://n2t.net/ark:99999/b3xq7z",
+    }
+
+    inventory = distillery.write_ocfl_version(archival_object, [filepath])
+
+    assert inventory["head"] == "v0001"
+    object_root = storage_root / "b3x" / "q7z" / "b3xq7z"
+    assert (
+        object_root / "v0001" / "content" / "photo.tif"
+    ).read_bytes() == b"photo-bytes"
+    assert (object_root / "v0001" / "content" / "archival_object.json").exists()
+    assert (object_root / "inventory.json").exists()
+
+
+def test_write_ocfl_version_does_not_recopy_unchanged_content_on_second_version(
+    tmp_path, monkeypatch
+):
+    storage_root = tmp_path / "ocfl_root"
+    monkeypatch.setattr(distillery, "config", lambda key, **kwargs: str(storage_root))
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    photo = source_dir / "photo.tif"
+    photo.write_bytes(b"photo-bytes")
+    audio = source_dir / "audio.wav"
+    audio.write_bytes(b"audio-bytes")
+    archival_object = {
+        "component_id": "aspace_1",
+        "external_ark_url": "https://n2t.net/ark:99999/b3xq7z",
+    }
+
+    distillery.write_ocfl_version(archival_object, [photo])
+    inventory = distillery.write_ocfl_version(archival_object, [photo, audio])
+
+    object_root = storage_root / "b3x" / "q7z" / "b3xq7z"
+    assert inventory["head"] == "v0002"
+    # photo.tif's bytes (and archival_object.json's, since it's unchanged
+    # too) were already stored in v0001 -- v0002 shouldn't duplicate them
+    assert not (object_root / "v0002" / "content" / "photo.tif").exists()
+    assert not (object_root / "v0002" / "content" / "archival_object.json").exists()
+    assert (
+        object_root / "v0002" / "content" / "audio.wav"
+    ).read_bytes() == b"audio-bytes"
+
+
+def test_construct_inventory_file_version_points_at_ark_relative_inventory_url():
+    archival_object = {"external_ark_url": "https://n2t.net/ark:99999/b3xq7z"}
+
+    file_version = distillery.construct_inventory_file_version(archival_object)
+
+    assert file_version == {
+        "file_uri": "https://n2t.net/ark:99999/b3xq7z/inventory.json",
+        "publish": False,
+    }
+
+
+def test_build_inventory_manifest_note_lists_current_version_state():
+    inventory = cascflow.ocfl.build_inventory("id1")
+    inventory = cascflow.ocfl.add_version(
+        inventory, {"b.txt": "digest_b", "a.txt": "digest_a"}, created="t1"
+    )
+
+    note = distillery.build_inventory_manifest_note(inventory)
+
+    assert note["jsonmodel_type"] == "note_digital_object"
+    assert note["label"] == "OCFL Inventory"
+    assert note["publish"] is False
+    content = note["content"][0]
+    assert "v0001" in content
+    assert "a.txt (sha256: digest_a)" in content
+    assert "b.txt (sha256: digest_b)" in content
+
+
+def test_update_inventory_manifest_note_replaces_prior_ocfl_note_only():
+    digital_object = {
+        "notes": [
+            {
+                "jsonmodel_type": "note_digital_object",
+                "label": "OCFL Inventory",
+                "content": ["old"],
+            },
+            {
+                "jsonmodel_type": "note_digital_object",
+                "label": "Other Note",
+                "content": ["keep me"],
+            },
+        ]
+    }
+    inventory = cascflow.ocfl.build_inventory("id1")
+    inventory = cascflow.ocfl.add_version(
+        inventory, {"a.txt": "digest_a"}, created="t1"
+    )
+
+    result = distillery.update_inventory_manifest_note(digital_object, inventory)
+
+    ocfl_notes = [n for n in result["notes"] if n["label"] == "OCFL Inventory"]
+    other_notes = [n for n in result["notes"] if n["label"] == "Other Note"]
+    assert len(ocfl_notes) == 1
+    assert "old" not in ocfl_notes[0]["content"][0]
+    assert len(other_notes) == 1
+
+
+def test_process_archival_object_preservation_files_writes_version_and_updates_as(
+    tmp_path, monkeypatch
+):
+    storage_root = tmp_path / "ocfl_root"
+    monkeypatch.setattr(distillery, "config", lambda key, **kwargs: str(storage_root))
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    filepath = source_dir / "photo.tif"
+    filepath.write_bytes(b"photo-bytes")
+    archival_object = {
+        "component_id": "aspace_1",
+        "external_ark_url": "https://n2t.net/ark:99999/b3xq7z",
+        "instances": [{"digital_object": {"ref": "/digital_objects/1"}}],
+    }
+
+    save_calls = []
+    monkeypatch.setattr(
+        distillery.cascflow,
+        "save_digital_object_file_versions",
+        lambda ao, fvs: save_calls.append((ao, fvs)),
+    )
+
+    digital_object_state = {"uri": "/digital_objects/1", "notes": []}
+    post_calls = []
+
+    def fake_archivesspace_get(uri):
+        class Resp:
+            def json(self):
+                return digital_object_state
+
+        return Resp()
+
+    def fake_archivesspace_post(uri, obj):
+        post_calls.append((uri, obj))
+
+    monkeypatch.setattr(
+        distillery.cascflow, "archivesspace_get", fake_archivesspace_get
+    )
+    monkeypatch.setattr(
+        distillery.cascflow, "archivesspace_post", fake_archivesspace_post
+    )
+
+    distillery.process_archival_object_preservation_files(
+        archival_object, "/digital_objects/1", [filepath]
+    )
+
+    assert len(save_calls) == 1
+    assert (
+        save_calls[0][1][0]["file_uri"]
+        == "https://n2t.net/ark:99999/b3xq7z/inventory.json"
+    )
+    assert len(post_calls) == 1
+    posted_uri, posted_digital_object = post_calls[0]
+    assert posted_uri == "/digital_objects/1"
+    ocfl_notes = [
+        n for n in posted_digital_object["notes"] if n["label"] == "OCFL Inventory"
+    ]
+    assert len(ocfl_notes) == 1
 
 
 def test_validate_digital_files_for_preservation_raises_when_no_files_found():
@@ -350,7 +494,14 @@ def test_validate_settings_for_preservation_raises_for_missing_settings():
 
 def test_validate_settings_for_preservation_raises_for_invalid_settings():
     settings_validation_results = make_settings_validation_results(
-        invalid=[{"key": "S5CMD_CMD", "kind": "executable", "status": "invalid", "detail": "s5cmd not found"}]
+        invalid=[
+            {
+                "key": "OCFL_STORAGE_ROOT",
+                "kind": "directory",
+                "status": "invalid",
+                "detail": "OCFL_STORAGE_ROOT is not a directory",
+            }
+        ]
     )
 
     with pytest.raises(RuntimeError, match="SETTINGS VALIDATION FAILED"):
@@ -472,43 +623,6 @@ def test_find_digital_object_raises_for_multiple_matches(monkeypatch):
     monkeypatch.setattr(distillery.cascflow, "config", lambda *a, **k: "2")
     with pytest.raises(ValueError, match=r"[Mm]ultiple digital_objects found"):
         distillery.find_digital_object("fakeid")
-
-
-def test_prepare_preservation_files_copies_files_to_expected_paths(
-    tmp_path, monkeypatch
-):
-    import tempfile
-
-    # Setup: create two files to copy
-    src1 = tmp_path / "file1.txt"
-    src2 = tmp_path / "file2.txt"
-    src1.write_text("hello")
-    src2.write_text("world")
-    build_dir = tempfile.TemporaryDirectory(dir=tmp_path)
-    variables = {
-        "filepaths": [src1, src2],
-        "archival_object": {"component_id": "aspace_1"},
-        "arrangement": {
-            "collection_id": "CALT-001",
-            "archival_object_title": "Test AO",
-        },
-    }
-
-    # Patch get_digital_object_component_file_key to a simple predictable function using monkeypatch fixture
-    def fake_get_digital_object_component_file_key(prefix, file_parts):
-        return f"{file_parts['filename']}"
-
-    monkeypatch.setattr(
-        distillery,
-        "get_digital_object_component_file_key",
-        fake_get_digital_object_component_file_key,
-    )
-    distillery.prepare_preservation_files(variables, build_dir)
-    # Assert files copied
-    assert Path(build_dir.name, "file1.txt").exists()
-    assert Path(build_dir.name, "file2.txt").exists()
-    assert Path(build_dir.name, "file1.txt").read_text() == "hello"
-    assert Path(build_dir.name, "file2.txt").read_text() == "world"
 
 
 def test_mint_ark_for_archival_object_skips_when_nma_or_naan_not_configured(
