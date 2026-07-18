@@ -477,6 +477,19 @@ def test_validate_settings_for_preservation_happy_path_no_exception():
     distillery.validate_settings_for_preservation(settings_validation_results)
 
 
+def test_validate_settings_for_preservation_raises_for_number_of_tuples_below_two(
+    monkeypatch,
+):
+    # See mirror_inventory_to_resolver.py's assigned_name_for_key() docstring:
+    # the Lambda's version-copy detection is only collision-proof for
+    # OCFL_NUMBER_OF_TUPLES >= 2.
+    monkeypatch.setattr(distillery, "OCFL_NUMBER_OF_TUPLES", 1)
+    settings_validation_results = make_settings_validation_results()
+
+    with pytest.raises(RuntimeError, match="OCFL_NUMBER_OF_TUPLES MUST BE >= 2"):
+        distillery.validate_settings_for_preservation(settings_validation_results)
+
+
 def test_ensure_digital_object_creates_when_none_exist(monkeypatch):
     archival_object = {"component_id": "aspace_1", "instances": []}
 

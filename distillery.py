@@ -71,6 +71,11 @@ DISTILLERY_SETTINGS_SPEC = [
 # Fixed architectural choices, not per-environment settings -- see
 # OCFL-PRESERVATION-PLAN.md §3. OCFL_VERSION_PADDING in particular must
 # never change for an object once its first version exists.
+# OCFL_NUMBER_OF_TUPLES must stay >= 2 -- the inventory-mirroring Lambda's
+# version-copy detection (cdk/functions/mirror_inventory_to_resolver.py,
+# assigned_name_for_key()) relies on this to distinguish a version copy
+# from the current inventory.json; enforced in
+# validate_settings_for_preservation() below.
 OCFL_DELIMITER = "/"
 OCFL_TUPLE_SIZE = 3
 OCFL_NUMBER_OF_TUPLES = 2
@@ -416,6 +421,18 @@ def validate_settings_for_preservation(settings_validation_results: dict) -> Non
             logger.error(f"❌ {setting['key']}: {setting['detail']}")
     if missing or invalid:
         raise RuntimeError("❌ SETTINGS VALIDATION FAILED")
+
+    if OCFL_NUMBER_OF_TUPLES < 2:
+        message = (
+            "❌ OCFL_NUMBER_OF_TUPLES MUST BE >= 2 -- the inventory-mirroring "
+            "Lambda's version-copy detection (cdk/functions/"
+            "mirror_inventory_to_resolver.py) can't distinguish a version "
+            "copy from the current inventory.json when an assigned name "
+            "happens to spell a version directory name."
+        )
+        logger.error(message)
+        raise RuntimeError(message)
+
     logger.debug("✅ ALL REQUIRED SETTINGS ARE SET AND USABLE")
 
 
