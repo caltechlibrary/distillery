@@ -56,7 +56,7 @@ DISTILLERY_SETTINGS_SPEC = [
     {"key": "RESOLVER_BUCKET", "kind": "string"},
     {"key": "OUR_NMA", "kind": "url"},
     {"key": "OUR_NAAN", "kind": "string"},
-    {"key": "OUR_SHOULDER", "kind": "string"},
+    {"key": "OUR_SHOULDER", "kind": "string", "required": False},
     {"key": "ARK_BLADE_LENGTH", "kind": "int", "required": False},
     {"key": "ABSOLUTE_MOUNT_PARENT", "kind": "directory"},
     {"key": "RELATIVE_SOURCE_DIRECTORY", "kind": "string"},
@@ -604,7 +604,9 @@ def main():
     logger = logging.getLogger("distillery")
     # handle the commands
     if args.command == "validate":
-        settings_validation_results = cascflow.validate_settings(DISTILLERY_SETTINGS_SPEC)
+        settings_validation_results = cascflow.validate_settings(
+            DISTILLERY_SETTINGS_SPEC
+        )
         validate_settings_for_preservation(settings_validation_results)
         validation_results = cascflow.validate_digital_files(args.context)
         validate_digital_files_for_preservation(validation_results)
