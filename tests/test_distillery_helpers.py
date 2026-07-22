@@ -362,7 +362,12 @@ def test_validate_digital_files_for_preservation_raises_when_no_files_found():
 
 def test_validate_digital_files_for_preservation_raises_for_ineligible_archival_objects():
     validation_results = make_validation_results(
-        ineligible_archival_objects=["aspace_bad_1"]
+        ineligible_archival_objects=[
+            {
+                "component_id": "aspace_bad_1",
+                "detail": "❌ ARCHIVAL OBJECT NOT FOUND: aspace_bad_1",
+            }
+        ]
     )
 
     with pytest.raises(RuntimeError, match="INELIGIBLE ARCHIVAL OBJECTS FOUND"):

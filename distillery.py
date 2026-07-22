@@ -565,7 +565,7 @@ def validate_digital_files_for_preservation(validation_results: dict) -> None:
         message = "❌ INELIGIBLE ARCHIVAL OBJECTS FOUND"
         logger.error(message)
         for ineligible_archival_object in ineligible_archival_objects:
-            logger.error(f"❌ {ineligible_archival_object}")
+            logger.error(f"❌ {ineligible_archival_object['detail']}")
         raise RuntimeError(message)
     if nested_directories:
         message = "❌ NESTED DIRECTORIES FOUND"
