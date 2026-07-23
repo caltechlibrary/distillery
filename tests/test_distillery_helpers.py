@@ -158,6 +158,14 @@ def test_write_current_ocfl_inventory_replaces_on_a_later_call(tmp_path):
     assert object_root.joinpath("0=ocfl_object_1.1").read_text() == "ocfl_object_1.1\n"
 
 
+def test_build_metadata_filename_namespaces_by_component_id():
+    archival_object = {"component_id": "aspace_1"}
+
+    assert distillery.build_metadata_filename(archival_object) == (
+        "_metadata-aspace_1.json"
+    )
+
+
 def test_build_version_files_maps_filenames_to_digests_and_sources(tmp_path):
     file1 = tmp_path / "a.txt"
     file2 = tmp_path / "b.txt"
@@ -169,12 +177,12 @@ def test_build_version_files_maps_filenames_to_digests_and_sources(tmp_path):
         archival_object, [file1, file2]
     )
 
-    assert set(files.keys()) == {"a.txt", "b.txt", "archival_object.json"}
+    assert set(files.keys()) == {"a.txt", "b.txt", "_metadata-aspace_1.json"}
     assert files["a.txt"] == hashlib.sha256(b"aaa").hexdigest()
     assert fixity["md5"]["a.txt"] == hashlib.md5(b"aaa").hexdigest()
     assert sources["a.txt"] == file1
     assert ao_bytes == json.dumps(archival_object, indent=4).encode()
-    assert files["archival_object.json"] == hashlib.sha256(ao_bytes).hexdigest()
+    assert files["_metadata-aspace_1.json"] == hashlib.sha256(ao_bytes).hexdigest()
 
 
 def test_write_ocfl_version_writes_content_and_inventory(tmp_path, monkeypatch):
@@ -198,10 +206,31 @@ def test_write_ocfl_version_writes_content_and_inventory(tmp_path, monkeypatch):
     assert (
         object_root / "v0001" / "content" / "photo.tif"
     ).read_bytes() == b"photo-bytes"
-    assert (object_root / "v0001" / "content" / "archival_object.json").exists()
+    assert (object_root / "v0001" / "content" / "_metadata-aspace_1.json").exists()
     assert (object_root / "inventory.json").exists()
     # the temporary staging directory used internally is cleaned up
     assert list((mount_parent / "ocfl-staging").iterdir()) == []
+
+
+def test_write_ocfl_version_writes_ark_compact_name_as_inventory_id(
+    tmp_path, monkeypatch
+):
+    mount_parent = tmp_path / "mount"
+    monkeypatch.setattr(
+        distillery, "config", make_preservation_mount_config(mount_parent)
+    )
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    filepath = source_dir / "photo.tif"
+    filepath.write_bytes(b"photo-bytes")
+    archival_object = {
+        "component_id": "aspace_1",
+        "external_ark_url": "https://n2t.net/ark:99999/b3xq7z",
+    }
+
+    inventory = distillery.write_ocfl_version(archival_object, [filepath])
+
+    assert inventory["id"] == "ark:99999/b3xq7z"
 
 
 def test_write_ocfl_version_does_not_recopy_unchanged_content_on_second_version(
@@ -227,13 +256,42 @@ def test_write_ocfl_version_does_not_recopy_unchanged_content_on_second_version(
 
     object_root = mount_parent / "ocfl-storage" / "b3x" / "q7z" / "b3xq7z"
     assert inventory["head"] == "v0002"
-    # photo.tif's bytes (and archival_object.json's, since it's unchanged
+    # photo.tif's bytes (and _metadata-aspace_1.json's, since it's unchanged
     # too) were already stored in v0001 -- v0002 shouldn't duplicate them
     assert not (object_root / "v0002" / "content" / "photo.tif").exists()
-    assert not (object_root / "v0002" / "content" / "archival_object.json").exists()
+    assert not (object_root / "v0002" / "content" / "_metadata-aspace_1.json").exists()
     assert (
         object_root / "v0002" / "content" / "audio.wav"
     ).read_bytes() == b"audio-bytes"
+
+
+def test_ark_base_compact_name_strips_scheme_and_host():
+    assert (
+        distillery.ark_base_compact_name("https://n2t.net/ark:99999/b3xq7z")
+        == "ark:99999/b3xq7z"
+    )
+
+
+def test_resolve_ocfl_user_uses_github_actor_and_profile_url_when_present(
+    monkeypatch,
+):
+    monkeypatch.setenv("GITHUB_ACTOR", "someuser")
+
+    assert distillery.resolve_ocfl_user() == (
+        "someuser",
+        "https://github.com/someuser",
+    )
+
+
+def test_resolve_ocfl_user_falls_back_to_distillery_identity_when_actor_not_set(
+    monkeypatch,
+):
+    monkeypatch.delenv("GITHUB_ACTOR", raising=False)
+
+    assert distillery.resolve_ocfl_user() == (
+        "distillery",
+        "https://github.com/caltechlibrary/distillery",
+    )
 
 
 def test_construct_inventory_file_version_points_at_ark_relative_inventory_url():
@@ -387,12 +445,35 @@ def test_validate_digital_files_for_preservation_raises_for_reserved_filename(
     source_path = tmp_path / "source"
     aspace_dir = source_path / "aspace_1"
     aspace_dir.mkdir(parents=True)
-    (aspace_dir / "archival_object.json").write_text("{}")
+    (aspace_dir / "_metadata-aspace_1.json").write_text("{}")
 
     validation_results = make_validation_results(source_path=source_path)
 
     with pytest.raises(RuntimeError, match="RESERVED FILENAME"):
         distillery.validate_digital_files_for_preservation(validation_results)
+
+
+def test_validate_digital_files_for_preservation_allows_non_matching_metadata_filename(
+    tmp_path, monkeypatch
+):
+    # A file matching the naming *convention* but not THIS entry's own
+    # derived name isn't a real collision -- only an exact match is.
+    source_path = tmp_path / "source"
+    aspace_dir = source_path / "aspace_1"
+    aspace_dir.mkdir(parents=True)
+    (aspace_dir / "_metadata-some_other_id.json").write_text("{}")
+
+    class DummyDiskUsage:
+        total = 10 * (1024**3)
+        used = 1 * (1024**3)
+        free = 9 * (1024**3)
+
+    monkeypatch.setattr(distillery, "config", lambda key, **kwargs: str(tmp_path))
+    monkeypatch.setattr(distillery.shutil, "disk_usage", lambda _p: DummyDiskUsage())
+
+    validation_results = make_validation_results(source_path=source_path)
+
+    distillery.validate_digital_files_for_preservation(validation_results)
 
 
 def test_validate_digital_files_for_preservation_raises_when_space_is_insufficient(

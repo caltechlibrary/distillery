@@ -249,10 +249,17 @@ def write_current_ocfl_inventory(
         declaration_path.write_text("ocfl_object_1.1\n")
 
 
+def build_metadata_filename(archival_object: dict) -> str:
+    """Return the OCFL logical path for archival_object's metadata snapshot,
+    namespaced by its Component Unique Identifier so it can never collide
+    across archival objects sharing the same OCFL storage root."""
+    return f"_metadata-{archival_object['component_id']}.json"
+
+
 def build_version_files(archival_object: dict, filepaths: list) -> tuple:
     """Return (files, fixity, source_by_logical_path, archival_object_bytes)
     describing one new OCFL version for archival_object's preservation
-    files plus an archival_object.json snapshot.
+    files plus a metadata snapshot (see build_metadata_filename()).
 
     `files` maps logical path -> sha256 digest (the OCFL manifest digest).
     `fixity` maps "md5" -> {logical path: md5 digest} (see
@@ -272,14 +279,36 @@ def build_version_files(archival_object: dict, filepaths: list) -> tuple:
         source_by_logical_path[filepath.name] = filepath
 
     archival_object_bytes = json.dumps(archival_object, indent=4).encode()
-    files["archival_object.json"] = hashlib.sha256(archival_object_bytes).hexdigest()
+    files[build_metadata_filename(archival_object)] = hashlib.sha256(
+        archival_object_bytes
+    ).hexdigest()
 
     return files, {"md5": fixity_md5}, source_by_logical_path, archival_object_bytes
 
 
+def ark_base_compact_name(external_ark_url: str) -> str:
+    """Return the ARK Base Compact Name (e.g. "ark:99999/b3xq7z") from a
+    full resolvable ARK URL (e.g. "https://n2t.net/ark:99999/b3xq7z")."""
+    return "ark:" + external_ark_url.split("ark:", 1)[1]
+
+
+def resolve_ocfl_user() -> tuple:
+    """Resolve the (name, address) to attribute a new OCFL version to.
+
+    GITHUB_ACTOR is always present as a default environment variable when
+    running under GitHub Actions -- used directly as both the triggering
+    user's name and the base of their GitHub profile URL. Falls back to
+    identifying the pipeline itself when run from the command line.
+    """
+    actor = os.environ.get("GITHUB_ACTOR", "").strip()
+    if actor:
+        return actor, f"https://github.com/{actor}"
+    return "distillery", "https://github.com/caltechlibrary/distillery"
+
+
 def write_ocfl_version(archival_object: dict, filepaths: list) -> dict:
     """Add a new OCFL version for archival_object's preservation files plus
-    an archival_object.json snapshot; write it under the OCFL storage root.
+    a metadata snapshot; write it under the OCFL storage root.
 
     Builds the new version's content in a temporary staging directory
     (ocfl_staging_root()), then os.rename()s the whole thing into place in
@@ -289,7 +318,7 @@ def write_ocfl_version(archival_object: dict, filepaths: list) -> dict:
 
     Returns the updated inventory dict (already written to disk).
     """
-    object_id = archival_object["external_ark_url"]
+    object_id = ark_base_compact_name(archival_object["external_ark_url"])
     object_root = ocfl_object_root(object_id)
     inventory = load_ocfl_inventory(object_root, object_id)
     existing_digests = set(inventory["manifest"].keys())
@@ -297,6 +326,8 @@ def write_ocfl_version(archival_object: dict, filepaths: list) -> dict:
     files, fixity, source_by_logical_path, archival_object_bytes = build_version_files(
         archival_object, filepaths
     )
+    metadata_filename = build_metadata_filename(archival_object)
+    user_name, user_address = resolve_ocfl_user()
 
     inventory = cascflow.ocfl.add_version(
         inventory,
@@ -304,8 +335,8 @@ def write_ocfl_version(archival_object: dict, filepaths: list) -> dict:
         created=datetime.datetime.now(datetime.timezone.utc).strftime(
             "%Y-%m-%dT%H:%M:%SZ"
         ),
-        message="Preservation files added by Distillery",
-        user_name="distillery",
+        user_name=user_name,
+        user_address=user_address,
         version_padding=OCFL_VERSION_PADDING,
         fixity=fixity,
     )
@@ -321,7 +352,7 @@ def write_ocfl_version(archival_object: dict, filepaths: list) -> dict:
                 continue
             destination = content_dir.joinpath(logical_path)
             destination.parent.mkdir(parents=True, exist_ok=True)
-            if logical_path == "archival_object.json":
+            if logical_path == metadata_filename:
                 destination.write_bytes(archival_object_bytes)
             else:
                 shutil.copy2(source_by_logical_path[logical_path], destination)
@@ -437,17 +468,21 @@ def validate_settings_for_preservation(settings_validation_results: dict) -> Non
 
 
 def validate_digital_files_for_preservation(validation_results: dict) -> None:
-    # Distillery writes an archival_object.json snapshot into each OCFL
-    # version (OCFL-PRESERVATION-PLAN.md §4); a source file with that exact
-    # name would silently collide with it.
+    # Distillery writes a _metadata-{component_id}.json snapshot into each
+    # OCFL version (OCFL-PRESERVATION-PLAN.md §4); a source file with that
+    # exact name would silently collide with it. Relies on each top-level
+    # source entry's own name (entry.stem) being byte-identical to its
+    # component_id -- true today (both come from the same ArchivesSpace
+    # lookup), but nothing enforces it explicitly.
     def validate_no_reserved_filename_conflicts(source_path: Path) -> None:
         conflicts = sorted(
-            str(filepath) for filepath in source_path.rglob("archival_object.json")
+            str(filepath)
+            for entry in source_path.iterdir()
+            if entry.is_dir()
+            for filepath in entry.rglob(f"_metadata-{entry.stem}.json")
         )
         if conflicts:
-            message = (
-                "❌ RESERVED FILENAME 'archival_object.json' FOUND IN SOURCE FILES"
-            )
+            message = "❌ RESERVED FILENAME '_metadata-*.json' FOUND IN SOURCE FILES"
             logger.error(message)
             for conflict in conflicts:
                 logger.error(f"❌ {conflict}")
