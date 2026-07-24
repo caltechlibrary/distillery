@@ -301,51 +301,123 @@ def test_construct_inventory_file_version_points_at_ark_relative_inventory_url()
 
     assert file_version == {
         "file_uri": "https://n2t.net/ark:99999/b3xq7z/inventory.json",
+        "use_statement": "OCFL-Object-Inventory",
         "publish": False,
     }
 
 
-def test_build_inventory_manifest_note_lists_current_version_state():
-    inventory = cascflow.ocfl.build_inventory("id1")
+def test_ocfl_relative_storage_path_joins_mount_storage_and_tuple_path(monkeypatch):
+    monkeypatch.setattr(distillery, "config", make_preservation_mount_config("/mnt"))
+    inventory = cascflow.ocfl.build_inventory("ark:99999/b3xq7z")
+
+    path = distillery.ocfl_relative_storage_path(inventory)
+
+    assert path == "mnt/ocfl-storage/b3x/q7z/b3xq7z"
+
+
+def test_construct_nas_file_version_builds_file_uri_from_relative_storage_path(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        distillery,
+        "config",
+        make_preservation_mount_config(
+            "/mnt", PRESERVATION_NAS_HOSTNAME="nas.example.edu"
+        ),
+    )
+    inventory = cascflow.ocfl.build_inventory("ark:99999/b3xq7z")
+
+    file_version = distillery.construct_nas_file_version(inventory)
+
+    assert file_version == {
+        "file_uri": "file://nas.example.edu/mnt/ocfl-storage/b3x/q7z/b3xq7z/inventory.json",
+        "use_statement": "OCFL-Object-Inventory",
+        "publish": False,
+    }
+
+
+def test_construct_nas_file_version_uses_empty_authority_when_hostname_not_configured(
+    monkeypatch,
+):
+    # PRESERVATION_NAS_HOSTNAME is optional -- per RFC 8089, a file: URI
+    # with no authority ("file:///...") conventionally means localhost.
+    monkeypatch.setattr(distillery, "config", make_preservation_mount_config("/mnt"))
+    inventory = cascflow.ocfl.build_inventory("ark:99999/b3xq7z")
+
+    file_version = distillery.construct_nas_file_version(inventory)
+
+    assert file_version["file_uri"] == (
+        "file:///mnt/ocfl-storage/b3x/q7z/b3xq7z/inventory.json"
+    )
+
+
+def test_build_inventory_manifest_note_label_joins_path_with_fullwidth_solidus(
+    monkeypatch,
+):
+    monkeypatch.setattr(distillery, "config", make_preservation_mount_config("/mnt"))
+    inventory = cascflow.ocfl.build_inventory("ark:99999/b3xq7z")
     inventory = cascflow.ocfl.add_version(
-        inventory, {"b.txt": "digest_b", "a.txt": "digest_a"}, created="t1"
+        inventory, {"a.txt": "digest_a"}, created="t1"
+    )
+
+    label = distillery.build_inventory_manifest_note_label(inventory)
+
+    assert label == "mnt／ocfl-storage／b3x／q7z／b3xq7z (latest: v0001)"
+
+
+def test_build_inventory_manifest_note_sorts_lines_by_filename_not_digest(
+    monkeypatch,
+):
+    monkeypatch.setattr(distillery, "config", make_preservation_mount_config("/mnt"))
+    inventory = cascflow.ocfl.build_inventory("ark:99999/b3xq7z")
+    # digest order and filename order deliberately disagree (digest_1 <
+    # digest_2, but zebra.txt > apple.txt) so this actually pins
+    # filename-based sorting rather than passing by coincidence.
+    inventory = cascflow.ocfl.add_version(
+        inventory,
+        {"zebra.txt": "digest_1", "apple.txt": "digest_2"},
+        created="t1",
     )
 
     note = distillery.build_inventory_manifest_note(inventory)
 
     assert note["jsonmodel_type"] == "note_digital_object"
-    assert note["label"] == "OCFL Inventory"
+    assert note["type"] == "altformavail"
     assert note["publish"] is False
-    content = note["content"][0]
-    assert "v0001" in content
-    assert "a.txt (sha256: digest_a)" in content
-    assert "b.txt (sha256: digest_b)" in content
+    em_space = distillery.EM_SPACE
+    assert note["content"][0] == (
+        f"apple.txt{em_space}:{em_space}digest_2\n"
+        f"zebra.txt{em_space}:{em_space}digest_1"
+    )
 
 
-def test_update_inventory_manifest_note_replaces_prior_ocfl_note_only():
+def test_update_inventory_manifest_note_replaces_prior_ocfl_note_only(monkeypatch):
+    monkeypatch.setattr(distillery, "config", make_preservation_mount_config("/mnt"))
     digital_object = {
         "notes": [
             {
                 "jsonmodel_type": "note_digital_object",
-                "label": "OCFL Inventory",
+                "type": "altformavail",
+                "label": "stale label from a previous version",
                 "content": ["old"],
             },
             {
                 "jsonmodel_type": "note_digital_object",
+                "type": "odd",
                 "label": "Other Note",
                 "content": ["keep me"],
             },
         ]
     }
-    inventory = cascflow.ocfl.build_inventory("id1")
+    inventory = cascflow.ocfl.build_inventory("ark:99999/b3xq7z")
     inventory = cascflow.ocfl.add_version(
         inventory, {"a.txt": "digest_a"}, created="t1"
     )
 
     result = distillery.update_inventory_manifest_note(digital_object, inventory)
 
-    ocfl_notes = [n for n in result["notes"] if n["label"] == "OCFL Inventory"]
-    other_notes = [n for n in result["notes"] if n["label"] == "Other Note"]
+    ocfl_notes = [n for n in result["notes"] if n["type"] == "altformavail"]
+    other_notes = [n for n in result["notes"] if n["type"] == "odd"]
     assert len(ocfl_notes) == 1
     assert "old" not in ocfl_notes[0]["content"][0]
     assert len(other_notes) == 1
@@ -355,7 +427,13 @@ def test_process_archival_object_preservation_files_writes_version_and_updates_a
     tmp_path, monkeypatch
 ):
     storage_root = tmp_path / "ocfl_root"
-    monkeypatch.setattr(distillery, "config", lambda key, **kwargs: str(storage_root))
+    monkeypatch.setattr(
+        distillery,
+        "config",
+        make_preservation_mount_config(
+            storage_root, PRESERVATION_NAS_HOSTNAME="nas.example.edu"
+        ),
+    )
     source_dir = tmp_path / "source"
     source_dir.mkdir()
     filepath = source_dir / "photo.tif"
@@ -398,15 +476,16 @@ def test_process_archival_object_preservation_files_writes_version_and_updates_a
     )
 
     assert len(save_calls) == 1
-    assert (
-        save_calls[0][1][0]["file_uri"]
-        == "https://n2t.net/ark:99999/b3xq7z/inventory.json"
-    )
+    file_uris = {file_version["file_uri"] for file_version in save_calls[0][1]}
+    assert file_uris == {
+        "https://n2t.net/ark:99999/b3xq7z/inventory.json",
+        "file://nas.example.edu/ocfl_root/ocfl-storage/b3x/q7z/b3xq7z/inventory.json",
+    }
     assert len(post_calls) == 1
     posted_uri, posted_digital_object = post_calls[0]
     assert posted_uri == "/digital_objects/1"
     ocfl_notes = [
-        n for n in posted_digital_object["notes"] if n["label"] == "OCFL Inventory"
+        n for n in posted_digital_object["notes"] if n["type"] == "altformavail"
     ]
     assert len(ocfl_notes) == 1
 

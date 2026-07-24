@@ -65,6 +65,7 @@ DISTILLERY_SETTINGS_SPEC = [
     {"key": "PRESERVATION_MOUNT_PARENT", "kind": "directory"},
     {"key": "RELATIVE_OCFL_STORAGE_DIRECTORY", "kind": "string"},
     {"key": "RELATIVE_OCFL_STAGING_DIRECTORY", "kind": "string"},
+    {"key": "PRESERVATION_NAS_HOSTNAME", "kind": "string", "required": False},
 ]
 
 # OCFL Extension 0007 (N Tuple Omit Prefix Storage Layout) configuration.
@@ -369,6 +370,14 @@ def write_ocfl_version(archival_object: dict, filepaths: list) -> dict:
     return inventory
 
 
+# ArchivesSpace file_version.use_statement for every copy of an OCFL
+# object's inventory.json (public resolver, NAS, eventual S3) -- a custom
+# enumeration value, distinguished from each other by file_uri scheme/host
+# rather than by use_statement (see OCFL-PRESERVATION-PLAN.md §2,
+# "file_version use_statement and multi-copy convention").
+OCFL_FILE_VERSION_USE_STATEMENT = "OCFL-Object-Inventory"
+
+
 def construct_inventory_file_version(archival_object: dict) -> dict:
     """Build the ArchivesSpace file_version pointing at this object's
     inventory.json, once mirrored to the public resolver bucket by the
@@ -377,8 +386,68 @@ def construct_inventory_file_version(archival_object: dict) -> dict:
     acceptable since it's unpublished/staff-only (§5)."""
     return {
         "file_uri": f"{archival_object['external_ark_url']}/inventory.json",
+        "use_statement": OCFL_FILE_VERSION_USE_STATEMENT,
         "publish": False,
     }
+
+
+def construct_nas_file_version(inventory: dict) -> dict:
+    """Build the ArchivesSpace file_version pointing at this object's
+    inventory.json on the local NAS -- a definitive but not
+    network-resolvable URI (see OCFL-PRESERVATION-PLAN.md §2, "file_version
+    use_statement and multi-copy convention"). PRESERVATION_NAS_HOSTNAME is
+    optional: per RFC 8089, a file: URI's authority may be empty
+    ("file:///path"), which conventionally means localhost."""
+    return {
+        "file_uri": (
+            f"file://{config('PRESERVATION_NAS_HOSTNAME', default='')}/"
+            f"{ocfl_relative_storage_path(inventory)}/inventory.json"
+        ),
+        "use_statement": OCFL_FILE_VERSION_USE_STATEMENT,
+        "publish": False,
+    }
+
+
+OCFL_MANIFEST_NOTE_TYPE = "altformavail"  # "Existence and Location of Copies"
+
+# Fullwidth solidus, standing in for "/" throughout the manifest note's
+# label so the real path separators there read unambiguously; also used to
+# replace any literal "/" occurring within a path segment's own value.
+FULLWIDTH_SOLIDUS = "／"
+EM_SPACE = " "
+
+
+def ocfl_relative_storage_path(inventory: dict) -> str:
+    """Return the OCFL object's storage path relative to
+    PRESERVATION_MOUNT_PARENT's own parent -- starting from
+    PRESERVATION_MOUNT_PARENT's final segment (the mounted volume name)
+    through the object root directory -- joined with "/". Shared by the
+    manifest note's label and the NAS file_version so both always agree on
+    where the object actually lives."""
+    return "/".join(
+        (
+            Path(config("PRESERVATION_MOUNT_PARENT")).name,
+            config("RELATIVE_OCFL_STORAGE_DIRECTORY"),
+            cascflow.ocfl.object_root_path(
+                inventory["id"],
+                delimiter=OCFL_DELIMITER,
+                tuple_size=OCFL_TUPLE_SIZE,
+                number_of_tuples=OCFL_NUMBER_OF_TUPLES,
+            ),
+        )
+    )
+
+
+def build_inventory_manifest_note_label(inventory: dict) -> str:
+    """Build the manifest note's label: the OCFL object's on-disk path
+    (mount parent's final segment, storage directory, tuple path, and
+    object root directory name, joined by the fullwidth solidus for
+    legibility), followed by the current head version."""
+    segments = ocfl_relative_storage_path(inventory).split("/")
+    path = FULLWIDTH_SOLIDUS.join(
+        segment.replace("/", FULLWIDTH_SOLIDUS) for segment in segments
+    )
+    return f"{path}{EM_SPACE}(latest: {inventory['head']})"
 
 
 def build_inventory_manifest_note(inventory: dict) -> dict:
@@ -386,14 +455,21 @@ def build_inventory_manifest_note(inventory: dict) -> dict:
     current OCFL inventory contents (see OCFL-PRESERVATION-PLAN.md §5)."""
     head = inventory["head"]
     state = inventory["versions"][head]["state"]
-    lines = [f"OCFL object inventory ({head}):"]
-    for digest, logical_paths in sorted(state.items()):
-        for logical_path in sorted(logical_paths):
-            lines.append(f"{logical_path} ({inventory['digestAlgorithm']}: {digest})")
+    # Sorted by logical_path (not by iterating `state` as-is, which is
+    # keyed by digest) so this reads naturally for a human -- filenames
+    # alphabetically, not shuffled by hash value.
+    lines = [
+        f"{logical_path}{EM_SPACE}:{EM_SPACE}{digest}"
+        for logical_path, digest in sorted(
+            (logical_path, digest)
+            for digest, logical_paths in state.items()
+            for logical_path in logical_paths
+        )
+    ]
     return {
         "jsonmodel_type": "note_digital_object",
-        "type": "note",
-        "label": "OCFL Inventory",
+        "type": OCFL_MANIFEST_NOTE_TYPE,
+        "label": build_inventory_manifest_note_label(inventory),
         "content": ["\n".join(lines)],
         "publish": False,
     }
@@ -402,14 +478,16 @@ def build_inventory_manifest_note(inventory: dict) -> dict:
 def update_inventory_manifest_note(digital_object: dict, inventory: dict) -> dict:
     """Replace (or add) the digital_object's OCFL inventory manifest note.
 
-    Regenerated/overwritten on every update, not appended (§2)."""
+    Regenerated/overwritten on every update, not appended (§2). Matched by
+    note type rather than label, since the label now embeds the current
+    head version and so changes on every call."""
     note = build_inventory_manifest_note(inventory)
     notes = [
         n
         for n in digital_object.get("notes", [])
         if not (
             n.get("jsonmodel_type") == "note_digital_object"
-            and n.get("label") == "OCFL Inventory"
+            and n.get("type") == OCFL_MANIFEST_NOTE_TYPE
         )
     ]
     notes.append(note)
@@ -421,13 +499,17 @@ def process_archival_object_preservation_files(
     archival_object: dict, digital_object_uri: str, filepaths: list
 ) -> None:
     """Write a new OCFL version for archival_object's preservation files,
-    then update ArchivesSpace: a single file_version pointing at the
-    object's (eventual) public inventory.json URL, plus a regenerated
-    unpublished manifest note (see OCFL-PRESERVATION-PLAN.md §5)."""
+    then update ArchivesSpace: file_versions pointing at the object's
+    (eventual) public inventory.json URL and its local NAS copy, plus a
+    regenerated unpublished manifest note (see OCFL-PRESERVATION-PLAN.md
+    §5, §2 "file_version use_statement and multi-copy convention")."""
     inventory = write_ocfl_version(archival_object, filepaths)
 
-    file_version = construct_inventory_file_version(archival_object)
-    cascflow.save_digital_object_file_versions(archival_object, [file_version])
+    file_versions = [
+        construct_inventory_file_version(archival_object),
+        construct_nas_file_version(inventory),
+    ]
+    cascflow.save_digital_object_file_versions(archival_object, file_versions)
 
     # re-fetch fresh so the note update POSTs a current lock_version, since
     # save_digital_object_file_versions already POSTed the digital_object once
