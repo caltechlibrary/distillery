@@ -272,6 +272,15 @@ def test_ark_base_compact_name_strips_scheme_and_host():
     )
 
 
+def test_resolver_cloudfront_invalidation_path_points_at_ark_relative_inventory():
+    archival_object = {"external_ark_url": "https://n2t.net/ark:99999/b3xq7z"}
+
+    assert (
+        distillery.resolver_cloudfront_invalidation_path(archival_object)
+        == "/ark:99999/b3xq7z/inventory.json"
+    )
+
+
 def test_resolve_ocfl_user_uses_github_actor_and_profile_url_when_present(
     monkeypatch,
 ):

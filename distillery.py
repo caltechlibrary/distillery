@@ -54,6 +54,11 @@ DISTILLERY_SETTINGS_SPEC = [
     {"key": "AWS_ACCESS_KEY_ID", "kind": "string"},
     {"key": "AWS_SECRET_ACCESS_KEY", "kind": "string"},
     {"key": "RESOLVER_BUCKET", "kind": "string"},
+    {
+        "key": "RESOLVER_CLOUDFRONT_DISTRIBUTION_ID",
+        "kind": "string",
+        "required": False,
+    },
     {"key": "OUR_NMA", "kind": "url"},
     {"key": "OUR_NAAN", "kind": "string"},
     {"key": "OUR_SHOULDER", "kind": "string", "required": False},
@@ -286,6 +291,13 @@ def ark_base_compact_name(external_ark_url: str) -> str:
     """Return the ARK Base Compact Name (e.g. "ark:99999/b3xq7z") from a
     full resolvable ARK URL (e.g. "https://n2t.net/ark:99999/b3xq7z")."""
     return "ark:" + external_ark_url.split("ark:", 1)[1]
+
+
+def resolver_cloudfront_invalidation_path(archival_object: dict) -> str:
+    """Return the CloudFront path to invalidate on the resolver
+    distribution after (re)uploading this object's inventory.json."""
+    name = ark_base_compact_name(archival_object["external_ark_url"])
+    return f"/{name}/inventory.json"
 
 
 def resolve_ocfl_user() -> tuple:
@@ -737,6 +749,7 @@ def main():
         validate_digital_files_for_preservation(validation_results)
     elif args.command == "execute":
         batch_set_id = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
+        cloudfront_invalidation_paths = []
         for (
             batch_directory,
             stage_2_path_obj,
@@ -770,7 +783,21 @@ def main():
                 process_archival_object_preservation_files(
                     archival_object, digital_object_uri, preservation_filepaths
                 )
+                cloudfront_invalidation_paths.append(
+                    resolver_cloudfront_invalidation_path(archival_object)
+                )
             cascflow.move_to_stage_3(stage_2_path_obj, batch_directory)
+        if cloudfront_invalidation_paths and config(
+            "RESOLVER_CLOUDFRONT_DISTRIBUTION_ID", default=""
+        ):
+            cascflow.invalidate_cloudfront_paths(
+                distribution=config("RESOLVER_CLOUDFRONT_DISTRIBUTION_ID"),
+                paths=cloudfront_invalidation_paths,
+            )
+            logger.info(
+                "☑️  CLOUDFRONT INVALIDATION SUBMITTED FOR "
+                f"{len(cloudfront_invalidation_paths)} PATH(S)"
+            )
     else:
         parser.print_help()
 
