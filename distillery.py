@@ -83,6 +83,15 @@ OCFL_NUMBER_OF_TUPLES = 2
 OCFL_VERSION_PADDING = 4
 OCFL_DIGEST_ALGORITHM = "sha256"
 
+# OCFL storage root conformance (OCFL-PRESERVATION-PLAN.md §3).
+OCFL_STORAGE_ROOT_VERSION = "1.1"
+OCFL_LAYOUT_DESCRIPTION = (
+    "The OCFL Storage Layout Extension 0007 defines a flat list of "
+    "storage root paths such that each OCFL object identifier, once an "
+    "optional prefix is removed, is used to derive an n-tuple path "
+    "segment; the remainder is retained as the final path segment."
+)
+
 
 def mint_ark_for_archival_object(archival_object: dict) -> str | None:
     import arkminter
@@ -196,6 +205,126 @@ def ocfl_object_root(object_id: str) -> Path:
             number_of_tuples=OCFL_NUMBER_OF_TUPLES,
         )
     )
+
+
+def ocfl_storage_root_is_initialized(storage_root: Path) -> bool:
+    """A storage root counts as initialized once it exists and has any
+    content -- an empty (or not-yet-created) directory is fair game to
+    initialize from scratch."""
+    return storage_root.exists() and any(storage_root.iterdir())
+
+
+def ocfl_storage_root_conformance_problems(storage_root: Path) -> list:
+    """Check an already-initialized storage root against OCFL 1.1 §3.1 --
+    the root conformance declaration, ocfl_layout.json, and the Extension
+    0007 config must all be present and match this instance's configured
+    parameters. Returns a list of human-readable problems (empty if fully
+    conformant). Assumes storage_root exists and has content; callers
+    should check ocfl_storage_root_is_initialized() first."""
+    declaration_path = storage_root.joinpath(f"0=ocfl_{OCFL_STORAGE_ROOT_VERSION}")
+    layout_path = storage_root.joinpath("ocfl_layout.json")
+    extension_config_path = storage_root.joinpath(
+        "extensions", cascflow.ocfl.OCFL_EXTENSION_0007_NAME, "config.json"
+    )
+    expected_declaration = f"ocfl_{OCFL_STORAGE_ROOT_VERSION}\n"
+    expected_extension_config = cascflow.ocfl.build_extension_0007_config(
+        delimiter=OCFL_DELIMITER,
+        tuple_size=OCFL_TUPLE_SIZE,
+        number_of_tuples=OCFL_NUMBER_OF_TUPLES,
+    )
+
+    problems = []
+    if not declaration_path.exists():
+        problems.append(f"missing root conformance declaration: {declaration_path}")
+    elif declaration_path.read_text() != expected_declaration:
+        problems.append(
+            f"unexpected root conformance declaration content: {declaration_path}"
+        )
+    if not layout_path.exists():
+        problems.append(f"missing ocfl_layout.json: {layout_path}")
+    elif (
+        json.loads(layout_path.read_text()).get("extension")
+        != cascflow.ocfl.OCFL_EXTENSION_0007_NAME
+    ):
+        problems.append(
+            "ocfl_layout.json does not reference "
+            f"{cascflow.ocfl.OCFL_EXTENSION_0007_NAME}: {layout_path}"
+        )
+    if not extension_config_path.exists():
+        problems.append(f"missing extension config: {extension_config_path}")
+    elif json.loads(extension_config_path.read_text()) != expected_extension_config:
+        problems.append(
+            f"extension config does not match configured parameters: {extension_config_path}"
+        )
+    return problems
+
+
+def validate_ocfl_storage_root() -> None:
+    """Read-only check, called from the validate command. Warns (does not
+    raise) if the storage root isn't initialized yet -- execute will
+    create it. Raises if it has content but isn't conformant."""
+    storage_root = ocfl_storage_root()
+    if not ocfl_storage_root_is_initialized(storage_root):
+        logger.warning(
+            "⚠️ OCFL STORAGE ROOT NOT YET INITIALIZED; REQUIRED FILES WILL "
+            f"BE CREATED ON EXECUTE: {storage_root}"
+        )
+        return
+    problems = ocfl_storage_root_conformance_problems(storage_root)
+    if problems:
+        message = "❌ OCFL STORAGE ROOT NOT CONFORMANT"
+        logger.error(message)
+        for problem in problems:
+            logger.error(f"❌ {problem}")
+        raise RuntimeError(message)
+    logger.debug(f"✅ OCFL STORAGE ROOT CONFORMANT: {storage_root}")
+
+
+def initialize_ocfl_storage_root() -> None:
+    """Called once at the start of execute, before the batch loop. Creates
+    the OCFL 1.1 §3.1 storage-root files if the storage root is empty or
+    doesn't exist yet. If it already has content, re-validates conformance
+    and raises rather than writing into a broken/mismatched storage root."""
+    storage_root = ocfl_storage_root()
+    if not ocfl_storage_root_is_initialized(storage_root):
+        storage_root.mkdir(parents=True, exist_ok=True)
+        storage_root.joinpath(f"0=ocfl_{OCFL_STORAGE_ROOT_VERSION}").write_text(
+            f"ocfl_{OCFL_STORAGE_ROOT_VERSION}\n"
+        )
+        storage_root.joinpath("ocfl_layout.json").write_text(
+            json.dumps(
+                {
+                    "extension": cascflow.ocfl.OCFL_EXTENSION_0007_NAME,
+                    "description": OCFL_LAYOUT_DESCRIPTION,
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+        extension_directory = storage_root.joinpath(
+            "extensions", cascflow.ocfl.OCFL_EXTENSION_0007_NAME
+        )
+        extension_directory.mkdir(parents=True, exist_ok=True)
+        extension_directory.joinpath("config.json").write_text(
+            json.dumps(
+                cascflow.ocfl.build_extension_0007_config(
+                    delimiter=OCFL_DELIMITER,
+                    tuple_size=OCFL_TUPLE_SIZE,
+                    number_of_tuples=OCFL_NUMBER_OF_TUPLES,
+                ),
+                indent=2,
+            )
+            + "\n"
+        )
+        logger.info(f"✳️ OCFL STORAGE ROOT INITIALIZED: {storage_root}")
+        return
+    problems = ocfl_storage_root_conformance_problems(storage_root)
+    if problems:
+        message = "❌ OCFL STORAGE ROOT NOT CONFORMANT"
+        logger.error(message)
+        for problem in problems:
+            logger.error(f"❌ {problem}")
+        raise RuntimeError(message)
 
 
 def load_ocfl_inventory(object_root: Path, object_id: str) -> dict:
@@ -745,9 +874,11 @@ def main():
             DISTILLERY_SETTINGS_SPEC
         )
         validate_settings_for_preservation(settings_validation_results)
+        validate_ocfl_storage_root()
         validation_results = cascflow.validate_digital_files(args.context)
         validate_digital_files_for_preservation(validation_results)
     elif args.command == "execute":
+        initialize_ocfl_storage_root()
         batch_set_id = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
         cloudfront_invalidation_paths = []
         for (

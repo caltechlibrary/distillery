@@ -1,6 +1,7 @@
 from pathlib import Path
 import hashlib
 import json
+import logging
 
 import pytest
 
@@ -81,6 +82,223 @@ def test_ocfl_object_root_combines_storage_root_and_extension_path(monkeypatch):
     object_root = distillery.ocfl_object_root("https://n2t.net/ark:99999/b3xq7z")
 
     assert object_root == Path("/mnt/ocfl-storage/b3x/q7z/b3xq7z")
+
+
+def write_conformant_ocfl_storage_root(storage_root: Path) -> None:
+    storage_root.mkdir(parents=True, exist_ok=True)
+    storage_root.joinpath("0=ocfl_1.1").write_text("ocfl_1.1\n")
+    storage_root.joinpath("ocfl_layout.json").write_text(
+        json.dumps(
+            {
+                "extension": cascflow.ocfl.OCFL_EXTENSION_0007_NAME,
+                "description": "a description",
+            }
+        )
+    )
+    extension_directory = storage_root.joinpath(
+        "extensions", cascflow.ocfl.OCFL_EXTENSION_0007_NAME
+    )
+    extension_directory.mkdir(parents=True, exist_ok=True)
+    extension_directory.joinpath("config.json").write_text(
+        json.dumps(
+            cascflow.ocfl.build_extension_0007_config(
+                delimiter=distillery.OCFL_DELIMITER,
+                tuple_size=distillery.OCFL_TUPLE_SIZE,
+                number_of_tuples=distillery.OCFL_NUMBER_OF_TUPLES,
+            )
+        )
+    )
+
+
+def test_ocfl_storage_root_is_initialized_false_for_missing_directory(tmp_path):
+    storage_root = tmp_path / "does-not-exist"
+
+    assert distillery.ocfl_storage_root_is_initialized(storage_root) is False
+
+
+def test_ocfl_storage_root_is_initialized_false_for_empty_directory(tmp_path):
+    storage_root = tmp_path / "empty"
+    storage_root.mkdir()
+
+    assert distillery.ocfl_storage_root_is_initialized(storage_root) is False
+
+
+def test_ocfl_storage_root_is_initialized_true_when_content_present(tmp_path):
+    storage_root = tmp_path / "storage"
+    storage_root.mkdir()
+    storage_root.joinpath("something").write_text("x")
+
+    assert distillery.ocfl_storage_root_is_initialized(storage_root) is True
+
+
+def test_ocfl_storage_root_conformance_problems_empty_when_fully_conformant(tmp_path):
+    storage_root = tmp_path / "storage"
+    write_conformant_ocfl_storage_root(storage_root)
+
+    assert distillery.ocfl_storage_root_conformance_problems(storage_root) == []
+
+
+def test_ocfl_storage_root_conformance_problems_reports_missing_declaration(tmp_path):
+    storage_root = tmp_path / "storage"
+    write_conformant_ocfl_storage_root(storage_root)
+    storage_root.joinpath("0=ocfl_1.1").unlink()
+
+    problems = distillery.ocfl_storage_root_conformance_problems(storage_root)
+
+    assert any(
+        "missing root conformance declaration" in problem for problem in problems
+    )
+
+
+def test_ocfl_storage_root_conformance_problems_reports_wrong_declaration_content(
+    tmp_path,
+):
+    storage_root = tmp_path / "storage"
+    write_conformant_ocfl_storage_root(storage_root)
+    storage_root.joinpath("0=ocfl_1.1").write_text("not the right content\n")
+
+    problems = distillery.ocfl_storage_root_conformance_problems(storage_root)
+
+    assert any(
+        "unexpected root conformance declaration content" in problem
+        for problem in problems
+    )
+
+
+def test_ocfl_storage_root_conformance_problems_reports_missing_layout(tmp_path):
+    storage_root = tmp_path / "storage"
+    write_conformant_ocfl_storage_root(storage_root)
+    storage_root.joinpath("ocfl_layout.json").unlink()
+
+    problems = distillery.ocfl_storage_root_conformance_problems(storage_root)
+
+    assert any("missing ocfl_layout.json" in problem for problem in problems)
+
+
+def test_ocfl_storage_root_conformance_problems_reports_layout_wrong_extension(
+    tmp_path,
+):
+    storage_root = tmp_path / "storage"
+    write_conformant_ocfl_storage_root(storage_root)
+    storage_root.joinpath("ocfl_layout.json").write_text(
+        json.dumps({"extension": "some-other-extension", "description": "x"})
+    )
+
+    problems = distillery.ocfl_storage_root_conformance_problems(storage_root)
+
+    assert any("ocfl_layout.json does not reference" in problem for problem in problems)
+
+
+def test_ocfl_storage_root_conformance_problems_reports_missing_extension_config(
+    tmp_path,
+):
+    storage_root = tmp_path / "storage"
+    write_conformant_ocfl_storage_root(storage_root)
+    storage_root.joinpath(
+        "extensions", cascflow.ocfl.OCFL_EXTENSION_0007_NAME, "config.json"
+    ).unlink()
+
+    problems = distillery.ocfl_storage_root_conformance_problems(storage_root)
+
+    assert any("missing extension config" in problem for problem in problems)
+
+
+def test_ocfl_storage_root_conformance_problems_reports_extension_config_mismatch(
+    tmp_path,
+):
+    storage_root = tmp_path / "storage"
+    write_conformant_ocfl_storage_root(storage_root)
+    storage_root.joinpath(
+        "extensions", cascflow.ocfl.OCFL_EXTENSION_0007_NAME, "config.json"
+    ).write_text(json.dumps({"extensionName": "wrong"}))
+
+    problems = distillery.ocfl_storage_root_conformance_problems(storage_root)
+
+    assert any(
+        "extension config does not match configured parameters" in problem
+        for problem in problems
+    )
+
+
+def test_validate_ocfl_storage_root_warns_when_uninitialized(
+    monkeypatch, tmp_path, caplog
+):
+    monkeypatch.setattr(distillery, "config", make_preservation_mount_config(tmp_path))
+
+    with caplog.at_level(logging.WARNING, logger="distillery"):
+        distillery.validate_ocfl_storage_root()
+
+    assert "OCFL STORAGE ROOT NOT YET INITIALIZED" in caplog.text
+
+
+def test_validate_ocfl_storage_root_silent_when_conformant(
+    monkeypatch, tmp_path, caplog
+):
+    monkeypatch.setattr(distillery, "config", make_preservation_mount_config(tmp_path))
+    write_conformant_ocfl_storage_root(tmp_path / "ocfl-storage")
+
+    with caplog.at_level(logging.WARNING, logger="distillery"):
+        distillery.validate_ocfl_storage_root()
+
+    assert caplog.text == ""
+
+
+def test_validate_ocfl_storage_root_raises_when_nonconformant(monkeypatch, tmp_path):
+    monkeypatch.setattr(distillery, "config", make_preservation_mount_config(tmp_path))
+    storage_root = tmp_path / "ocfl-storage"
+    write_conformant_ocfl_storage_root(storage_root)
+    storage_root.joinpath("0=ocfl_1.1").unlink()
+
+    with pytest.raises(RuntimeError):
+        distillery.validate_ocfl_storage_root()
+
+
+def test_initialize_ocfl_storage_root_creates_required_files_when_uninitialized(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(distillery, "config", make_preservation_mount_config(tmp_path))
+
+    distillery.initialize_ocfl_storage_root()
+
+    storage_root = tmp_path / "ocfl-storage"
+    assert storage_root.joinpath("0=ocfl_1.1").read_text() == "ocfl_1.1\n"
+    layout = json.loads(storage_root.joinpath("ocfl_layout.json").read_text())
+    assert layout["extension"] == cascflow.ocfl.OCFL_EXTENSION_0007_NAME
+    extension_config = json.loads(
+        storage_root.joinpath(
+            "extensions", cascflow.ocfl.OCFL_EXTENSION_0007_NAME, "config.json"
+        ).read_text()
+    )
+    assert extension_config == cascflow.ocfl.build_extension_0007_config(
+        delimiter=distillery.OCFL_DELIMITER,
+        tuple_size=distillery.OCFL_TUPLE_SIZE,
+        number_of_tuples=distillery.OCFL_NUMBER_OF_TUPLES,
+    )
+    assert distillery.ocfl_storage_root_conformance_problems(storage_root) == []
+
+
+def test_initialize_ocfl_storage_root_noop_when_already_conformant(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(distillery, "config", make_preservation_mount_config(tmp_path))
+    storage_root = tmp_path / "ocfl-storage"
+    write_conformant_ocfl_storage_root(storage_root)
+    declaration_path = storage_root.joinpath("0=ocfl_1.1")
+    original_mtime = declaration_path.stat().st_mtime_ns
+
+    distillery.initialize_ocfl_storage_root()
+
+    assert declaration_path.stat().st_mtime_ns == original_mtime
+
+
+def test_initialize_ocfl_storage_root_raises_when_nonconformant(monkeypatch, tmp_path):
+    monkeypatch.setattr(distillery, "config", make_preservation_mount_config(tmp_path))
+    storage_root = tmp_path / "ocfl-storage"
+    write_conformant_ocfl_storage_root(storage_root)
+    storage_root.joinpath("ocfl_layout.json").unlink()
+
+    with pytest.raises(RuntimeError):
+        distillery.initialize_ocfl_storage_root()
 
 
 def test_load_ocfl_inventory_builds_fresh_shell_when_missing(tmp_path):
