@@ -306,6 +306,29 @@ def test_construct_inventory_file_version_points_at_ark_relative_inventory_url()
     }
 
 
+def test_upload_inventory_to_resolver_bucket_puts_json_at_ark_relative_key(
+    monkeypatch,
+):
+    monkeypatch.setattr(distillery, "config", lambda key, **kwargs: "resolver-bucket")
+    put_calls = []
+    monkeypatch.setattr(
+        distillery.cascflow,
+        "s3_put_object",
+        lambda bucket, key, **kwargs: put_calls.append((bucket, key, kwargs)),
+    )
+    archival_object = {"external_ark_url": "https://n2t.net/ark:99999/b3xq7z"}
+    inventory = cascflow.ocfl.build_inventory("ark:99999/b3xq7z")
+
+    distillery.upload_inventory_to_resolver_bucket(archival_object, inventory)
+
+    assert len(put_calls) == 1
+    bucket, key, kwargs = put_calls[0]
+    assert bucket == "resolver-bucket"
+    assert key == "ark:99999/b3xq7z/inventory.json"
+    assert kwargs["content_type"] == "application/json"
+    assert json.loads(kwargs["body"]) == inventory
+
+
 def test_ocfl_relative_storage_path_joins_mount_storage_and_tuple_path(monkeypatch):
     monkeypatch.setattr(distillery, "config", make_preservation_mount_config("/mnt"))
     inventory = cascflow.ocfl.build_inventory("ark:99999/b3xq7z")
@@ -431,7 +454,9 @@ def test_process_archival_object_preservation_files_writes_version_and_updates_a
         distillery,
         "config",
         make_preservation_mount_config(
-            storage_root, PRESERVATION_NAS_HOSTNAME="nas.example.edu"
+            storage_root,
+            PRESERVATION_NAS_HOSTNAME="nas.example.edu",
+            RESOLVER_BUCKET="resolver-bucket",
         ),
     )
     source_dir = tmp_path / "source"
@@ -443,6 +468,13 @@ def test_process_archival_object_preservation_files_writes_version_and_updates_a
         "external_ark_url": "https://n2t.net/ark:99999/b3xq7z",
         "instances": [{"digital_object": {"ref": "/digital_objects/1"}}],
     }
+
+    s3_put_calls = []
+    monkeypatch.setattr(
+        distillery.cascflow,
+        "s3_put_object",
+        lambda bucket, key, **kwargs: s3_put_calls.append((bucket, key, kwargs)),
+    )
 
     save_calls = []
     monkeypatch.setattr(
@@ -474,6 +506,13 @@ def test_process_archival_object_preservation_files_writes_version_and_updates_a
     distillery.process_archival_object_preservation_files(
         archival_object, "/digital_objects/1", [filepath]
     )
+
+    assert len(s3_put_calls) == 1
+    bucket, key, kwargs = s3_put_calls[0]
+    assert bucket == "resolver-bucket"
+    assert key == "ark:99999/b3xq7z/inventory.json"
+    assert kwargs["content_type"] == "application/json"
+    assert json.loads(kwargs["body"])["id"] == "ark:99999/b3xq7z"
 
     assert len(save_calls) == 1
     file_uris = {file_version["file_uri"] for file_version in save_calls[0][1]}
@@ -640,19 +679,6 @@ def test_validate_settings_for_preservation_happy_path_no_exception():
     settings_validation_results = make_settings_validation_results()
 
     distillery.validate_settings_for_preservation(settings_validation_results)
-
-
-def test_validate_settings_for_preservation_raises_for_number_of_tuples_below_two(
-    monkeypatch,
-):
-    # See mirror_inventory_to_resolver.py's assigned_name_for_key() docstring:
-    # the Lambda's version-copy detection is only collision-proof for
-    # OCFL_NUMBER_OF_TUPLES >= 2.
-    monkeypatch.setattr(distillery, "OCFL_NUMBER_OF_TUPLES", 1)
-    settings_validation_results = make_settings_validation_results()
-
-    with pytest.raises(RuntimeError, match="OCFL_NUMBER_OF_TUPLES MUST BE >= 2"):
-        distillery.validate_settings_for_preservation(settings_validation_results)
 
 
 def test_ensure_digital_object_creates_when_none_exist(monkeypatch):

@@ -72,11 +72,6 @@ DISTILLERY_SETTINGS_SPEC = [
 # Fixed architectural choices, not per-environment settings -- see
 # OCFL-PRESERVATION-PLAN.md §3. OCFL_VERSION_PADDING in particular must
 # never change for an object once its first version exists.
-# OCFL_NUMBER_OF_TUPLES must stay >= 2 -- the inventory-mirroring Lambda's
-# version-copy detection (cdk/functions/mirror_inventory_to_resolver.py,
-# assigned_name_for_key()) relies on this to distinguish a version copy
-# from the current inventory.json; enforced in
-# validate_settings_for_preservation() below.
 OCFL_DELIMITER = "/"
 OCFL_TUPLE_SIZE = 3
 OCFL_NUMBER_OF_TUPLES = 2
@@ -378,12 +373,30 @@ def write_ocfl_version(archival_object: dict, filepaths: list) -> dict:
 OCFL_FILE_VERSION_USE_STATEMENT = "OCFL-Object-Inventory"
 
 
+def upload_inventory_to_resolver_bucket(archival_object: dict, inventory: dict) -> None:
+    """Upload this object's current inventory.json directly to the public
+    resolver bucket, at the same {ark}/ prefix arkminter.put_objects() uses
+    for index.html/info.jsonld (see OCFL-PRESERVATION-PLAN.md §2, "Where
+    inventory.json becomes web-accessible"). Raises on failure -- called
+    before any ArchivesSpace write for this version, so a failure here
+    leaves ArchivesSpace still describing the last successfully-published
+    version rather than claiming a broken/missing one."""
+    key = f"{ark_base_compact_name(archival_object['external_ark_url'])}/inventory.json"
+    cascflow.s3_put_object(
+        config("RESOLVER_BUCKET"),
+        key,
+        body=json.dumps(inventory, indent=2).encode(),
+        content_type="application/json",
+    )
+    logger.info(f"☑️  INVENTORY UPLOADED TO RESOLVER BUCKET: {key}")
+
+
 def construct_inventory_file_version(archival_object: dict) -> dict:
     """Build the ArchivesSpace file_version pointing at this object's
-    inventory.json, once mirrored to the public resolver bucket by the
-    Lambda described in OCFL-PRESERVATION-PLAN.md §6 Phase 0. There's an
-    inherent lag between this record existing and that URL resolving --
-    acceptable since it's unpublished/staff-only (§5)."""
+    inventory.json in the public resolver bucket -- already uploaded there
+    directly by upload_inventory_to_resolver_bucket() earlier in the same
+    run, so this URL is resolvable by the time this record is saved (see
+    OCFL-PRESERVATION-PLAN.md §5)."""
     return {
         "file_uri": f"{archival_object['external_ark_url']}/inventory.json",
         "use_statement": OCFL_FILE_VERSION_USE_STATEMENT,
@@ -499,11 +512,17 @@ def process_archival_object_preservation_files(
     archival_object: dict, digital_object_uri: str, filepaths: list
 ) -> None:
     """Write a new OCFL version for archival_object's preservation files,
-    then update ArchivesSpace: file_versions pointing at the object's
-    (eventual) public inventory.json URL and its local NAS copy, plus a
-    regenerated unpublished manifest note (see OCFL-PRESERVATION-PLAN.md
-    §5, §2 "file_version use_statement and multi-copy convention")."""
+    upload the updated inventory.json directly to the public resolver
+    bucket, then update ArchivesSpace: file_versions pointing at the
+    resolver-bucket and NAS copies, plus a regenerated unpublished
+    manifest note (see OCFL-PRESERVATION-PLAN.md §5, §2 "file_version
+    use_statement and multi-copy convention"). The resolver-bucket upload
+    happens before any ArchivesSpace write, deliberately -- a failure
+    there aborts before ArchivesSpace ends up describing a version that
+    isn't actually resolvable yet."""
     inventory = write_ocfl_version(archival_object, filepaths)
+
+    upload_inventory_to_resolver_bucket(archival_object, inventory)
 
     file_versions = [
         construct_inventory_file_version(archival_object),
@@ -534,17 +553,6 @@ def validate_settings_for_preservation(settings_validation_results: dict) -> Non
             logger.error(f"❌ {setting['key']}: {setting['detail']}")
     if missing or invalid:
         raise RuntimeError("❌ SETTINGS VALIDATION FAILED")
-
-    if OCFL_NUMBER_OF_TUPLES < 2:
-        message = (
-            "❌ OCFL_NUMBER_OF_TUPLES MUST BE >= 2 -- the inventory-mirroring "
-            "Lambda's version-copy detection (cdk/functions/"
-            "mirror_inventory_to_resolver.py) can't distinguish a version "
-            "copy from the current inventory.json when an assigned name "
-            "happens to spell a version directory name."
-        )
-        logger.error(message)
-        raise RuntimeError(message)
 
     logger.debug("✅ ALL REQUIRED SETTINGS ARE SET AND USABLE")
 
