@@ -1,5 +1,19 @@
 # Distillery Changelog
 
+## 2.5.0
+
+- write preservation content as conformant OCFL objects on local NAS storage (Extension 0007 tuple paths, atomic staging + `os.rename()` writes, `0=ocfl_object_1.1` object declarations)
+- upload each updated object's `inventory.json` directly to `RESOLVER_BUCKET` after writing, replacing the earlier Lambda/S3-Event-Notification design (no separate infrastructure to deploy or maintain)
+- add `file_version`s for both the public resolver copy and a NAS-specific copy, sharing an `"OCFL-Object-Inventory"` `use_statement` convention
+- invalidate `RESOLVER_CLOUDFRONT_DISTRIBUTION_ID`'s cached `inventory.json` paths once after `execute`'s batch loop (optional setting, matching Alchemist's own opt-in pattern)
+- validate the OCFL storage root's conformance (root declaration, `ocfl_layout.json`, Extension 0007 config) on `validate`; auto-initialize it on `execute` if not yet set up
+- add `PRESERVATION_MOUNT_PARENT`, `RELATIVE_OCFL_STORAGE_DIRECTORY`, `RELATIVE_OCFL_STAGING_DIRECTORY`, `PRESERVATION_NAS_HOSTNAME`, and `RESOLVER_CLOUDFRONT_DISTRIBUTION_ID` settings; remove the now-unused `S3_BUCKET` setting
+- surface the actual ineligibility reason instead of the bare component_id in validation output
+- make `OUR_SHOULDER` optional in settings validation
+- remove dead per-file `digital_object_component` code
+- remove `scripts/post_minimal_archival_objects.py` (moved to an ignored local script)
+- pin cascflow to v4.3.3
+
 ## 2.4.3
 
 - pin cascflow to v4.2.2, which types `config()` with `decouple`'s real overloads instead of an untyped passthrough
