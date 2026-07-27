@@ -1,5 +1,10 @@
 # Distillery Changelog
 
+## 2.5.1
+
+- digital_object_id is now derived from the archival object's ARK instead of component_id (cascflow v4.4.0); requires external_ark_url to already be set
+- reorder execute's loop so the ARK is minted before a new digital_object is created, since its id now depends on the ARK
+
 ## 2.5.0
 
 - write preservation content as conformant OCFL objects on local NAS storage (Extension 0007 tuple paths, atomic staging + `os.rename()` writes, `0=ocfl_object_1.1` object declarations)
