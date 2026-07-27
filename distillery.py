@@ -416,16 +416,10 @@ def build_version_files(archival_object: dict, filepaths: list) -> tuple:
     return files, {"md5": fixity_md5}, source_by_logical_path, archival_object_bytes
 
 
-def ark_base_compact_name(external_ark_url: str) -> str:
-    """Return the ARK Base Compact Name (e.g. "ark:99999/b3xq7z") from a
-    full resolvable ARK URL (e.g. "https://n2t.net/ark:99999/b3xq7z")."""
-    return "ark:" + external_ark_url.split("ark:", 1)[1]
-
-
 def resolver_cloudfront_invalidation_path(archival_object: dict) -> str:
     """Return the CloudFront path to invalidate on the resolver
     distribution after (re)uploading this object's inventory.json."""
-    name = ark_base_compact_name(archival_object["external_ark_url"])
+    name = cascflow.ark_base_compact_name(archival_object["external_ark_url"])
     return f"/{name}/inventory.json"
 
 
@@ -455,7 +449,7 @@ def write_ocfl_version(archival_object: dict, filepaths: list) -> dict:
 
     Returns the updated inventory dict (already written to disk).
     """
-    object_id = ark_base_compact_name(archival_object["external_ark_url"])
+    object_id = cascflow.ark_base_compact_name(archival_object["external_ark_url"])
     object_root = ocfl_object_root(object_id)
     inventory = load_ocfl_inventory(object_root, object_id)
     existing_digests = set(inventory["manifest"].keys())
@@ -522,7 +516,7 @@ def upload_inventory_to_resolver_bucket(archival_object: dict, inventory: dict) 
     before any ArchivesSpace write for this version, so a failure here
     leaves ArchivesSpace still describing the last successfully-published
     version rather than claiming a broken/missing one."""
-    key = f"{ark_base_compact_name(archival_object['external_ark_url'])}/inventory.json"
+    key = f"{cascflow.ark_base_compact_name(archival_object['external_ark_url'])}/inventory.json"
     cascflow.s3_put_object(
         config("RESOLVER_BUCKET"),
         key,
@@ -888,10 +882,12 @@ def main():
             archival_object,
             arrangement,
         ) in cascflow.execute(args.context, batch_set_id, "preservation"):
+            # Mint ARK (or skip if already exists); this also sets external_ark_url
+            # on archival_object -- must happen before ensure_digital_object(),
+            # since a newly-created digital_object's id is derived from the ARK
+            mint_ark_for_archival_object(archival_object)
             # NOTE returned archival_object will include any created digital_object instance
             digital_object_uri, archival_object = ensure_digital_object(archival_object)
-            # Mint ARK (or skip if already exists); this also sets external_ark_url on archival_object
-            mint_ark_for_archival_object(archival_object)
             # POST archival_object back to ArchivesSpace to persist external_ark_url if it was set
             if archival_object.get("external_ark_url"):
                 cascflow.archivesspace_post(archival_object["uri"], archival_object)

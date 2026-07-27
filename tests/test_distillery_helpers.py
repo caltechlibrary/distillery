@@ -483,13 +483,6 @@ def test_write_ocfl_version_does_not_recopy_unchanged_content_on_second_version(
     ).read_bytes() == b"audio-bytes"
 
 
-def test_ark_base_compact_name_strips_scheme_and_host():
-    assert (
-        distillery.ark_base_compact_name("https://n2t.net/ark:99999/b3xq7z")
-        == "ark:99999/b3xq7z"
-    )
-
-
 def test_resolver_cloudfront_invalidation_path_points_at_ark_relative_inventory():
     archival_object = {"external_ark_url": "https://n2t.net/ark:99999/b3xq7z"}
 
