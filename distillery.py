@@ -603,17 +603,14 @@ def build_inventory_manifest_note(inventory: dict) -> dict:
     current OCFL inventory contents (see OCFL-PRESERVATION-PLAN.md §5)."""
     head = inventory["head"]
     state = inventory["versions"][head]["state"]
-    # Sorted by logical_path (not by iterating `state` as-is, which is
-    # keyed by digest) so this reads naturally for a human -- filenames
-    # alphabetically, not shuffled by hash value.
-    lines = [
-        f"{logical_path}{EM_SPACE}:{EM_SPACE}{digest}"
-        for logical_path, digest in sorted(
-            (logical_path, digest)
-            for digest, logical_paths in state.items()
-            for logical_path in logical_paths
-        )
-    ]
+    # Sorted (not iterated from `state` as-is, which is keyed by digest) so
+    # this reads naturally for a human -- filenames alphabetically, not
+    # shuffled by hash value.
+    lines = sorted(
+        logical_path
+        for logical_paths in state.values()
+        for logical_path in logical_paths
+    )
     return {
         "jsonmodel_type": "note_digital_object",
         "type": OCFL_MANIFEST_NOTE_TYPE,

@@ -1,6 +1,6 @@
 [project]
 name = "distillery"
-version = "2.5.1"
+version = "2.5.2"
 description = "Caltech Archives Digital Preservation System"
 readme = "README.md"
 authors = [

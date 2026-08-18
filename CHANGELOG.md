@@ -1,5 +1,9 @@
 # Distillery Changelog
 
+## 2.5.2
+
+- drop the digest column from the inventory manifest note's content, leaving one logical path per line -- the digest is already authoritative in `inventory.json` itself
+
 ## 2.5.1
 
 - digital_object_id is now derived from the archival object's ARK instead of component_id (cascflow v4.4.0); requires external_ark_url to already be set

@@ -627,11 +627,7 @@ def test_build_inventory_manifest_note_sorts_lines_by_filename_not_digest(
     assert note["jsonmodel_type"] == "note_digital_object"
     assert note["type"] == "altformavail"
     assert note["publish"] is False
-    em_space = distillery.EM_SPACE
-    assert note["content"][0] == (
-        f"apple.txt{em_space}:{em_space}digest_2\n"
-        f"zebra.txt{em_space}:{em_space}digest_1"
-    )
+    assert note["content"][0] == "apple.txt\nzebra.txt"
 
 
 def test_update_inventory_manifest_note_replaces_prior_ocfl_note_only(monkeypatch):
