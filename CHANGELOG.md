@@ -1,5 +1,11 @@
 # Distillery Changelog
 
+## 2.5.3
+
+- record the `_metadata-<component_id>.json` snapshot in the OCFL `fixity` block, not just the `manifest` -- it was the one file in every version written with a sha256 digest but no MD5
+- remove the unused `COMMON_PATH_PREFIX` setting, which only applies to cascflow's `target="metadata"` path that Distillery never takes (it should have gone out with `S3_BUCKET` in 2.5.0)
+- add an `arkminter` logger to the example settings so its ARK warnings and mint errors reach `distillery.log` instead of the console alone
+
 ## 2.5.2
 
 - drop the digest column from the inventory manifest note's content, leaving one logical path per line -- the digest is already authoritative in `inventory.json` itself
