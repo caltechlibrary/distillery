@@ -950,7 +950,9 @@ def test_ensure_digital_object_raises_when_multiple_exist():
 def test_mint_ark_for_archival_object_skips_when_nma_or_naan_not_configured(
     monkeypatch,
 ):
-    monkeypatch.setattr(distillery, "config", lambda key, **kwargs: kwargs.get("default"))
+    monkeypatch.setattr(
+        distillery, "config", lambda key, **kwargs: kwargs.get("default")
+    )
 
     archival_object = {"component_id": "aspace_1"}
 
