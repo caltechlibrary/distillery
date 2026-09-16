@@ -401,6 +401,7 @@ def test_build_version_files_maps_filenames_to_digests_and_sources(tmp_path):
     assert sources["a.txt"] == file1
     assert ao_bytes == json.dumps(archival_object, indent=4).encode()
     assert files["_metadata-aspace_1.json"] == hashlib.sha256(ao_bytes).hexdigest()
+    assert fixity["md5"]["_metadata-aspace_1.json"] == hashlib.md5(ao_bytes).hexdigest()
 
 
 def test_write_ocfl_version_writes_content_and_inventory(tmp_path, monkeypatch):

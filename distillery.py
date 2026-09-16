@@ -409,9 +409,9 @@ def build_version_files(archival_object: dict, filepaths: list) -> tuple:
         source_by_logical_path[filepath.name] = filepath
 
     archival_object_bytes = json.dumps(archival_object, indent=4).encode()
-    files[build_metadata_filename(archival_object)] = hashlib.sha256(
-        archival_object_bytes
-    ).hexdigest()
+    metadata_filename = build_metadata_filename(archival_object)
+    files[metadata_filename] = hashlib.sha256(archival_object_bytes).hexdigest()
+    fixity_md5[metadata_filename] = hashlib.md5(archival_object_bytes).hexdigest()
 
     return files, {"md5": fixity_md5}, source_by_logical_path, archival_object_bytes
 
