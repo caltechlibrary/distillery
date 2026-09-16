@@ -1,68 +1,133 @@
-# Distillery Changelog
+# Changelog
 
-## 2.5.3
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [2.5.3] - 2026-09-16
+
+### Removed
+
+- the unused `COMMON_PATH_PREFIX` setting, which only applies to cascflow's `target="metadata"` path that Distillery never takes (it should have gone out with `S3_BUCKET` in 2.5.0)
+
+### Fixed
 
 - record the `_metadata-<component_id>.json` snapshot in the OCFL `fixity` block, not just the `manifest` -- it was the one file in every version written with a sha256 digest but no MD5
-- remove the unused `COMMON_PATH_PREFIX` setting, which only applies to cascflow's `target="metadata"` path that Distillery never takes (it should have gone out with `S3_BUCKET` in 2.5.0)
 - add an `arkminter` logger to the example settings so its ARK warnings and mint errors reach `distillery.log` instead of the console alone
 
-## 2.5.2
+## [2.5.2] - 2026-08-18
+
+### Changed
 
 - drop the digest column from the inventory manifest note's content, leaving one logical path per line -- the digest is already authoritative in `inventory.json` itself
 
-## 2.5.1
+## [2.5.1] - 2026-07-27
 
-- digital_object_id is now derived from the archival object's ARK instead of component_id (cascflow v4.4.0); requires external_ark_url to already be set
-- reorder execute's loop so the ARK is minted before a new digital_object is created, since its id now depends on the ARK
+### Changed
 
-## 2.5.0
+- `digital_object_id` is now derived from the archival object's ARK instead of `component_id` (cascflow v4.4.0); requires `external_ark_url` to already be set
+- reorder `execute`'s loop so the ARK is minted before a new `digital_object` is created, since its id now depends on the ARK
+
+## [2.5.0] - 2026-07-24
+
+### Added
 
 - write preservation content as conformant OCFL objects on local NAS storage (Extension 0007 tuple paths, atomic staging + `os.rename()` writes, `0=ocfl_object_1.1` object declarations)
-- upload each updated object's `inventory.json` directly to `RESOLVER_BUCKET` after writing, replacing the earlier Lambda/S3-Event-Notification design (no separate infrastructure to deploy or maintain)
 - add `file_version`s for both the public resolver copy and a NAS-specific copy, sharing an `"OCFL-Object-Inventory"` `use_statement` convention
 - invalidate `RESOLVER_CLOUDFRONT_DISTRIBUTION_ID`'s cached `inventory.json` paths once after `execute`'s batch loop (optional setting, matching Alchemist's own opt-in pattern)
 - validate the OCFL storage root's conformance (root declaration, `ocfl_layout.json`, Extension 0007 config) on `validate`; auto-initialize it on `execute` if not yet set up
-- add `PRESERVATION_MOUNT_PARENT`, `RELATIVE_OCFL_STORAGE_DIRECTORY`, `RELATIVE_OCFL_STAGING_DIRECTORY`, `PRESERVATION_NAS_HOSTNAME`, and `RESOLVER_CLOUDFRONT_DISTRIBUTION_ID` settings; remove the now-unused `S3_BUCKET` setting
-- surface the actual ineligibility reason instead of the bare component_id in validation output
+- add `PRESERVATION_MOUNT_PARENT`, `RELATIVE_OCFL_STORAGE_DIRECTORY`, `RELATIVE_OCFL_STAGING_DIRECTORY`, `PRESERVATION_NAS_HOSTNAME`, and `RESOLVER_CLOUDFRONT_DISTRIBUTION_ID` settings
+
+### Changed
+
+- upload each updated object's `inventory.json` directly to `RESOLVER_BUCKET` after writing, replacing the earlier Lambda/S3-Event-Notification design (no separate infrastructure to deploy or maintain)
+- surface the actual ineligibility reason instead of the bare `component_id` in validation output
 - make `OUR_SHOULDER` optional in settings validation
-- remove dead per-file `digital_object_component` code
-- remove `scripts/post_minimal_archival_objects.py` (moved to an ignored local script)
 - pin cascflow to v4.3.3
 
-## 2.4.3
+### Removed
+
+- the now-unused `S3_BUCKET` setting
+- dead per-file `digital_object_component` code
+- `scripts/post_minimal_archival_objects.py` (moved to an ignored local script)
+
+## [2.4.3] - 2026-07-15
+
+### Changed
 
 - pin cascflow to v4.2.2, which types `config()` with `decouple`'s real overloads instead of an untyped passthrough
 - drop now-redundant `str()`/f-string wraps around `config()` call sites
 
-## 2.4.2
+## [2.4.2] - 2026-07-15
+
+### Changed
 
 - log unhandled exceptions through the standard logger (`❌ UNEXPECTED ERROR: ...`) before re-raising, so a crash always leaves a clean error line in the console log instead of jumping straight to a bare traceback
+
+### Fixed
+
 - demote the settings-validation success message to DEBUG so it no longer wins the "first line" used for CI issue titles/comments, restoring the identifier/summary line (or a real error) to that position
 
-## 2.4.1
+## [2.4.1] - 2026-07-15
 
-- fix log rename step in the validation and execution workflows to run on both success and failure (it had no `if:` condition, so it was silently skipped on failure -- steps default to running only on success -- and the upload step right after it never found a log to attach)
+### Fixed
 
-## 2.4.0
+- log rename step in the validation and execution workflows now runs on both success and failure (it had no `if:` condition, so it was silently skipped on failure -- steps default to running only on success -- and the upload step right after it never found a log to attach)
 
-- add settings.ini validation to the `validate` command (checks required variables are set and usable: binary paths, directories, URLs)
-- remove unused `ARCHIVESSPACE_BASIC_AUTH_*` keys from example-settings.ini
+## [2.4.0] - 2026-07-14
+
+### Added
+
+- settings.ini validation in the `validate` command (checks required variables are set and usable: binary paths, directories, URLs)
+
+### Changed
+
 - pin cascflow to v4.2.0
 
-## 2.3.1
+### Removed
 
-- bump arkminter pin to v0.2.1 (fixes minted ARK names occasionally containing a `/` as the check digit)
+- unused `ARCHIVESSPACE_BASIC_AUTH_*` keys from example-settings.ini
 
-## 2.3.0
+## 2.3.1 - 2026-07-14
 
-- add ARK minting for archival objects during `execute` (mints a stub ARK, redirects to the ArchivesSpace staff page, persists `external_ark_url`)
+### Fixed
+
+- bump arkminter pin to v0.2.1, fixing minted ARK names that occasionally contained a `/` as the check digit
+
+## [2.3.0] - 2026-07-10
+
+### Added
+
+- ARK minting for archival objects during `execute` (mints a stub ARK, redirects to the ArchivesSpace staff page, persists `external_ark_url`)
+- pytest CI workflow
+
+### Changed
+
 - use arkminter's shared `get_existing_our_ark` for existing-ARK validation
 - pin arkminter and cascflow to tagged releases (v0.2.0, v4.1.1)
-- add pytest CI workflow
 
-## 2.2.0
+## 2.2.0 - 2026-04-01
+
+### Added
+
+- [README](README.md) and [CONFIGURATION](CONFIGURATION.md) content
+- this changelog
+
+### Changed
 
 - pin workflow dependencies
-- add to [README](README.md) and [CONFIGURATION](CONFIGURATION.md) files
 - upgrade dependencies
-- begin changelog
+
+[Unreleased]: https://github.com/caltechlibrary/distillery/compare/v2.5.3...HEAD
+[2.5.3]: https://github.com/caltechlibrary/distillery/compare/v2.5.2...v2.5.3
+[2.5.2]: https://github.com/caltechlibrary/distillery/compare/v2.5.1...v2.5.2
+[2.5.1]: https://github.com/caltechlibrary/distillery/compare/v2.5.0...v2.5.1
+[2.5.0]: https://github.com/caltechlibrary/distillery/compare/v2.4.3...v2.5.0
+[2.4.3]: https://github.com/caltechlibrary/distillery/compare/v2.4.2...v2.4.3
+[2.4.2]: https://github.com/caltechlibrary/distillery/compare/v2.4.1...v2.4.2
+[2.4.1]: https://github.com/caltechlibrary/distillery/compare/v2.4.0...v2.4.1
+[2.4.0]: https://github.com/caltechlibrary/distillery/compare/v2.3.0...v2.4.0
+[2.3.0]: https://github.com/caltechlibrary/distillery/releases/tag/v2.3.0
