@@ -484,15 +484,6 @@ def test_write_ocfl_version_does_not_recopy_unchanged_content_on_second_version(
     ).read_bytes() == b"audio-bytes"
 
 
-def test_resolver_cloudfront_invalidation_path_points_at_ark_relative_inventory():
-    archival_object = {"external_ark_url": "https://n2t.net/ark:99999/b3xq7z"}
-
-    assert (
-        distillery.resolver_cloudfront_invalidation_path(archival_object)
-        == "/ark:99999/b3xq7z/inventory.json"
-    )
-
-
 def test_resolve_ocfl_user_uses_github_actor_and_profile_url_when_present(
     monkeypatch,
 ):
@@ -515,41 +506,6 @@ def test_resolve_ocfl_user_falls_back_to_distillery_identity_when_actor_not_set(
     )
 
 
-def test_construct_inventory_file_version_points_at_ark_relative_inventory_url():
-    archival_object = {"external_ark_url": "https://n2t.net/ark:99999/b3xq7z"}
-
-    file_version = distillery.construct_inventory_file_version(archival_object)
-
-    assert file_version == {
-        "file_uri": "https://n2t.net/ark:99999/b3xq7z/inventory.json",
-        "use_statement": "OCFL-Object-Inventory",
-        "publish": False,
-    }
-
-
-def test_upload_inventory_to_resolver_bucket_puts_json_at_ark_relative_key(
-    monkeypatch,
-):
-    monkeypatch.setattr(distillery, "config", lambda key, **kwargs: "resolver-bucket")
-    put_calls = []
-    monkeypatch.setattr(
-        distillery.cascflow,
-        "s3_put_object",
-        lambda bucket, key, **kwargs: put_calls.append((bucket, key, kwargs)),
-    )
-    archival_object = {"external_ark_url": "https://n2t.net/ark:99999/b3xq7z"}
-    inventory = cascflow.ocfl.build_inventory("ark:99999/b3xq7z")
-
-    distillery.upload_inventory_to_resolver_bucket(archival_object, inventory)
-
-    assert len(put_calls) == 1
-    bucket, key, kwargs = put_calls[0]
-    assert bucket == "resolver-bucket"
-    assert key == "ark:99999/b3xq7z/inventory.json"
-    assert kwargs["content_type"] == "application/json"
-    assert json.loads(kwargs["body"]) == inventory
-
-
 def test_ocfl_relative_storage_path_joins_mount_storage_and_tuple_path(monkeypatch):
     monkeypatch.setattr(distillery, "config", make_preservation_mount_config("/mnt"))
     inventory = cascflow.ocfl.build_inventory("ark:99999/b3xq7z")
@@ -559,40 +515,42 @@ def test_ocfl_relative_storage_path_joins_mount_storage_and_tuple_path(monkeypat
     assert path == "mnt/ocfl-storage/b3x/q7z/b3xq7z"
 
 
-def test_construct_nas_file_version_builds_file_uri_from_relative_storage_path(
+def test_construct_vault_file_version_builds_https_uri_to_object_root(
     monkeypatch,
 ):
     monkeypatch.setattr(
         distillery,
         "config",
         make_preservation_mount_config(
-            "/mnt", PRESERVATION_NAS_HOSTNAME="nas.example.edu"
+            "/mnt", PRESERVATION_VAULT_BASE_URL="https://vault.example.edu"
         ),
     )
     inventory = cascflow.ocfl.build_inventory("ark:99999/b3xq7z")
 
-    file_version = distillery.construct_nas_file_version(inventory)
+    file_version = distillery.construct_vault_file_version(inventory)
 
     assert file_version == {
-        "file_uri": "file://nas.example.edu/mnt/ocfl-storage/b3x/q7z/b3xq7z/inventory.json",
-        "use_statement": "OCFL-Object-Inventory",
+        "file_uri": "https://vault.example.edu/b3x/q7z/b3xq7z/",
+        "use_statement": "OCFL-Object-Root",
         "publish": False,
     }
 
 
-def test_construct_nas_file_version_uses_empty_authority_when_hostname_not_configured(
+def test_construct_vault_file_version_tolerates_trailing_slash_in_base_url(
     monkeypatch,
 ):
-    # PRESERVATION_NAS_HOSTNAME is optional -- per RFC 8089, a file: URI
-    # with no authority ("file:///...") conventionally means localhost.
-    monkeypatch.setattr(distillery, "config", make_preservation_mount_config("/mnt"))
+    monkeypatch.setattr(
+        distillery,
+        "config",
+        make_preservation_mount_config(
+            "/mnt", PRESERVATION_VAULT_BASE_URL="https://vault.example.edu/"
+        ),
+    )
     inventory = cascflow.ocfl.build_inventory("ark:99999/b3xq7z")
 
-    file_version = distillery.construct_nas_file_version(inventory)
+    file_version = distillery.construct_vault_file_version(inventory)
 
-    assert file_version["file_uri"] == (
-        "file:///mnt/ocfl-storage/b3x/q7z/b3xq7z/inventory.json"
-    )
+    assert file_version["file_uri"] == "https://vault.example.edu/b3x/q7z/b3xq7z/"
 
 
 def test_build_inventory_manifest_note_label_joins_path_with_fullwidth_solidus(
@@ -672,8 +630,7 @@ def test_process_archival_object_preservation_files_writes_version_and_updates_a
         "config",
         make_preservation_mount_config(
             storage_root,
-            PRESERVATION_NAS_HOSTNAME="nas.example.edu",
-            RESOLVER_BUCKET="resolver-bucket",
+            PRESERVATION_VAULT_BASE_URL="https://vault.example.edu",
         ),
     )
     source_dir = tmp_path / "source"
@@ -724,19 +681,13 @@ def test_process_archival_object_preservation_files_writes_version_and_updates_a
         archival_object, "/digital_objects/1", [filepath]
     )
 
-    assert len(s3_put_calls) == 1
-    bucket, key, kwargs = s3_put_calls[0]
-    assert bucket == "resolver-bucket"
-    assert key == "ark:99999/b3xq7z/inventory.json"
-    assert kwargs["content_type"] == "application/json"
-    assert json.loads(kwargs["body"])["id"] == "ark:99999/b3xq7z"
+    # preservation writes nothing to S3: the OCFL object lives on the NAS
+    # and is described in ArchivesSpace, nowhere else
+    assert s3_put_calls == []
 
     assert len(save_calls) == 1
     file_uris = {file_version["file_uri"] for file_version in save_calls[0][1]}
-    assert file_uris == {
-        "https://n2t.net/ark:99999/b3xq7z/inventory.json",
-        "file://nas.example.edu/ocfl_root/ocfl-storage/b3x/q7z/b3xq7z/inventory.json",
-    }
+    assert file_uris == {"https://vault.example.edu/b3x/q7z/b3xq7z/"}
     assert len(post_calls) == 1
     posted_uri, posted_digital_object = post_calls[0]
     assert posted_uri == "/digital_objects/1"

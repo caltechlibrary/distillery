@@ -54,11 +54,6 @@ DISTILLERY_SETTINGS_SPEC = [
     {"key": "AWS_ACCESS_KEY_ID", "kind": "string"},
     {"key": "AWS_SECRET_ACCESS_KEY", "kind": "string"},
     {"key": "RESOLVER_BUCKET", "kind": "string"},
-    {
-        "key": "RESOLVER_CLOUDFRONT_DISTRIBUTION_ID",
-        "kind": "string",
-        "required": False,
-    },
     {"key": "OUR_NMA", "kind": "url"},
     {"key": "OUR_NAAN", "kind": "string"},
     {"key": "OUR_SHOULDER", "kind": "string", "required": False},
@@ -70,7 +65,7 @@ DISTILLERY_SETTINGS_SPEC = [
     {"key": "PRESERVATION_MOUNT_PARENT", "kind": "directory"},
     {"key": "RELATIVE_OCFL_STORAGE_DIRECTORY", "kind": "string"},
     {"key": "RELATIVE_OCFL_STAGING_DIRECTORY", "kind": "string"},
-    {"key": "PRESERVATION_NAS_HOSTNAME", "kind": "string", "required": False},
+    {"key": "PRESERVATION_VAULT_BASE_URL", "kind": "url"},
 ]
 
 # OCFL Extension 0007 (N Tuple Omit Prefix Storage Layout) configuration.
@@ -416,13 +411,6 @@ def build_version_files(archival_object: dict, filepaths: list) -> tuple:
     return files, {"md5": fixity_md5}, source_by_logical_path, archival_object_bytes
 
 
-def resolver_cloudfront_invalidation_path(archival_object: dict) -> str:
-    """Return the CloudFront path to invalidate on the resolver
-    distribution after (re)uploading this object's inventory.json."""
-    name = cascflow.ark_base_compact_name(archival_object["external_ark_url"])
-    return f"/{name}/inventory.json"
-
-
 def resolve_ocfl_user() -> tuple:
     """Resolve the (name, address) to attribute a new OCFL version to.
 
@@ -500,58 +488,27 @@ def write_ocfl_version(archival_object: dict, filepaths: list) -> dict:
     return inventory
 
 
-# ArchivesSpace file_version.use_statement for every copy of an OCFL
-# object's inventory.json (public resolver, NAS, eventual S3) -- a custom
-# enumeration value, distinguished from each other by file_uri scheme/host
-# rather than by use_statement (see OCFL-PRESERVATION-PLAN.md §2,
-# "file_version use_statement and multi-copy convention").
-OCFL_FILE_VERSION_USE_STATEMENT = "OCFL-Object-Inventory"
+# ArchivesSpace file_version.use_statement for the OCFL object root, a
+# custom enumeration value that has to exist in the ArchivesSpace instance
+# before it will accept a record using it (see OCFL-PRESERVATION-PLAN.md
+# §2, "file_version use_statement and multi-copy convention").
+OCFL_OBJECT_ROOT_USE_STATEMENT = "OCFL-Object-Root"
 
 
-def upload_inventory_to_resolver_bucket(archival_object: dict, inventory: dict) -> None:
-    """Upload this object's current inventory.json directly to the public
-    resolver bucket, at the same {ark}/ prefix arkminter.put_objects() uses
-    for index.html/info.jsonld (see OCFL-PRESERVATION-PLAN.md §2, "Where
-    inventory.json becomes web-accessible"). Raises on failure -- called
-    before any ArchivesSpace write for this version, so a failure here
-    leaves ArchivesSpace still describing the last successfully-published
-    version rather than claiming a broken/missing one."""
-    key = f"{cascflow.ark_base_compact_name(archival_object['external_ark_url'])}/inventory.json"
-    cascflow.s3_put_object(
-        config("RESOLVER_BUCKET"),
-        key,
-        body=json.dumps(inventory, indent=2).encode(),
-        content_type="application/json",
-    )
-    logger.info(f"☑️  INVENTORY UPLOADED TO RESOLVER BUCKET: {key}")
-
-
-def construct_inventory_file_version(archival_object: dict) -> dict:
-    """Build the ArchivesSpace file_version pointing at this object's
-    inventory.json in the public resolver bucket -- already uploaded there
-    directly by upload_inventory_to_resolver_bucket() earlier in the same
-    run, so this URL is resolvable by the time this record is saved (see
-    OCFL-PRESERVATION-PLAN.md §5)."""
-    return {
-        "file_uri": f"{archival_object['external_ark_url']}/inventory.json",
-        "use_statement": OCFL_FILE_VERSION_USE_STATEMENT,
-        "publish": False,
-    }
-
-
-def construct_nas_file_version(inventory: dict) -> dict:
-    """Build the ArchivesSpace file_version pointing at this object's
-    inventory.json on the local NAS -- a definitive but not
-    network-resolvable URI (see OCFL-PRESERVATION-PLAN.md §2, "file_version
-    use_statement and multi-copy convention"). PRESERVATION_NAS_HOSTNAME is
-    optional: per RFC 8089, a file: URI's authority may be empty
-    ("file:///path"), which conventionally means localhost."""
+def construct_vault_file_version(inventory: dict) -> dict:
+    """Build the ArchivesSpace file_version pointing at this object's OCFL
+    object root in the vault gateway, which serves the preservation
+    storage root over HTTPS to authenticated staff, so the link is clickable
+    from the staff UI (see OCFL-PRESERVATION-PLAN.md §2, "file_version
+    use_statement and multi-copy convention"). PRESERVATION_VAULT_BASE_URL
+    is the gateway's root, under which the tuple path resolves directly;
+    the trailing slash asks for the directory listing without a redirect."""
     return {
         "file_uri": (
-            f"file://{config('PRESERVATION_NAS_HOSTNAME', default='')}/"
-            f"{ocfl_relative_storage_path(inventory)}/inventory.json"
+            f"{config('PRESERVATION_VAULT_BASE_URL').rstrip('/')}/"
+            f"{ocfl_object_root_path(inventory)}/"
         ),
-        "use_statement": OCFL_FILE_VERSION_USE_STATEMENT,
+        "use_statement": OCFL_OBJECT_ROOT_USE_STATEMENT,
         "publish": False,
     }
 
@@ -565,23 +522,31 @@ FULLWIDTH_SOLIDUS = "／"
 EM_SPACE = " "
 
 
+def ocfl_object_root_path(inventory: dict) -> str:
+    """Return the OCFL object's Extension 0007 path relative to the storage
+    root -- the tuple segments through the object root directory, joined
+    with "/". Shared by the vault file_version and
+    ocfl_relative_storage_path()."""
+    return cascflow.ocfl.object_root_path(
+        inventory["id"],
+        delimiter=OCFL_DELIMITER,
+        tuple_size=OCFL_TUPLE_SIZE,
+        number_of_tuples=OCFL_NUMBER_OF_TUPLES,
+    )
+
+
 def ocfl_relative_storage_path(inventory: dict) -> str:
     """Return the OCFL object's storage path relative to
     PRESERVATION_MOUNT_PARENT's own parent -- starting from
     PRESERVATION_MOUNT_PARENT's final segment (the mounted volume name)
-    through the object root directory -- joined with "/". Shared by the
-    manifest note's label and the NAS file_version so both always agree on
-    where the object actually lives."""
+    through the object root directory -- joined with "/". Used for the
+    manifest note's label, which tells staff where the object lives on the
+    NAS itself rather than behind the vault gateway."""
     return "/".join(
         (
             Path(config("PRESERVATION_MOUNT_PARENT")).name,
             config("RELATIVE_OCFL_STORAGE_DIRECTORY"),
-            cascflow.ocfl.object_root_path(
-                inventory["id"],
-                delimiter=OCFL_DELIMITER,
-                tuple_size=OCFL_TUPLE_SIZE,
-                number_of_tuples=OCFL_NUMBER_OF_TUPLES,
-            ),
+            ocfl_object_root_path(inventory),
         )
     )
 
@@ -644,22 +609,13 @@ def process_archival_object_preservation_files(
     archival_object: dict, digital_object_uri: str, filepaths: list
 ) -> None:
     """Write a new OCFL version for archival_object's preservation files,
-    upload the updated inventory.json directly to the public resolver
-    bucket, then update ArchivesSpace: file_versions pointing at the
-    resolver-bucket and NAS copies, plus a regenerated unpublished
-    manifest note (see OCFL-PRESERVATION-PLAN.md §5, §2 "file_version
-    use_statement and multi-copy convention"). The resolver-bucket upload
-    happens before any ArchivesSpace write, deliberately -- a failure
-    there aborts before ArchivesSpace ends up describing a version that
-    isn't actually resolvable yet."""
+    then update ArchivesSpace: a file_version pointing at the object root
+    in the vault gateway, plus a regenerated unpublished manifest note
+    (see OCFL-PRESERVATION-PLAN.md §5, §2 "file_version use_statement and
+    multi-copy convention")."""
     inventory = write_ocfl_version(archival_object, filepaths)
 
-    upload_inventory_to_resolver_bucket(archival_object, inventory)
-
-    file_versions = [
-        construct_inventory_file_version(archival_object),
-        construct_nas_file_version(inventory),
-    ]
+    file_versions = [construct_vault_file_version(inventory)]
     cascflow.save_digital_object_file_versions(archival_object, file_versions)
 
     # re-fetch fresh so the note update POSTs a current lock_version, since
@@ -871,7 +827,6 @@ def main():
     elif args.command == "execute":
         initialize_ocfl_storage_root()
         batch_set_id = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
-        cloudfront_invalidation_paths = []
         for (
             batch_directory,
             stage_2_path_obj,
@@ -907,21 +862,7 @@ def main():
                 process_archival_object_preservation_files(
                     archival_object, digital_object_uri, preservation_filepaths
                 )
-                cloudfront_invalidation_paths.append(
-                    resolver_cloudfront_invalidation_path(archival_object)
-                )
             cascflow.move_to_stage_3(stage_2_path_obj, batch_directory)
-        if cloudfront_invalidation_paths and config(
-            "RESOLVER_CLOUDFRONT_DISTRIBUTION_ID", default=""
-        ):
-            cascflow.invalidate_cloudfront_paths(
-                distribution=config("RESOLVER_CLOUDFRONT_DISTRIBUTION_ID"),
-                paths=cloudfront_invalidation_paths,
-            )
-            logger.info(
-                "☑️  CLOUDFRONT INVALIDATION SUBMITTED FOR "
-                f"{len(cloudfront_invalidation_paths)} PATH(S)"
-            )
     else:
         parser.print_help()
 

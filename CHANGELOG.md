@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- write one `file_version` per OCFL object, pointing at the object root in the vault gateway over HTTPS, so it is clickable for authenticated staff; it carries a new `"OCFL-Object-Root"` `use_statement`, which has to be added to the ArchivesSpace instance's enumeration before these records are accepted
+- replace the optional `PRESERVATION_NAS_HOSTNAME` setting with the required `PRESERVATION_VAULT_BASE_URL`
+
+### Removed
+
+- the resolver-bucket `inventory.json` upload and its `file_version` -- the gateway is the web-accessible view of the preservation system, so there is no public copy to maintain (`RESOLVER_BUCKET` remains, used only by ARK minting)
+- the `RESOLVER_CLOUDFRONT_DISTRIBUTION_ID` setting and the post-batch CloudFront invalidation, which existed only to evict cached `inventory.json` copies
+
 ## [2.5.3] - 2026-09-16
 
 ### Removed
