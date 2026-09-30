@@ -70,7 +70,7 @@ DISTILLERY_SETTINGS_SPEC = [
 
 # OCFL Extension 0007 (N Tuple Omit Prefix Storage Layout) configuration.
 # Fixed architectural choices, not per-environment settings -- see
-# OCFL-PRESERVATION-PLAN.md §3. OCFL_VERSION_PADDING in particular must
+# ADR 0002. OCFL_VERSION_PADDING in particular must
 # never change for an object once its first version exists.
 OCFL_DELIMITER = "/"
 OCFL_TUPLE_SIZE = 3
@@ -78,7 +78,7 @@ OCFL_NUMBER_OF_TUPLES = 2
 OCFL_VERSION_PADDING = 4
 OCFL_DIGEST_ALGORITHM = "sha256"
 
-# OCFL storage root conformance (OCFL-PRESERVATION-PLAN.md §3).
+# OCFL storage root conformance (ADR 0002).
 OCFL_STORAGE_ROOT_VERSION = "1.1"
 OCFL_LAYOUT_DESCRIPTION = (
     "The OCFL Storage Layout Extension 0007 defines a flat list of "
@@ -174,7 +174,7 @@ def chunk_hashes(path: Path, algorithms=("sha256", "md5")) -> dict:
 
 def ocfl_storage_root() -> Path:
     """Return the OCFL storage root -- what the sync tool watches to mirror to
-    S3 (see OCFL-PRESERVATION-PLAN.md §2)."""
+    S3."""
     return Path(config("PRESERVATION_MOUNT_POINT")).joinpath(
         config("RELATIVE_OCFL_STORAGE_DIRECTORY")
     )
@@ -352,7 +352,7 @@ def write_current_ocfl_inventory(
     Stages the new inventory in a temporary directory under
     `staging_root` (same filesystem as `object_root`) and os.rename()s
     each file into place, so nothing watching the storage root ever sees
-    a partially-written file (see OCFL-PRESERVATION-PLAN.md §2).
+    a partially-written file.
     """
     staging_dir = Path(tempfile.mkdtemp(dir=staging_root))
     try:
@@ -388,7 +388,7 @@ def build_version_files(archival_object: dict, filepaths: list) -> tuple:
 
     `files` maps logical path -> sha256 digest (the OCFL manifest digest).
     `fixity` maps "md5" -> {logical path: md5 digest} (see
-    OCFL-PRESERVATION-PLAN.md §2, "Digest algorithm"). `filepaths` always
+    ADR 0004). `filepaths` always
     come from a single directory listing (cascflow.execute()), so two
     entries sharing a filename can't occur -- filesystems already guarantee
     that (see §4).
@@ -433,7 +433,7 @@ def write_ocfl_version(archival_object: dict, filepaths: list) -> dict:
     (ocfl_staging_root()), then os.rename()s the whole thing into place in
     one atomic step -- anything watching the storage root (the sync tool)
     only ever sees a complete version directory appear, never a partial
-    one (see OCFL-PRESERVATION-PLAN.md §2).
+    one.
 
     Returns the updated inventory dict (already written to disk).
     """
@@ -490,8 +490,7 @@ def write_ocfl_version(archival_object: dict, filepaths: list) -> dict:
 
 # ArchivesSpace file_version.use_statement for the OCFL object root, a
 # custom enumeration value that has to exist in the ArchivesSpace instance
-# before it will accept a record using it (see OCFL-PRESERVATION-PLAN.md
-# §2, "file_version use_statement and multi-copy convention").
+# before it will accept a record using it (see ADR 0005).
 OCFL_OBJECT_ROOT_USE_STATEMENT = "OCFL-Object-Root"
 
 
@@ -499,8 +498,7 @@ def construct_vault_file_version(inventory: dict) -> dict:
     """Build the ArchivesSpace file_version pointing at this object's OCFL
     object root in the vault gateway, which serves the preservation
     storage root over HTTPS to authenticated staff, so the link is clickable
-    from the staff UI (see OCFL-PRESERVATION-PLAN.md §2, "file_version
-    use_statement and multi-copy convention"). PRESERVATION_VAULT_BASE_URL
+    from the staff UI. PRESERVATION_VAULT_BASE_URL
     is the gateway's root, under which the tuple path resolves directly;
     the trailing slash asks for the directory listing without a redirect."""
     return {
@@ -565,7 +563,7 @@ def build_inventory_manifest_note_label(inventory: dict) -> str:
 
 def build_inventory_manifest_note(inventory: dict) -> dict:
     """Build the unpublished ArchivesSpace note summarizing an object's
-    current OCFL inventory contents (see OCFL-PRESERVATION-PLAN.md §5)."""
+    current OCFL inventory contents (see ADR 0005)."""
     head = inventory["head"]
     state = inventory["versions"][head]["state"]
     # Sorted (not iterated from `state` as-is, which is keyed by digest) so
@@ -611,8 +609,7 @@ def process_archival_object_preservation_files(
     """Write a new OCFL version for archival_object's preservation files,
     then update ArchivesSpace: a file_version pointing at the object root
     in the vault gateway, plus a regenerated unpublished manifest note
-    (see OCFL-PRESERVATION-PLAN.md §5, §2 "file_version use_statement and
-    multi-copy convention")."""
+    (see ADR 0005)."""
     inventory = write_ocfl_version(archival_object, filepaths)
 
     file_versions = [construct_vault_file_version(inventory)]
@@ -647,7 +644,7 @@ def validate_settings_for_preservation(settings_validation_results: dict) -> Non
 
 def validate_digital_files_for_preservation(validation_results: dict) -> None:
     # Distillery writes a _metadata-{component_id}.json snapshot into each
-    # OCFL version (OCFL-PRESERVATION-PLAN.md §4); a source file with that
+    # OCFL version (ADR 0003); a source file with that
     # exact name would silently collide with it. Relies on each top-level
     # source entry's own name (entry.stem) being byte-identical to its
     # component_id -- true today (both come from the same ArchivesSpace

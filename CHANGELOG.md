@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `docs/decisions/`: the OCFL preservation design is now recorded as [ADRs](https://adr.github.io/madr/), following the convention Alchemist adopted; see [ADR 0001](docs/decisions/0001-record-architecture-decisions.md)
+
+### Removed
+
+- `OCFL-PRESERVATION-PLAN.md`: its decisions are carried into ADRs 0002-0006, its build log belongs to git history, and its two genuinely open questions are tracked as issues
+
 ### Changed
 
 - rename the `ABSOLUTE_MOUNT_PARENT` setting to `SOURCE_MOUNT_PARENT` (cascflow v5.0.0), which says which mount it is; every `settings.ini` needs the new key
