@@ -52,7 +52,7 @@ def test_chunk_hashes_supports_a_subset_of_algorithms(tmp_path):
 
 def make_preservation_mount_config(mount_parent, **overrides):
     values = {
-        "PRESERVATION_MOUNT_PARENT": str(mount_parent),
+        "PRESERVATION_MOUNT_POINT": str(mount_parent),
         "RELATIVE_OCFL_STORAGE_DIRECTORY": "ocfl-storage",
         "RELATIVE_OCFL_STAGING_DIRECTORY": "ocfl-staging",
     }
@@ -831,10 +831,10 @@ def test_validate_settings_for_preservation_raises_for_invalid_settings():
     settings_validation_results = make_settings_validation_results(
         invalid=[
             {
-                "key": "PRESERVATION_MOUNT_PARENT",
+                "key": "PRESERVATION_MOUNT_POINT",
                 "kind": "directory",
                 "status": "invalid",
-                "detail": "PRESERVATION_MOUNT_PARENT is not a directory",
+                "detail": "PRESERVATION_MOUNT_POINT is not a directory",
             }
         ]
     )

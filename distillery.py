@@ -62,7 +62,7 @@ DISTILLERY_SETTINGS_SPEC = [
     {"key": "RELATIVE_SOURCE_DIRECTORY", "kind": "string"},
     {"key": "RELATIVE_BATCH_DIRECTORY", "kind": "string"},
     {"key": "FILES_TO_REMOVE", "kind": "csv", "required": False},
-    {"key": "PRESERVATION_MOUNT_PARENT", "kind": "directory"},
+    {"key": "PRESERVATION_MOUNT_POINT", "kind": "directory"},
     {"key": "RELATIVE_OCFL_STORAGE_DIRECTORY", "kind": "string"},
     {"key": "RELATIVE_OCFL_STAGING_DIRECTORY", "kind": "string"},
     {"key": "PRESERVATION_VAULT_BASE_URL", "kind": "url"},
@@ -175,7 +175,7 @@ def chunk_hashes(path: Path, algorithms=("sha256", "md5")) -> dict:
 def ocfl_storage_root() -> Path:
     """Return the OCFL storage root -- what the sync tool watches to mirror to
     S3 (see OCFL-PRESERVATION-PLAN.md §2)."""
-    return Path(config("PRESERVATION_MOUNT_PARENT")).joinpath(
+    return Path(config("PRESERVATION_MOUNT_POINT")).joinpath(
         config("RELATIVE_OCFL_STORAGE_DIRECTORY")
     )
 
@@ -185,7 +185,7 @@ def ocfl_staging_root() -> Path:
     atomic rename into ocfl_storage_root() -- a sibling on the same
     filesystem (required for os.rename() to be atomic), not watched by
     the sync tool."""
-    return Path(config("PRESERVATION_MOUNT_PARENT")).joinpath(
+    return Path(config("PRESERVATION_MOUNT_POINT")).joinpath(
         config("RELATIVE_OCFL_STAGING_DIRECTORY")
     )
 
@@ -537,14 +537,14 @@ def ocfl_object_root_path(inventory: dict) -> str:
 
 def ocfl_relative_storage_path(inventory: dict) -> str:
     """Return the OCFL object's storage path relative to
-    PRESERVATION_MOUNT_PARENT's own parent -- starting from
-    PRESERVATION_MOUNT_PARENT's final segment (the mounted volume name)
-    through the object root directory -- joined with "/". Used for the
+    PRESERVATION_MOUNT_POINT's own parent -- starting from the mounted
+    volume's own name through the object root directory -- joined with
+    "/". Used for the
     manifest note's label, which tells staff where the object lives on the
     NAS itself rather than behind the vault gateway."""
     return "/".join(
         (
-            Path(config("PRESERVATION_MOUNT_PARENT")).name,
+            Path(config("PRESERVATION_MOUNT_POINT")).name,
             config("RELATIVE_OCFL_STORAGE_DIRECTORY"),
             ocfl_object_root_path(inventory),
         )
@@ -553,7 +553,7 @@ def ocfl_relative_storage_path(inventory: dict) -> str:
 
 def build_inventory_manifest_note_label(inventory: dict) -> str:
     """Build the manifest note's label: the OCFL object's on-disk path
-    (mount parent's final segment, storage directory, tuple path, and
+    (mounted volume name, storage directory, tuple path, and
     object root directory name, joined by the fullwidth solidus for
     legibility), followed by the current head version."""
     segments = ocfl_relative_storage_path(inventory).split("/")
@@ -687,10 +687,10 @@ def validate_digital_files_for_preservation(validation_results: dict) -> None:
         staging_overhead_ratio = 1.05
         warning_free_floor_bytes = 20 * (1024**3)
         fail_free_floor_bytes = 5 * (1024**3)
-        preservation_mount = config("PRESERVATION_MOUNT_PARENT")
+        preservation_mount = config("PRESERVATION_MOUNT_POINT")
         free_bytes = shutil.disk_usage(preservation_mount).free
         logger.info(
-            f"💽 AVAILABLE DISK SPACE ON PRESERVATION_MOUNT_PARENT ({preservation_mount}): {free_bytes / (1024**3):.2f} GiB"
+            f"💽 AVAILABLE DISK SPACE ON PRESERVATION_MOUNT_POINT ({preservation_mount}): {free_bytes / (1024**3):.2f} GiB"
         )
 
         oversized_entries = []
