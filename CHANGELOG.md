@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - rename the `ABSOLUTE_MOUNT_PARENT` setting to `SOURCE_MOUNT_PARENT` (cascflow v5.0.0), which says which mount it is; every `settings.ini` needs the new key
 - rename `PRESERVATION_MOUNT_PARENT` to `PRESERVATION_MOUNT_POINT` -- it holds one mounted volume, not the parent of several, unlike `SOURCE_MOUNT_PARENT`
 - pin cascflow to v5.0.0, which also brings the `URL-Redirected` relabel of retired legacy `file_version`s and the `OCFL-Object-Root` sort-order entry
+- pin arkminter to v1.0.0, which declares its API stable without changing it
 - write one `file_version` per OCFL object, pointing at the object root in the vault gateway over HTTPS, so it is clickable for authenticated staff; it carries a new `"OCFL-Object-Root"` `use_statement`, which has to be added to the ArchivesSpace instance's enumeration before these records are accepted
 - replace the optional `PRESERVATION_NAS_HOSTNAME` setting with the required `PRESERVATION_VAULT_BASE_URL`
 

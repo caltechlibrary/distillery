@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-arkminter = { git = "https://github.com/caltechlibrary/arkminter", tag = "v0.2.1" }
+arkminter = { git = "https://github.com/caltechlibrary/arkminter", tag = "v1.0.0" }
 cascflow = { git = "https://github.com/caltechlibrary/cascflow", tag = "v5.0.0" }
 
 [dependency-groups]
