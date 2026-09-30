@@ -58,7 +58,7 @@ DISTILLERY_SETTINGS_SPEC = [
     {"key": "OUR_NAAN", "kind": "string"},
     {"key": "OUR_SHOULDER", "kind": "string", "required": False},
     {"key": "ARK_BLADE_LENGTH", "kind": "int", "required": False},
-    {"key": "ABSOLUTE_MOUNT_PARENT", "kind": "directory"},
+    {"key": "SOURCE_MOUNT_PARENT", "kind": "directory"},
     {"key": "RELATIVE_SOURCE_DIRECTORY", "kind": "string"},
     {"key": "RELATIVE_BATCH_DIRECTORY", "kind": "string"},
     {"key": "FILES_TO_REMOVE", "kind": "csv", "required": False},
