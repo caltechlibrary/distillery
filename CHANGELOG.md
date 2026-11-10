@@ -7,13 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-11-10
+
 ### Added
 
+- `LICENSE` (modified BSD 3-clause) and `codemeta.json`
 - `docs/decisions/`: the OCFL preservation design is now recorded as [ADRs](https://adr.github.io/madr/), following the convention Alchemist adopted; see [ADR 0001](docs/decisions/0001-record-architecture-decisions.md)
-
-### Removed
-
-- `OCFL-PRESERVATION-PLAN.md`: its decisions are carried into ADRs 0002-0006, its build log belongs to git history, and its two genuinely open questions are tracked as issues
 
 ### Changed
 
@@ -23,11 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - pin arkminter to v1.0.0, which declares its API stable without changing it
 - write one `file_version` per OCFL object, pointing at the object root in the vault gateway over HTTPS, so it is clickable for authenticated staff; it carries a new `"OCFL-Object-Root"` `use_statement`, which has to be added to the ArchivesSpace instance's enumeration before these records are accepted
 - replace the optional `PRESERVATION_NAS_HOSTNAME` setting with the required `PRESERVATION_VAULT_BASE_URL`
+- `README.md`, `CONFIGURATION.md`, and `DEVELOPMENT.md` describe installing, configuring, and running Distillery
 
 ### Removed
 
 - the resolver-bucket `inventory.json` upload and its `file_version` -- the gateway is the web-accessible view of the preservation system, so there is no public copy to maintain (`RESOLVER_BUCKET` remains, used only by ARK minting)
 - the `RESOLVER_CLOUDFRONT_DISTRIBUTION_ID` setting and the post-batch CloudFront invalidation, which existed only to evict cached `inventory.json` copies
+
+### Fixed
+
+- `--settings` help states the actual default, `settings.ini` next to `distillery.py`
 
 ### Security
 
@@ -147,7 +151,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - pin workflow dependencies
 - upgrade dependencies
 
-[Unreleased]: https://github.com/caltechlibrary/distillery/compare/v2.5.3...HEAD
+[Unreleased]: https://github.com/caltechlibrary/distillery/compare/v2.6.0...HEAD
+[2.6.0]: https://github.com/caltechlibrary/distillery/compare/v2.5.3...v2.6.0
 [2.5.3]: https://github.com/caltechlibrary/distillery/compare/v2.5.2...v2.5.3
 [2.5.2]: https://github.com/caltechlibrary/distillery/compare/v2.5.1...v2.5.2
 [2.5.1]: https://github.com/caltechlibrary/distillery/compare/v2.5.0...v2.5.1
