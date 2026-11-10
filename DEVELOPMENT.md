@@ -1,94 +1,169 @@
-# Development Workflow for Distillery and cascflow
+# Distillery Development Guide
 
-This guide helps you safely develop Distillery and cascflow together, avoiding version mismatches and common pitfalls.
+## Quick Start
 
-## Typical Use Case: Updating cascflow and Distillery Together
+### Prerequisites
 
-### 1. Make and Test Local Changes to cascflow
+- Python 3.13 or later
+- `uv` ([install](https://docs.astral.sh/uv/getting-started/installation/))
 
-- Edit code in your local `cascflow` repo.
-- Increment the version number in `cascflow/pyproject.toml` (e.g., bump patch or minor).
-- Commit your changes locally:
+### Set Up a Local Environment
 
-  ```sh
-  git add .
-  git commit -m "Bump version to X.Y.Z and update features"
-  ```
+```bash
+cd distillery
+uv sync --all-groups
+```
 
-### 2. Test Distillery Against Local cascflow
+`arkminter` and `cascflow` are not on PyPI. `[tool.uv.sources]` in
+`pyproject.toml` installs them from their GitHub repositories at a release
+tag.
 
-- In Distillery, point to your local editable cascflow:
+## Testing
 
-  ```sh
-  uv add --editable ../cascflow
-  ```
+```bash
+# Run all tests
+uv run pytest
 
-- Run all Distillery tests to verify compatibility:
+# Run with verbose output
+uv run pytest -v
 
-  ```sh
-  uv run pytest
-  ```
+# Run one test file
+uv run pytest tests/test_distillery_helpers.py -v
+```
 
-### 3. Tag and Publish a cascflow Release
+The tests replace ArchivesSpace and S3 calls with fakes and work in
+temporary directories, so they need no settings file or network access.
 
-- If all tests pass, create and push a version tag for cascflow (replace X.Y.Z with your version):
+## Code Quality
 
-  ```sh
-  git tag X.Y.Z
-  git push origin X.Y.Z
-  ```
+```bash
+# Check code with Ruff
+uv run ruff check .
 
-- (Recommended) Publish a GitHub Release for the tag (requires GitHub CLI):
+# Format code with Ruff
+uv run ruff format .
+```
 
-  ```sh
-  gh release create X.Y.Z --title "cascflow X.Y.Z" --notes "Release notes or changelog here."
-  ```
+## Dependency Management
 
-  Or, do this via the GitHub web UI: Go to your cascflow GitHub repo → Releases → Draft a new release → Choose the tag you just pushed.
+```bash
+# Update all dependencies (generates a new uv.lock)
+uv lock --upgrade
 
-This ensures Distillery can reference a specific, immutable version of cascflow.
+# Update one package
+uv lock --upgrade-package urllib3
 
-- (Optional but recommended) Create a GitHub Release for the tag:
-  - Go to your cascflow GitHub repo → Releases → Draft a new release → Choose the tag you just pushed.
+# Add a dependency
+uv add <package-name>
 
-This ensures Distillery can reference a specific, immutable version of cascflow.
+# Add a development dependency
+uv add --group dev <package-name>
+```
 
-### 4. Update Distillery's cascflow Dependency Version
+**Dependencies:**
 
-- Update Distillery to use the new cascflow release/tag:
+- `arkminter`: ARK minting
+- `cascflow`: the ArchivesSpace workflow library shared with Alchemist,
+  including the OCFL writer
+- `python-decouple`: configuration
 
-  ```sh
-  uv add git+https://github.com/caltechlibrary/cascflow@X.Y.Z
-  uv sync
-  ```
+**Development dependencies:**
 
-- Resulting `pyproject.toml` snippet:
+- `decouple-types`: type hints for python-decouple
+- `pytest`: tests
+- `ruff`: linting and formatting
 
-  ```toml
-  [tool.uv.sources]
-  cascflow = { git = "https://github.com/caltechlibrary/cascflow", rev = "X.Y.Z" }
-  ```
+### Developing Distillery with arkminter or cascflow
 
-### 5. Push and Release
+To work on `arkminter` or `cascflow` alongside Distillery, point
+`[tool.uv.sources]` at a local checkout:
 
-- Push your changes to the Distillery repo.
-- CI and production will now use the correct, released version.
+```toml
+[tool.uv.sources]
+arkminter = { path = "../arkminter", editable = true }
+cascflow = { path = "../cascflow", editable = true }
+```
 
-## Common Gotchas and Tips
+```bash
+uv sync --all-groups
+uv run pytest
+```
 
-- **Always bump the version in cascflow before using it in Distillery.**
-- **Always update the version in Distillery's `pyproject.toml` to match.**
-- **Always run `uv sync` after changing dependencies.**
-- **Never leave `[tool.uv.sources]` pointing to a local path when pushing to main or deploying.**
-- **If you see unexpected behavior, check which cascflow version is installed:**
+Changes in the sibling checkout are picked up without reinstalling. Before
+committing, release the sibling package, point `[tool.uv.sources]` back at
+its new tag, and lock again:
 
-  ```sh
-  uv pip show cascflow
-  ```
+```bash
+gh release list -R caltechlibrary/cascflow | head -5
+```
 
-## See Also
+```toml
+[tool.uv.sources]
+arkminter = { git = "https://github.com/caltechlibrary/arkminter", tag = "vX.Y.Z" }
+cascflow = { git = "https://github.com/caltechlibrary/cascflow", tag = "vX.Y.Z" }
+```
 
-- [uv documentation](https://github.com/astral-sh/uv)
-- [PEP 621 - pyproject.toml dependencies](https://peps.python.org/pep-0621/)
-- [Python packaging best practices](https://packaging.python.org/)
-- Note: `cascflow` is not available on PyPI; use a local path or the GitHub repository.
+```bash
+uv lock
+uv sync --all-groups
+uv run pytest
+```
+
+Never push `[tool.uv.sources]` pointing at a local path. To check which
+version is installed:
+
+```bash
+uv pip show cascflow
+```
+
+## Release & Versioning
+
+Distillery follows [Semantic Versioning](https://semver.org/), and the
+version lives in `pyproject.toml`. To release:
+
+1. Make sure the tests and Ruff pass.
+2. Move the `[Unreleased]` entries in `CHANGELOG.md` under a new version
+   heading, and update the compare links at the bottom.
+3. Set `version` in `pyproject.toml` and `codemeta.json`, then run `uv lock`.
+4. Commit and push to `main`.
+
+`tag-release.yml` tags `vX.Y.Z` when the version in `pyproject.toml`
+changes.
+
+## Running Distillery Locally
+
+```bash
+# Validate (requires settings.ini)
+uv run distillery.py validate --context <VOLUME>
+
+# Execute (requires settings.ini)
+uv run distillery.py execute --context <VOLUME>
+```
+
+See [CONFIGURATION.md](CONFIGURATION.md) for the settings file.
+
+## Architecture Decisions
+
+Decisions about the preservation storage are recorded as ADRs in
+[docs/decisions/](docs/decisions/); see
+[ADR 0001](docs/decisions/0001-record-architecture-decisions.md) for the
+conventions.
+
+## Continuous Integration
+
+`test.yml` runs the tests and Ruff on every push and pull request, and
+`tag-release.yml` tags a release when the version in `pyproject.toml`
+changes.
+
+## Troubleshooting
+
+### Import Errors with Local Packages
+
+```bash
+uv sync --all-groups --reinstall
+```
+
+### Settings File Not Found
+
+Make sure `settings.ini` exists next to `distillery.py`, or pass
+`--settings` with its path.

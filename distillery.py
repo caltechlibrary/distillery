@@ -21,7 +21,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument(
     "--settings",
     default=None,
-    help="Path to settings.ini file (optional). Defaults to working directory.",
+    help="Path to settings.ini file (optional). Defaults to settings.ini next to distillery.py.",
 )
 subparsers = parser.add_subparsers(dest="command", required=True)
 

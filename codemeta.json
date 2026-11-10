@@ -1,0 +1,79 @@
+{
+  "@context": "https://doi.org/10.5063/schema/codemeta-2.0",
+  "@type": "SoftwareSourceCode",
+  "name": "Distillery",
+  "identifier": "distillery",
+  "description": "Caltech Archives Digital Preservation System: validates digital files described in ArchivesSpace, writes them to preservation storage as OCFL objects, and records them in ArchivesSpace.",
+  "version": "2.6.0",
+  "dateCreated": "2020-10-05",
+  "author": [
+    {
+      "@type": "Person",
+      "givenName": "Tommy",
+      "familyName": "Keswick",
+      "affiliation": {
+        "@id": "https://ror.org/05dxps055",
+        "@type": "Organization",
+        "name": "California Institute of Technology Library"
+      },
+      "email": "tkeswick@caltech.edu",
+      "@id": "https://orcid.org/0000-0001-5644-440X"
+    }
+  ],
+  "maintainer": [
+    {
+      "@type": "Person",
+      "givenName": "Tommy",
+      "familyName": "Keswick",
+      "affiliation": {
+        "@id": "https://ror.org/05dxps055",
+        "@type": "Organization",
+        "name": "California Institute of Technology Library"
+      },
+      "email": "tkeswick@caltech.edu",
+      "@id": "https://orcid.org/0000-0001-5644-440X"
+    }
+  ],
+  "funder": {
+    "@id": "https://ror.org/05dxps055",
+    "@type": "Organization",
+    "name": "California Institute of Technology Library"
+  },
+  "copyrightHolder": [
+    {
+      "@id": "https://ror.org/05dxps055",
+      "@type": "Organization",
+      "name": "California Institute of Technology"
+    }
+  ],
+  "copyrightYear": 2026,
+  "license": "https://github.com/caltechlibrary/distillery/blob/main/LICENSE",
+  "isAccessibleForFree": true,
+  "url": "https://github.com/caltechlibrary/distillery",
+  "codeRepository": "https://github.com/caltechlibrary/distillery",
+  "readme": "https://github.com/caltechlibrary/distillery/blob/main/README.md",
+  "releaseNotes": "https://github.com/caltechlibrary/distillery/blob/main/CHANGELOG.md",
+  "issueTracker": "https://github.com/caltechlibrary/distillery/issues",
+  "downloadUrl": "https://github.com/caltechlibrary/distillery/archive/main.zip",
+  "programmingLanguage": [
+    {
+      "@type": "ComputerLanguage",
+      "name": "Python",
+      "version": "3.13"
+    }
+  ],
+  "softwareRequirements": [
+    "https://github.com/caltechlibrary/arkminter",
+    "https://github.com/caltechlibrary/cascflow",
+    "python-decouple"
+  ],
+  "keywords": [
+    "archives",
+    "ArchivesSpace",
+    "digital objects",
+    "digital preservation",
+    "OCFL",
+    "ARK"
+  ],
+  "developmentStatus": "active"
+}
