@@ -28,8 +28,17 @@ The machine that runs Distillery needs:
   for the files being preserved; the OCFL storage and staging directories
   must both be on it, so that versions can be moved into place atomically
 - network access to the ArchivesSpace API, to the S3 bucket that ARK minting
-  writes to, and to github.com for the `arkminter` and `cascflow`
+  writes to, and to github.com for the `arkminter`, `athanor`, and `cascflow`
   dependencies
+- for batches that contain video, ffmpeg and ffprobe with the FFV1 and FLAC
+  encoders, such as Homebrew’s `ffmpeg-full`, set as `FFMPEG_PATH` and
+  `FFPROBE_PATH`; Distillery uses them through
+  [Athanor](https://github.com/caltechlibrary/athanor) to replace each
+  uncompressed master with a verified FFV1 copy (see
+  [ADR 0007](docs/decisions/0007-replace-uncompressed-video-with-verified-ffv1.md)).
+  Keep one ffmpeg version for a collection: the stream hashes in each
+  `TRANSCODE.md` log are comparable only between the same or compatible
+  versions.
 
 `execute` creates the OCFL storage root on first use; `validate` reports a
 storage root that exists but does not conform.
@@ -44,4 +53,7 @@ records that use a value missing from the enumeration.
 ## Logging
 
 The `[loggers]`, `[handlers]`, and `[formatters]` sections configure logging.
-The example writes `distillery.log` to the current working directory.
+The example writes `distillery.log` to the current working directory. Each
+library Distillery uses logs under its own name (`cascflow`, `arkminter`, and
+`athanor`), and needs its own `[logger_*]` section for its messages to reach
+`distillery.log`.

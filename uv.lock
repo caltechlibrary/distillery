@@ -11,6 +11,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "athanor"
+version = "0.2.0"
+source = { git = "https://github.com/caltechlibrary/athanor?tag=v0.2.0#c2d0fdf83145991b6476c686e2208ca8dfa318cc" }
+
+[[package]]
 name = "backoff"
 version = "2.2.1"
 source = { registry = "https://pypi.org/simple" }
@@ -149,6 +154,7 @@ version = "2.6.0"
 source = { virtual = "." }
 dependencies = [
     { name = "arkminter" },
+    { name = "athanor" },
     { name = "cascflow" },
     { name = "python-decouple" },
 ]
@@ -163,6 +169,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "arkminter", git = "https://github.com/caltechlibrary/arkminter?tag=v1.0.0" },
+    { name = "athanor", git = "https://github.com/caltechlibrary/athanor?tag=v0.2.0" },
     { name = "cascflow", git = "https://github.com/caltechlibrary/cascflow?tag=v5.0.0" },
     { name = "python-decouple" },
 ]

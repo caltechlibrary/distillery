@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- transcode uncompressed video masters, such as v210, to lossless FFV1/MKV with [Athanor](https://github.com/caltechlibrary/athanor) v0.2.0, and preserve the verified MKV and its `TRANSCODE.md` log in place of the master and its `.md5` file; see [ADR 0007](docs/decisions/0007-replace-uncompressed-video-with-verified-ffv1.md)
+- `validate` lists each video that will be transcoded and each lossy video that will be preserved as it is, and stops for any video with something FFV1/MKV can’t hold
+- optional `FFMPEG_PATH` and `FFPROBE_PATH` settings; any batch with video needs `FFPROBE_PATH`, and one with an uncompressed master also needs `FFMPEG_PATH`
+- an `athanor` logger in `example-settings.ini`; add its `[logger_athanor]` section to each `settings.ini` so Athanor’s progress reaches `distillery.log`
+
+### Changed
+
+- `execute` transcodes an item’s videos before minting its ARK or changing anything in ArchivesSpace, so a failed transcode stops the batch with nothing half done
+
 ## [2.6.0] - 2026-11-10
 
 ### Added

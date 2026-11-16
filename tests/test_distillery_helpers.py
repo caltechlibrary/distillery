@@ -2,10 +2,13 @@ from pathlib import Path
 import hashlib
 import json
 import logging
+import shutil
+import subprocess
 
 import pytest
 
 import arkminter
+import athanor
 import cascflow
 import distillery
 
@@ -993,3 +996,269 @@ def test_mint_ark_for_archival_object_mints_and_sets_external_ark_url(monkeypatc
     assert mint_calls[0]["naan"] == "99999"
     assert mint_calls[0]["title"] == "Test AO"
     assert mint_calls[0]["s3_client"] is not None
+
+
+# Video transcoding with Athanor (ADR 0007)
+
+
+def make_video_config(mount_parent, **overrides):
+    values = {"FFMPEG_PATH": "/usr/bin/ffmpeg", "FFPROBE_PATH": "/usr/bin/ffprobe"}
+    values.update(overrides)
+    return make_preservation_mount_config(mount_parent, **values)
+
+
+def make_item(tmp_path):
+    """An item directory like a digitized film reel: a v210 master with its
+    saved MD5, an H.264 access copy, and the vendor’s XML."""
+    item = tmp_path / "source" / "aspace_1"
+    item.mkdir(parents=True)
+    paths = {
+        "master": item / "reel_prsv.mov",
+        "master_md5": item / "reel_prsv.mov.md5",
+        "access": item / "reel_access.mp4",
+        "xml": item / "reel_Metadata.xml",
+    }
+    for name, path in paths.items():
+        path.write_bytes(name.encode())
+    return paths
+
+
+def fake_assess(path, ffprobe=None):
+    if path.name.endswith("_prsv.mov"):
+        return athanor.Assessment(path, transcode=True)
+    return athanor.Assessment(path, transcode=False, reason="video is h264")
+
+
+def fake_transcode(path, output_dir, *, ffmpeg, ffprobe, assessment):
+    mkv, log = athanor.output_paths(path, output_dir)
+    mkv.write_bytes(b"ffv1")
+    log.write_text("# TRANSCODING LOG\n")
+    return athanor.Result(
+        source=path,
+        output=mkv,
+        log=log,
+        md5="0" * 32,
+        source_bytes=10,
+        output_bytes=4,
+        frame_counts=[1],
+        labeled_properties=[],
+    )
+
+
+def test_assess_videos_needs_no_ffprobe_without_video(tmp_path, monkeypatch):
+    monkeypatch.setattr(distillery, "config", make_preservation_mount_config(tmp_path))
+    paths = make_item(tmp_path)
+
+    assessments = distillery.assess_videos([paths["xml"], paths["master_md5"]])
+
+    assert assessments == {"transcode": [], "needs_review": [], "keep": []}
+
+
+def test_assess_videos_raises_when_ffprobe_is_not_set(tmp_path, monkeypatch):
+    monkeypatch.setattr(distillery, "config", make_preservation_mount_config(tmp_path))
+    paths = make_item(tmp_path)
+
+    with pytest.raises(RuntimeError, match="FFPROBE_PATH"):
+        distillery.assess_videos([paths["master"]])
+
+
+def test_assess_videos_sorts_videos_by_what_happens_to_them(tmp_path, monkeypatch):
+    monkeypatch.setattr(distillery, "config", make_video_config(tmp_path))
+    paths = make_item(tmp_path)
+    review = paths["master"].with_name("other_prsv.mov")
+    review.write_bytes(b"other")
+
+    def assess(path, ffprobe=None):
+        if path == review:
+            return athanor.Assessment(
+                path, transcode=True, problems=["data stream would be dropped"]
+            )
+        return fake_assess(path, ffprobe)
+
+    monkeypatch.setattr(athanor, "assess", assess)
+
+    assessments = distillery.assess_videos(list(paths.values()) + [review])
+
+    assert [a.path for a in assessments["transcode"]] == [paths["master"]]
+    assert [a.path for a in assessments["keep"]] == [paths["access"]]
+    assert [a.path for a in assessments["needs_review"]] == [review]
+
+
+def test_check_video_assessments_raises_for_review_problems(
+    tmp_path, monkeypatch, caplog
+):
+    monkeypatch.setattr(distillery, "config", make_video_config(tmp_path))
+    review = athanor.Assessment(
+        tmp_path / "reel_prsv.mov",
+        transcode=True,
+        problems=["data stream would be dropped"],
+    )
+
+    with caplog.at_level(logging.ERROR, logger="distillery"):
+        with pytest.raises(RuntimeError, match="NEED REVIEW"):
+            distillery.check_video_assessments(
+                {"transcode": [], "needs_review": [review], "keep": []}
+            )
+
+    assert "reel_prsv.mov: data stream would be dropped" in caplog.text
+
+
+def test_check_video_assessments_needs_ffmpeg_only_to_transcode(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        distillery, "config", make_video_config(tmp_path, FFMPEG_PATH=None)
+    )
+    master = athanor.Assessment(tmp_path / "reel_prsv.mov", transcode=True)
+    access = athanor.Assessment(tmp_path / "reel_access.mp4", transcode=False)
+
+    distillery.check_video_assessments(
+        {"transcode": [], "needs_review": [], "keep": [access]}
+    )
+    with pytest.raises(RuntimeError, match="FFMPEG_PATH"):
+        distillery.check_video_assessments(
+            {"transcode": [master], "needs_review": [], "keep": []}
+        )
+
+
+def test_validate_videos_for_preservation_logs_the_plan(tmp_path, monkeypatch, caplog):
+    monkeypatch.setattr(distillery, "config", make_video_config(tmp_path))
+    monkeypatch.setattr(athanor, "assess", fake_assess)
+    make_item(tmp_path)
+
+    with caplog.at_level(logging.INFO, logger="distillery"):
+        distillery.validate_videos_for_preservation(tmp_path / "source")
+
+    assert "TRANSCODE TO FFV1: aspace_1/reel_prsv.mov" in caplog.text
+    assert "PRESERVE AS IS: aspace_1/reel_access.mp4 (video is h264)" in caplog.text
+
+
+def test_transcoded_videos_replaces_the_master_and_its_md5(tmp_path, monkeypatch):
+    monkeypatch.setattr(distillery, "config", make_video_config(tmp_path))
+    monkeypatch.setattr(athanor, "assess", fake_assess)
+    monkeypatch.setattr(athanor, "transcode", fake_transcode)
+    paths = make_item(tmp_path)
+
+    with distillery.transcoded_videos(sorted(paths.values())) as preserved:
+        names = [path.name for path in preserved]
+        work_dir = preserved[0].parent if preserved[0].name == "reel_FFV1.mkv" else None
+        assert all(path.exists() for path in preserved)
+
+    assert names == [
+        "reel_FFV1.mkv",
+        "reel_Metadata.xml",
+        "reel_TRANSCODE.md",
+        "reel_access.mp4",
+    ]
+    assert work_dir is not None and work_dir.parent == distillery.ocfl_staging_root()
+    assert not work_dir.exists()
+    assert paths["master"].exists()
+
+
+def test_transcoded_videos_passes_files_through_without_uncompressed_video(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(distillery, "config", make_video_config(tmp_path))
+    monkeypatch.setattr(athanor, "assess", fake_assess)
+    paths = make_item(tmp_path)
+    filepaths = [paths["access"], paths["xml"]]
+
+    with distillery.transcoded_videos(filepaths) as preserved:
+        assert preserved == filepaths
+
+    assert not distillery.ocfl_staging_root().exists()
+
+
+def test_transcoded_videos_stops_on_a_failed_transcode(tmp_path, monkeypatch):
+    monkeypatch.setattr(distillery, "config", make_video_config(tmp_path))
+    monkeypatch.setattr(athanor, "assess", fake_assess)
+    paths = make_item(tmp_path)
+
+    def failing_transcode(path, output_dir, **kwargs):
+        athanor.output_paths(path, output_dir)[1].write_text("partial log")
+        raise athanor.VerificationFailed("frame count mismatch")
+
+    monkeypatch.setattr(athanor, "transcode", failing_transcode)
+
+    with pytest.raises(athanor.VerificationFailed):
+        with distillery.transcoded_videos(sorted(paths.values())):
+            pytest.fail("the batch should stop before preserving anything")
+
+    assert list(distillery.ocfl_staging_root().iterdir()) == []
+
+
+def test_transcoded_videos_refuses_to_overwrite_a_source_file_name(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(distillery, "config", make_video_config(tmp_path))
+    monkeypatch.setattr(athanor, "assess", fake_assess)
+    monkeypatch.setattr(athanor, "transcode", fake_transcode)
+    paths = make_item(tmp_path)
+    existing = paths["master"].with_name("reel_FFV1.mkv")
+    existing.write_bytes(b"already here")
+
+    with pytest.raises(RuntimeError, match="reel_FFV1.mkv"):
+        with distillery.transcoded_videos(sorted([*paths.values(), existing])):
+            pytest.fail("the batch should stop before preserving anything")
+
+
+FFMPEG = shutil.which("ffmpeg")
+FFPROBE = shutil.which("ffprobe")
+
+
+@pytest.mark.skipif(not (FFMPEG and FFPROBE), reason="needs ffmpeg and ffprobe")
+def test_transcoded_master_is_preserved_as_ffv1(tmp_path, monkeypatch):
+    """Athanor’s real transcode feeding the real OCFL writer."""
+    mount_parent = tmp_path / "mount"
+    monkeypatch.setattr(
+        distillery,
+        "config",
+        make_preservation_mount_config(
+            mount_parent, FFMPEG_PATH=FFMPEG, FFPROBE_PATH=FFPROBE
+        ),
+    )
+    item = tmp_path / "source" / "aspace_1"
+    item.mkdir(parents=True)
+    master = item / "reel_prsv.mov"
+    access = item / "reel_access.mp4"
+    for path, codec in ((master, "v210"), (access, "mpeg4")):
+        subprocess.run(
+            [
+                FFMPEG,
+                "-hide_banner",
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=size=720x486:rate=30000/1001:duration=0.2",
+                "-c:v",
+                codec,
+                path.as_posix(),
+            ],
+            check=True,
+        )
+    master_md5 = hashlib.md5(master.read_bytes()).hexdigest()
+    (item / "reel_prsv.mov.md5").write_text(f"{master_md5.upper()}  reel_prsv.mov\r\n")
+    (item / "reel_Metadata.xml").write_text("<MediaAsset/>")
+    archival_object = {
+        "component_id": "aspace_1",
+        "external_ark_url": "https://n2t.net/ark:99999/b3xq7z",
+    }
+
+    with distillery.transcoded_videos(sorted(item.iterdir())) as preserved:
+        inventory = distillery.write_ocfl_version(archival_object, preserved)
+
+    content = (
+        mount_parent / "ocfl-storage" / "b3x" / "q7z" / "b3xq7z" / "v0001" / "content"
+    )
+    assert sorted(path.name for path in content.iterdir()) == [
+        "_metadata-aspace_1.json",
+        "reel_FFV1.mkv",
+        "reel_Metadata.xml",
+        "reel_TRANSCODE.md",
+        "reel_access.mp4",
+    ]
+    mkv_md5 = hashlib.md5((content / "reel_FFV1.mkv").read_bytes()).hexdigest()
+    assert inventory["fixity"]["md5"][mkv_md5] == ["v0001/content/reel_FFV1.mkv"]
+    assert master_md5 in (content / "reel_TRANSCODE.md").read_text()
+    assert list((mount_parent / "ocfl-staging").iterdir()) == []
+    assert master.exists()

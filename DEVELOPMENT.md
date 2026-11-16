@@ -14,7 +14,7 @@ cd distillery
 uv sync --all-groups
 ```
 
-`arkminter` and `cascflow` are not on PyPI. `[tool.uv.sources]` in
+`arkminter`, `athanor`, and `cascflow` are not on PyPI. `[tool.uv.sources]` in
 `pyproject.toml` installs them from their GitHub repositories at a release
 tag.
 
@@ -31,8 +31,9 @@ uv run pytest -v
 uv run pytest tests/test_distillery_helpers.py -v
 ```
 
-The tests replace ArchivesSpace and S3 calls with fakes and work in
-temporary directories, so they need no settings file or network access.
+The tests replace ArchivesSpace, S3, and Athanor calls with fakes and work
+in temporary directories, so they need no settings file, network access, or
+ffmpeg.
 
 ## Code Quality
 
@@ -63,6 +64,7 @@ uv add --group dev <package-name>
 **Dependencies:**
 
 - `arkminter`: ARK minting
+- `athanor`: transcoding uncompressed video to verified FFV1
 - `cascflow`: the ArchivesSpace workflow library shared with Alchemist,
   including the OCFL writer
 - `python-decouple`: configuration
@@ -73,14 +75,15 @@ uv add --group dev <package-name>
 - `pytest`: tests
 - `ruff`: linting and formatting
 
-### Developing Distillery with arkminter or cascflow
+### Developing Distillery with arkminter, athanor, or cascflow
 
-To work on `arkminter` or `cascflow` alongside Distillery, point
+To work on `arkminter`, `athanor`, or `cascflow` alongside Distillery, point
 `[tool.uv.sources]` at a local checkout:
 
 ```toml
 [tool.uv.sources]
 arkminter = { path = "../arkminter", editable = true }
+athanor = { path = "../athanor", editable = true }
 cascflow = { path = "../cascflow", editable = true }
 ```
 
@@ -100,6 +103,7 @@ gh release list -R caltechlibrary/cascflow | head -5
 ```toml
 [tool.uv.sources]
 arkminter = { git = "https://github.com/caltechlibrary/arkminter", tag = "vX.Y.Z" }
+athanor = { git = "https://github.com/caltechlibrary/athanor", tag = "vX.Y.Z" }
 cascflow = { git = "https://github.com/caltechlibrary/cascflow", tag = "vX.Y.Z" }
 ```
 

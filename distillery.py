@@ -2,6 +2,7 @@
 # DIGITAL OBJECT PRESERVATION WORKFLOW
 
 import argparse
+import contextlib
 import datetime
 import hashlib
 import json
@@ -13,6 +14,7 @@ import tempfile
 from pathlib import Path
 from decouple import Config, Csv, RepositoryIni  # pypi: python-decouple
 
+import athanor
 import cascflow
 
 parser = argparse.ArgumentParser(
@@ -66,6 +68,9 @@ DISTILLERY_SETTINGS_SPEC = [
     {"key": "RELATIVE_OCFL_STORAGE_DIRECTORY", "kind": "string"},
     {"key": "RELATIVE_OCFL_STAGING_DIRECTORY", "kind": "string"},
     {"key": "PRESERVATION_VAULT_BASE_URL", "kind": "url"},
+    # needed only for batches that contain video (see ADR 0007)
+    {"key": "FFMPEG_PATH", "kind": "executable", "required": False},
+    {"key": "FFPROBE_PATH", "kind": "executable", "required": False},
 ]
 
 # OCFL Extension 0007 (N Tuple Omit Prefix Storage Layout) configuration.
@@ -794,6 +799,126 @@ def validate_digital_files_for_preservation(validation_results: dict) -> None:
         validate_available_storage_for_archival_objects(source_path)
 
 
+def assess_videos(filepaths: list) -> dict:
+    """Ask Athanor what to do with each video among filepaths (ADR 0007).
+
+    Returns lists of athanor.Assessment under "transcode" (uncompressed
+    video to replace with FFV1), "needs_review" (something would be lost in
+    FFV1/MKV), and "keep" (lossy video, preserved as it is).
+    """
+    assessments = {"transcode": [], "needs_review": [], "keep": []}
+    videos = [path for path in filepaths if path.suffix.lower() in athanor.VIDEO_EXTS]
+    if not videos:
+        return assessments
+    ffprobe = config("FFPROBE_PATH", default="")
+    if not ffprobe:
+        message = "❌ FFPROBE_PATH IS NOT SET; IT IS NEEDED TO CHECK VIDEO FILES"
+        logger.error(message)
+        raise RuntimeError(message)
+    for path in videos:
+        assessment = athanor.assess(path, ffprobe=ffprobe)
+        if not assessment.transcode:
+            assessments["keep"].append(assessment)
+        elif assessment.problems:
+            assessments["needs_review"].append(assessment)
+        else:
+            assessments["transcode"].append(assessment)
+    return assessments
+
+
+def check_video_assessments(assessments: dict) -> None:
+    """Raise when any video needs review, or when FFV1 transcoding is
+    needed but FFMPEG_PATH is not set."""
+    if assessments["needs_review"]:
+        message = "❌ VIDEO FILES NEED REVIEW BEFORE PRESERVATION"
+        logger.error(message)
+        for assessment in assessments["needs_review"]:
+            for problem in assessment.problems:
+                logger.error(f"❌ {assessment.path.name}: {problem}")
+        raise RuntimeError(message)
+    if assessments["transcode"] and not config("FFMPEG_PATH", default=""):
+        message = "❌ FFMPEG_PATH IS NOT SET; IT IS NEEDED TO TRANSCODE VIDEO FILES"
+        logger.error(message)
+        raise RuntimeError(message)
+
+
+def validate_videos_for_preservation(source_path: Path) -> None:
+    """Report what will happen to each video in the batch (ADR 0007).
+
+    Logged at INFO, so the plan appears in the validation comment that
+    archivists approve.
+    """
+    filepaths = sorted(path for path in source_path.rglob("*") if path.is_file())
+    assessments = assess_videos(filepaths)
+    for assessment in assessments["transcode"]:
+        size = assessment.path.stat().st_size / (1024**3)
+        logger.info(
+            f"🎞️ TRANSCODE TO FFV1: {assessment.path.relative_to(source_path)} ({size:.2f} GiB)"
+        )
+    for assessment in assessments["keep"]:
+        logger.info(
+            f"🎞️ PRESERVE AS IS: {assessment.path.relative_to(source_path)} ({assessment.reason})"
+        )
+    check_video_assessments(assessments)
+
+
+@contextlib.contextmanager
+def transcoded_videos(filepaths: list):
+    """Yield filepaths with each uncompressed video replaced by its verified
+    FFV1 MKV and TRANSCODE.md log (ADR 0007).
+
+    The video’s .md5 file is left out too: Athanor checks the video against
+    it and records both checksums in the log. Any failure raises, which stops
+    the batch before anything is written. The MKVs are built in a working
+    directory under ocfl_staging_root(), on the same volume the OCFL version
+    is copied to, and removed on exit.
+    """
+    assessments = assess_videos(filepaths)
+    check_video_assessments(assessments)
+    if not assessments["transcode"]:
+        yield filepaths
+        return
+
+    staging_root = ocfl_staging_root()
+    staging_root.mkdir(parents=True, exist_ok=True)
+    work_dir = Path(tempfile.mkdtemp(dir=staging_root))
+    try:
+        names = {path.name for path in filepaths}
+        replacements = {}
+        for assessment in assessments["transcode"]:
+            planned = athanor.output_paths(assessment.path, work_dir)
+            conflicts = sorted(path.name for path in planned if path.name in names)
+            if conflicts:
+                message = f"❌ TRANSCODED FILENAME ALREADY IN SOURCE FILES: {', '.join(conflicts)}"
+                logger.error(message)
+                raise RuntimeError(message)
+            logger.info(f"⏳ TRANSCODING TO FFV1: {assessment.path.name}")
+            result = athanor.transcode(
+                assessment.path,
+                work_dir,
+                ffmpeg=config("FFMPEG_PATH"),
+                ffprobe=config("FFPROBE_PATH"),
+                assessment=assessment,
+            )
+            logger.info(
+                f"☑️  TRANSCODED TO FFV1: {result.output.name} "
+                f"({result.source_bytes / (1024**3):.2f} GiB → {result.output_bytes / (1024**3):.2f} GiB)"
+            )
+            replacements[assessment.path] = [result.output, result.log]
+            names.update(path.name for path in replacements[assessment.path])
+
+        checksum_files = {path.with_name(f"{path.name}.md5") for path in replacements}
+        preserved = []
+        for path in filepaths:
+            if path in replacements:
+                preserved.extend(replacements[path])
+            elif path not in checksum_files:
+                preserved.append(path)
+        yield sorted(preserved, key=lambda path: path.name)
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+
 def main():
     global args, config, logger
     args = parser.parse_args()
@@ -821,6 +946,7 @@ def main():
         validate_ocfl_storage_root()
         validation_results = cascflow.validate_digital_files(args.context)
         validate_digital_files_for_preservation(validation_results)
+        validate_videos_for_preservation(validation_results["source_path"])
     elif args.command == "execute":
         initialize_ocfl_storage_root()
         batch_set_id = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
@@ -831,18 +957,6 @@ def main():
             archival_object,
             arrangement,
         ) in cascflow.execute(args.context, batch_set_id, "preservation"):
-            # Mint ARK (or skip if already exists); this also sets external_ark_url
-            # on archival_object -- must happen before ensure_digital_object(),
-            # since a newly-created digital_object's id is derived from the ARK
-            mint_ark_for_archival_object(archival_object)
-            # NOTE returned archival_object will include any created digital_object instance
-            digital_object_uri, archival_object = ensure_digital_object(archival_object)
-            # POST archival_object back to ArchivesSpace to persist external_ark_url if it was set
-            if archival_object.get("external_ark_url"):
-                cascflow.archivesspace_post(archival_object["uri"], archival_object)
-                logger.debug(
-                    f"☑️  ARCHIVAL OBJECT UPDATED WITH external_ark_url: {archival_object['uri']}"
-                )
             files_to_remove = config("FILES_TO_REMOVE", default="", cast=Csv())
             if not isinstance(files_to_remove, list):
                 files_to_remove = []
@@ -854,11 +968,28 @@ def main():
                 ),
                 key=lambda filepath: filepath.name,
             )
-            logger.debug(f"🐞 PRESERVATION FILEPATHS: {preservation_filepaths}")
-            if preservation_filepaths:
-                process_archival_object_preservation_files(
-                    archival_object, digital_object_uri, preservation_filepaths
+            # transcode before changing anything in ArchivesSpace, so a
+            # failed transcode stops the batch with nothing half done
+            with transcoded_videos(preservation_filepaths) as preservation_filepaths:
+                logger.debug(f"🐞 PRESERVATION FILEPATHS: {preservation_filepaths}")
+                # Mint ARK (or skip if already exists); this also sets external_ark_url
+                # on archival_object -- must happen before ensure_digital_object(),
+                # since a newly-created digital_object’s id is derived from the ARK
+                mint_ark_for_archival_object(archival_object)
+                # NOTE returned archival_object will include any created digital_object instance
+                digital_object_uri, archival_object = ensure_digital_object(
+                    archival_object
                 )
+                # POST archival_object back to ArchivesSpace to persist external_ark_url if it was set
+                if archival_object.get("external_ark_url"):
+                    cascflow.archivesspace_post(archival_object["uri"], archival_object)
+                    logger.debug(
+                        f"☑️  ARCHIVAL OBJECT UPDATED WITH external_ark_url: {archival_object['uri']}"
+                    )
+                if preservation_filepaths:
+                    process_archival_object_preservation_files(
+                        archival_object, digital_object_uri, preservation_filepaths
+                    )
             cascflow.move_to_stage_3(stage_2_path_obj, batch_directory)
     else:
         parser.print_help()

@@ -64,6 +64,7 @@
   ],
   "softwareRequirements": [
     "https://github.com/caltechlibrary/arkminter",
+    "https://github.com/caltechlibrary/athanor",
     "https://github.com/caltechlibrary/cascflow",
     "python-decouple"
   ],

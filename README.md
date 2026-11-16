@@ -19,8 +19,10 @@ uv run distillery.py execute --help
 
 `validate` checks the settings, the OCFL storage root, and the source files
 on the mounted volume named by `--context`, and reports what `execute` would
-preserve. `execute` mints any missing ARKs, writes a new OCFL version for each
-archival object, and updates ArchivesSpace.
+preserve, including which videos will be transcoded. `execute` replaces each
+uncompressed video master with a verified FFV1 copy, mints any missing ARKs,
+writes a new OCFL version for each archival object, and updates
+ArchivesSpace.
 
 The design decisions behind the preservation storage are recorded in
 [docs/decisions/](docs/decisions/).
