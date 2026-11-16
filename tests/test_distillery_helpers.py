@@ -1008,18 +1008,21 @@ def make_video_config(mount_parent, **overrides):
 
 
 def make_item(tmp_path):
-    """An item directory like a digitized film reel: a v210 master with its
-    saved MD5, an H.264 access copy, and the vendor’s XML."""
+    """An item directory like a digitized film reel: a v210 master and an
+    H.264 access copy, each with its saved MD5, and the vendor’s XML."""
     item = tmp_path / "source" / "aspace_1"
     item.mkdir(parents=True)
     paths = {
         "master": item / "reel_prsv.mov",
         "master_md5": item / "reel_prsv.mov.md5",
         "access": item / "reel_access.mp4",
+        "access_md5": item / "reel_access.mp4.md5",
         "xml": item / "reel_Metadata.xml",
     }
     for name, path in paths.items():
         path.write_bytes(name.encode())
+    access_md5 = hashlib.md5(b"access").hexdigest().upper()
+    paths["access_md5"].write_text(f"{access_md5}  reel_access.mp4\r\n")
     return paths
 
 
@@ -1131,7 +1134,9 @@ def test_validate_videos_for_preservation_logs_the_plan(tmp_path, monkeypatch, c
     assert "PRESERVE AS IS: aspace_1/reel_access.mp4 (video is h264)" in caplog.text
 
 
-def test_transcoded_videos_replaces_the_master_and_its_md5(tmp_path, monkeypatch):
+def test_transcoded_videos_replaces_the_master_and_drops_md5_files(
+    tmp_path, monkeypatch
+):
     monkeypatch.setattr(distillery, "config", make_video_config(tmp_path))
     monkeypatch.setattr(athanor, "assess", fake_assess)
     monkeypatch.setattr(athanor, "transcode", fake_transcode)
@@ -1159,11 +1164,33 @@ def test_transcoded_videos_passes_files_through_without_uncompressed_video(
     monkeypatch.setattr(distillery, "config", make_video_config(tmp_path))
     monkeypatch.setattr(athanor, "assess", fake_assess)
     paths = make_item(tmp_path)
-    filepaths = [paths["access"], paths["xml"]]
+    filepaths = [paths["access"], paths["access_md5"], paths["xml"]]
 
     with distillery.transcoded_videos(filepaths) as preserved:
-        assert preserved == filepaths
+        assert preserved == [paths["access"], paths["xml"]]
 
+    assert not distillery.ocfl_staging_root().exists()
+
+
+def test_transcoded_videos_stops_when_a_kept_video_does_not_match_its_md5(
+    tmp_path, monkeypatch, caplog
+):
+    monkeypatch.setattr(distillery, "config", make_video_config(tmp_path))
+    monkeypatch.setattr(athanor, "assess", fake_assess)
+
+    def transcode(*args, **kwargs):
+        pytest.fail("a bad checksum should stop the batch before transcoding")
+
+    monkeypatch.setattr(athanor, "transcode", transcode)
+    paths = make_item(tmp_path)
+    paths["access_md5"].write_text(f"{'0' * 32}  reel_access.mp4\n")
+
+    with caplog.at_level(logging.ERROR, logger="distillery"):
+        with pytest.raises(RuntimeError, match="MD5 FILE MISMATCH: reel_access.mp4"):
+            with distillery.transcoded_videos(sorted(paths.values())):
+                pytest.fail("the batch should stop before preserving anything")
+
+    assert hashlib.md5(b"access").hexdigest() in caplog.text
     assert not distillery.ocfl_staging_root().exists()
 
 
@@ -1238,6 +1265,8 @@ def test_transcoded_master_is_preserved_as_ffv1(tmp_path, monkeypatch):
         )
     master_md5 = hashlib.md5(master.read_bytes()).hexdigest()
     (item / "reel_prsv.mov.md5").write_text(f"{master_md5.upper()}  reel_prsv.mov\r\n")
+    access_md5 = hashlib.md5(access.read_bytes()).hexdigest()
+    (item / "reel_access.mp4.md5").write_text(f"{access_md5}  reel_access.mp4\n")
     (item / "reel_Metadata.xml").write_text("<MediaAsset/>")
     archival_object = {
         "component_id": "aspace_1",
@@ -1259,6 +1288,7 @@ def test_transcoded_master_is_preserved_as_ffv1(tmp_path, monkeypatch):
     ]
     mkv_md5 = hashlib.md5((content / "reel_FFV1.mkv").read_bytes()).hexdigest()
     assert inventory["fixity"]["md5"][mkv_md5] == ["v0001/content/reel_FFV1.mkv"]
+    assert inventory["fixity"]["md5"][access_md5] == ["v0001/content/reel_access.mp4"]
     assert master_md5 in (content / "reel_TRANSCODE.md").read_text()
     assert list((mount_parent / "ocfl-staging").iterdir()) == []
     assert master.exists()

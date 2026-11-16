@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `execute` leaves out the `.md5` file of each video preserved as it is, such as an access copy, after checking the video against it, since the inventory’s fixity block and the vendor’s XML carry the same MD5; a mismatch stops the batch
+
 ## [2.7.0] - 2026-11-16
 
 ### Added

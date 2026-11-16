@@ -37,6 +37,10 @@ master.**
   count, and significant video properties. The OCFL version holds the MKV
   and its log; the master and its `.md5` file are left out, and both
   checksums are recorded in the log.
+- A lossy video preserved as it is, such as an access copy, is checked
+  against its `.md5` file, which is then left out too. The inventory’s
+  fixity block carries the same MD5, and so does the vendor’s XML where
+  there is one, so the separate file adds nothing.
 - Any failure stops the batch, as other Distillery errors do. The item stays
   in `STAGE_2_WORKING` and nothing is written for it.
 - The master itself is not deleted: it moves with the rest of the item to
@@ -82,7 +86,8 @@ reserves.
 ## More Information
 
 - `distillery.py`: `assess_videos()`, `check_video_assessments()`,
-  `validate_videos_for_preservation()`, and `transcoded_videos()`.
+  `validate_videos_for_preservation()`, `verified_checksum_files()`, and
+  `transcoded_videos()`.
 - Athanor’s `assess()` and `transcode()`.
 - ADR 0004: the MKV’s MD5 is carried in the inventory’s fixity block like
   any other file’s.

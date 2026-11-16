@@ -862,21 +862,51 @@ def validate_videos_for_preservation(source_path: Path) -> None:
     check_video_assessments(assessments)
 
 
+def verified_checksum_files(videos: list, filepaths: list) -> set:
+    """Check each video against its saved <video>.md5 file among filepaths,
+    and return the checksum files that matched.
+
+    A mismatch raises, which stops the batch before anything is written.
+    """
+    present = set(filepaths)
+    checksum_files = set()
+    for video in videos:
+        checksum_file = video.with_name(f"{video.name}.md5")
+        if checksum_file not in present:
+            continue
+        saved = checksum_file.read_text(errors="replace").split()
+        calculated = chunk_hashes(video, ("md5",))["md5"]
+        if not saved or saved[0].lower() != calculated:
+            message = f"❌ MD5 FILE MISMATCH: {video.name}"
+            logger.error(message)
+            logger.error(f"❌ {video.name}: {calculated}")
+            logger.error(f"❌ {checksum_file.name}: {saved[0] if saved else '(empty)'}")
+            raise RuntimeError(message)
+        logger.debug(f"✅ MD5 FILE MATCH: {video.name}")
+        checksum_files.add(checksum_file)
+    return checksum_files
+
+
 @contextlib.contextmanager
 def transcoded_videos(filepaths: list):
     """Yield filepaths with each uncompressed video replaced by its verified
-    FFV1 MKV and TRANSCODE.md log (ADR 0007).
+    FFV1 MKV and TRANSCODE.md log (ADR 0007), and with every video’s .md5
+    file left out.
 
-    The video’s .md5 file is left out too: Athanor checks the video against
-    it and records both checksums in the log. Any failure raises, which stops
-    the batch before anything is written. The MKVs are built in a working
-    directory under ocfl_staging_root(), on the same volume the OCFL version
-    is copied to, and removed on exit.
+    Athanor checks each transcoded video against its .md5 file and records
+    both checksums in the log; each video preserved as it is gets checked
+    here, and the inventory’s fixity block carries its MD5 from then on. Any
+    failure raises, which stops the batch before anything is written. The
+    MKVs are built in a working directory under ocfl_staging_root(), on the
+    same volume the OCFL version is copied to, and removed on exit.
     """
     assessments = assess_videos(filepaths)
     check_video_assessments(assessments)
+    checksum_files = verified_checksum_files(
+        [assessment.path for assessment in assessments["keep"]], filepaths
+    )
     if not assessments["transcode"]:
-        yield filepaths
+        yield [path for path in filepaths if path not in checksum_files]
         return
 
     staging_root = ocfl_staging_root()
@@ -907,7 +937,7 @@ def transcoded_videos(filepaths: list):
             replacements[assessment.path] = [result.output, result.log]
             names.update(path.name for path in replacements[assessment.path])
 
-        checksum_files = {path.with_name(f"{path.name}.md5") for path in replacements}
+        checksum_files |= {path.with_name(f"{path.name}.md5") for path in replacements}
         preserved = []
         for path in filepaths:
             if path in replacements:
