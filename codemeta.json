@@ -4,7 +4,7 @@
   "name": "Distillery",
   "identifier": "distillery",
   "description": "Caltech Archives Digital Preservation System: validates digital files described in ArchivesSpace, writes them to preservation storage as OCFL objects, and records them in ArchivesSpace.",
-  "version": "2.7.0",
+  "version": "2.7.1",
   "dateCreated": "2020-10-05",
   "author": [
     {

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.1] - 2026-11-16
+
 ### Changed
 
 - `execute` leaves out the `.md5` file of each video preserved as it is, such as an access copy, after checking the video against it, since the inventory’s fixity block and the vendor’s XML carry the same MD5; a mismatch stops the batch
@@ -168,7 +170,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - pin workflow dependencies
 - upgrade dependencies
 
-[Unreleased]: https://github.com/caltechlibrary/distillery/compare/v2.7.0...HEAD
+[Unreleased]: https://github.com/caltechlibrary/distillery/compare/v2.7.1...HEAD
+[2.7.1]: https://github.com/caltechlibrary/distillery/compare/v2.7.0...v2.7.1
 [2.7.0]: https://github.com/caltechlibrary/distillery/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/caltechlibrary/distillery/compare/v2.5.3...v2.6.0
 [2.5.3]: https://github.com/caltechlibrary/distillery/compare/v2.5.2...v2.5.3
