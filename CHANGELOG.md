@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-11-16
+
 ### Added
 
 - transcode uncompressed video masters, such as v210, to lossless FFV1/MKV with [Athanor](https://github.com/caltechlibrary/athanor) v0.2.0, and preserve the verified MKV and its `TRANSCODE.md` log in place of the master and its `.md5` file; see [ADR 0007](docs/decisions/0007-replace-uncompressed-video-with-verified-ffv1.md)
@@ -162,7 +164,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - pin workflow dependencies
 - upgrade dependencies
 
-[Unreleased]: https://github.com/caltechlibrary/distillery/compare/v2.6.0...HEAD
+[Unreleased]: https://github.com/caltechlibrary/distillery/compare/v2.7.0...HEAD
+[2.7.0]: https://github.com/caltechlibrary/distillery/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/caltechlibrary/distillery/compare/v2.5.3...v2.6.0
 [2.5.3]: https://github.com/caltechlibrary/distillery/compare/v2.5.2...v2.5.3
 [2.5.2]: https://github.com/caltechlibrary/distillery/compare/v2.5.1...v2.5.2
