@@ -145,9 +145,10 @@ def mint_ark_for_archival_object(archival_object: dict) -> str | None:
 
 def ensure_digital_object(archival_object):
     """Ensure a digital object exists for the archival object."""
-    digital_object_count = len(
-        [i for i in archival_object["instances"] if "digital_object" in i.keys()]
-    )
+    digital_object_instances = [
+        i for i in archival_object["instances"] if "digital_object" in i
+    ]
+    digital_object_count = len(digital_object_instances)
     logger.debug(f"🐞 DIGITAL OBJECT COUNT: {digital_object_count}")
     if digital_object_count > 1:
         raise ValueError(
@@ -160,7 +161,7 @@ def ensure_digital_object(archival_object):
             archival_object
         )
     else:
-        digital_object_uri = archival_object["instances"][0]["digital_object"]["ref"]
+        digital_object_uri = digital_object_instances[0]["digital_object"]["ref"]
 
     # returns new archival_object with digital_object instance included
     return digital_object_uri, archival_object

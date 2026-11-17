@@ -888,6 +888,23 @@ def test_ensure_digital_object_returns_existing_when_one_exists():
     assert returned_archival_object == archival_object
 
 
+def test_ensure_digital_object_finds_existing_after_other_instances():
+    archival_object = {
+        "component_id": "aspace_1",
+        "instances": [
+            {"instance_type": "mixed_materials", "sub_container": {}},
+            {"digital_object": {"ref": "/digital_objects/99"}},
+        ],
+    }
+
+    digital_object_uri, returned_archival_object = distillery.ensure_digital_object(
+        archival_object
+    )
+
+    assert digital_object_uri == "/digital_objects/99"
+    assert returned_archival_object == archival_object
+
+
 def test_ensure_digital_object_raises_when_multiple_exist():
     archival_object = {
         "component_id": "aspace_1",
