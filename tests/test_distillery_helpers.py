@@ -58,6 +58,7 @@ def make_preservation_mount_config(mount_parent, **overrides):
         "PRESERVATION_MOUNT_POINT": str(mount_parent),
         "RELATIVE_OCFL_STORAGE_DIRECTORY": "ocfl-storage",
         "RELATIVE_OCFL_STAGING_DIRECTORY": "ocfl-staging",
+        "PRESERVATION_VAULT_BASE_URL": "https://vault.example.edu",
     }
     values.update(overrides)
     return lambda key, **kwargs: values.get(key, kwargs.get("default"))
@@ -432,6 +433,32 @@ def test_write_ocfl_version_writes_content_and_inventory(tmp_path, monkeypatch):
     assert (object_root / "inventory.json").exists()
     # the temporary staging directory used internally is cleaned up
     assert list((mount_parent / "ocfl-staging").iterdir()) == []
+
+
+def test_write_ocfl_version_logs_vault_url_of_object_root(
+    tmp_path, monkeypatch, caplog
+):
+    mount_parent = tmp_path / "mount"
+    monkeypatch.setattr(
+        distillery, "config", make_preservation_mount_config(mount_parent)
+    )
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    filepath = source_dir / "photo.tif"
+    filepath.write_bytes(b"photo-bytes")
+    archival_object = {
+        "component_id": "aspace_1",
+        "external_ark_url": "https://n2t.net/ark:99999/b3xq7z",
+    }
+
+    with caplog.at_level(logging.INFO, logger=distillery.logger.name):
+        distillery.write_ocfl_version(archival_object, [filepath])
+
+    assert (
+        "OCFL VERSION WRITTEN: v0001 → https://vault.example.edu/b3x/q7z/b3xq7z/"
+        in caplog.text
+    )
+    assert str(mount_parent) not in caplog.text
 
 
 def test_write_ocfl_version_writes_ark_compact_name_as_inventory_id(

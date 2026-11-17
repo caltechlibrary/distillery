@@ -490,7 +490,9 @@ def write_ocfl_version(archival_object: dict, filepaths: list) -> dict:
         raise
 
     write_current_ocfl_inventory(object_root, inventory, staging_root)
-    logger.info(f"☑️  OCFL VERSION WRITTEN: {object_root}/{version_id}")
+    logger.info(
+        f"☑️  OCFL VERSION WRITTEN: {version_id} → {vault_object_root_url(inventory)}"
+    )
     return inventory
 
 
@@ -500,18 +502,24 @@ def write_ocfl_version(archival_object: dict, filepaths: list) -> dict:
 OCFL_OBJECT_ROOT_USE_STATEMENT = "OCFL-Object-Root"
 
 
+def vault_object_root_url(inventory: dict) -> str:
+    """Return the HTTPS URL of this object's OCFL object root in the vault
+    gateway, which serves the preservation storage root to authenticated
+    staff, so archivists can click through to it from the staff UI and the
+    GitHub issue log. PRESERVATION_VAULT_BASE_URL is the gateway's root,
+    under which the tuple path resolves directly; the trailing slash asks
+    for the directory listing without a redirect."""
+    return (
+        f"{config('PRESERVATION_VAULT_BASE_URL').rstrip('/')}/"
+        f"{ocfl_object_root_path(inventory)}/"
+    )
+
+
 def construct_vault_file_version(inventory: dict) -> dict:
     """Build the ArchivesSpace file_version pointing at this object's OCFL
-    object root in the vault gateway, which serves the preservation
-    storage root over HTTPS to authenticated staff, so the link is clickable
-    from the staff UI. PRESERVATION_VAULT_BASE_URL
-    is the gateway's root, under which the tuple path resolves directly;
-    the trailing slash asks for the directory listing without a redirect."""
+    object root in the vault gateway."""
     return {
-        "file_uri": (
-            f"{config('PRESERVATION_VAULT_BASE_URL').rstrip('/')}/"
-            f"{ocfl_object_root_path(inventory)}/"
-        ),
+        "file_uri": vault_object_root_url(inventory),
         "use_statement": OCFL_OBJECT_ROOT_USE_STATEMENT,
         "publish": False,
     }
