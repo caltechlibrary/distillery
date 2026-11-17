@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.2] - 2026-11-16
+
+### Fixed
+
+- `execute` finds an archival object’s existing digital object when another instance, such as a box or folder, comes before it, instead of stopping with `KeyError: 'digital_object'`
+
 ## [2.7.1] - 2026-11-16
 
 ### Changed
@@ -170,7 +176,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - pin workflow dependencies
 - upgrade dependencies
 
-[Unreleased]: https://github.com/caltechlibrary/distillery/compare/v2.7.1...HEAD
+[Unreleased]: https://github.com/caltechlibrary/distillery/compare/v2.7.2...HEAD
+[2.7.2]: https://github.com/caltechlibrary/distillery/compare/v2.7.1...v2.7.2
 [2.7.1]: https://github.com/caltechlibrary/distillery/compare/v2.7.0...v2.7.1
 [2.7.0]: https://github.com/caltechlibrary/distillery/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/caltechlibrary/distillery/compare/v2.5.3...v2.6.0
