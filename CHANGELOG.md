@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.4] - 2026-11-18
+
+### Fixed
+
+- saving the `OCFL-Object-Root` file version no longer unpublishes Alchemist’s thumbnail, `Persistent-URL`, and `Web-Access` file versions on the same digital object, which left the public UI without a thumbnail (cascflow v5.1.0)
+
 ## [2.7.3] - 2026-11-16
 
 ### Changed
