@@ -54,14 +54,23 @@ serializations for two consumers, not one fact duplicated for no reason.
 ### The `file_version`
 
 `publish: False`, and its `use_statement` names what its `file_uri` targets:
-`"OCFL-Object-Root"` for the object root, `"OCFL-Object-Inventory"` for an
-`inventory.json` copy (planned for the eventual S3 entry, written by the
-not-yet-built sync-audit tool, only after it verifies NAS↔S3 sync).
+`"OCFL-Object-Root"` for the object root in the vault gateway (the NAS copy),
+which Distillery writes.
+
+The S3 copy gets its own entry, `"OCFL-Object-Inventory"`, which assayer
+writes only after it verifies that a version’s files reached S3. Its
+`file_uri` is that version’s own `inventory.json` (for example
+`s3://…/v0003/inventory.json`), so a person can compare the version it names
+with the note’s “latest” label. assayer keeps one such entry per
+`digital_object` and overwrites it when it confirms a newer version; until
+then, the entry names the last version confirmed in S3.
 
 Ordering and the merge semantics are cascflow's, via
 `save_digital_object_file_versions()` — see Alchemist's ADR 0002, which
 documents them from the other side, since both pipelines write to the same
-`digital_object`s.
+`digital_object`s. assayer writes its entry directly instead, so the merge’s
+keep-and-demote rule doesn’t accumulate one S3 entry per version, and orders
+the list with cascflow’s `sort_file_versions()`.
 
 ## Considered Options
 
@@ -71,8 +80,9 @@ documents them from the other side, since both pipelines write to the same
   current state becomes something the reader has to reconstruct.
 - **The note alone, or the `file_version` alone.** Rejected: different
   audiences, as above.
-- **A second `file_version` pointing at `inventory.json` alongside the object
-  root one.** Rejected: derivable by stripping a path segment.
+- **A second `file_version` for the NAS copy, pointing at its
+  `inventory.json` alongside the object root one.** Rejected: derivable by
+  stripping a path segment.
 
 ## Consequences
 
@@ -85,7 +95,7 @@ predates the addition.
 
 ArchivesSpace's backend accepts non-`http(s)` `file_uri` values — verified by
 POSTing and deleting real `file://` and `s3://` test records against a live
-instance — so the planned `s3://` entry needs no workaround.
+instance — so the `s3://` entry needs no workaround.
 
 The functions that built the old records (`save_digital_object_component_record`,
 `construct_digital_object_component`, `create_digital_object_component`,
